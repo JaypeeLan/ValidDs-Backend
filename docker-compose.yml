@@ -1,0 +1,54 @@
+version: '3.8'
+
+# Local development environment.
+# Runs MongoDB and Redis locally so you don't need Atlas/Upstash for dev.
+#
+# Usage:
+#   docker-compose up -d        # start in background
+#   docker-compose down         # stop and remove containers
+#   docker-compose down -v      # stop and remove containers + volumes (wipes data)
+#
+# When using this for local dev, update your .env:
+#   MONGODB_URI=mongodb://localhost:27017/validds
+#   REDIS_URL=redis://localhost:6379
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: validds-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: validds
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: validds-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  # Optional: Mongo Express UI for inspecting the database
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: validds-mongo-express
+    ports:
+      - '8081:8081'
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
+      ME_CONFIG_BASICAUTH: false
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    profiles:
+      - tools   # Only starts with: docker-compose --profile tools up
+
+volumes:
+  mongo_data:
+  redis_data:

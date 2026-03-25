@@ -44,6 +44,24 @@ const envSchema = z.object({
     (val) => (val === '' ? undefined : val),
     z.string().url().optional()
   ),
+  TIKTOK_CLIENT_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  TIKTOK_CLIENT_SECRET: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+
+  // Resend (email)
+  RESEND_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  RESEND_FROM: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
 
   // Fallbacks
   FALLBACK_A_API_KEY: z.string().optional(),

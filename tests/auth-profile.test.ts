@@ -205,14 +205,12 @@ describe('Auth + Profile', () => {
       baseUrl,
       method: 'POST',
       path: '/api/v1/auth/register',
-      body: { email, password, name: 'Local User' },
+      body: { email },
     });
 
-    expect(registerRes.status).toBe(201);
+    expect(registerRes.status).toBe(200);
     expect((registerRes.json as any).success).toBe(true);
-    const token = (registerRes.json as any).data.token as string;
-    expect(typeof token).toBe('string');
-    expect((registerRes.json as any).data.emailVerification.required).toBe(true);
+    expect((registerRes.json as any).data.sent).toBe(true);
 
     const lastEmail = sentEmails[sentEmails.length - 1];
     const verificationCode = lastEmail ? extractSixDigitCode(lastEmail.html) : null;
@@ -222,11 +220,13 @@ describe('Auth + Profile', () => {
       baseUrl,
       method: 'POST',
       path: '/api/v1/auth/email/verify-code',
-      body: { email, code: verificationCode },
+      body: { email, code: verificationCode, password, name: 'Local User' },
     });
     expect(verifyRes.status).toBe(200);
     expect((verifyRes.json as any).success).toBe(true);
     expect((verifyRes.json as any).data.user.email).toBe(email);
+    const token = (verifyRes.json as any).data.token as string;
+    expect(typeof token).toBe('string');
 
     const sendCodeRes = await httpJson({
       baseUrl,
@@ -270,9 +270,21 @@ describe('Auth + Profile', () => {
       baseUrl,
       method: 'POST',
       path: '/api/v1/auth/register',
-      body: { email, password: originalPassword, name: 'Reset User' },
+      body: { email },
     });
-    expect(registerRes.status).toBe(201);
+    expect(registerRes.status).toBe(200);
+
+    const lastEmail = sentEmails[sentEmails.length - 1];
+    const verificationCode = lastEmail ? extractSixDigitCode(lastEmail.html) : null;
+    expect(verificationCode).not.toBeNull();
+
+    const verifyRes = await httpJson({
+      baseUrl,
+      method: 'POST',
+      path: '/api/v1/auth/email/verify-code',
+      body: { email, code: verificationCode, password: originalPassword, name: 'Reset User' },
+    });
+    expect(verifyRes.status).toBe(200);
 
     const forgotRes = await httpJson({
       baseUrl,

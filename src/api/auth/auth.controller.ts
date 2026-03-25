@@ -11,7 +11,7 @@ const log = logger.child({ module: 'auth-controller' });
  * Handles:
  *  GET  /auth/google              → redirect to Google consent screen
  *  GET  /auth/google/callback     → handle Google OAuth callback
- *  POST /auth/register            → local email + password registration
+ *  POST /auth/register            → start email registration (sends verification code)
  *  POST /auth/login               → local email + password sign-in
  *  GET  /auth/me                  → return current authenticated user
  *  POST /auth/logout              → client-side token invalidation (stateless)
@@ -78,35 +78,13 @@ export const AuthController = {
 
   /**
    * POST /auth/register
-   * Body: { email, password, name }
+   * Body: { email }
    */
   async register(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { email, password, name } = req.body as Record<string, string>;
-      const { user, token, isNewUser } = await AuthService.localRegister(email, password, name, req.ip);
-
-      log.info('User registered', { userId: user.id });
-
-      let verificationSent = false;
-      try {
-        await AuthService.sendEmailVerificationCode(user.id);
-        verificationSent = true;
-      } catch (err) {
-        log.warn('Failed to send verification code', { userId: user.id, err: String(err) });
-      }
-
-      res.status(201).json({
-        success: true,
-        data: {
-          token,
-          user: user.toJSON(),
-          isNewUser,
-          emailVerification: {
-            required: true,
-            sent: verificationSent,
-          },
-        },
-      });
+      const { email } = req.body as Record<string, string>;
+      const { isNewUser } = await AuthService.startEmailRegistration(email);
+      res.status(200).json({ success: true, data: { sent: true, isNewUser } });
     } catch (err) {
       next(err);
     }
@@ -206,9 +184,15 @@ export const AuthController = {
 
   async verifyEmailCode(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { email, code } = req.body as Record<string, string>;
-      const user = await AuthService.verifyEmailCode(email, code);
-      res.json({ success: true, data: { user: user.toJSON() } });
+      const { email, code, password, name } = req.body as Record<string, string>;
+      const { user, token, isNewUser } = await AuthService.completeEmailRegistration(
+        email,
+        code,
+        password,
+        name,
+        req.ip
+      );
+      res.json({ success: true, data: { token, user: user.toJSON(), isNewUser } });
     } catch (err) {
       next(err);
     }

@@ -9,7 +9,7 @@
       "name": "Auth",
       "item": [
         {
-          "name": "Register (Email + Password)",
+          "name": "Register (Email)",
           "request": {
             "method": "POST",
             "header": [
@@ -22,32 +22,18 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"local.user@example.com\",\n  \"password\": \"Password1\",\n  \"name\": \"Local User\"\n}"
+              "raw": "{\n  \"email\": \"local.user@example.com\"\n}"
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const res = pm.response.json();",
-                  "if (res?.success && res?.data?.token) {",
-                  "  pm.environment.set('token', res.data.token);",
-                  "}"
-                ]
-              }
-            }
-          ],
           "response": [
             {
-              "name": "201 Created",
+              "name": "200 OK",
               "originalRequest": {},
-              "status": "Created",
-              "code": 201,
+              "status": "OK",
+              "code": 200,
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"token\": \"<jwt>\",\n    \"user\": {\n      \"id\": \"<userId>\",\n      \"email\": \"local.user@example.com\",\n      \"name\": \"Local User\"\n    },\n    \"isNewUser\": true,\n    \"emailVerification\": {\n      \"required\": true,\n      \"sent\": true\n    }\n  }\n}"
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"sent\": true,\n    \"isNewUser\": true\n  }\n}"
             }
           ]
         },
@@ -225,9 +211,23 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"local.user@example.com\",\n  \"code\": \"123456\"\n}"
+              "raw": "{\n  \"email\": \"local.user@example.com\",\n  \"code\": \"123456\",\n  \"password\": \"Password1\",\n  \"name\": \"Local User\"\n}"
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res?.success && res?.data?.token) {",
+                  "  pm.environment.set('token', res.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Forgot Password",
@@ -311,4 +311,3 @@
     { "key": "token", "value": "" }
   ]
 }
-

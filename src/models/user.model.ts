@@ -40,7 +40,7 @@ export interface ITikTokAuth {
 }
 
 export interface ILocalAuth {
-  passwordHash: string;
+  passwordHash?: string;
   passwordResetToken?: string;
   passwordResetExpiresAt?: Date;
   emailVerified: boolean;
@@ -143,17 +143,17 @@ export interface IUserModel extends Model<IUserDocument> {
 // ── Plan limits ───────────────────────────────────────────────────────────────
 
 export const PLAN_LIMITS: Record<UserPlan, { productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
-  free:  { productsPerDay: 10,  searchesPerDay: 5,   savedProductsMax: 10  },
-  pro:   { productsPerDay: 500, searchesPerDay: 200,  savedProductsMax: 500 },
-  team:  { productsPerDay: -1,  searchesPerDay: -1,   savedProductsMax: -1  }, // -1 = unlimited
+  free: { productsPerDay: 10, searchesPerDay: 5, savedProductsMax: 10 },
+  pro: { productsPerDay: 500, searchesPerDay: 200, savedProductsMax: 500 },
+  team: { productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 }, // -1 = unlimited
 };
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
 const GoogleAuthSchema = new Schema<IGoogleAuth>(
   {
-    googleId:      { type: String, required: true },
-    refreshToken:  { type: String, select: false },  // Never returned by default
+    googleId: { type: String, required: true },
+    refreshToken: { type: String, select: false },  // Never returned by default
     tokenExpiresAt: { type: Date },
   },
   { _id: false }
@@ -161,7 +161,7 @@ const GoogleAuthSchema = new Schema<IGoogleAuth>(
 
 const TikTokAuthSchema = new Schema<ITikTokAuth>(
   {
-    openId:  { type: String, required: true },
+    openId: { type: String, required: true },
     unionId: { type: String },
   },
   { _id: false }
@@ -169,11 +169,11 @@ const TikTokAuthSchema = new Schema<ITikTokAuth>(
 
 const LocalAuthSchema = new Schema<ILocalAuth>(
   {
-    passwordHash:             { type: String, required: true, select: false },
-    passwordResetToken:       { type: String, select: false },
-    passwordResetExpiresAt:   { type: Date },
-    emailVerified:            { type: Boolean, default: false },
-    emailVerificationToken:   { type: String, select: false },
+    passwordHash: { type: String, select: false },
+    passwordResetToken: { type: String, select: false },
+    passwordResetExpiresAt: { type: Date },
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationToken: { type: String, select: false },
     emailVerificationCodeHash: { type: String, select: false },
     emailVerificationExpiresAt: { type: Date, select: false },
   },
@@ -182,12 +182,12 @@ const LocalAuthSchema = new Schema<ILocalAuth>(
 
 const UsageStatsSchema = new Schema<IUsageStats>(
   {
-    productsViewedToday:  { type: Number, default: 0 },
-    productsViewedTotal:  { type: Number, default: 0 },
-    searchesToday:        { type: Number, default: 0 },
-    searchesTotal:        { type: Number, default: 0 },
-    lastActivityAt:       { type: Date, default: Date.now },
-    usageResetAt:         { type: Date, default: Date.now },
+    productsViewedToday: { type: Number, default: 0 },
+    productsViewedTotal: { type: Number, default: 0 },
+    searchesToday: { type: Number, default: 0 },
+    searchesTotal: { type: Number, default: 0 },
+    lastActivityAt: { type: Date, default: Date.now },
+    usageResetAt: { type: Date, default: Date.now },
   },
   { _id: false }
 );
@@ -195,18 +195,18 @@ const UsageStatsSchema = new Schema<IUsageStats>(
 const SavedProductSchema = new Schema<ISavedProduct>(
   {
     productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
-    savedAt:   { type: Date, default: Date.now },
-    notes:     { type: String, maxlength: 500 },
-    tags:      [{ type: String, maxlength: 50 }],
+    savedAt: { type: Date, default: Date.now },
+    notes: { type: String, maxlength: 500 },
+    tags: [{ type: String, maxlength: 50 }],
   },
   { _id: true }
 );
 
 const SearchHistorySchema = new Schema<ISearchHistoryEntry>(
   {
-    query:       { type: String, required: true, maxlength: 200 },
-    filters:     { type: Schema.Types.Mixed },
-    searchedAt:  { type: Date, default: Date.now },
+    query: { type: String, required: true, maxlength: 200 },
+    filters: { type: Schema.Types.Mixed },
+    searchedAt: { type: Date, default: Date.now },
     resultCount: { type: Number },
   },
   { _id: false }
@@ -214,9 +214,9 @@ const SearchHistorySchema = new Schema<ISearchHistoryEntry>(
 
 const NotificationPrefsSchema = new Schema<INotificationPrefs>(
   {
-    emailOnNewTrend:          { type: Boolean, default: true },
+    emailOnNewTrend: { type: Boolean, default: true },
     emailOnSavedProductUpdate: { type: Boolean, default: true },
-    emailMarketing:           { type: Boolean, default: false },
+    emailMarketing: { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -224,10 +224,10 @@ const NotificationPrefsSchema = new Schema<INotificationPrefs>(
 const UserSchema = new Schema<IUserDocument, IUserModel>(
   {
     // Identity
-    email:     { type: String, required: true, unique: true, lowercase: true, trim: true },
-    name:      { type: String, required: true, trim: true, maxlength: 100 },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    name: { type: String, required: true, trim: true, maxlength: 100 },
     firstName: { type: String, trim: true, maxlength: 50 },
-    lastName:  { type: String, trim: true, maxlength: 50 },
+    lastName: { type: String, trim: true, maxlength: 50 },
     avatarUrl: { type: String },
 
     // Auth
@@ -238,7 +238,7 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     },
     googleAuth: { type: GoogleAuthSchema },
     tiktokAuth: { type: TikTokAuthSchema },
-    localAuth:  { type: LocalAuthSchema },
+    localAuth: { type: LocalAuthSchema },
 
     // Role & plan
     role: {
@@ -275,15 +275,15 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
 
     // Preferences
     notifications: { type: NotificationPrefsSchema, default: () => ({}) },
-    timezone:      { type: String, default: 'UTC' },
-    locale:        { type: String, default: 'en' },
+    timezone: { type: String, default: 'UTC' },
+    locale: { type: String, default: 'en' },
 
     // Account status
-    status:       { type: String, enum: ['active', 'suspended', 'deleted'] as UserStatus[], default: 'active' },
-    lastLoginAt:  { type: Date },
-    lastLoginIp:  { type: String },
-    loginCount:   { type: Number, default: 0 },
-    deletedAt:    { type: Date },
+    status: { type: String, enum: ['active', 'suspended', 'deleted'] as UserStatus[], default: 'active' },
+    lastLoginAt: { type: Date },
+    lastLoginIp: { type: String },
+    loginCount: { type: Number, default: 0 },
+    deletedAt: { type: Date },
   },
   {
     timestamps: true,

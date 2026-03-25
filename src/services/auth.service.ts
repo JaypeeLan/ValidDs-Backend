@@ -357,6 +357,85 @@ export const AuthService = {
 
   // ── Local auth ──────────────────────────────────────────────────────────────
 
+  async startEmailRegistration(email: string): Promise<{ isNewUser: boolean }> {
+    const normalizedEmail = email.toLowerCase();
+    let user = await User.findByEmail(normalizedEmail);
+    let isNewUser = false;
+
+    if (user) {
+      if (user.authProvider !== 'local') {
+        throw new AppError(409, 'An account with this email already exists', 'EMAIL_IN_USE');
+      }
+      if (!user.localAuth) {
+        user.localAuth = { emailVerified: false };
+        await user.save();
+      }
+    } else {
+      user = new User({
+        email: normalizedEmail,
+        name: deriveNameFromEmail(normalizedEmail),
+        authProvider: 'local' as AuthProvider,
+        localAuth: {
+          emailVerified: false,
+        },
+        loginCount: 0,
+      });
+      await user.save();
+      isNewUser = true;
+    }
+
+    await AuthService.sendEmailVerificationCode(user.id);
+    return { isNewUser };
+  },
+
+  async completeEmailRegistration(
+    email: string,
+    code: string,
+    password: string,
+    name?: string,
+    ip?: string
+  ): Promise<AuthResult> {
+    const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
+      '+localAuth.emailVerificationCodeHash +localAuth.emailVerificationExpiresAt'
+    );
+
+    if (!user || user.authProvider !== 'local' || !user.localAuth) {
+      throw new AppError(400, 'Invalid verification code', 'INVALID_CODE');
+    }
+
+    const expiresAt = user.localAuth.emailVerificationExpiresAt;
+    const codeHash = user.localAuth.emailVerificationCodeHash;
+    if (!expiresAt || !codeHash) {
+      throw new AppError(400, 'Invalid verification code', 'INVALID_CODE');
+    }
+    if (expiresAt.getTime() < Date.now()) {
+      throw new AppError(400, 'Verification code expired', 'CODE_EXPIRED');
+    }
+    if (!timingSafeEqualHex(codeHash, hashToken(code))) {
+      throw new AppError(400, 'Invalid verification code', 'INVALID_CODE');
+    }
+
+    AuthService.validatePassword(password);
+    user.localAuth.passwordHash = await hashPassword(password);
+    user.localAuth.emailVerified = true;
+    user.localAuth.emailVerificationCodeHash = undefined;
+    user.localAuth.emailVerificationExpiresAt = undefined;
+
+    if (name) {
+      user.name = name;
+    }
+
+    const isNewUser = (user.loginCount ?? 0) === 0;
+    user.lastLoginAt = new Date();
+    user.lastLoginIp = ip;
+    user.loginCount = (user.loginCount ?? 0) + 1;
+
+    await user.save();
+
+    const token = AuthService.issueToken(user);
+    return { user, token, isNewUser };
+  },
+
   /**
    * Register with email and password.
    */
@@ -435,7 +514,6 @@ export const AuthService = {
     const { code, hash, expiresAt } = createVerificationCode();
     user.localAuth.emailVerificationCodeHash = hash;
     user.localAuth.emailVerificationExpiresAt = expiresAt;
-    user.localAuth.emailVerified = false;
     await user.save();
 
     await EmailService.sendEmail({
@@ -443,35 +521,6 @@ export const AuthService = {
       subject: 'Your verification code',
       html: `<p>Your verification code is <strong>${code}</strong>.</p><p>This code expires in 10 minutes.</p>`,
     });
-  },
-
-  async verifyEmailCode(email: string, code: string): Promise<IUserDocument> {
-    const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
-      '+localAuth.emailVerificationCodeHash +localAuth.emailVerificationExpiresAt'
-    );
-
-    if (!user || user.authProvider !== 'local' || !user.localAuth) {
-      throw new AppError(400, 'Invalid verification code', 'INVALID_CODE');
-    }
-
-    const expiresAt = user.localAuth.emailVerificationExpiresAt;
-    const codeHash = user.localAuth.emailVerificationCodeHash;
-    if (!expiresAt || !codeHash) {
-      throw new AppError(400, 'Invalid verification code', 'INVALID_CODE');
-    }
-    if (expiresAt.getTime() < Date.now()) {
-      throw new AppError(400, 'Verification code expired', 'CODE_EXPIRED');
-    }
-    if (!timingSafeEqualHex(codeHash, hashToken(code))) {
-      throw new AppError(400, 'Invalid verification code', 'INVALID_CODE');
-    }
-
-    user.localAuth.emailVerified = true;
-    user.localAuth.emailVerificationCodeHash = undefined;
-    user.localAuth.emailVerificationExpiresAt = undefined;
-    await user.save();
-
-    return user;
   },
 
   async requestPasswordReset(email: string): Promise<void> {
@@ -610,4 +659,11 @@ function createVerificationCode(): { code: string; hash: string; expiresAt: Date
     hash: hashToken(code),
     expiresAt: new Date(Date.now() + 10 * 60 * 1000),
   };
+}
+
+function deriveNameFromEmail(email: string): string {
+  const local = email.split('@')[0] ?? 'User';
+  const base = local.replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+  const words = base ? base.split(/\s+/) : ['User'];
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ').slice(0, 100) || 'User';
 }

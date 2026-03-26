@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: validds-backend
+    env: node
+    plan: free
+    region: ohio
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: PORT
+        value: 3000
+      - key: APP_NAME
+        value: validds-backend
+      - key: API_VERSION
+        value: v1
+      - key: LOG_PRETTY
+        value: false

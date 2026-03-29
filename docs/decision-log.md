@@ -137,3 +137,26 @@ The `jsonwebtoken` npm package is 3+ years without a major update and has had hi
 TikTok data acquisition is the highest-risk component of the system. A single source that breaks takes down the whole product. The orchestrator pattern means: primary fails → fallback A → fallback B → alert, without any manual intervention. Each source is independently testable. New sources can be added without touching the orchestrator logic.
 
 **What might change:** Sources will be confirmed and filled in during Week 1–2 of the engagement.
+
+---
+
+## DL-010 — Auth: Email-first registration with verification code
+
+**Date:** 2026-03-27  
+**Decision:** Registration starts with email only. The backend sends a one-time verification code. The user completes registration by submitting code + password.
+
+**Reasoning:**
+- Prevents account creation with typos (email must be reachable)
+- Improves security by proving email ownership before enabling password login
+- Fits the product onboarding flow (minimal friction up front)
+
+---
+
+## DL-011 — Social auth: Google ID token + TikTok OAuth code exchange
+
+**Date:** 2026-03-27  
+**Decision:** Support Google sign-in via ID token verification and TikTok sign-in via OAuth code exchange + user info lookup.
+
+**Reasoning:**
+- Google: frontend can obtain an ID token and exchange it directly with the API for a session
+- TikTok: OAuth code exchange is the standard flow to obtain access token and fetch user profile

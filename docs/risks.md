@@ -1,6 +1,6 @@
 # Known Risks and Open Issues
 
-Last updated: 2026-03-23
+Last updated: 2026-03-27
 
 ---
 
@@ -114,7 +114,6 @@ The following items are known gaps that are deferred to post-V1:
 
 | Item | Reason deferred |
 |---|---|
-| User authentication / accounts | Not needed for V1 data API |
 | Multi-region deployment | V1 is single-region only |
 | Automated database backups | Requires paid Atlas tier |
 | Static outbound IP | Requires paid Render tier |

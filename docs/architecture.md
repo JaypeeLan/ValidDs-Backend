@@ -22,18 +22,35 @@ The system is designed for V1 speed of delivery while remaining structurally cle
 │  Helmet → CORS → Body Parser → Request Logger →               │
 │  Rate Limiter → Sanitizer → Routes → Error Handler            │
 │                                                                │
-│  Routes: /api/v1/auth  /profile                               │
-│          /health  /ready                                      │
-└───────┬───────────────────────┬────────────────────────────────┘
+│  Routes: /api/v1/auth  /profile  /products                    │
+│          /health  /ready  /metrics                            │
+└───────┬───────────────────────┬───────────────────────────────┘
         │                       │
 ┌───────▼──────┐     ┌──────────▼─────────────────────────────┐
 │  Redis       │     │  MongoDB Atlas                          │
 │  (Upstash)   │     │                                         │
 │              │     │  Collections:                           │
-│  - Cache     │     │  users                                  │
+│  - Cache     │     │  users  products  ingestion_logs        │
 │  - Rate      │     │                                         │
 │    limiting  │     └──────────────────────────────────────────┘
 └──────────────┘
+        │
+┌───────▼────────────────────────────────────────────────────────┐
+│                   Data Ingestion Pipeline                      │
+│                                                                │
+│  TikTok Creative Center (RapidAPI)  →  Orchestrator           │
+│    ├─ Top ads (/api/trending/ads)                            │
+│    ├─ Trending videos (/api/trending/video)                  │
+│    ├─ Trending hashtags (/api/trending/hashtag)              │
+│    └─ Keyword trends (/api/trending/keyword)                 │
+│                                                                │
+│  Product Extraction (Multi-Provider AI with Fallback):       │
+│    1. DeepSeek API (primary, lowest cost)                    │
+│    2. Anthropic Claude (fallback)                            │
+│    3. OpenAI GPT-4o-mini (fallback)                          │
+│                                                                │
+│  Freshness Tracking  →  MongoDB  →  Cache invalidation       │
+└────────────────────────────────────────────────────────────────┘
         │
 ┌───────▼─────────────────────────────────────────────────────┐
 │                   Observability                              │
@@ -63,6 +80,79 @@ Redis-backed cache sitting between the service layer and the database. All cache
 
 ### Freshness Layer (`src/freshness/`)
 Tracks when each entity type was last successfully updated. Adds freshness metadata to API responses so the frontend can show "last updated X minutes ago". Triggers alerts if data exceeds its staleness threshold.
+
+### Data Ingestion Pipeline (`src/ingestion/`)
+Orchestrates data collection from TikTok via RapidAPI and triggers AI-powered product extraction.
+
+**Sources:**
+- **TikTok Creative Center (RapidAPI)**: Primary data source collecting trending ads, videos, hashtags, and keyword trends
+  - Endpoint: `https://tiktok-creative-center-api.p.rapidapi.com/api/trending/{ads|video|hashtag|keyword}`
+  - Handles nested response structures with flexible fallback parsing (`data?.data?.materials ?? data?.data?.videos ?? data?.data?.list`)
+  - Requires: `RAPIDAPI_KEY` environment variable
+
+**Product Extraction (Multi-Provider AI):**
+The extraction layer uses a provider fallback chain to minimize costs while maintaining availability. If a provider's API key is missing, the system automatically falls back to the next provider.
+
+1. **DeepSeek API** (primary, lowest cost ~$0.10/1M tokens)
+   - Environment variable: `DEEPSEEK_API_KEY`
+   - Model: `deepseek-chat`
+   - Format: OpenAI-compatible chat completion
+
+2. **Anthropic Claude** (fallback, higher cost ~$3/1M input tokens)
+   - Environment variable: `ANTHROPIC_API_KEY`
+   - Model: `claude-3-5-sonnet-20241022`
+   - Format: Anthropic-specific message format
+
+3. **OpenAI GPT-4o-mini** (fallback, highest cost ~$0.15/1M input tokens)
+   - Environment variable: `OPENAI_API_KEY`
+   - Model: `gpt-4o-mini`
+   - Format: OpenAI chat completion
+
+**Fallback Behavior:**
+```
+Request → Check if DEEPSEEK_API_KEY exists
+        ├─ Yes → Call DeepSeek
+        │       └─ Success → return extraction
+        │       └─ Failure → try next provider
+        └─ No  → Check if ANTHROPIC_API_KEY exists
+                ├─ Yes → Call Anthropic
+                │       └─ Success → return extraction
+                │       └─ Failure → try next provider
+                └─ No  → Check if OPENAI_API_KEY exists
+                        ├─ Yes → Call OpenAI
+                        │       └─ Success → return extraction
+                        │       └─ Failure → log error, skip post
+                        └─ No  → Skip post (no AI available)
+```
+
+**Cost Optimization:**
+By prioritizing DeepSeek, the system reduces extraction costs from ~$3/post (OpenAI) to ~$0.10/post (DeepSeek) while maintaining a fallback chain. At 40 posts/day, this saves ~$86/day in AI costs.
+
+**Implementation:** `src/services/product.extractor.ts` contains the `callProvider()` method and PROVIDERS array with the fallback chain logic.
+
+---
+
+## API Response Format
+
+All success responses follow a standardized format for improved frontend consistency and clarity.
+
+**Response Structure:**
+```json
+{
+  "success": true,
+  "message": "Product retrieved",
+  "statusCode": 200,
+  "data": { /* endpoint-specific data */ }
+}
+```
+
+**Message Types** (defined in `src/utils/response.util.ts`):
+- Authentication: `REGISTRATION_STARTED`, `LOGIN_SUCCESS`, `LOGOUT_SUCCESS`
+- Profile: `PROFILE_RETRIEVED`, `PROFILE_UPDATED`
+- Products: `PRODUCTS_RETRIEVED`, `PRODUCT_RETRIEVED`, `PRODUCT_CREATED`, `PRODUCT_UPDATED`, `PRODUCT_DELETED`
+- System: `HEALTH_OK`, `SUCCESS`, `CREATED`, `UPDATED`, `DELETED`
+
+**Implementation:** Controllers use the `successResponse<T>(data, message, statusCode)` helper from `response.util.ts` to wrap all success responses. This centralizes message management and ensures consistent response structure across all endpoints.
 
 ---
 

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getMongoStatus } from '../../db/client';
 import { getRedisStatus } from '../../cache/redis.client';
 import { env } from '../../config/env.validation';
+import { ResponseMessage, successResponse } from '../../utils/response.util';
 
 /**
  * Health check endpoints.
@@ -31,11 +32,12 @@ interface HealthResponse {
 }
 
 export async function livenessHandler(_req: Request, res: Response): Promise<void> {
-  res.status(200).json({
+  const response = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-  } satisfies Partial<HealthResponse>);
+  } satisfies Partial<HealthResponse>;
+  res.status(200).json(successResponse(response, ResponseMessage.HEALTH_OK, 200));
 }
 
 export async function readinessHandler(_req: Request, res: Response): Promise<void> {
@@ -66,5 +68,5 @@ export async function readinessHandler(_req: Request, res: Response): Promise<vo
     services,
   };
 
-  res.status(httpStatus).json(response);
+  res.status(httpStatus).json(successResponse(response, ResponseMessage.HEALTH_OK, httpStatus));
 }

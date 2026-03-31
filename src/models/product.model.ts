@@ -1,20 +1,11 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 
-/**
- * Product Model
- *
- * Core entity for ValidDs. Represents a TikTok-discoverable dropshippable product.
- *
- * Data comes from ingestion layer (TikTok API / fallback sources).
- * Fields are designed to support:
- *  - Product feed (list view with quick stats)
- *  - Product detail (full validation signals)
- *  - Filtering and sorting by trend, engagement, freshness
- */
-
 export type ProductStatus = 'active' | 'archived' | 'stale';
-export type TrendDirection = 'rising' | 'stable' | 'falling' | 'unknown';
+export type TrendDirection = 'rising' | 'peaked' | 'saturating' | 'unknown';
 export type SourceabilityStatus = 'verified' | 'likely' | 'unverified' | 'unavailable';
+export type AdStatus = 'active' | 'inactive' | 'unknown';
+
+// ── Sub-document interfaces ───────────────────────────────────────────────────
 
 export interface IProductVideo {
   videoId: string;
@@ -32,17 +23,43 @@ export interface IProductVideo {
 
 export interface IProductTrend {
   direction: TrendDirection;
-  score: number;                   // 0–100 composite trend score
-  velocityScore: number;           // Rate of change in engagement
+  score: number;
+  velocityScore: number;
   peakViewsLast7d: number;
   totalVideosLast7d: number;
   totalVideosLast30d: number;
-  categoryRank?: number;           // Rank within its category
+  categoryRank?: number;
   calculatedAt: Date;
 }
 
+/**
+ * AI extraction metadata.
+ * Populated by the product extractor (Claude API).
+ */
+export interface IAIExtraction {
+  confidence: number;              // 0–100 — how confident the AI is
+  trendReason?: string;            // e.g. "High comment-to-view ratio"
+  sentimentSummary?: string;       // e.g. "Users asking where to buy, positive tone"
+  buyingIntentScore?: number;      // 0–100
+  isProductVideo: boolean;         // false = video isn't really about a product
+  extractedAt: Date;
+}
+
+/**
+ * Ad signal metadata from Creative Center.
+ * Only populated for posts sourced from top-ads endpoints.
+ */
+export interface IAdSignals {
+  isAd: boolean;
+  firstSeenAt?: Date;              // when the ad first appeared
+  lastSeenAt?: Date;               // when the ad was last detected — freshness signal
+  status: AdStatus;
+  landingPage?: string;
+  industry?: string;
+}
+
 export interface ISupplierRef {
-  platform: string;                // 'aliexpress' | 'cj' | 'zendrop' | 'other'
+  platform: string;
   url?: string;
   price?: number;
   currency?: string;
@@ -55,14 +72,17 @@ export interface IStoreRef {
   tiktokShopId?: string;
   storeName?: string;
   storeUrl?: string;
+  shopifyUrl?: string;             // populated when Shopify integration is added
   productCount?: number;
   totalSales?: number;
 }
 
+// ── Main interface ────────────────────────────────────────────────────────────
+
 export interface IProduct {
   // Identity
-  externalId: string;              // ID from source (TikTok product ID)
-  source: string;                  // 'tiktok' | 'fallback-a' | 'fallback-b'
+  externalId: string;
+  source: string;
   title: string;
   description?: string;
   category?: string;
@@ -80,31 +100,35 @@ export interface IProduct {
   currency?: string;
   estimatedMargin?: number;
 
-  // Engagement signals (aggregated across videos)
+  // Engagement
   totalViews: number;
   totalLikes: number;
   totalComments: number;
   totalShares: number;
   totalVideos: number;
-  engagementRate?: number;         // (likes + comments + shares) / views
+  engagementRate?: number;
 
-  // Top videos featuring this product
+  // Videos
   topVideos: IProductVideo[];
 
-  // Trend data
+  // Trend
   trend: IProductTrend;
 
-  // Sourceability (can you actually sell this?)
+  // AI extraction metadata
+  aiExtraction?: IAIExtraction;
+
+  // Ad signals (Creative Center)
+  adSignals?: IAdSignals;
+
+  // Sourceability
   sourceabilityStatus: SourceabilityStatus;
   suppliers: ISupplierRef[];
-
-  // Store / competitor data
   stores: IStoreRef[];
 
   // Freshness
   status: ProductStatus;
-  dataSourceUpdatedAt: Date;       // When the source last updated this product
-  lastIngestedAt: Date;            // When we last pulled this product
+  dataSourceUpdatedAt: Date;
+  lastIngestedAt: Date;
   isStale: boolean;
 
   // Timestamps
@@ -117,7 +141,7 @@ export interface IProductModel extends Model<IProductDocument> {
   findByExternalId(externalId: string): Promise<IProductDocument | null>;
 }
 
-// ── Schema ────────────────────────────────────────────────────────────────────
+// ── Sub-schemas ───────────────────────────────────────────────────────────────
 
 const ProductVideoSchema = new Schema<IProductVideo>(
   {
@@ -138,7 +162,7 @@ const ProductVideoSchema = new Schema<IProductVideo>(
 
 const ProductTrendSchema = new Schema<IProductTrend>(
   {
-    direction:          { type: String, enum: ['rising', 'stable', 'falling', 'unknown'], default: 'unknown' },
+    direction:          { type: String, enum: ['rising', 'peaked', 'saturating', 'unknown'], default: 'unknown' },
     score:              { type: Number, default: 0, min: 0, max: 100 },
     velocityScore:      { type: Number, default: 0 },
     peakViewsLast7d:    { type: Number, default: 0 },
@@ -146,6 +170,30 @@ const ProductTrendSchema = new Schema<IProductTrend>(
     totalVideosLast30d: { type: Number, default: 0 },
     categoryRank:       { type: Number },
     calculatedAt:       { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const AIExtractionSchema = new Schema<IAIExtraction>(
+  {
+    confidence:         { type: Number, default: 0, min: 0, max: 100 },
+    trendReason:        { type: String },
+    sentimentSummary:   { type: String },
+    buyingIntentScore:  { type: Number, min: 0, max: 100 },
+    isProductVideo:     { type: Boolean, default: true },
+    extractedAt:        { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const AdSignalsSchema = new Schema<IAdSignals>(
+  {
+    isAd:        { type: Boolean, default: false },
+    firstSeenAt: { type: Date },
+    lastSeenAt:  { type: Date },
+    status:      { type: String, enum: ['active', 'inactive', 'unknown'], default: 'unknown' },
+    landingPage: { type: String },
+    industry:    { type: String },
   },
   { _id: false }
 );
@@ -168,40 +216,45 @@ const StoreRefSchema = new Schema<IStoreRef>(
     tiktokShopId:  { type: String },
     storeName:     { type: String },
     storeUrl:      { type: String },
+    shopifyUrl:    { type: String },
     productCount:  { type: Number },
     totalSales:    { type: Number },
   },
   { _id: false }
 );
 
+// ── Main schema ───────────────────────────────────────────────────────────────
+
 const ProductSchema = new Schema<IProductDocument, IProductModel>(
   {
-    externalId:       { type: String, required: true },
-    source:           { type: String, required: true },
-    title:            { type: String, required: true, trim: true, maxlength: 500 },
-    description:      { type: String, maxlength: 2000 },
-    category:         { type: String },
-    subCategory:      { type: String },
-    tags:             [{ type: String }],
+    externalId:   { type: String, required: true },
+    source:       { type: String, required: true },
+    title:        { type: String, required: true, trim: true, maxlength: 500 },
+    description:  { type: String, maxlength: 2000 },
+    category:     { type: String },
+    subCategory:  { type: String },
+    tags:         [{ type: String }],
 
-    imageUrls:        [{ type: String }],
-    primaryImageUrl:  { type: String },
+    imageUrls:       [{ type: String }],
+    primaryImageUrl: { type: String },
 
-    price:            { type: Number },
-    priceMin:         { type: Number },
-    priceMax:         { type: Number },
-    currency:         { type: String, default: 'USD' },
-    estimatedMargin:  { type: Number },
+    price:           { type: Number },
+    priceMin:        { type: Number },
+    priceMax:        { type: Number },
+    currency:        { type: String, default: 'USD' },
+    estimatedMargin: { type: Number },
 
-    totalViews:       { type: Number, default: 0 },
-    totalLikes:       { type: Number, default: 0 },
-    totalComments:    { type: Number, default: 0 },
-    totalShares:      { type: Number, default: 0 },
-    totalVideos:      { type: Number, default: 0 },
-    engagementRate:   { type: Number },
+    totalViews:    { type: Number, default: 0 },
+    totalLikes:    { type: Number, default: 0 },
+    totalComments: { type: Number, default: 0 },
+    totalShares:   { type: Number, default: 0 },
+    totalVideos:   { type: Number, default: 0 },
+    engagementRate: { type: Number },
 
-    topVideos:        { type: [ProductVideoSchema], default: [] },
-    trend:            { type: ProductTrendSchema, default: () => ({}) },
+    topVideos:    { type: [ProductVideoSchema], default: [] },
+    trend:        { type: ProductTrendSchema, default: () => ({}) },
+    aiExtraction: { type: AIExtractionSchema },
+    adSignals:    { type: AdSignalsSchema },
 
     sourceabilityStatus: {
       type: String,
@@ -211,10 +264,10 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
     suppliers: { type: [SupplierRefSchema], default: [] },
     stores:    { type: [StoreRefSchema], default: [] },
 
-    status:               { type: String, enum: ['active', 'archived', 'stale'], default: 'active' },
-    dataSourceUpdatedAt:  { type: Date, required: true },
-    lastIngestedAt:       { type: Date, required: true },
-    isStale:              { type: Boolean, default: false },
+    status:              { type: String, enum: ['active', 'archived', 'stale'], default: 'active' },
+    dataSourceUpdatedAt: { type: Date, required: true },
+    lastIngestedAt:      { type: Date, required: true },
+    isStale:             { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -224,14 +277,15 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
 ProductSchema.index({ externalId: 1, source: 1 }, { unique: true });
 ProductSchema.index({ 'trend.score': -1 });
 ProductSchema.index({ 'trend.direction': 1 });
+ProductSchema.index({ 'aiExtraction.confidence': -1 });
+ProductSchema.index({ 'adSignals.isAd': 1 });
+ProductSchema.index({ 'adSignals.status': 1 });
 ProductSchema.index({ totalViews: -1 });
 ProductSchema.index({ category: 1 });
 ProductSchema.index({ status: 1 });
 ProductSchema.index({ isStale: 1 });
 ProductSchema.index({ lastIngestedAt: -1 });
 ProductSchema.index({ tags: 1 });
-
-// Text search index for title + description + tags
 ProductSchema.index({ title: 'text', description: 'text', tags: 'text' });
 
 // ── Static methods ────────────────────────────────────────────────────────────

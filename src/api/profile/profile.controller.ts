@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { UpdateProfileInput } from './profile.validator';
+import { ResponseMessage, successResponse } from '../../utils/response.util';
 
 export const ProfileController = {
   me(req: Request, res: Response): void {
-    res.json({ success: true, data: { user: req.user!.toJSON() } });
+    res.json(successResponse({ user: req.user!.toJSON() }, ResponseMessage.PROFILE_RETRIEVED, 200));
   },
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -27,7 +28,7 @@ export const ProfileController = {
 
       await user.save();
 
-      res.json({ success: true, data: { user: user.toJSON() } });
+      res.json(successResponse({ user: user.toJSON() }, ResponseMessage.UPDATED, 200));
     } catch (err) {
       next(err);
     }

@@ -29,6 +29,7 @@ import { getRedisClient, disconnectRedis } from './cache/redis.client';
 import { startMetricsServer, stopMetricsServer } from './monitoring/metrics.routes';
 import { initialiseMetrics } from './monitoring/metrics';
 import { logger } from './logger';
+import { startJobs, stopJobs } from './jobs/index';
 
 const log = logger.child({ module: 'server' });
 
@@ -51,6 +52,7 @@ async function start(): Promise<void> {
   // Step 5 & 6: Metrics
   initialiseMetrics();
   await startMetricsServer();
+  startJobs();
 
   // Step 7 & 8: Express
   const app = createApp();
@@ -85,6 +87,8 @@ async function shutdown(signal: string): Promise<void> {
         disconnectRedis(),
         stopMetricsServer(),
       ]);
+      stopJobs(),
+
       log.info('All connections closed. Goodbye.');
       process.exit(0);
     } catch (err) {

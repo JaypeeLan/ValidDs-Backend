@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../../services/auth.service';
 import { AppError } from '../../middleware/error.middleware';
 import { logger } from '../../logger';
+import { ResponseMessage, successResponse } from '../../utils/response.util';
 
 const log = logger.child({ module: 'auth-controller' });
 
@@ -84,7 +85,7 @@ export const AuthController = {
     try {
       const { email } = req.body as Record<string, string>;
       const { isNewUser } = await AuthService.startEmailRegistration(email);
-      res.status(200).json({ success: true, data: { sent: true, isNewUser } });
+      res.status(200).json(successResponse({ sent: true, isNewUser }, ResponseMessage.REGISTRATION_STARTED, 200));
     } catch (err) {
       next(err);
     }
@@ -101,13 +102,16 @@ export const AuthController = {
 
       log.info('User logged in', { userId: user.id });
 
-      res.json({
-        success: true,
-        data: {
-          token,
-          user: user.toJSON(),
-        },
-      });
+      res.json(
+        successResponse(
+          {
+            token,
+            user: user.toJSON(),
+          },
+          ResponseMessage.LOGIN_SUCCESS,
+          200
+        )
+      );
     } catch (err) {
       next(err);
     }
@@ -119,10 +123,13 @@ export const AuthController = {
    * Protected by requireAuth middleware.
    */
   me(req: Request, res: Response): void {
-    res.json({
-      success: true,
-      data: { user: req.user!.toJSON() },
-    });
+    res.json(
+      successResponse(
+        { user: req.user!.toJSON() },
+        ResponseMessage.PROFILE_RETRIEVED,
+        200
+      )
+    );
   },
 
   /**
@@ -132,7 +139,7 @@ export const AuthController = {
    */
   logout(req: Request, res: Response): void {
     log.info('User logged out', { userId: req.user?.id });
-    res.json({ success: true, data: { message: 'Logged out successfully' } });
+    res.json(successResponse({ logged_out: true }, ResponseMessage.LOGOUT_SUCCESS, 200));
   },
 
   async googleIdToken(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -141,14 +148,17 @@ export const AuthController = {
       const profile = await AuthService.verifyGoogleIdToken(idToken);
       const { user, token, isNewUser } = await AuthService.googleSignIn(profile, req.ip);
 
-      res.json({
-        success: true,
-        data: {
-          token,
-          user: user.toJSON(),
-          isNewUser,
-        },
-      });
+      res.json(
+        successResponse(
+          {
+            token,
+            user: user.toJSON(),
+            isNewUser,
+          },
+          ResponseMessage.LOGIN_SUCCESS,
+          200
+        )
+      );
     } catch (err) {
       next(err);
     }

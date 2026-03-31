@@ -320,12 +320,22 @@
               "host": ["{{baseUrl}}"],
               "path": ["products"],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" },
-                { "key": "sortBy", "value": "trendScore" }
+                { "key": "page", "value": "1", "description": "Page number for pagination." },
+                { "key": "limit", "value": "20", "description": "Number of results per page." },
+                { "key": "sortBy", "value": "trendScore", "description": "Sorting criteria: 'trendScore', 'views', 'recent', or 'engagement'" }
               ]
+            },
+            "description": "Fetches a paginated, filterable feed of trending dropshipping products. The response region is automatically detected based on the authenticated user's profile locale."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"products\": [],\n    \"pagination\": {\"total\": 10, \"page\": 1, \"limit\": 20},\n    \"freshness\": {\"product\": \"2023-01-01T00:00:00.000Z\"},\n    \"region\": \"US\"\n  }\n}"
             }
-          }
+          ]
         },
         {
           "name": "Search Products",
@@ -339,11 +349,21 @@
               "host": ["{{baseUrl}}"],
               "path": ["products", "search"],
               "query": [
-                { "key": "q", "value": "dropship" },
+                { "key": "q", "value": "dropship", "description": "Text query to search for across titles, descriptions, and hashtags." },
                 { "key": "page", "value": "1" }
               ]
+            },
+            "description": "Performs a full-text search against the product database to find relevant items matching a specific keyword or niche."
+          },
+          "response": [
+             {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"products\": [],\n    \"pagination\": {\"total\": 5, \"page\": 1, \"limit\": 20}\n  }\n}"
             }
-          }
+          ]
         },
         {
           "name": "Product Details",
@@ -355,9 +375,22 @@
             "url": {
               "raw": "{{baseUrl}}/products/:id",
               "host": ["{{baseUrl}}"],
-              "path": ["products", ":id"]
+              "path": ["products", ":id"],
+              "variable": [
+                { "key": "id", "value": "<product_id>", "description": "The unique ObjectID of the product." }
+              ]
+            },
+            "description": "Retrieves the exhaustive details of a specific product. This includes its historical trends, linked videos, and AI-extracted analytics including comment-based Authenticity and Sentiment scores."
+          },
+          "response": [
+             {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"product\": {\n      \"_id\": \"<product_id>\",\n      \"title\": \"Example Product\",\n      \"aiExtraction\": {\n        \"sentimentSummary\": \"Users are asking about shipping times.\",\n        \"buyingIntentScore\": 85\n      }\n    },\n    \"freshness\": \"2023-01-01T00:00:00.000Z\"\n  }\n}"
             }
-          }
+          ]
         }
       ]
     }

@@ -1,6 +1,20 @@
 import type { Server } from 'http';
 import http from 'http';
 
+/**
+ * Mock DB and Redis clients BEFORE importing the app.
+ * Using jest.mock at the top level ensures all app modules get the mocked versions.
+ */
+jest.mock('../src/db/client', () => ({
+  ...jest.requireActual('../src/db/client'),
+  getMongoStatus: () => 'connected',
+}));
+
+jest.mock('../src/cache/redis.client', () => ({
+  ...jest.requireActual('../src/cache/redis.client'),
+  getRedisStatus: () => 'ready',
+}));
+
 function httpJson(opts: {
   baseUrl: string;
   method: string;
@@ -30,12 +44,26 @@ function httpJson(opts: {
 }
 
 describe('Health Endpoints', () => {
+  jest.setTimeout(60000);
   let server: Server;
   let baseUrl: string;
 
   beforeAll(async () => {
+    // Provide mandatory environment variables for validation
+    process.env.NODE_ENV = 'development';
     process.env.PORT = '0';
-    process.env.MONGODB_URI = 'mongodb://localhost:27017/test'; // Mock URI, not actually used for health
+    process.env.APP_NAME = 'validds-backend-test';
+    process.env.API_VERSION = 'v1';
+    process.env.INTERNAL_API_KEY = 'k'.repeat(32);
+    process.env.JWT_SECRET = 'x'.repeat(32);
+    process.env.JWT_EXPIRES_IN = '7d';
+    process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+    process.env.CORS_ALLOWED_ORIGINS = 'http://localhost:3001';
+    process.env.MONGODB_DB_NAME = 'validds_test';
+    process.env.MONGODB_URI = 'mongodb://localhost:27017/test';
+    process.env.REDIS_URL = 'redis://localhost:6379'; // Dummy URL for validation
+    process.env.METRICS_ENABLED = 'false';
+
     const { createApp } = await import('../src/app');
     const app = await createApp();
     server = app.listen(0);
@@ -55,21 +83,21 @@ describe('Health Endpoints', () => {
     }
   });
 
-  it('GET / should return 200 OK', async () => {
+  it('GET /health should return 200 OK', async () => {
     const res = await httpJson({
       baseUrl,
       method: 'GET',
-      path: '/',
+      path: '/health',
     });
     expect(res.status).toBe(200);
     expect(res.text).toContain('status');
   });
 
-  it('GET /healthz should return 200 OK', async () => {
+  it('GET /ready should return 200 OK', async () => {
     const res = await httpJson({
       baseUrl,
       method: 'GET',
-      path: '/healthz',
+      path: '/ready',
     });
     expect(res.status).toBe(200);
     expect(res.text).toContain('status');

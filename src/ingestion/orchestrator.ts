@@ -1,4 +1,4 @@
-import { CreativeCenterJob, CreativeCenterJobOutput } from './creative-center/creative-center.job';
+import { CreativeCenterJob } from './creative-center/creative-center.job';
 import { IngestionJobResult, OrchestratorConfig, NormalizedPost } from './ingestion.types';
 import { logger } from '../logger';
 import { Alerts } from '../monitoring/alerts';

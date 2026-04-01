@@ -36,7 +36,7 @@ export async function runProductRefreshJob(): Promise<void> {
   try {
     // ── Step 1: Collect posts ─────────────────────────────────────────────────
     const orchestrator = new IngestionOrchestrator();
-    const { posts, results, activeSources, overallSuccess } = await orchestrator.run();
+    const { posts, activeSources, overallSuccess } = await orchestrator.run();
 
     if (!overallSuccess || posts.length === 0) {
       log.error('Product refresh job failed — no posts collected');

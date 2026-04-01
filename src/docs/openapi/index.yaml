@@ -29,6 +29,8 @@ tags:
     description: Product feed, full-text search, and product details
   - name: Profile
     description: User settings and account management
+  - name: Ingestion
+    description: Background jobs using DeepSeek, RapidAPI, and EnsembleData
 
 paths:
   /health:
@@ -57,6 +59,8 @@ paths:
     $ref: './paths/products.yaml#/search'
   /api/v1/products/{id}:
     $ref: './paths/products.yaml#/detail'
+  /api/v1/ingestion/trigger:
+    $ref: './paths/ingestion.yaml#/trigger'
 
 components:
   securitySchemes:

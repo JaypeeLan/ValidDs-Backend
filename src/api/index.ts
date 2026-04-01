@@ -4,10 +4,13 @@ import authRouter from './auth/auth.routes';
 import profileRouter from './profile/profile.routes';
 import productRouter from './products/product.routes';
 
+import ingestionRouter from './ingestion/ingestion.routes';
+
 const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/profile', profileRouter);
 apiRouter.use('/products', productRouter);
+apiRouter.use('/ingestion', ingestionRouter);
 
 // Uncomment as each module is implemented:
 // import videoRouter from './videos/video.routes';

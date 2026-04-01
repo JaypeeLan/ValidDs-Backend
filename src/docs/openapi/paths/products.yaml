@@ -1,0 +1,95 @@
+feed:
+  get:
+    tags: [Products]
+    summary: Get product feed
+    description: Returns a paginated list of trending products.
+    parameters:
+      - name: page
+        in: query
+        schema: { type: integer, default: 1 }
+      - name: limit
+        in: query
+        schema: { type: integer, default: 20 }
+      - name: category
+        in: query
+        schema: { type: string }
+      - name: minScore
+        in: query
+        schema: { type: number }
+    responses:
+      '200':
+        description: List of products retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        products:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/Product.yaml'
+                        hasMore: { type: boolean }
+
+search:
+  get:
+    tags: [Products]
+    summary: Full-text search products
+    parameters:
+      - name: q
+        in: query
+        required: true
+        schema: { type: string }
+      - name: page
+        in: query
+        schema: { type: integer, default: 1 }
+      - name: limit
+        in: query
+        schema: { type: integer, default: 20 }
+    responses:
+      '200':
+        description: Search results retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        products:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/Product.yaml'
+
+detail:
+  get:
+    tags: [Products]
+    summary: Get product by ID
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    responses:
+      '200':
+        description: Product details retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        product: { $ref: '../components/schemas/Product.yaml' }
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'

@@ -1,0 +1,80 @@
+openapi: 3.0.3
+info:
+  title: ValidDs Backend API
+  description: |
+    API documentation for ValidDs — TikTok product research and validation platform.
+    
+    All endpoints are prefixed with `/api/v1` except for health checks.
+    
+    ### Authentication
+    - **API Key**: Required for internal/service-to-service communication.
+    - **JWT**: Required for user-facing routes.
+  version: 1.0.0
+  contact:
+    name: ValidDs Support
+    url: https://validds.com/support
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://validds-backend-g196.onrender.com
+    description: Staging environment
+
+tags:
+  - name: Health
+    description: System status and uptime checks
+  - name: Auth
+    description: User registration, login, email verification, and session management
+  - name: Products
+    description: Product feed, full-text search, and product details
+  - name: Profile
+    description: User settings and account management
+
+paths:
+  /health:
+    $ref: './paths/health.yaml'
+  /api/v1/auth/register:
+    $ref: './paths/auth.yaml#/register'
+  /api/v1/auth/login:
+    $ref: './paths/auth.yaml#/login'
+  /api/v1/auth/email/send-code:
+    $ref: './paths/auth.yaml#/sendCode'
+  /api/v1/auth/email/verify-code:
+    $ref: './paths/auth.yaml#/verifyCode'
+  /api/v1/auth/forgot-password:
+    $ref: './paths/auth.yaml#/forgotPassword'
+  /api/v1/auth/reset-password:
+    $ref: './paths/auth.yaml#/resetPassword'
+  /api/v1/auth/me:
+    $ref: './paths/auth.yaml#/me'
+  /api/v1/auth/logout:
+    $ref: './paths/auth.yaml#/logout'
+  /api/v1/profile:
+    $ref: './paths/profile.yaml'
+  /api/v1/products:
+    $ref: './paths/products.yaml#/feed'
+  /api/v1/products/search:
+    $ref: './paths/products.yaml#/search'
+  /api/v1/products/{id}:
+    $ref: './paths/products.yaml#/detail'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SuccessResponse:
+      $ref: './components/schemas/Common.yaml#/SuccessResponse'
+    ErrorResponse:
+      $ref: './components/schemas/Common.yaml#/ErrorResponse'
+    User:
+      $ref: './components/schemas/User.yaml'
+    Product:
+      $ref: './components/schemas/Product.yaml'

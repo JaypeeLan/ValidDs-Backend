@@ -55,7 +55,7 @@ async function start(): Promise<void> {
   startJobs();
 
   // Step 7 & 8: Express
-  const app = createApp();
+  const app = await createApp();
   server = http.createServer(app);
 
   server.listen(env.PORT, () => {

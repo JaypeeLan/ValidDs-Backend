@@ -12,6 +12,8 @@ import { healthRouter } from './api/index';
 import apiRouter from './api/index';
 import { Sentry } from './monitoring/sentry';
 import { httpRequestsTotal, httpRequestDurationMs } from './monitoring/metrics';
+import swaggerUi from 'swagger-ui-express';
+import { getSwaggerSpec } from './docs/swagger.provider';
 
 /**
  * Creates and configures the Express application.
@@ -30,7 +32,7 @@ import { httpRequestsTotal, httpRequestDurationMs } from './monitoring/metrics';
  * 11. Sentry error handler            — forwards errors to Sentry
  * 12. Global error handler            — formats error responses (must be last)
  */
-export function createApp(): Application {
+export async function createApp(): Promise<Application> {
   const app = express();
 
   // ── 1. Sentry request handler ─────────────────────────────────────────────
@@ -42,9 +44,9 @@ export function createApp(): Application {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
-          styleSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:'],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https://validator.swagger.io'],
           connectSrc: ["'self'"],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
@@ -100,6 +102,17 @@ export function createApp(): Application {
 
   // ── 7. Sanitizer ──────────────────────────────────────────────────────────
   app.use(sanitizeMiddleware);
+
+  // ── 7.5 Swagger Documentation ─────────────────────────────────────────────
+  const swaggerSpec = await getSwaggerSpec();
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'ValidDs API Documentation',
+    swaggerOptions: {
+      persistAuthorization: true,
+      filter: true,
+      displayRequestDuration: true,
+    },
+  }));
 
   // ── 8. Routes ─────────────────────────────────────────────────────────────
   // Health checks at root level (not versioned — required by Render health check config)

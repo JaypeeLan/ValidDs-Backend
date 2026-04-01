@@ -173,7 +173,7 @@ describe('Auth + Profile', () => {
     disconnectMongoFn = disconnectMongo;
 
     const { createApp } = await import('../src/app');
-    const app = createApp();
+    const app = await createApp();
     server = app.listen(0);
 
     await new Promise<void>((resolve) => {

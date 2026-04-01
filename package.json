@@ -28,7 +28,10 @@
     "mongo-sanitize": "^1.1.0",
     "mongoose": "^8.1.1",
     "prom-client": "^15.1.0",
+    "swagger-parser": "^10.0.3",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.0",
+    "yamljs": "^0.3.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
@@ -37,7 +40,9 @@
     "@types/jest": "^29.5.11",
     "@types/mongo-sanitize": "^1.0.3",
     "@types/node": "^20.11.5",
+    "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^9.0.7",
+    "@types/yamljs": "^0.2.34",
     "@typescript-eslint/eslint-plugin": "^6.19.1",
     "@typescript-eslint/parser": "^6.19.1",
     "docx": "^9.6.1",

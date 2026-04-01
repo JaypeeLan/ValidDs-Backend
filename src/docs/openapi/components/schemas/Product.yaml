@@ -1,0 +1,89 @@
+type: object
+required:
+  - id
+  - title
+  - source
+properties:
+  id:
+    type: string
+    example: prod_827361
+  externalId:
+    type: string
+    example: 7283910
+  source:
+    type: string
+    enum: [tiktok, manual]
+    example: tiktok
+  title:
+    type: string
+    example: Silicone Kitchen Utensils
+  description:
+    type: string
+    example: High-quality heat-resistant kitchen tools.
+  category:
+    type: string
+    example: Kitchen
+  subCategory:
+    type: string
+    example: Utensils
+  tags:
+    type: array
+    items:
+      type: string
+    example: [kitchen, gadgets, home]
+  imageUrls:
+    type: array
+    items:
+      type: string
+      format: uri
+  primaryImageUrl:
+    type: string
+    format: uri
+  price:
+    type: number
+    example: 24.99
+  currency:
+    type: string
+    example: USD
+  totalViews:
+    type: integer
+    example: 15400
+  totalLikes:
+    type: integer
+    example: 890
+  totalComments:
+    type: integer
+  totalVideos:
+    type: integer
+  topVideos:
+    type: array
+    items:
+      type: object
+      properties:
+        videoId: { type: string }
+        url: { type: string, format: uri }
+        viewCount: { type: integer }
+  trend:
+    type: object
+    properties:
+      score:
+        type: number
+        example: 85.5
+      direction:
+        type: string
+        enum: [rising, peaked, saturating, unknown]
+        example: rising
+      velocityScore: { type: number }
+  status:
+    type: string
+    enum: [active, archived, stale]
+    example: active
+  lastIngestedAt:
+    type: string
+    format: date-time
+  createdAt:
+    type: string
+    format: date-time
+  updatedAt:
+    type: string
+    format: date-time

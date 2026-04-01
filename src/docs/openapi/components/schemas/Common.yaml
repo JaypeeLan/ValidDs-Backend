@@ -1,0 +1,38 @@
+SuccessResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: Operation successful
+    statusCode:
+      type: integer
+      example: 200
+    data:
+      type: object
+
+ErrorResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: false
+    message:
+      type: string
+      example: Resource not found
+    statusCode:
+      type: integer
+      example: 404
+    error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: NOT_FOUND
+        details:
+          type: object
+    requestId:
+      type: string
+      example: req_123456789

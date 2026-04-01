@@ -224,7 +224,7 @@ const NotificationPrefsSchema = new Schema<INotificationPrefs>(
 const UserSchema = new Schema<IUserDocument, IUserModel>(
   {
     // Identity
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: { type: String, required: true, lowercase: true, trim: true },
     name: { type: String, required: true, trim: true, maxlength: 100 },
     firstName: { type: String, trim: true, maxlength: 50 },
     lastName: { type: String, trim: true, maxlength: 50 },

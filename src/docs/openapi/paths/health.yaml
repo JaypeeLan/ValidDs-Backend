@@ -1,0 +1,24 @@
+get:
+  tags:
+    - Health
+  summary: Liveness check
+  description: Returns 200 if the server is up and running.
+  responses:
+    '200':
+      description: Server is alive
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      timestamp:
+                        type: string
+                        format: date-time
+                      uptime:
+                        type: number
+                        example: 124.5

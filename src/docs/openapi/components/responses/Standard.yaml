@@ -1,0 +1,55 @@
+OkResponse:
+  description: OK
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/Common.yaml#/SuccessResponse'
+
+CreatedResponse:
+  description: Created
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/Common.yaml#/SuccessResponse'
+
+BadRequestResponse:
+  description: Bad Request
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/Common.yaml#/ErrorResponse'
+
+UnauthorizedResponse:
+  description: Unauthorized
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/Common.yaml#/ErrorResponse'
+
+ForbiddenResponse:
+  description: Forbidden
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/Common.yaml#/ErrorResponse'
+
+NotFoundResponse:
+  description: Not Found
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/Common.yaml#/ErrorResponse'
+
+TooManyRequestsResponse:
+  description: Too Many Requests
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/Common.yaml#/ErrorResponse'
+
+ServerErrorResponse:
+  description: Internal Server Error
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/Common.yaml#/ErrorResponse'

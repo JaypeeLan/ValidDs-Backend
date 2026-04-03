@@ -54,20 +54,19 @@ TikTok product data is schema-heavy in some areas and sparse in others. Products
 
 ---
 
-## DL-004 — Redis provider: Upstash over self-hosted or Railway
+## DL-004 — Redis provider: Managed Redis over self-hosted
 
 **Date:** 2026-03-23
-**Decision:** Upstash
+**Decision:** Managed Redis (e.g. Render Managed Redis)
 
 **Options considered:**
 - Self-hosted on Render — requires a separate service, uses Render free tier slot
-- Railway Redis — free tier is limited, Railway can be unpredictable
-- Upstash — serverless, TLS by default, BullMQ compatible, 10k commands/day free
+- Managed Redis — reliable, handled by cloud provider, BullMQ compatible
 
 **Reasoning:**
-Upstash requires zero infrastructure management and works over HTTPS/TLS out of the box. The 10k commands/day free tier is sufficient for V1. BullMQ requires a dedicated connection — Upstash handles this fine via `ioredis`.
+Managed Redis requires zero infrastructure management and works over TLS out of the box. BullMQ requires a dedicated connection — managed services handle this fine via `ioredis`.
 
-**What might change:** If daily command usage consistently exceeds 10k, upgrade to Upstash pay-as-you-go (~$0.20 per 100k commands).
+**What might change:** If performance or costs become an issue, we can switch providers by simply updating the `REDIS_URL`.
 
 ---
 

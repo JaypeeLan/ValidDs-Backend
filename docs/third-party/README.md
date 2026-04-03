@@ -17,11 +17,11 @@ Each guide covers:
 | Service | Purpose | Free Tier | Guide |
 |---|---|---|---|
 | **MongoDB Atlas** | Primary database | 512MB storage | [mongodb-atlas.md](./mongodb-atlas.md) |
-| **Upstash Redis** | Cache + job queues | 10k commands/day | [upstash-redis.md](./upstash-redis.md) |
+| **Redis** | Cache + job queues | Depends on provider | [redis.md](./redis.md) |
 | **Sentry** | Error tracking | 5k errors/month | [sentry.md](./sentry.md) |
 | **Prometheus + Grafana Cloud** | Metrics + dashboards | 10k series, 14-day retention | [prometheus.md](./prometheus.md) |
 | **Render** | Cloud deployment | Always-on with cold starts | [render-deployment.md](./render-deployment.md) |
-| **BullMQ** | Background job queues | Library (uses Upstash Redis) | [bullmq.md](./bullmq.md) |
+| **BullMQ** | Background job queues | Library (uses Redis) | [bullmq.md](./bullmq.md) |
 
 ---
 
@@ -30,7 +30,7 @@ Each guide covers:
 You need at minimum:
 
 1. **MongoDB Atlas** — for the database
-2. **Upstash Redis** — for caching and queues
+2. **Redis** — for caching and queues (local or hosted)
 
 Sentry, Prometheus, and Render are optional for local development.
 
@@ -41,7 +41,7 @@ Sentry, Prometheus, and Render are optional for local development.
 For a working deployment on Render:
 
 1. MongoDB Atlas
-2. Upstash Redis
+2. Redis (e.g. Render Managed Redis)
 3. Render (the deployment platform itself)
 4. Sentry (strongly recommended — otherwise you have no visibility into errors)
 
@@ -53,7 +53,7 @@ For a working deployment on Render:
 |---|---|---|
 | `MONGODB_URI` | MongoDB Atlas | Yes |
 | `MONGODB_DB_NAME` | MongoDB Atlas | Yes |
-| `REDIS_URL` | Upstash Redis | Yes |
+| `REDIS_URL` | Redis | Yes |
 | `SENTRY_DSN` | Sentry | No (but recommended) |
 | `SENTRY_ENVIRONMENT` | Sentry | No |
 | `METRICS_ENABLED` | Prometheus | No |

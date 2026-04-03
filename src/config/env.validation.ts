@@ -138,6 +138,18 @@ const envSchema = z.object({
   // Metrics
   METRICS_ENABLED: z.coerce.boolean().default(true),
   METRICS_PORT: z.coerce.number().default(9090),
+  PROMETHEUS_REMOTE_WRITE_URL: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional()
+  ),
+  PROMETHEUS_USERNAME: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  PROMETHEUS_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;

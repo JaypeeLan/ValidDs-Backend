@@ -25,7 +25,7 @@ You do not need to understand all of that to get started. If you are a developer
 | Language       | TypeScript (Node.js) | Type safety, strong ecosystem       |
 | Framework      | Express              | Lightweight, well-understood        |
 | Database       | MongoDB Atlas        | Flexible schema, generous free tier |
-| Cache & Queues | Redis (Upstash)      | Fast cache + background job queuing |
+| Cache & Queues | Redis                | Fast cache + background job queuing |
 | Deployment     | Render               | Simple free-tier cloud deployment   |
 | Error Tracking | Sentry               | Real-time error visibility          |
 | Metrics        | Prometheus + Grafana | System performance monitoring       |
@@ -69,7 +69,7 @@ Open `.env` and fill in the required values. See the [Third-Party Setup Guides](
 At minimum you need:
 
 - `MONGODB_URI` — your MongoDB Atlas connection string
-- `REDIS_URL` — your Upstash Redis URL
+- `REDIS_URL` — your Redis connection string (e.g. redis://...)
 - `INTERNAL_API_KEY` — generate one by running `npm run generate-api-key`
 - `JWT_SECRET` — any random string of 32+ characters
 - `ENCRYPTION_KEY` — 64 hex characters (32 bytes). Generate with:
@@ -164,7 +164,7 @@ Each service used by this project has a dedicated setup guide in the [docs/third
 | Service              | Purpose                | Guide                                                                            |
 | -------------------- | ---------------------- | -------------------------------------------------------------------------------- |
 | MongoDB Atlas        | Primary database       | [docs/third-party/mongodb-atlas.md](./docs/third-party/mongodb-atlas.md)         |
-| Upstash Redis        | Caching and job queues | [docs/third-party/upstash-redis.md](./docs/third-party/upstash-redis.md)         |
+| Redis                | Caching and job queues | [docs/third-party/redis.md](./docs/third-party/redis.md)                         |
 | Sentry               | Error tracking         | [docs/third-party/sentry.md](./docs/third-party/sentry.md)                       |
 | Prometheus + Grafana | Performance metrics    | [docs/third-party/prometheus.md](./docs/third-party/prometheus.md)               |
 | Render               | Cloud deployment       | [docs/third-party/render-deployment.md](./docs/third-party/render-deployment.md) |

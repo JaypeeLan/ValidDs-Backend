@@ -12,6 +12,11 @@ apiRouter.use('/profile', profileRouter);
 apiRouter.use('/products', productRouter);
 apiRouter.use('/ingestion', ingestionRouter);
 
+// Sentry test endpoint
+apiRouter.get('/debug-sentry', (req, res) => {
+  throw new Error('Test Sentry Error from ValidDs Backend');
+});
+
 // Uncomment as each module is implemented:
 // import videoRouter from './videos/video.routes';
 // import trendRouter from './trends/trend.routes';

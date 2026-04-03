@@ -11,7 +11,7 @@ import { getAllowedOrigins } from './security/encryption';
 import { healthRouter } from './api/index';
 import apiRouter from './api/index';
 import { Sentry } from './monitoring/sentry';
-import { httpRequestsTotal, httpRequestDurationMs } from './monitoring/metrics';
+import promMid from 'express-prometheus-middleware';
 import swaggerUi from 'swagger-ui-express';
 import { getSwaggerSpec } from './docs/swagger.provider';
 
@@ -27,16 +27,29 @@ import { getSwaggerSpec } from './docs/swagger.provider';
  *  6. Rate limiter                    — global throttle
  *  7. Sanitizer                       — strips MongoDB operators + XSS from inputs
  *  8. Routes                          — health + API
- *  9. Prometheus request metrics      — tracks after routing
- * 10. 404 handler                     — catches unmatched routes
- * 11. Sentry error handler            — forwards errors to Sentry
- * 12. Global error handler            — formats error responses (must be last)
+ *  9. 404 handler                     — catches unmatched routes
+ * 10. Sentry error handler            — forwards errors to Sentry
+ * 11. Global error handler            — formats error responses (must be last)
  */
 export async function createApp(): Promise<Application> {
   const app = express();
 
   // ── 1. Sentry request handler ─────────────────────────────────────────────
-  app.use(Sentry.Handlers.requestHandler());
+  if (env.NODE_ENV !== 'development') {
+    app.use(Sentry.Handlers.requestHandler());
+  }
+
+  // ── 1.5 Prometheus Metrics Middleware ─────────────────────────────────────
+  if (env.METRICS_ENABLED && env.NODE_ENV !== 'development') {
+    app.use(
+      promMid({
+        metricsPath: '/metrics',
+        collectDefaultMetrics: true,
+        requestDurationBuckets: [0.1, 0.5, 1, 1.5],
+        normalizeStatus: false, // Keep raw status codes (200, 404, etc)
+      })
+    );
+  }
 
   // ── 2. Helmet — security headers ─────────────────────────────────────────
   app.use(
@@ -121,29 +134,15 @@ export async function createApp(): Promise<Application> {
   // All API routes under /api/v1
   app.use(`/api/${env.API_VERSION}`, apiRouter);
 
-  // ── 9. Prometheus metrics hook ────────────────────────────────────────────
-  if (env.METRICS_ENABLED) {
-    app.use((_req, res, next) => {
-      const start = Date.now();
-      res.on('finish', () => {
-        const route = (_req.route?.path as string) ?? _req.path;
-        const labels = {
-          method: _req.method,
-          route,
-          status_code: String(res.statusCode),
-        };
-        httpRequestsTotal.inc(labels);
-        httpRequestDurationMs.observe(labels, Date.now() - start);
-      });
-      next();
-    });
-  }
+  // ── 9. [Removed manual Prometheus hook] ──────────────────────────────────
 
   // ── 10. 404 ───────────────────────────────────────────────────────────────
   app.use(notFoundMiddleware);
 
   // ── 11. Sentry error handler ──────────────────────────────────────────────
-  app.use(Sentry.Handlers.errorHandler());
+  if (env.NODE_ENV !== 'development') {
+    app.use(Sentry.Handlers.errorHandler());
+  }
 
   // ── 12. Global error handler (must be last) ───────────────────────────────
   app.use(errorMiddleware);

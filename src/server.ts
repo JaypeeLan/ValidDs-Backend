@@ -27,6 +27,7 @@ import { createApp } from './app';
 import { connectMongo, disconnectMongo } from './db/client';
 import { getRedisClient, disconnectRedis } from './cache/redis.client';
 import { startMetricsServer, stopMetricsServer } from './monitoring/metrics.routes';
+import { startRemoteWrite, stopRemoteWrite } from './monitoring/remote-write';
 import { initialiseMetrics } from './monitoring/metrics';
 import { logger } from './logger';
 import { startJobs, stopJobs } from './jobs/index';
@@ -52,6 +53,7 @@ async function start(): Promise<void> {
   // Step 5 & 6: Metrics
   initialiseMetrics();
   await startMetricsServer();
+  startRemoteWrite();
   startJobs();
 
   // Step 7 & 8: Express
@@ -82,6 +84,7 @@ async function shutdown(signal: string): Promise<void> {
     log.info('HTTP server closed');
 
     try {
+      stopRemoteWrite();
       await Promise.all([
         disconnectMongo(),
         disconnectRedis(),

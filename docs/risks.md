@@ -51,16 +51,16 @@ Render free tier has no static outbound IP. This forces MongoDB Atlas network ac
 
 ---
 
-### R-004 — Upstash Free Tier Command Limit
+### R-004 — Redis Command Limits
 **Severity:** Low
 **Status:** Monitored
 
 **Description:**
-Upstash free tier allows 10,000 Redis commands per day. Heavy testing or large ingestion jobs could exhaust this.
+Cloud-hosted Redis free tiers often have command limits (e.g. 10,000 commands/day). Heavy testing or large ingestion jobs could exhaust this.
 
 **Mitigation:**
-- Monitor via Upstash dashboard
-- If hit: temporarily disable caching in dev, or upgrade to pay-as-you-go
+- Monitor via provider dashboard
+- If hit: temporarily disable caching in dev, or upgrade to a higher tier
 - Cache TTLs are set conservatively to reduce command volume
 
 ---

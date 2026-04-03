@@ -1,7 +1,7 @@
 version: '3.8'
 
 # Local development environment.
-# Runs MongoDB and Redis locally so you don't need Atlas/Upstash for dev.
+# Runs MongoDB and Redis locally so you don't need cloud providers for dev.
 #
 # Usage:
 #   docker-compose up -d        # start in background

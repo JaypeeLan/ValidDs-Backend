@@ -28,7 +28,7 @@ The system is designed for V1 speed of delivery while remaining structurally cle
         │                       │
 ┌───────▼──────┐     ┌──────────▼─────────────────────────────┐
 │  Redis       │     │  MongoDB Atlas                          │
-│  (Upstash)   │     │                                         │
+│              │     │                                         │
 │              │     │  Collections:                           │
 │  - Cache     │     │  users  products  ingestion_logs        │
 │  - Rate      │     │                                         │
@@ -181,7 +181,7 @@ See `docs/decision-log.md` for full reasoning. Summary:
 | Runtime | TypeScript / Node.js | Team familiarity, strong ecosystem |
 | Framework | Express | Simple, well-understood, minimal magic |
 | Database | MongoDB (Mongoose) | Flexible schema for evolving product data |
-| Cache | Redis (Upstash) | Serverless, free tier, BullMQ compatible |
+| Cache | Redis | Fast cache, BullMQ compatible |
 | Deployment | Render | Simplest free-tier deployment path |
 | Error tracking | Sentry | Best-in-class free tier |
 | Metrics | Prometheus + Grafana Cloud | Standard observability stack, free tier |
@@ -215,7 +215,7 @@ GitHub → push to main
 
 External services:
   MongoDB Atlas M0 (free) — US East
-  Upstash Redis (free)    — US East
+  Redis (free tier)       — US East
   Sentry (free)           — cloud
   Grafana Cloud (free)    — cloud
 ```
@@ -228,7 +228,7 @@ All external services on free tiers. No infrastructure to manage.
 
 - Render free tier sleeps after 15 minutes of inactivity (~30s cold start)
 - MongoDB Atlas M0 has no automated backups
-- Upstash Redis free tier limited to 10,000 commands/day
+- Redis free tier limits (depends on provider)
 - No static outbound IP on Render free → MongoDB Atlas uses `0.0.0.0/0` allowlist
 - Single-instance deployment only (no horizontal scaling on free tier)
 

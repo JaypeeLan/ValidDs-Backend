@@ -11,8 +11,6 @@ const log = logger.child({ module: 'metrics' });
  * Default Node.js metrics (CPU, memory, event loop) are collected automatically.
  *
  * Custom metrics defined here:
- *   - http_requests_total          — request count by method, route, status
- *   - http_request_duration_ms     — response time histogram
  *   - ingestion_jobs_total         — ingestion job runs by source and status
  *   - ingestion_records_ingested   — number of records ingested per run
  *   - cache_hits_total / misses    — Redis cache efficiency
@@ -22,6 +20,11 @@ const log = logger.child({ module: 'metrics' });
  */
 
 export function initialiseMetrics(): void {
+  if (env.NODE_ENV === 'development') {
+    log.info('Prometheus metrics disabled in development mode');
+    return;
+  }
+
   if (!env.METRICS_ENABLED) {
     log.info('Metrics disabled via METRICS_ENABLED=false');
     return;
@@ -30,21 +33,6 @@ export function initialiseMetrics(): void {
   collectDefaultMetrics({ register });
   log.info('Prometheus metrics initialised');
 }
-
-// ── HTTP metrics ────────────────────────────────────────────────────────────
-
-export const httpRequestsTotal = new Counter({
-  name: 'http_requests_total',
-  help: 'Total number of HTTP requests',
-  labelNames: ['method', 'route', 'status_code'],
-});
-
-export const httpRequestDurationMs = new Histogram({
-  name: 'http_request_duration_ms',
-  help: 'HTTP request duration in milliseconds',
-  labelNames: ['method', 'route', 'status_code'],
-  buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
-});
 
 // ── Ingestion metrics ───────────────────────────────────────────────────────
 

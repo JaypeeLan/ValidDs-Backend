@@ -11,7 +11,7 @@ import { getAllowedOrigins } from './security/encryption';
 import { healthRouter } from './api/index';
 import apiRouter from './api/index';
 import { Sentry } from './monitoring/sentry';
-import promMid from 'express-prometheus-middleware';
+import { metricsMiddleware } from './middleware/metrics.middleware';
 import swaggerUi from 'swagger-ui-express';
 import { getSwaggerSpec } from './docs/swagger.provider';
 
@@ -41,14 +41,7 @@ export async function createApp(): Promise<Application> {
 
   // ── 1.5 Prometheus Metrics Middleware ─────────────────────────────────────
   if (env.METRICS_ENABLED && env.NODE_ENV !== 'development') {
-    app.use(
-      promMid({
-        metricsPath: '/metrics',
-        collectDefaultMetrics: true,
-        requestDurationBuckets: [0.1, 0.5, 1, 1.5],
-        normalizeStatus: false, // Keep raw status codes (200, 404, etc)
-      })
-    );
+    app.use(metricsMiddleware);
   }
 
   // ── 2. Helmet — security headers ─────────────────────────────────────────

@@ -34,6 +34,21 @@ export function initialiseMetrics(): void {
   log.info('Prometheus metrics initialised');
 }
 
+// ── HTTP metrics ────────────────────────────────────────────────────────────
+
+export const httpRequestsTotal = new Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code'],
+});
+
+export const httpRequestDurationMs = new Histogram({
+  name: 'http_request_duration_ms',
+  help: 'HTTP request duration in milliseconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+});
+
 // ── Ingestion metrics ───────────────────────────────────────────────────────
 
 export const ingestionJobsTotal = new Counter({

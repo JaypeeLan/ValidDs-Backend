@@ -56,8 +56,8 @@ The system is designed for V1 speed of delivery while remaining structurally cle
 │                   Observability                              │
 │                                                             │
 │  Sentry         — error tracking                            │
-│  Prometheus     — metrics (/metrics endpoint)               │
-│  Grafana Cloud  — dashboards and alerting                   │
+│  Prometheus     — metrics collector and Remote Write exporter│
+│  Grafana Cloud  — persistent metrics, dashboards, alerting  │
 │  Custom logger  — structured JSON logs (stdout → Render)    │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -76,7 +76,7 @@ All business logic lives here. Services apply rules and cross-cutting logic (aut
 Mongoose schemas and documents. Services currently query models directly (a dedicated repository layer can be introduced later if query complexity grows).
 
 ### Cache Layer (`src/cache/`)
-Redis-backed cache sitting between the service layer and the database. All cache keys and TTLs are centralised in `cache.keys.ts`. Cache failures are non-fatal — a miss falls through to the database.
+Redis-backed cache sitting between the service layer and the database. The implementation is generic and supports any Redis provider (e.g., Render Managed Redis, Upstash, or self-hosted). All cache keys and TTLs are centralised in `cache.keys.ts`. Cache failures are non-fatal — a miss falls through to the database.
 
 ### Freshness Layer (`src/freshness/`)
 Tracks when each entity type was last successfully updated. Adds freshness metadata to API responses so the frontend can show "last updated X minutes ago". Triggers alerts if data exceeds its staleness threshold.

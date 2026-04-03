@@ -159,3 +159,33 @@ TikTok data acquisition is the highest-risk component of the system. A single so
 **Reasoning:**
 - Google: frontend can obtain an ID token and exchange it directly with the API for a session
 - TikTok: OAuth code exchange is the standard flow to obtain access token and fetch user profile
+
+---
+
+## DL-012 — Redis infrastructure: Generalizing for any provider
+
+**Date:** 2026-04-02
+**Decision:** Generalize the Redis client to support any Redis provider via standard URL and TLS configurations.
+
+**Reasoning:**
+Relying solely on Upstash or any specific provider introduces vendor lock-in. By using a standard `ioredis` configuration that supports generic `REDIS_URL` and `REDIS_TLS` toggles, the backend can easily switch between Render Managed Redis, Upstash, or a self-hosted instance without code changes.
+
+---
+
+## DL-013 — Observability: Prometheus Remote Write to Grafana Cloud
+
+**Date:** 2026-04-03
+**Decision:** Implement Prometheus Remote Write to export metrics directly to Grafana Cloud.
+
+**Reasoning:**
+Render services can be restarted or moved, which would lead to loss of local Prometheus metrics if only the `/metrics` endpoint is used. Remote Write ensures that metrics are pushed to a persistent cloud store (Grafana Cloud) in real-time, providing reliable long-term observability and dashboarding.
+
+---
+
+## DL-014 — Documentation: Modular OpenAPI 3.0 Structure
+
+**Date:** 2026-04-01
+**Decision:** Move from monolithic Swagger descriptions to a modular directory-based structure.
+
+**Reasoning:**
+As the API grows (Auth, Profile, Products, Ingestion), a single `swagger.yaml` becomes unreadable and prone to merge conflicts. Splitting definitions into per-module files (`auth.yaml`, `products.yaml`) makes the documentation easier to maintain and review.

@@ -172,21 +172,28 @@ export const ProductRepository = {
   },
 
   /**
-   * Full-text search across title, description, and tags.
+   * Full-text search across title, description, and tags (supports partial matching).
    */
   async search(query: string, page = 1, limit = 20): Promise<PaginatedResponse<IProductDocument>> {
     const pagination = { page, limit };
     const skip = toMongoSkip(pagination);
 
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedQuery, 'i');
+
     const filter = {
-      $text: { $search: query },
+      $or: [
+        { title: { $regex: regex } },
+        { description: { $regex: regex } },
+        { tags: { $regex: regex } },
+      ],
       status: 'active',
       'aiExtraction.confidence': { $gte: 50 },
     };
 
     const [data, total] = await Promise.all([
-      Product.find(filter, { score: { $meta: 'textScore' } })
-        .sort({ score: { $meta: 'textScore' } })
+      Product.find(filter)
+        .sort({ 'trend.score': -1 })
         .skip(skip)
         .limit(limit)
         .lean(),

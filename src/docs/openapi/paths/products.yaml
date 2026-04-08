@@ -12,7 +12,11 @@ feed:
         schema: { type: integer, default: 20 }
       - name: category
         in: query
-        schema: { type: string }
+        description: Filter by category. Pass multiple times or as comma-separated string for multi-select.
+        schema: 
+          type: array
+          items:
+            type: string
       - name: minScore
         in: query
         schema: { type: number }
@@ -44,6 +48,13 @@ search:
         in: query
         required: true
         schema: { type: string }
+      - name: category
+        in: query
+        description: Filter by category. Pass multiple times or as comma-separated string for multi-select.
+        schema: 
+          type: array
+          items:
+            type: string
       - name: page
         in: query
         schema: { type: integer, default: 1 }
@@ -93,3 +104,26 @@ detail:
                         product: { $ref: '../components/schemas/Product.yaml' }
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
+categories:
+  get:
+    tags: [Products]
+    summary: Get all unique categories
+    description: Returns a list of all active unique product categories.
+    responses:
+      '200':
+        description: Categories retrieved successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        categories:
+                          type: array
+                          items:
+                            type: string

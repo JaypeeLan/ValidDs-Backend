@@ -52,8 +52,8 @@ export const ProductController = {
 
   async search(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { q, page, limit } = req.query as unknown as ProductSearchQuery;
-      const results = await ProductService.search(q, page, limit);
+      const { q, category, page, limit } = req.query as unknown as ProductSearchQuery;
+      const results = await ProductService.search(q, category, page, limit);
 
       res.json(
         successResponse(
@@ -79,6 +79,21 @@ export const ProductController = {
         successResponse(
           { product, freshness },
           ResponseMessage.PRODUCT_RETRIEVED,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async categories(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const categories = await ProductService.getCategories();
+      res.json(
+        successResponse(
+          { categories },
+          ResponseMessage.SUCCESS,
           200
         )
       );

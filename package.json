@@ -3,6 +3,33 @@
   "version": "1.0.0",
   "description": "ValidDs backend — TikTok product research and validation platform for dropshippers",
   "main": "dist/server.js",
+  "author": "Supreme Ecom",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Valid-Ds/ValidDs-Backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Valid-Ds/ValidDs-Backend/issues"
+  },
+  "homepage": "https://github.com/Valid-Ds/ValidDs-Backend#readme",
+  "keywords": [
+    "tiktok",
+    "product-research",
+    "dropshipping",
+    "ecommerce",
+    "scraper",
+    "backend",
+    "api",
+    "express",
+    "mongodb",
+    "redis"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc && mkdir -p dist/docs && cp -R src/docs/openapi dist/docs/openapi",

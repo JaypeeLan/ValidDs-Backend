@@ -11,6 +11,7 @@ const router = Router();
  *
  * GET /products         — product feed
  * GET /products/search  — full-text search
+ * GET /products/categories — list unique categories
  * GET /products/:id     — product detail
  *
  * All routes use optionalAuth — authenticated users get plan-aware
@@ -31,7 +32,9 @@ router.get(
   ProductController.search
 );
 
-// :id must come last — otherwise "search" matches as an id
+router.get('/categories', optionalAuth, ProductController.categories);
+
+// :id must come last — otherwise "search" or "categories" matches as an id
 router.get('/:id', optionalAuth, ProductController.detail);
 
 export default router;

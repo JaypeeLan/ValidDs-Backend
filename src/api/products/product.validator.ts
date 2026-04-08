@@ -1,9 +1,17 @@
 import { z } from 'zod';
 
+const CategoryFilterSchema = z.union([z.string(), z.array(z.string())])
+  .optional()
+  .transform(val => {
+    if (!val) return undefined;
+    if (Array.isArray(val)) return val.filter(Boolean);
+    return val.split(',').map(s => s.trim()).filter(Boolean);
+  });
+
 export const ProductFeedQuerySchema = z.object({
   page:           z.coerce.number().min(1).default(1),
   limit:          z.coerce.number().min(1).max(100).default(20),
-  category:       z.string().min(1).optional(),
+  category:       CategoryFilterSchema,
   niche:          z.string().min(1).optional(),
   trendDirection: z.enum(['rising', 'peaked', 'saturating', 'unknown']).optional(),
   minTrendScore:  z.coerce.number().min(0).max(100).optional(),
@@ -14,9 +22,10 @@ export const ProductFeedQuerySchema = z.object({
 });
 
 export const ProductSearchQuerySchema = z.object({
-  q:     z.string().min(1, 'Search query is required').max(200),
-  page:  z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(100).default(20),
+  q:        z.string().min(1, 'Search query is required').max(200),
+  category: CategoryFilterSchema,
+  page:     z.coerce.number().min(1).default(1),
+  limit:    z.coerce.number().min(1).max(100).default(20),
 });
 
 export type ProductFeedQuery  = z.infer<typeof ProductFeedQuerySchema>;

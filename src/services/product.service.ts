@@ -64,9 +64,21 @@ export const ProductService = {
   },
 
   /**
+   * Get all unique product categories.
+   */
+  async getCategories(): Promise<string[]> {
+    const cacheKey = CacheKeys.productCategories();
+    return CacheService.getOrSet(
+      cacheKey,
+      CACHE_TTL.CATEGORIES,
+      () => ProductRepository.getCategories()
+    );
+  },
+
+  /**
    * Full-text search across product titles, descriptions, and tags.
    */
-  async search(query: string, page = 1, limit = 20): Promise<PaginatedResponse<IProductDocument>> {
-    return ProductRepository.search(query, page, limit);
+  async search(query: string, category?: string[], page = 1, limit = 20): Promise<PaginatedResponse<IProductDocument>> {
+    return ProductRepository.search(query, category, page, limit);
   },
 };

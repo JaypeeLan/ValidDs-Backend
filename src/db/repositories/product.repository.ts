@@ -13,7 +13,7 @@ const log = logger.child({ module: 'product-repository' });
  */
 
 export interface ProductFeedFilters {
-  category?: string;
+  category?: string[];
   niche?: string;
   trendDirection?: 'rising' | 'peaked' | 'saturating' | 'unknown';
   minTrendScore?: number;
@@ -135,7 +135,9 @@ export const ProductRepository = {
       'aiExtraction.confidence': { $gte: 60 },  // only show high-confidence extractions
     };
 
-    if (filters.category) query.category = { $regex: filters.category, $options: 'i' };
+    if (filters.category && filters.category.length > 0) {
+      query.category = { $in: filters.category.map((c) => new RegExp(`^${c}$`, 'i')) };
+    }
     if (filters.trendDirection) query['trend.direction'] = filters.trendDirection;
     if (filters.minTrendScore) query['trend.score'] = { $gte: filters.minTrendScore };
     if (filters.minViews) query.totalViews = { $gte: filters.minViews };
@@ -174,14 +176,14 @@ export const ProductRepository = {
   /**
    * Full-text search across title, description, and tags (supports partial matching).
    */
-  async search(query: string, page = 1, limit = 20): Promise<PaginatedResponse<IProductDocument>> {
+  async search(query: string, category?: string[], page = 1, limit = 20): Promise<PaginatedResponse<IProductDocument>> {
     const pagination = { page, limit };
     const skip = toMongoSkip(pagination);
 
     const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(escapedQuery, 'i');
 
-    const filter = {
+    const filter: Record<string, any> = {
       $or: [
         { title: { $regex: regex } },
         { description: { $regex: regex } },
@@ -190,6 +192,10 @@ export const ProductRepository = {
       status: 'active',
       'aiExtraction.confidence': { $gte: 50 },
     };
+
+    if (category && category.length > 0) {
+      filter.category = { $in: category.map((c) => new RegExp(`^${c}$`, 'i')) };
+    }
 
     const [data, total] = await Promise.all([
       Product.find(filter)
@@ -224,5 +230,12 @@ export const ProductRepository = {
     return Product.find({ isStale: true, status: 'active' })
       .sort({ lastIngestedAt: 1 })
       .limit(limit);
+  },
+
+  /**
+   * Get all unique product categories.
+   */
+  async getCategories(): Promise<string[]> {
+    return Product.distinct('category', { status: 'active', category: { $ne: null } });
   },
 };

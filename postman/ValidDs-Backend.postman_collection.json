@@ -366,6 +366,30 @@
           ]
         },
         {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "categories"]
+            },
+            "description": "Returns a list of all unique database categories."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Operation completed successfully.\",\n  \"data\": {\n    \"categories\": [\"Tech\", \"Beauty\"]\n  }\n}"
+            }
+          ]
+        },
+        {
           "name": "Product Details",
           "request": {
             "method": "GET",

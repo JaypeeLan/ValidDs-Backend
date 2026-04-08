@@ -21,6 +21,9 @@ export const CacheKeys = {
   // Individual product detail
   productDetail: (id: string) => `product:detail:${id}`,
 
+  // Product categories
+  productCategories: () => `product:categories`,
+
   // Product trend signals
   productTrend: (id: string) => `product:trend:${id}`,
 
@@ -57,6 +60,7 @@ export const CACHE_TTL = {
   PRODUCT_FEED: 300,       // 5 minutes — feeds refresh relatively often
   PRODUCT_DETAIL: 600,     // 10 minutes — detail pages can be slightly staler
   PRODUCT_TREND: 180,      // 3 minutes — trend data changes quickly
+  CATEGORIES: 3600,        // 1 hour — DB scans for distinct take time
   VIDEO_FEED: 300,         // 5 minutes
   VIDEO_DETAIL: 600,       // 10 minutes
   TRENDS: 300,             // 5 minutes

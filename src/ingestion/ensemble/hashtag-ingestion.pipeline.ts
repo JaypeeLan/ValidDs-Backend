@@ -20,7 +20,7 @@ const MIN_VIEW_COUNT = 50_000;
  * Prevents runaway AI + Rainforest costs on large hashtag pulls.
  * Development is uncapped (uses a small page count anyway).
  */
-const MAX_POSTS_PROD = 500;
+const MAX_POSTS_PROD = 100;
 
 export interface HashtagPipelineResult {
   postsCollected:    number;

@@ -53,6 +53,10 @@ paths:
     $ref: './paths/auth.yaml#/logout'
   /api/v1/profile:
     $ref: './paths/profile.yaml'
+  /api/v1/profile/bookmarks:
+    $ref: './paths/bookmarks.yaml#/collection'
+  /api/v1/profile/bookmarks/{productId}:
+    $ref: './paths/bookmarks.yaml#/resource'
   /api/v1/products:
     $ref: './paths/products.yaml#/feed'
   /api/v1/products/search:

@@ -86,7 +86,6 @@ Orchestrates data collection from TikTok via RapidAPI and triggers AI-powered pr
 
 **Sources:**
 - **TikTok Creative Center (Internal Scaper)**: Primary data source collecting trending ads, videos, hashtags, and keyword trends via session-based HTTP requests.
-  - Requires: `TIKTOK_MS_TOKEN` environment variable for session mode.
 
 **Product Extraction (Multi-Provider AI):**
 The extraction layer uses a provider fallback chain to minimize costs while maintaining availability. If a provider's API key is missing, the system automatically falls back to the next provider.

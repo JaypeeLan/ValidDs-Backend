@@ -224,8 +224,6 @@ DEEPSEEK_API_KEY=optional
 OPENAI_API_KEY=optional
 
 # Primary data collection
-# - set TIKTOK_MS_TOKEN for Creative Center session mode
-TIKTOK_MS_TOKEN=your_token
 ```
 
 ---

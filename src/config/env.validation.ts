@@ -63,10 +63,7 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
 
-  TIKTOK_MS_TOKEN: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
+
   CREATIVE_CENTER_REGION: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()

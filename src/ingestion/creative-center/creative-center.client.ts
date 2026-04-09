@@ -14,10 +14,6 @@ const log = logger.child({ module: 'creative-center-client' });
  *    Manages msToken/session automatically. Free tier available.
  *
  *  Mode B — Session cookie (dev/testing):
- *    Set TIKTOK_MS_TOKEN in .env.
- *    Open ads.tiktok.com in Chrome → DevTools → Application → Cookies → copy msToken.
- *    Tokens last several hours.
- *
  *  Mode None — Neither set: all endpoints return empty arrays (no crash).
  */
 
@@ -84,21 +80,9 @@ export class CreativeCenterClient {
 
   constructor(region = 'US') {
     this.region = region;
-    const msToken = process.env.TIKTOK_MS_TOKEN;
-
-    if (msToken) {
-      this.mode = 'session';
-      this.client = axios.create({
-        baseURL: CC_BASE,
-        headers: { ...BROWSER_HEADERS, Cookie: `msToken=${msToken}` },
-        timeout: 15000,
-      });
-      log.info('Creative Center client: session cookie mode');
-    } else {
-      this.mode = 'none';
-      this.client = axios.create({ baseURL: CC_BASE, timeout: 15000 });
-      log.warn('Creative Center: no TIKTOK_MS_TOKEN — set one to get real data');
-    }
+    this.mode = 'none';
+    this.client = axios.create({ baseURL: CC_BASE, timeout: 15000 });
+    log.warn('Creative Center mode none: returning empty arrays');
   }
 
   private async throttle(): Promise<void> {
@@ -160,7 +144,7 @@ export class CreativeCenterClient {
     try {
       const ttClient = axios.create({
         baseURL: 'https://www.tiktok.com',
-        headers: { ...BROWSER_HEADERS, Referer: 'https://www.tiktok.com/', Origin: 'https://www.tiktok.com', Cookie: `msToken=${process.env.TIKTOK_MS_TOKEN ?? ''}` },
+        headers: { ...BROWSER_HEADERS, Referer: 'https://www.tiktok.com/', Origin: 'https://www.tiktok.com' },
         timeout: 15000,
       });
       const res = await ttClient.get<{ itemList?: CCTrendingVideo[] }>('/api/explore/item_list/', {
@@ -194,7 +178,7 @@ export class CreativeCenterClient {
 
   async ping(): Promise<boolean> {
     if (this.mode === 'none') {
-      log.warn('Creative Center ping: no credentials — set TIKTOK_MS_TOKEN');
+      log.warn('Creative Center ping: mode none');
       return false;
     }
     try {

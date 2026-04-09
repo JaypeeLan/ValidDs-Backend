@@ -63,35 +63,6 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
 
-  // RapidAPI (Creative Center fallback)
-  RAPIDAPI_KEY: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  RAPIDAPI_HOST: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  RAPIDAPI_BASE_URL: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().url().optional()
-  ),
-  RAPIDAPI_TOP_ADS_PATH: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  RAPIDAPI_TRENDING_HASHTAGS_PATH: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  RAPIDAPI_TRENDING_VIDEOS_PATH: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  RAPIDAPI_KEYWORD_TRENDS_PATH: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
   TIKTOK_MS_TOKEN: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()

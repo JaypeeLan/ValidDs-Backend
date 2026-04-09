@@ -10,7 +10,7 @@ ValidDs sources product data from two pipelines:
 ## Pipeline 1 — Creative Center (2-hour cycle)
 
 ```
-TikTok Creative Center (RapidAPI)
+TikTok Creative Center (HTTP Scraper — Session Mode)
          ↓
    IngestionOrchestrator.run()
          ↓
@@ -224,7 +224,8 @@ DEEPSEEK_API_KEY=optional
 OPENAI_API_KEY=optional
 
 # Primary data collection
-RAPIDAPI_KEY=your_rapidapi_key
+# - set TIKTOK_MS_TOKEN for Creative Center session mode
+TIKTOK_MS_TOKEN=your_token
 ```
 
 ---

@@ -27,7 +27,7 @@ const log = logger.child({ module: 'ingestion-orchestrator' });
 
 const DEFAULT_CONFIG: OrchestratorConfig = {
   primarySource: 'creative-center',
-  fallbackSources: ['ensemble', 'rapidapi'],
+  fallbackSources: ['ensemble'],
   maxRetries: 2,
   retryDelayMs: 3000,
 };
@@ -146,23 +146,7 @@ export class IngestionOrchestrator {
           return { posts: output.posts, result };
         }
 
-        case 'rapidapi': {
-          // Placeholder — RapidAPI client will be added here
-          log.info('RapidAPI source not yet configured — skipping');
-          return {
-            posts: [],
-            result: {
-              source: 'rapidapi',
-              success: false,
-              postsCollected: 0,
-              productsExtracted: 0,
-              hashtagsCollected: 0,
-              errors: ['RapidAPI client not yet configured'],
-              durationMs: 0,
-              ranAt: new Date(),
-            },
-          };
-        }
+
 
         default:
           throw new Error(`Unknown source: ${source}`);

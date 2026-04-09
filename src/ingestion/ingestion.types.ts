@@ -128,7 +128,6 @@ export interface NormalizedKeyword {
 export type IngestionSource =
   | 'creative-center'     // TikTok Creative Center (primary scraper)
   | 'ensemble'            // EnsembleData API
-  | 'rapidapi'            // RapidAPI TikTok scrapers
   | 'manual';             // manually added for testing
 
 // ── Job result ────────────────────────────────────────────────────────────────

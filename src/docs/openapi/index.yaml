@@ -30,7 +30,7 @@ tags:
   - name: Profile
     description: User settings and account management
   - name: Ingestion
-    description: Background jobs using DeepSeek, RapidAPI, and EnsembleData
+    description: Background jobs using DeepSeek, EnsembleData, and Creative Center scrapers
 
 paths:
   /health:

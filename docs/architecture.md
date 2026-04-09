@@ -38,11 +38,11 @@ The system is designed for V1 speed of delivery while remaining structurally cle
 ┌───────▼────────────────────────────────────────────────────────┐
 │                   Data Ingestion Pipeline                      │
 │                                                                │
-│  TikTok Creative Center (RapidAPI)  →  Orchestrator           │
-│    ├─ Top ads (/api/trending/ads)                            │
-│    ├─ Trending videos (/api/trending/video)                  │
-│    ├─ Trending hashtags (/api/trending/hashtag)              │
-│    └─ Keyword trends (/api/trending/keyword)                 │
+│  TikTok Creative Center (Internal Scaper)  →  Orchestrator           │
+│    ├─ Top ads (from session-authenticated endpoints)         │
+│    ├─ Trending videos (from session-authenticated endpoints)  │
+│    ├─ Trending hashtags (from session-authenticated endpoints)│
+│    └─ Keyword trends (from session-authenticated endpoints)   │
 │                                                                │
 │  Product Extraction (Multi-Provider AI with Fallback):       │
 │    1. DeepSeek API (primary, lowest cost)                    │
@@ -85,10 +85,8 @@ Tracks when each entity type was last successfully updated. Adds freshness metad
 Orchestrates data collection from TikTok via RapidAPI and triggers AI-powered product extraction.
 
 **Sources:**
-- **TikTok Creative Center (RapidAPI)**: Primary data source collecting trending ads, videos, hashtags, and keyword trends
-  - Endpoint: `https://tiktok-creative-center-api.p.rapidapi.com/api/trending/{ads|video|hashtag|keyword}`
-  - Handles nested response structures with flexible fallback parsing (`data?.data?.materials ?? data?.data?.videos ?? data?.data?.list`)
-  - Requires: `RAPIDAPI_KEY` environment variable
+- **TikTok Creative Center (Internal Scaper)**: Primary data source collecting trending ads, videos, hashtags, and keyword trends via session-based HTTP requests.
+  - Requires: `TIKTOK_MS_TOKEN` environment variable for session mode.
 
 **Product Extraction (Multi-Provider AI):**
 The extraction layer uses a provider fallback chain to minimize costs while maintaining availability. If a provider's API key is missing, the system automatically falls back to the next provider.

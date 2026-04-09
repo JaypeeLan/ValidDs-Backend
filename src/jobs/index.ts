@@ -23,7 +23,6 @@ const PRODUCT_REFRESH_INTERVAL_MS  = 2 * 60 * 60 * 1000;      // 2 hours
 const STALE_CLEANUP_INTERVAL_MS    = 30 * 60 * 1000;           // 30 minutes
 const HASHTAG_PIPELINE_INTERVAL_MS = 48 * 60 * 60 * 1000;     // 48 hours
 const INITIAL_DELAY_MS             = 10 * 1000;                // 10 seconds
-const HASHTAG_PIPELINE_DELAY_MS    = 30 * 1000;               // 30 seconds (allow full boot)
 
 let productRefreshTimer:  ReturnType<typeof setInterval> | null = null;
 let staleCleanupTimer:    ReturnType<typeof setInterval> | null = null;
@@ -55,26 +54,17 @@ export function startJobs(): void {
   }, STALE_CLEANUP_INTERVAL_MS);
 
   // Hashtag ingestion pipeline — every 48 hours, staging/prod only.
+  // The initial DB seed is done by `run-hashtag-pipeline.js` before server starts.
   // Development uses `npm run hashtag-pipeline` instead.
   if (env.NODE_ENV !== 'development') {
-    setTimeout(() => {
-      log.info('Running initial hashtag ingestion pipeline');
+    hashtagPipelineTimer = setInterval(() => {
+      log.info('Scheduled hashtag pipeline triggered');
       new HashtagIngestionPipeline().run().catch((err) =>
-        log.error('Initial hashtag pipeline failed', err)
+        log.error('Scheduled hashtag pipeline failed', err)
       );
+    }, HASHTAG_PIPELINE_INTERVAL_MS);
 
-      hashtagPipelineTimer = setInterval(() => {
-        log.info('Scheduled hashtag pipeline triggered');
-        new HashtagIngestionPipeline().run().catch((err) =>
-          log.error('Scheduled hashtag pipeline failed', err)
-        );
-      }, HASHTAG_PIPELINE_INTERVAL_MS);
-    }, HASHTAG_PIPELINE_DELAY_MS);
-
-    log.info('Hashtag pipeline scheduled', {
-      interval: '48 hours',
-      firstRunIn: `${HASHTAG_PIPELINE_DELAY_MS / 1000}s`,
-    });
+    log.info('Hashtag pipeline scheduled', { interval: '48 hours' });
   } else {
     log.info('Hashtag pipeline NOT scheduled in development. Run: npm run hashtag-pipeline');
   }

@@ -13,7 +13,7 @@ apiRouter.use('/products', productRouter);
 apiRouter.use('/ingestion', ingestionRouter);
 
 // Sentry test endpoint
-apiRouter.get('/debug-sentry', (req, res) => {
+apiRouter.get('/debug-sentry', (_req, _res) => {
   throw new Error('Test Sentry Error from ValidDs Backend');
 });
 

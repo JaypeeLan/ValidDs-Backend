@@ -11,9 +11,9 @@ export class IngestionController {
     
     res.json({ 
       success: true, 
-      message: 'Ingestion pipeline triggered. Processing products via RapidAPI, EnsembleData, and Extracting DeepSeek.', 
+      message: 'Ingestion pipeline triggered. Processing products via EnsembleData and Extracting DeepSeek.', 
       data: {
-        toolsTriggered: ['EnsembleData', 'RapidAPI', 'DeepSeek']
+        toolsTriggered: ['EnsembleData', 'DeepSeek']
       }
     });
   }

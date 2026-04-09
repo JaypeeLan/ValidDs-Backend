@@ -128,7 +128,6 @@ export class EnsembleJob {
     hashtags: string[]
   ): Promise<{ posts: NormalizedPost[]; commentMap: Map<string, NormalizedComment[]> }> {
     const isDev = process.env.NODE_ENV === 'development';
-    const CURSOR_STEP = 20;
     // dev = 2 pages (cursor 0 and 20), production = all pages up to ~4000-5000
     const MAX_CURSOR = isDev ? 20 : 4000;
 

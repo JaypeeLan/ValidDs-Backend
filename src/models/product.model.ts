@@ -34,7 +34,7 @@ export interface IProductTrend {
 
 /**
  * AI extraction metadata.
- * Populated by the product extractor (Claude API).
+ * Populated by the product extractor.
  */
 export interface IAIExtraction {
   confidence: number;              // 0–100 — how confident the AI is

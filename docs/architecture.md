@@ -46,7 +46,7 @@ The system is designed for V1 speed of delivery while remaining structurally cle
 │                                                                │
 │  Product Extraction (Multi-Provider AI with Fallback):       │
 │    1. DeepSeek API (primary, lowest cost)                    │
-│    2. Anthropic Claude (fallback)                            │
+
 │    3. OpenAI GPT-4o-mini (fallback)                          │
 │                                                                │
 │  Freshness Tracking  →  MongoDB  →  Cache invalidation       │
@@ -98,10 +98,7 @@ The extraction layer uses a provider fallback chain to minimize costs while main
    - Model: `deepseek-chat`
    - Format: OpenAI-compatible chat completion
 
-2. **Anthropic Claude** (fallback, higher cost ~$3/1M input tokens)
-   - Environment variable: `ANTHROPIC_API_KEY`
-   - Model: `claude-3-5-sonnet-20241022`
-   - Format: Anthropic-specific message format
+
 
 3. **OpenAI GPT-4o-mini** (fallback, highest cost ~$0.15/1M input tokens)
    - Environment variable: `OPENAI_API_KEY`
@@ -114,10 +111,7 @@ Request → Check if DEEPSEEK_API_KEY exists
         ├─ Yes → Call DeepSeek
         │       └─ Success → return extraction
         │       └─ Failure → try next provider
-        └─ No  → Check if ANTHROPIC_API_KEY exists
-                ├─ Yes → Call Anthropic
-                │       └─ Success → return extraction
-                │       └─ Failure → try next provider
+
                 └─ No  → Check if OPENAI_API_KEY exists
                         ├─ Yes → Call OpenAI
                         │       └─ Success → return extraction

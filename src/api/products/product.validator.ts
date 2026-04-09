@@ -1,11 +1,21 @@
 import { z } from 'zod';
+import { PRODUCT_CATEGORIES } from './product.constants';
 
 const CategoryFilterSchema = z.union([z.string(), z.array(z.string())])
   .optional()
   .transform(val => {
     if (!val) return undefined;
-    if (Array.isArray(val)) return val.filter(Boolean);
-    return val.split(',').map(s => s.trim()).filter(Boolean);
+    const categories = Array.isArray(val) 
+      ? val.filter(Boolean) 
+      : val.split(',').map(s => s.trim()).filter(Boolean);
+    
+    return categories;
+  })
+  .refine(cats => {
+    if (!cats) return true;
+    return cats.every(c => (PRODUCT_CATEGORIES as readonly string[]).includes(c));
+  }, {
+    message: `Invalid category. Allowed: ${PRODUCT_CATEGORIES.join(', ')}`
   });
 
 export const ProductFeedQuerySchema = z.object({

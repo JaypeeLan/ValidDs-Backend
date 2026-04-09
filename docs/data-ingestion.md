@@ -1,440 +1,240 @@
 # Data Ingestion Architecture
 
-ValidDs sources product data from TikTok via RapidAPI and uses AI to extract structured product information. This document covers the data pipeline from collection through extraction.
+ValidDs sources product data from two pipelines:
 
-## Overview
+1. **Creative Center Pipeline** — collects TikTok trending ads/videos via the IngestionOrchestrator, runs every 2 hours.
+2. **Hashtag Pipeline** — fetches posts for tracked hashtags (e.g. `#TikTokMadeMeBuyIt`) via EnsembleData, enriches with Gemini AI + Amazon Rainforest, runs every 48 hours on staging/prod.
+
+---
+
+## Pipeline 1 — Creative Center (2-hour cycle)
 
 ```
 TikTok Creative Center (RapidAPI)
          ↓
-  Fetch & Parse (4 endpoints)
+   IngestionOrchestrator.run()
          ↓
-  Store Raw Posts (MongoDB)
+   EnsembleData fallback (if Creative Center fails)
          ↓
-  AI Product Extraction (Multi-Provider)
+   transformEnsemblePosts() → NormalizedPost[]
          ↓
-  Save Extracted Products (MongoDB)
+   ProductExtractor.extractBatch()   ← DeepSeek / OpenAI
          ↓
-  Update Freshness Metadata
+   ImageService.findProductImage()   ← best-effort
          ↓
-  Cache Invalidation & Response
+   ProductRepository.upsertFromExtraction()
+         ↓
+   FreshnessService.markUpdated()
 ```
+
+**Scheduler:** `src/jobs/index.ts` — `setInterval` every 2 hours, first run 10 s after boot.
+**Entry point:** `src/jobs/product-refresh.job.ts → runProductRefreshJob()`
+**Manual trigger:** `npm run test-ingestion`
+
+---
+
+## Pipeline 2 — Hashtag Ingestion (48-hour cycle)
+
+```
+TRACKED_HASHTAGS (src/ingestion/ensemble/hashtag.constants.ts)
+         ↓
+   EnsembleClient.getHashtagPosts()   ← cursor-based pagination
+   Response: { data: { nextCursor, data: EnsemblePost[] } }
+         ↓
+   Filter: skip posts with viewCount < 50,000
+         ↓
+   EnsembleClient.getPostComments()   ← per post
+         ↓
+   transformEnsemblePosts() + transformEnsembleComments()
+         ↓
+   ProductExtractor.extractFromPost(post, comments)  ← Gemini AI
+   Returns: { productName, productNiche, trendScore, sentimentSummary, buyingIntentScore, ... }
+         ↓
+   RainforestService.searchAmazonProducts(productName)
+   Returns: { search_results: [{ title, price, image }] }
+         ↓
+   ProductEnricher.mergeAndUpsert()
+   → avgPrice (mean of all results), shortest title ≤ 80 chars, images[]
+         ↓
+   ProductRepository.upsertEnrichedProduct()   ← keyed on videoId + source
+         ↓
+   FreshnessService.markUpdated('product')
+```
+
+**Scheduler:** `src/jobs/index.ts` — `setInterval` every 48 hours. First run 30 s after boot. **Staging/prod only** — skipped in development.
+**Entry point:** `src/ingestion/ensemble/hashtag-ingestion.pipeline.ts → HashtagIngestionPipeline.run()`
+**Manual trigger:** `npm run hashtag-pipeline`
+
+### View Count Filter
+
+Posts with fewer than **50,000 views** are skipped before any AI call. This is the single biggest cost-control lever — low-engagement posts are unlikely to drive product discovery and would waste Gemini tokens.
+
+### Pagination
+
+EnsembleData returns a `nextCursor` in each response. The job follows it until:
+- `nextCursor` is `null` (API has no more pages), or
+- `cursor > MAX_CURSOR` (dev: 20 = 2 pages; prod: 4000 = up to ~200 pages)
+
+### Adding a New Tracked Hashtag
+
+Edit **one file**:
+
+```typescript
+// src/ingestion/ensemble/hashtag.constants.ts
+export const TRACKED_HASHTAGS = [
+  'TikTokMadeMeBuyIt',
+  'AmazonFinds',          // ← add here
+] as const;
+```
+
+The pipeline will automatically scrape all hashtags in the array on the next run.
+
+---
 
 ## Data Sources
 
-### Primary: TikTok Creative Center (RapidAPI)
+### EnsembleData (`ensembledata.com`)
 
-The system collects trending TikTok data through RapidAPI's TikTok Creative Center endpoint.
+**Base URL:** `https://ensembledata.com/apis/tt`
+**Auth:** `token` query parameter (max 24 chars — enforced by their API)
+**Env var:** `ENSEMBLE_API_KEY`
 
-**Base URL:** `https://tiktok-creative-center-api.p.rapidapi.com`
+| Endpoint | Purpose | Params |
+|---|---|---|
+| `GET /hashtag/posts` | Paginated posts for a hashtag | `name`, `cursor`, `token` |
+| `GET /tt/post/comments` | Top comments for a post | `aweme_id`, `token` |
+| `GET /tt/keyword/search` | Keyword post search | `keyword`, `cursor`, `token` |
 
-**Authentication:**
-- Header: `x-rapidapi-key`
-- Header: `x-rapidapi-host: tiktok-creative-center-api.p.rapidapi.com`
-- Environment variable: `RAPIDAPI_KEY`
+**Rate limiting:** 2-second enforced delay between all requests (`RATE_LIMIT_MS = 2000` in `ensemble.client.ts`).
 
-**Endpoints:**
+### Rainforest API (`rainforestapi.com`)
 
-| Endpoint | Purpose | Response Structure | Rate Limit |
-|----------|---------|-------------------|-----------|
-| `/api/trending/ads` | Top performing TikTok ads | `{ data: { materials: [...] } }` | ~100/day |
-| `/api/trending/video` | Trending videos | `{ data: { videos: [...] } }` | ~100/day |
-| `/api/trending/hashtag` | Trending hashtags | `{ data: { list: [...] } }` | ~100/day |
-| `/api/trending/keyword` | Keyword trends | `{ data: { list: [...] } }` | ~100/day |
+**Endpoint:** `https://api.rainforestapi.com/request`
+**Env var:** `RAINFOREST_API_KEY`
 
-**Response Parsing:**
+Hardcoded search params:
 
-The API returns nested structures that vary by endpoint. The client handles this with flexible fallback parsing:
+| Param | Value |
+|---|---|
+| `type` | `search` |
+| `amazon_domain` | `amazon.com` |
+| `sort_by` | `bestseller_rankings` |
+| `page` | `1` |
+| `number_of_results` | `20` |
+| `include_products_count` | `5` |
+| `exclude_sponsored` | `false` |
 
+**Retry logic:** 3 attempts with exponential backoff (1s, 2s, 4s). Returns `null` (not a throw) if all retries fail — the pipeline continues without Rainforest data.
+
+---
+
+## AI Extraction
+
+### ProductExtractor (`src/services/product.extractor.ts`)
+
+Uses Gemini AI to analyse a TikTok post + its top comments and return structured product data.
+
+**Input:**
 ```typescript
-// Try multiple possible locations for the actual data
-const items = data?.data?.materials    // Used by /ads
-           ?? data?.data?.videos       // Used by /video
-           ?? data?.data?.list         // Used by /hashtag, /keyword
-           ?? data?.data               // Fallback for unexpected structure
-           ?? [];
+extractFromPost(post: NormalizedPost, comments: NormalizedComment[]): Promise<ExtractedProduct | null>
 ```
 
-This approach makes the system resilient to minor API changes.
+**Returns `null` if:**
+- The post is not clearly promoting a product
+- AI confidence is below threshold
 
-### Configuration
-
-**File:** `src/ingestion/creative-center/creative-center.client.ts`
-
-**Key Class:** `CreativeCenterClient`
-
+**Output shape (`ExtractedProduct`):**
 ```typescript
-constructor(private apiKey: string) {
-  this.baseUrl = 'https://tiktok-creative-center-api.p.rapidapi.com';
-  this.headers = {
-    'x-rapidapi-key': apiKey,
-    'x-rapidapi-host': 'tiktok-creative-center-api.p.rapidapi.com',
-  };
-}
-```
-
-**Methods:**
-- `fetchTopAds()` — Get top 20 performing ads
-- `fetchTrendingVideos()` — Get 20 trending videos
-- `fetchTrendingHashtags()` — Get trending hashtags
-- `fetchTrendingKeywords()` — Get trending keywords
-
-**Error Handling:**
-- Transient errors (5xx) are retried up to 3 times with exponential backoff
-- Rate limit errors (429) are logged and contribute to freshness alerts
-- Parsing errors are caught and logged — the system continues with partial data
-
-## Orchestrator Pattern
-
-The ingestion orchestrator (`src/ingestion/orchestrator.ts`) manages the complete pipeline:
-
-```typescript
-async function ingest() {
-  1. Collect data from all sources
-  2. For each post:
-     a. Attempt AI extraction (with fallback chain)
-     b. Save to database
-     c. Update freshness timestamp
-  3. Log results and trigger alerts if needed
-}
-```
-
-**Key Points:**
-- **Idempotent:** Re-running ingestion doesn't create duplicates (posts are identified by source + ID)
-- **Resilient:** Single source failure doesn't block the entire pipeline
-- **Observable:** All steps are logged with structured JSON
-
-## Product Extraction
-
-### AI Provider Fallback Chain
-
-Product extraction uses a cost-optimized multi-provider system. The system attempts extraction in order and falls back if a provider fails or lacks credentials:
-
-1. **DeepSeek API** (Primary)
-   - Cost: ~$0.10/post (lowest)
-   - Model: `deepseek-chat`
-   - Parallelization: Batch up to 10 requests
-   - Environment: `DEEPSEEK_API_KEY`
-   - Endpoint: `https://api.deepseek.com/chat/completions`
-
-2. **Anthropic Claude** (Fallback 1)
-   - Cost: ~$0.30/post
-   - Model: `claude-3-5-sonnet-20241022`
-   - Batching: Sequential (rate limited)
-   - Environment: `ANTHROPIC_API_KEY`
-   - Endpoint: Anthropic SDK
-
-3. **OpenAI GPT-4o-mini** (Fallback 2)
-   - Cost: ~$0.15/post
-   - Model: `gpt-4o-mini`
-   - Batching: Sequential
-   - Environment: `OPENAI_API_KEY`
-   - Endpoint: OpenAI SDK
-
-### Fallback Logic
-
-```typescript
-async callProvider(postText: string, provider?: string) {
-  const providers = this.PROVIDERS; // Ordered by preference
-
-  for (const p of providers) {
-    // Skip if API key missing
-    if (!process.env[p.apiKey]) continue;
-
-    // Skip if specific provider requested but this isn't it
-    if (provider && p.name !== provider) continue;
-
-    try {
-      return await this.callSpecific(p, postText);
-    } catch (error) {
-      logger.warn(`Provider ${p.name} failed, trying next...`, { error });
-      continue; // Try next provider
-    }
-  }
-
-  // All providers exhausted
-  return null;
-}
-```
-
-**Behavior:**
-- If `DEEPSEEK_API_KEY` exists → Use DeepSeek
-- Else if `ANTHROPIC_API_KEY` exists → Use Anthropic
-- Else if `OPENAI_API_KEY` exists → Use OpenAI
-- Else → Skip extraction, log warning
-
-### Extraction Prompt
-
-All providers receive the same extraction request (adapted to their API format):
-
-```
-Extract structured product data from this TikTok post:
-{post_text}
-
-Return a JSON object with:
 {
-  "productName": "string",
-  "description": "string (2-3 sentences)",
-  "price": "string (with currency if visible)",
-  "category": "string",
-  "hashtags": ["string"],
-  "mentions": ["string"],
-  "sentiment": "positive|neutral|negative",
-  "callToAction": "string or null"
-}
-
-Be strict: only extract information explicitly stated in the post.
-If any field cannot be determined, use null.
-```
-
-### Extraction Output
-
-On success, the system saves:
-
-```typescript
-interface ExtractedProduct {
-  title: string;              // productName
-  description: string;
-  price?: string;
-  category?: string;
-  tags: string[];             // hashtags
-  mentions: string[];
-  sentiment: 'positive' | 'neutral' | 'negative';
-  callToAction?: string;
-  source: 'tiktok';
-  sourcePostId: string;       // Original TikTok post ID
-  extractedAt: Date;
-  aiProvider: 'deepseek' | 'anthropic' | 'openai'; // Which provider succeeded
+  productName: string;          // Used as Amazon search term
+  productNiche: string;         // Must match a PRODUCT_CATEGORIES entry
+  productDescription: string;
+  trendDirection: 'rising' | 'peaked' | 'saturating' | 'unknown';
+  trendScore: number;           // 0-100
+  trendReason: string;
+  extractionConfidence: number; // 0-1
+  sentimentSummary?: string;
+  buyingIntentScore?: number;   // 0-10
 }
 ```
 
-### Cost Optimization
+### Canonical Categories
 
-At 40 posts/day (typical ingestion volume):
-
-| Scenario | Daily Cost | Monthly Cost |
-|----------|-----------|--------------|
-| All DeepSeek (best case) | $4.00 | ~$120 |
-| 80% DeepSeek, 20% Anthropic | $10.00 | ~$300 |
-| All Anthropic | $12.00 | ~$360 |
-| All OpenAI (worst case) | $6.00 | ~$180 |
-
-The multi-provider approach combines **availability** (doesn't rely on single provider) with **cost optimization** (uses cheapest provider when available).
-
-### Implementation
-
-**File:** `src/services/product.extractor.ts`
-
-**Key Class:** `ProductExtractor`
-
-```typescript
-private PROVIDERS = [
-  {
-    name: 'deepseek',
-    apiKey: 'DEEPSEEK_API_KEY',
-    url: 'https://api.deepseek.com/chat/completions',
-    model: 'deepseek-chat',
-    format: 'openai', // Uses OpenAI chat completion format
-  },
-  {
-    name: 'anthropic',
-    apiKey: 'ANTHROPIC_API_KEY',
-    model: 'claude-3-5-sonnet-20241022',
-    format: 'anthropic', // Anthropic-specific format
-  },
-  {
-    name: 'openai',
-    apiKey: 'OPENAI_API_KEY',
-    model: 'gpt-4o-mini',
-    format: 'openai',
-  },
-];
-
-// Main extraction method
-async extractProduct(text: string): Promise<ExtractedProduct | null> {
-  const result = await this.callProvider(text);
-  if (!result) return null;
-
-  return {
-    title: result.productName,
-    description: result.description,
-    // ... map other fields
-  };
-}
-
-// Fallback logic
-private async callProvider(text: string) {
-  for (const provider of this.PROVIDERS) {
-    if (!process.env[provider.apiKey]) continue;
-
-    try {
-      if (provider.format === 'openai') {
-        return await this.callOpenAIFormat(provider, text);
-      } else if (provider.format === 'anthropic') {
-        return await this.callAnthropicFormat(provider, text);
-      }
-    } catch (error) {
-      logger.warn(`${provider.name} failed`, { error });
-      continue;
-    }
-  }
-  return null;
-}
-```
-
-## Freshness Tracking
-
-The system tracks when product data was last updated. This enables:
-
-1. **Staleness alerts** — Alert when data hasn't been refreshed in 24+ hours
-2. **Frontend indicators** — Show "last updated 2 hours ago" to users
-3. **Cache invalidation** — Know when to bust Redis cache
-
-**File:** `src/freshness/freshness.service.ts`
-
-**Metadata stored:**
-
-```typescript
-interface Freshness {
-  entityType: 'products' | 'trends' | 'hashtags';
-  lastSuccessfulUpdate: Date;
-  nextScheduledUpdate: Date;
-  successCount: number;
-  failureCount: number;
-  failureReason?: string;
-}
-```
-
-## Database Schema
-
-### Raw Posts Collection
-
-```typescript
-interface RawPost {
-  _id: ObjectId;
-  sourceType: 'tiktok_creative_center';
-  sourcePostId: string;
-  rawData: Record<string, unknown>; // Original API response
-  collectedAt: Date;
-  extractedAt?: Date; // When extraction was attempted
-  extractionStatus: 'pending' | 'success' | 'failed';
-  extractedProductId?: ObjectId; // Reference to extracted product
-}
-```
-
-### Extracted Products Collection
-
-```typescript
-interface Product {
-  _id: ObjectId;
-  title: string;
-  description: string;
-  price?: string;
-  category?: string;
-  tags: string[];
-  mentions: string[];
-  sentiment: 'positive' | 'neutral' | 'negative';
-  callToAction?: string;
-  source: 'tiktok';
-  sourcePostId: string;
-  extractedAt: Date;
-  aiProvider: 'deepseek' | 'anthropic' | 'openai';
-  createdAt: Date;
-  updatedAt: Date;
-}
-```
-
-## Monitoring & Alerts
-
-The system logs all extraction activity:
+All products are assigned to one of 10 hardcoded categories defined in `src/api/products/product.constants.ts`:
 
 ```
-{
-  "timestamp": "2026-04-01T12:00:00Z",
-  "level": "info",
-  "message": "Ingestion complete",
-  "posts_collected": 40,
-  "products_extracted": 20,
-  "products_saved": 20,
-  "sources": ["creative-center"],
-  "extraction_breakdown": {
-    "deepseek": 15,
-    "anthropic": 5,
-    "openai": 0
-  }
-}
+Beauty & Healthcare · Electronics & Gadgets · Home & Kitchen
+Fashion & Accessories · Sports & Outdoors · Pet Supplies
+Office Products · Automotive · Toys & Games · Food & Beverages
 ```
 
-Alerts trigger if:
-- Extraction success rate < 30% (suggests API issues)
-- Collection fails for a source (RapidAPI downtime)
-- Average extraction latency > 5s (suggests provider slowdown)
-- Cost exceeds daily budget
+The AI is instructed to pick from this list. Any extraction that maps to an unknown category falls back to `'Electronics & Gadgets'`.
+
+---
+
+## Product Enrichment (`src/services/product.enricher.ts`)
+
+`ProductEnricher.mergeAndUpsert()` combines AI + Rainforest data before writing to MongoDB:
+
+| Field | Source | Logic |
+|---|---|---|
+| `title` | Rainforest | Shortest Amazon title ≤ 80 chars from top 5 results. Falls back to AI `productName`. |
+| `price` | Rainforest | Average of all valid prices. `0` if no results. |
+| `priceMin/Max` | Rainforest | Min/max across all results. |
+| `category` | AI | `productNiche` from Gemini. |
+| `imageUrls` | Rainforest | Up to 10 unique images. Falls back to TikTok thumbnail. |
+| `trendScore` | AI | Direct from `ExtractedProduct`. |
+| `sentimentSummary` | AI | Direct from `ExtractedProduct`. |
+| `totalViews` | TikTok post | `NormalizedPost.viewCount`. |
+
+---
+
+## Database Upsert
+
+Both pipelines are **idempotent** — running them twice doesn't create duplicates.
+
+| Method | Key | Used by |
+|---|---|---|
+| `upsertFromExtraction()` | `videoId + source` | Creative Center pipeline |
+| `upsertEnrichedProduct()` | `videoId + source` | Hashtag pipeline |
+
+---
+
+## Job Schedule Summary
+
+| Job | Interval | First Run | Environments |
+|---|---|---|---|
+| Product Refresh | Every 2 hours | 10s after boot | All |
+| Stale Cleanup | Every 30 minutes | Immediately | All |
+| Hashtag Pipeline | Every 48 hours | 30s after boot | Staging + Prod only |
+
+---
+
+## Environment Variables
+
+```bash
+# EnsembleData — max 24 chars (enforced by their API)
+ENSEMBLE_API_KEY=your_token
+
+# Rainforest Amazon search
+RAINFOREST_API_KEY=your_key
+
+# AI Providers (at least one required)
+DEEPSEEK_API_KEY=optional
+OPENAI_API_KEY=optional
+
+# Primary data collection
+RAPIDAPI_KEY=your_rapidapi_key
+```
+
+---
 
 ## Troubleshooting
 
-### High Extraction Costs
-
-**Symptom:** OpenAI costs dominating the bill
-
-**Solution:**
-1. Verify `DEEPSEEK_API_KEY` is set
-2. Check DeepSeek rate limits aren't being exceeded
-3. Monitor provider health on their status pages
-
-### Extraction Failures
-
-**Symptom:** Many "extraction_status: failed" entries
-
-**Check:**
-1. API key validity — test with curl
-2. Prompt quality — sample a few failures and adjust prompt
-3. Timeout values — increase if providers are slow
-
-### Data Collection Gaps
-
-**Symptom:** No posts collected for hours
-
-**Check:**
-1. RapidAPI status page — check for API downtime
-2. Rate limit — verify you have remaining API calls
-3. Logs for auth errors — check API key format
-
-## Configuration
-
-**Environment Variables:**
-
-```bash
-# Data collection
-RAPIDAPI_KEY=your_rapidapi_key
-
-# AI extraction (at least one required for extraction to work)
-DEEPSEEK_API_KEY=optional
-ANTHROPIC_API_KEY=optional
-OPENAI_API_KEY=optional
-
-# Monitoring
-INGESTION_ERROR_WEBHOOK=https://... # Sentry or webhook URL
-FRESHNESS_ALERT_THRESHOLD_HOURS=24  # Trigger alert if data > 24h old
-```
-
-**Ingestion Scheduling:**
-
-Currently ingestion runs on-demand via `/scripts/test-ingestion.ts` for testing.
-
-For production, add a scheduled job (see `src/jobs/product-refresh.job.ts`):
-
-```typescript
-// Daily at 2 AM UTC
-schedule.scheduleJob('0 2 * * *', async () => {
-  await runIngestion();
-});
-```
-
-## Future Improvements
-
-1. **Multi-source collection** — Add fallback sources if RapidAPI becomes unavailable
-2. **Smarter batching** — Batch AI requests to reduce per-request overhead
-3. **Provider selection** — Use ML to predict which provider will succeed fastest
-4. **Caching** — Skip re-extraction of identical posts
-5. **Post-processing** — Entity linking, duplicate detection, category ML
+| Symptom | Likely Cause | Check |
+|---|---|---|
+| `422 Unprocessable Entity` from EnsembleData | `ENSEMBLE_API_KEY` > 24 chars | `grep ENSEMBLE_API_KEY .env` |
+| `0 posts fetched` from hashtag | Wrong response field path | Check `ensemble.client.ts` parser |
+| `0 AI extractions` | No AI key set, or all posts below 50k views | Check `DEEPSEEK_API_KEY`/`OPENAI_API_KEY` and view counts |
+| `Rainforest returned no results` | Bad product name or API quota exceeded | Check Rainforest dashboard |
+| Products not appearing in feed | Upsert keyed wrong or category invalid | Check `product.repository.ts` filter + `PRODUCT_CATEGORIES` |

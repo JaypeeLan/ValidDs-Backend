@@ -1,4 +1,5 @@
 import { ProductRepository, ProductFeedFilters } from '../db/repositories/product.repository';
+import { PRODUCT_CATEGORIES } from '../api/products/product.constants';
 import { IProductDocument } from '../models/product.model';
 import { FreshnessService } from '../freshness/freshness.service';
 import { CacheService } from '../cache/cache.service';
@@ -67,12 +68,7 @@ export const ProductService = {
    * Get all unique product categories.
    */
   async getCategories(): Promise<string[]> {
-    const cacheKey = CacheKeys.productCategories();
-    return CacheService.getOrSet(
-      cacheKey,
-      CACHE_TTL.CATEGORIES,
-      () => ProductRepository.getCategories()
-    );
+    return [...PRODUCT_CATEGORIES];
   },
 
   /**

@@ -15,7 +15,7 @@ const log = logger.child({ module: 'product-refresh-job' });
  *
  *  1. Ingestion Orchestrator  — collects posts from Creative Center (primary)
  *                               or falls back to EnsembleData / RapidAPI
- *  2. AI Extractor            — runs each post through Claude to extract
+ *  2. AI Extractor            — runs each post through the AI to extract
  *                               product name, niche, trend score, sentiment
  *  3. Image Service           — finds a product image by searching the product name
  *  4. Product Repository      — upserts each extracted product into MongoDB
@@ -25,7 +25,7 @@ const log = logger.child({ module: 'product-refresh-job' });
  *
  * A single run typically takes 3–8 minutes depending on:
  * - Number of posts collected (usually 100–150)
- * - Claude API latency
+ * - AI latency
  * - Image search latency
  */
 

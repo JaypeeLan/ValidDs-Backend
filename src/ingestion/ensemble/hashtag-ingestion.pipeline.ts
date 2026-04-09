@@ -1,0 +1,144 @@
+import { EnsembleJob } from './ensemble.job';
+import { TRACKED_HASHTAGS } from './hashtag.constants';
+import { ProductExtractor } from '../../services/product.extractor';
+import { RainforestService } from '../../services/rainforest.service';
+import { ProductEnricher } from '../../services/product.enricher';
+import { FreshnessService } from '../../freshness/freshness.service';
+import { logger } from '../../logger';
+
+const log = logger.child({ module: 'hashtag-ingestion-pipeline' });
+
+/**
+ * Minimum view count a TikTok post must have to be considered for AI extraction.
+ * Posts below this threshold are skipped to conserve Gemini API tokens.
+ */
+const MIN_VIEW_COUNT = 50_000;
+
+export interface HashtagPipelineResult {
+  postsCollected:    number;
+  postsFiltered:     number;  // skipped due to low views
+  aiExtractionsDone: number;
+  rainforestHits:    number;
+  dbUpserts:         number;
+  errors:            string[];
+  durationMs:        number;
+}
+
+/**
+ * Hashtag Ingestion Pipeline
+ *
+ * Full ETL cycle for the hashtag-based product discovery flow:
+ *
+ *   1. Fetch TikTok posts from EnsembleData for all TRACKED_HASHTAGS
+ *      — paginated (dev: 2 pages, staging/prod: all pages up to ~4000)
+ *
+ *   2. Filter: skip posts with < 50k views (not engaging enough to extract)
+ *
+ *   3. For each qualifying post:
+ *      a. Fetch comments (already done during ingestion step)
+ *      b. Run Gemini AI extraction → productName, productNiche, sentiment, etc.
+ *      c. Search Rainforest (Amazon) with the extracted productName
+ *      d. Merge + upsert the enriched product into MongoDB
+ *
+ * This pipeline is self-contained and can be triggered manually, via a cron
+ * job, or as an ingestion orchestrator source in the future.
+ */
+export class HashtagIngestionPipeline {
+  private readonly job: EnsembleJob;
+
+  constructor() {
+    this.job = new EnsembleJob();
+  }
+
+  async run(): Promise<HashtagPipelineResult> {
+    const startTime  = Date.now();
+    const errors: string[] = [];
+
+    let postsFiltered     = 0;
+    let aiExtractionsDone = 0;
+    let rainforestHits    = 0;
+    let dbUpserts         = 0;
+
+    log.info('Hashtag ingestion pipeline started', {
+      hashtags: TRACKED_HASHTAGS,
+      minViewCount: MIN_VIEW_COUNT,
+    });
+
+    // ── Step 1: Collect posts + comments from EnsembleData ───────────────────
+    const { posts, commentMap } = await this.job.runHashtagIngestion([...TRACKED_HASHTAGS]);
+
+    log.info(`Collected ${posts.length} posts across ${TRACKED_HASHTAGS.length} hashtag(s)`);
+
+    // ── Step 2 + 3: Extract, enrich, and persist each post ───────────────────
+    for (const post of posts) {
+
+      // Filter: skip low-engagement posts
+      if (post.viewCount < MIN_VIEW_COUNT) {
+        postsFiltered++;
+        continue;
+      }
+
+      try {
+        const comments = commentMap.get(post.videoId) ?? [];
+
+        // Step 3a: Gemini AI extraction
+        const extraction = await ProductExtractor.extractFromPost(post, comments);
+
+        if (!extraction) {
+          log.debug('Post skipped — AI determined it is not product-related', {
+            videoId: post.videoId,
+          });
+          continue;
+        }
+
+        aiExtractionsDone++;
+
+        // Step 3b: Rainforest Amazon lookup
+        const rainforestResponse = await RainforestService.searchAmazonProducts(
+          extraction.productName
+        );
+
+        const rainforestResults = rainforestResponse?.search_results ?? [];
+
+        if (rainforestResults.length > 0) {
+          rainforestHits++;
+        } else {
+          log.debug('Rainforest returned no results for product', {
+            productName: extraction.productName,
+          });
+        }
+
+        // Step 3c: Merge + upsert to DB
+        await ProductEnricher.mergeAndUpsert(extraction, rainforestResults, post);
+        dbUpserts++;
+
+      } catch (err: any) {
+        const msg = `Pipeline error for post ${post.videoId}: ${String(err)}`;
+        errors.push(msg);
+        log.error(msg);
+        // Do not throw — continue processing remaining posts
+      }
+    }
+
+    // ── Freshness update ─────────────────────────────────────────────────────
+    if (dbUpserts > 0) {
+      await FreshnessService.markUpdated('product');
+    }
+
+    const durationMs = Date.now() - startTime;
+
+    const result: HashtagPipelineResult = {
+      postsCollected:    posts.length,
+      postsFiltered,
+      aiExtractionsDone,
+      rainforestHits,
+      dbUpserts,
+      errors,
+      durationMs,
+    };
+
+    log.info('Hashtag ingestion pipeline complete', { ...result });
+
+    return result;
+  }
+}

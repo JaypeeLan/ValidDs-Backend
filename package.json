@@ -40,7 +40,8 @@
     "lint": "eslint src --ext .ts",
     "seed": "ts-node scripts/seed.ts",
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
-    "test-ingestion": "ts-node scripts/test-ingestion.ts"
+    "test-ingestion": "ts-node scripts/test-ingestion.ts",
+    "hashtag-pipeline": "npx ts-node scripts/run-hashtag-pipeline.ts"
   },
   "dependencies": {
     "@sentry/node": "^7.99.0",
@@ -57,6 +58,7 @@
     "node-fetch": "^2.7.0",
     "prom-client": "^15.1.0",
     "prometheus-remote-write": "^0.5.1",
+    "socket.io": "^4.8.3",
     "swagger-parser": "^10.0.3",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.0",
@@ -69,6 +71,7 @@
     "@types/jest": "^29.5.11",
     "@types/mongo-sanitize": "^1.0.3",
     "@types/node": "^20.11.5",
+    "@types/socket.io": "^3.0.1",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^9.0.7",
     "@types/yamljs": "^0.2.34",

@@ -10,7 +10,7 @@ const log = logger.child({ module: 'ensemble-client' });
  * Requires ENSEMBLE_API_KEY in .env.
  */
 
-const ENSEMBLE_BASE = 'https://ensembledata.com/apis';
+const ENSEMBLE_BASE = 'https://ensembledata.com/apis/tt';
 const RATE_LIMIT_MS = 2000;
 
 export interface EnsemblePost {
@@ -76,7 +76,7 @@ export class EnsembleClient {
   async searchPosts(keyword: string, cursor = 0): Promise<EnsemblePost[]> {
     await this.throttle();
     try {
-      const res = await this.client.get('/tiktok/keyword/search', {
+      const res = await this.client.get('/keyword/search', {
         params: {
           name: keyword,
           cursor,
@@ -99,7 +99,7 @@ export class EnsembleClient {
   async getPostComments(awemeId: string, cursor = 0): Promise<EnsembleComment[]> {
     await this.throttle();
     try {
-      const res = await this.client.get('/tiktok/post/comments', {
+      const res = await this.client.get('/post/comments', {
         params: {
           aweme_id: awemeId,
           cursor,
@@ -113,6 +113,37 @@ export class EnsembleClient {
       const details = err.response?.data || String(err);
       log.warn(`EnsembleData getPostComments failed for ${awemeId}`, { err: details });
       return [];
+    }
+  }
+
+  /**
+   * Fetch posts for a specific hashtag with cursor-based pagination.
+   * Returns posts and the nextCursor provided by EnsembleData for the next page.
+   * Response structure: { data: { nextCursor: number, data: EnsemblePost[] } }
+   */
+  async getHashtagPosts(
+    hashtag: string,
+    cursor = 0
+  ): Promise<{ posts: EnsemblePost[]; nextCursor: number | null }> {
+    await this.throttle();
+    try {
+      const res   = await this.client.get('/hashtag/posts', {
+        params: { name: hashtag, cursor },
+      });
+      const inner      = res.data?.data;          // { nextCursor, data: [...] }
+      const posts      = inner?.data ?? [];       // the actual posts array
+      const nextCursor = inner?.nextCursor ?? null;
+      log.debug(`Fetched ${posts.length} posts for #${hashtag} at cursor=${cursor}, nextCursor=${nextCursor}`);
+      return { posts, nextCursor };
+    } catch (err: any) {
+      const status  = err.response?.status;
+      const body    = JSON.stringify(err.response?.data ?? null);
+      const message = err.message ?? String(err);
+      const url     = err.config?.url ?? '/hashtag/posts';
+      log.error(`EnsembleData getHashtagPosts failed for #${hashtag} cursor=${cursor}`, {
+        status, message, body, url,
+      });
+      return { posts: [], nextCursor: null };
     }
   }
 

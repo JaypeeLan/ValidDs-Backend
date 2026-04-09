@@ -21,7 +21,7 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 export type AuthProvider = 'google' | 'local' | 'tiktok';
-export type UserPlan = 'free' | 'pro' | 'team';
+export type UserPlan = 'trial' | 'starter' | 'validator' | 'scale';
 export type UserRole = 'user' | 'admin';
 export type UserStatus = 'active' | 'suspended' | 'deleted';
 
@@ -99,6 +99,14 @@ export interface IUser {
   plan: UserPlan;
   planExpiresAt?: Date;        // null = no expiry (lifetime / free)
 
+  // Credits
+  creditBalance: number;
+
+  // Stripe Billing
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripePriceId?: string;
+
   // Usage (for quota enforcement per plan)
   usage: IUsageStats;
 
@@ -130,6 +138,7 @@ export interface IUserDocument extends IUser, Document {
   incrementProductView(): Promise<void>;
   resetDailyUsage(): Promise<void>;
   softDelete(): Promise<void>;
+  deductCredits(amount: number): Promise<boolean>;
 }
 
 export interface IUserModel extends Model<IUserDocument> {
@@ -142,10 +151,11 @@ export interface IUserModel extends Model<IUserDocument> {
 
 // ── Plan limits ───────────────────────────────────────────────────────────────
 
-export const PLAN_LIMITS: Record<UserPlan, { productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
-  free: { productsPerDay: 10, searchesPerDay: 5, savedProductsMax: 10 },
-  pro: { productsPerDay: 500, searchesPerDay: 200, savedProductsMax: 500 },
-  team: { productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 }, // -1 = unlimited
+export const PLAN_LIMITS: Record<UserPlan, { creditsPerMonth: number; productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
+  trial: { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
+  starter: { creditsPerMonth: 15000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
+  validator: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
+  scale: { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
 };
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -248,10 +258,16 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     },
     plan: {
       type: String,
-      enum: ['free', 'pro', 'team'] as UserPlan[],
-      default: 'free',
+      enum: ['trial', 'starter', 'validator', 'scale'] as UserPlan[],
+      default: 'trial',
     },
     planExpiresAt: { type: Date },
+
+    creditBalance: { type: Number, default: 1000 }, // Defaults to trial credits
+
+    stripeCustomerId: { type: String, sparse: true },
+    stripeSubscriptionId: { type: String, sparse: true },
+    stripePriceId: { type: String, sparse: true },
 
     // Usage
     usage: { type: UsageStatsSchema, default: () => ({}) },
@@ -341,6 +357,15 @@ UserSchema.methods.softDelete = async function (): Promise<void> {
   this.deletedAt = new Date();
   this.email = `deleted_${Date.now()}_${this.email}`; // Free the email for re-registration
   await this.save();
+};
+
+UserSchema.methods.deductCredits = async function (amount: number): Promise<boolean> {
+  if (this.creditBalance < amount) {
+    return false; // Insufficient credits
+  }
+  this.creditBalance -= amount;
+  await this.save();
+  return true;
 };
 
 // ── Static methods ────────────────────────────────────────────────────────────

@@ -31,6 +31,7 @@ import { startRemoteWrite, stopRemoteWrite } from './monitoring/remote-write';
 import { initialiseMetrics } from './monitoring/metrics';
 import { logger } from './logger';
 import { startJobs, stopJobs } from './jobs/index';
+import { SocketService } from './config/socket';
 
 const log = logger.child({ module: 'server' });
 
@@ -59,6 +60,9 @@ async function start(): Promise<void> {
   // Step 7 & 8: Express
   const app = await createApp();
   server = http.createServer(app);
+
+  // Bind Socket.IO immediately to the underlying raw Node server
+  SocketService.initialize(server);
 
   server.listen(env.PORT, () => {
     log.info(`HTTP server listening on port ${env.PORT}`, {

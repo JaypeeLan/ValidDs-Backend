@@ -1,6 +1,6 @@
 import { EnsembleClient } from './ensemble.client';
-import { transformEnsemblePosts } from './ensemble.transformer';
-import { NormalizedPost, NormalizedHashtag, NormalizedKeyword, IngestionJobResult } from '../ingestion.types';
+import { transformEnsemblePosts, transformEnsembleComments } from './ensemble.transformer';
+import { NormalizedPost, NormalizedComment, NormalizedHashtag, NormalizedKeyword, IngestionJobResult } from '../ingestion.types';
 import { logger } from '../../logger';
 import { ingestionJobsTotal, ingestionRecordsIngested } from '../../monitoring/metrics';
 import { FreshnessService } from '../../freshness/freshness.service';
@@ -110,5 +110,75 @@ export class EnsembleJob {
     };
 
     return { output, result };
+  }
+
+  /**
+   * Hashtag-based ingestion with cursor pagination.
+   *
+   * For each hashtag in the provided list, fetches posts page by page:
+   *   - development : 2 pages  (cursor 0 → 20)
+   *   - staging / production : all pages (cursor 0 → 4000, or until empty)
+   *
+   * For every post collected it also fetches top comments so the AI
+   * extraction layer can evaluate buying intent and sentiment.
+   *
+   * Returns the full post list and a commentMap keyed by videoId.
+   */
+  async runHashtagIngestion(
+    hashtags: string[]
+  ): Promise<{ posts: NormalizedPost[]; commentMap: Map<string, NormalizedComment[]> }> {
+    const isDev = process.env.NODE_ENV === 'development';
+    const CURSOR_STEP = 20;
+    // dev = 2 pages (cursor 0 and 20), production = all pages up to ~4000-5000
+    const MAX_CURSOR = isDev ? 20 : 4000;
+
+    const allPosts: NormalizedPost[] = [];
+    const commentMap = new Map<string, NormalizedComment[]>();
+
+    log.info('Hashtag ingestion started', {
+      hashtags,
+      mode: isDev ? 'development (2 pages)' : 'full pagination',
+    });
+
+    for (const hashtag of hashtags) {
+      let cursor: number | null = 0;
+      let pagesFetched = 0;
+
+      while (cursor !== null && cursor <= MAX_CURSOR) {
+        const { posts: rawPosts, nextCursor } = await this.client.getHashtagPosts(hashtag, cursor);
+
+        if (rawPosts.length === 0) {
+          log.debug(`#${hashtag} returned 0 posts at cursor=${cursor} — stopping pagination`);
+          break;
+        }
+
+        const normalized = transformEnsemblePosts(rawPosts);
+        allPosts.push(...normalized);
+        pagesFetched++;
+
+        log.debug(`#${hashtag} cursor=${cursor}: ${normalized.length} posts collected (page ${pagesFetched})`);
+
+        // Fetch comments for every post on this page
+        for (const post of normalized) {
+          const rawComments = await this.client.getPostComments(post.videoId);
+          if (rawComments.length > 0) {
+            commentMap.set(
+              post.videoId,
+              transformEnsembleComments(rawComments, post.videoId)
+            );
+          }
+        }
+
+        // Use API-provided nextCursor; fall back to null to stop if missing
+        cursor = nextCursor;
+      }
+    }
+
+    log.info('Hashtag ingestion complete', {
+      totalPosts: allPosts.length,
+      postsWithComments: commentMap.size,
+    });
+
+    return { posts: allPosts, commentMap };
   }
 }

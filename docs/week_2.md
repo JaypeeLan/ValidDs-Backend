@@ -32,7 +32,7 @@ Week 2 focused on finalizing the TikTok data ingestion pipeline, improving syste
 ---
 
 ## Next Steps (Week 3)
-*   Finalize AI-powered field extraction multi-provider (DeepSeek, Claude, GPT-4) failover.
+*   Finalize AI-powered field extraction multi-provider (DeepSeek, GPT-4) failover.
 *   Implement advanced filtering and search pagination for the Product Feed.
 *   Begin integration of supplier sourcing logic.
 

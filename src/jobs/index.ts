@@ -1,5 +1,7 @@
 import { runProductRefreshJob, runStaleCleanupJob } from './product-refresh.job';
 import { logger } from '../logger';
+import { env } from '../config/env.validation';
+import { HashtagIngestionPipeline } from '../ingestion/ensemble/hashtag-ingestion.pipeline';
 
 const log = logger.child({ module: 'jobs' });
 
@@ -17,12 +19,15 @@ const log = logger.child({ module: 'jobs' });
  * to give the server time to fully start before making external requests.
  */
 
-const PRODUCT_REFRESH_INTERVAL_MS  = 2 * 60 * 60 * 1000;   // 2 hours
-const STALE_CLEANUP_INTERVAL_MS    = 30 * 60 * 1000;        // 30 minutes
-const INITIAL_DELAY_MS             = 10 * 1000;              // 10 seconds
+const PRODUCT_REFRESH_INTERVAL_MS  = 2 * 60 * 60 * 1000;      // 2 hours
+const STALE_CLEANUP_INTERVAL_MS    = 30 * 60 * 1000;           // 30 minutes
+const HASHTAG_PIPELINE_INTERVAL_MS = 48 * 60 * 60 * 1000;     // 48 hours
+const INITIAL_DELAY_MS             = 10 * 1000;                // 10 seconds
+const HASHTAG_PIPELINE_DELAY_MS    = 30 * 1000;               // 30 seconds (allow full boot)
 
-let productRefreshTimer: ReturnType<typeof setInterval> | null = null;
-let staleCleanupTimer: ReturnType<typeof setInterval> | null = null;
+let productRefreshTimer:  ReturnType<typeof setInterval> | null = null;
+let staleCleanupTimer:    ReturnType<typeof setInterval> | null = null;
+let hashtagPipelineTimer: ReturnType<typeof setInterval> | null = null;
 
 export function startJobs(): void {
   log.info('Starting background jobs');
@@ -49,14 +54,41 @@ export function startJobs(): void {
     );
   }, STALE_CLEANUP_INTERVAL_MS);
 
+  // Hashtag ingestion pipeline — every 48 hours, staging/prod only.
+  // Development uses `npm run hashtag-pipeline` instead.
+  if (env.NODE_ENV !== 'development') {
+    setTimeout(() => {
+      log.info('Running initial hashtag ingestion pipeline');
+      new HashtagIngestionPipeline().run().catch((err) =>
+        log.error('Initial hashtag pipeline failed', err)
+      );
+
+      hashtagPipelineTimer = setInterval(() => {
+        log.info('Scheduled hashtag pipeline triggered');
+        new HashtagIngestionPipeline().run().catch((err) =>
+          log.error('Scheduled hashtag pipeline failed', err)
+        );
+      }, HASHTAG_PIPELINE_INTERVAL_MS);
+    }, HASHTAG_PIPELINE_DELAY_MS);
+
+    log.info('Hashtag pipeline scheduled', {
+      interval: '48 hours',
+      firstRunIn: `${HASHTAG_PIPELINE_DELAY_MS / 1000}s`,
+    });
+  } else {
+    log.info('Hashtag pipeline NOT scheduled in development. Run: npm run hashtag-pipeline');
+  }
+
   log.info('Background jobs scheduled', {
     productRefreshInterval: `${PRODUCT_REFRESH_INTERVAL_MS / 60000} minutes`,
     staleCleanupInterval:   `${STALE_CLEANUP_INTERVAL_MS / 60000} minutes`,
+    hashtagPipelineInterval: env.NODE_ENV !== 'development' ? '48 hours' : 'disabled (dev)',
   });
 }
 
 export function stopJobs(): void {
-  if (productRefreshTimer) clearInterval(productRefreshTimer);
-  if (staleCleanupTimer)   clearInterval(staleCleanupTimer);
+  if (productRefreshTimer)  clearInterval(productRefreshTimer);
+  if (staleCleanupTimer)    clearInterval(staleCleanupTimer);
+  if (hashtagPipelineTimer) clearInterval(hashtagPipelineTimer);
   log.info('Background jobs stopped');
 }

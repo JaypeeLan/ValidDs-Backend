@@ -72,7 +72,7 @@ export interface NormalizedComment {
 // ── AI-extracted product ──────────────────────────────────────────────────────
 
 /**
- * The product extracted by Claude from a NormalizedPost + its top comments.
+ * The product extracted by the AI from a NormalizedPost + its top comments.
  * This is what gets stored in MongoDB as a Product record.
  */
 export interface ExtractedProduct {

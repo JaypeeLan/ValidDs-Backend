@@ -1,4 +1,5 @@
 import { Product, IProductDocument } from '../../models/product.model';
+import { PRODUCT_CATEGORIES } from '../../api/products/product.constants';
 import { ExtractedProduct, NormalizedPost } from '../../ingestion/ingestion.types';
 import { logger } from '../../logger';
 import { parsePagination, toMongoSkip, buildPaginatedResponse, PaginatedResponse } from '../../utils/pagination.util';
@@ -23,6 +24,48 @@ export interface ProductFeedFilters {
   limit?: number;
   sortBy?: 'trendScore' | 'views' | 'recent' | 'engagement';
   region?: string;
+}
+
+/**
+ * Shape passed to upsertEnrichedProduct.
+ * Combines AI extraction output with Rainforest Amazon enrichment.
+ */
+export interface EnrichedProductInput {
+  // From the TikTok post
+  videoId: string;
+  source: string;
+  hashtags: string[];
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  engagementRate?: number;
+  videoUrl?: string;
+  thumbnailUrl?: string;
+  creatorHandle: string;
+  creatorFollowers?: number;
+  publishedAt?: Date;
+  collectedAt: Date;
+  isAd: boolean;
+
+  // From Gemini AI extraction
+  category: string;              // productNiche mapped to canonical category
+  aiConfidence: number;
+  trendScore: number;
+  trendDirection: 'rising' | 'peaked' | 'saturating' | 'unknown';
+  trendReason: string;
+  sentimentSummary?: string;
+  buyingIntentScore?: number;
+
+  // From Rainforest Amazon enrichment
+  title: string;                 // short, searchable Amazon product title (≤80 chars)
+  description: string;           // AI-generated product summary
+  price: number;                 // average price across Rainforest results (0 if unavailable)
+  priceMin?: number;             // lowest price seen
+  priceMax?: number;             // highest price seen
+  currency: string;
+  primaryImageUrl?: string;      // first Rainforest result image
+  imageUrls: string[];           // all Rainforest result images
 }
 
 export const ProductRepository = {
@@ -236,6 +279,88 @@ export const ProductRepository = {
    * Get all unique product categories.
    */
   async getCategories(): Promise<string[]> {
-    return Product.distinct('category', { status: 'active', category: { $ne: null } });
+    return [...PRODUCT_CATEGORIES];
+  },
+
+  /**
+   * Upsert a product enriched with both Gemini AI and Rainforest Amazon data.
+   *
+   * Used exclusively by the hashtag ingestion pipeline.
+   * Keyed on videoId + source (same as upsertFromExtraction).
+   */
+  async upsertEnrichedProduct(input: EnrichedProductInput): Promise<IProductDocument> {
+    const filter = { externalId: input.videoId, source: input.source };
+
+    const update = {
+      $set: {
+        // Identity
+        title:       input.title,
+        description: input.description,
+        category:    input.category,
+        tags:        input.hashtags,
+
+        // Media — from Rainforest results
+        primaryImageUrl: input.primaryImageUrl,
+        imageUrls:       input.imageUrls,
+
+        // Pricing — computed averages from Rainforest
+        price:    input.price,
+        priceMin: input.priceMin,
+        priceMax: input.priceMax,
+        currency: input.currency,
+
+        // Engagement — from TikTok post
+        totalViews:    input.viewCount,
+        totalLikes:    input.likeCount,
+        totalComments: input.commentCount,
+        totalShares:   input.shareCount,
+        totalVideos:   1,
+        engagementRate: input.engagementRate,
+
+        // Top video
+        topVideos: [{
+          videoId:         input.videoId,
+          url:             input.videoUrl,
+          thumbnailUrl:    input.thumbnailUrl,
+          viewCount:       input.viewCount,
+          likeCount:       input.likeCount,
+          commentCount:    input.commentCount,
+          shareCount:      input.shareCount,
+          creatorHandle:   input.creatorHandle,
+          creatorFollowers: input.creatorFollowers,
+          publishedAt:     input.publishedAt,
+          isAd:            input.isAd,
+        }],
+
+        // Trend data
+        'trend.direction':   input.trendDirection,
+        'trend.score':       input.trendScore,
+        'trend.calculatedAt': new Date(),
+
+        // AI metadata
+        'aiExtraction.confidence':      input.aiConfidence,
+        'aiExtraction.trendReason':     input.trendReason,
+        'aiExtraction.sentimentSummary': input.sentimentSummary,
+        'aiExtraction.buyingIntentScore': input.buyingIntentScore,
+        'aiExtraction.extractedAt':     new Date(),
+
+        // Freshness
+        dataSourceUpdatedAt: input.collectedAt,
+        lastIngestedAt:      new Date(),
+        isStale:             false,
+        status:              'active',
+      },
+    };
+
+    const options = { upsert: true, new: true, setDefaultsOnInsert: true };
+
+    try {
+      const product = await Product.findOneAndUpdate(filter, update, options);
+      log.debug('Enriched product upserted', { videoId: input.videoId, title: input.title });
+      return product!;
+    } catch (err) {
+      log.error('Enriched product upsert failed', err, { videoId: input.videoId });
+      throw err;
+    }
   },
 };

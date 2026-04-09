@@ -1,4 +1,5 @@
 import { NormalizedPost, NormalizedComment, ExtractedProduct } from '../ingestion/ingestion.types';
+import { PRODUCT_CATEGORIES } from '../api/products/product.constants';
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'product-extractor' });
@@ -6,11 +7,11 @@ const log = logger.child({ module: 'product-extractor' });
 /**
  * Product Extractor
  *
- * Uses the Claude API to extract structured product information
+ * Uses an AI API to extract structured product information
  * from a TikTok post (video title, description, hashtags) and
  * its top comments.
  *
- * For each post, Claude returns:
+ * For each post, the AI returns:
  *  - Product name and niche
  *  - Whether the video is actually about a product
  *  - Estimated price (if mentioned anywhere)
@@ -26,11 +27,8 @@ const log = logger.child({ module: 'product-extractor' });
  * up to CONCURRENCY_LIMIT to avoid hammering the API.
  *
  * Cost: approximately 1,000 input tokens + 300 output tokens per post.
- * At Claude Haiku pricing (~$0.25/1M input, ~$1.25/1M output):
- * ~100 posts = ~0.03 USD
  */
 
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
@@ -41,13 +39,6 @@ const PROVIDERS = [
     url: DEEPSEEK_API_URL,
     model: 'deepseek-chat',
     format: 'openai' as const,
-  },
-  {
-    name: 'anthropic',
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    url: ANTHROPIC_API_URL,
-    model: 'claude-haiku-4-5-20251001',
-    format: 'anthropic' as const,
   },
   {
     name: 'openai',
@@ -111,7 +102,7 @@ Respond with this exact JSON structure:
 {
   "isProductVideo": true,
   "productName": "Portable Mini Blender",
-  "productNiche": "Kitchen Gadgets",
+  "productNiche": "Home & Kitchen",
   "productDescription": "One-sentence description of what the product is and why it is trending",
   "estimatedPrice": 24.99,
   "currency": "USD",
@@ -122,6 +113,9 @@ Respond with this exact JSON structure:
   "sentimentSummary": "One sentence describing what the comments reveal",
   "buyingIntentScore": 78
 }
+
+productNiche MUST be one of:
+${PRODUCT_CATEGORIES.map(c => `- ${c}`).join('\n')}
 
 trendDirection must be one of: "rising", "peaked", "saturating", "unknown"
 estimatedPrice must be null if not mentioned
@@ -176,35 +170,24 @@ export const ProductExtractor = {
     let requestBody: any;
     let headers: Record<string, string>;
 
-    if (provider.format === 'anthropic') {
-      requestBody = {
-        model: provider.model,
-        max_tokens: 500,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: prompt }],
-      };
-      headers = {
-        'Content-Type': 'application/json',
-        'x-api-key': provider.apiKey!,
-        'anthropic-version': '2023-06-01',
-      };
-    } else {
-      // OpenAI/DeepSeek format
-      requestBody = {
-        model: provider.model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: prompt },
-        ],
-        max_tokens: 500,
-      };
-      headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${provider.apiKey}`,
-      };
-    }
+    // OpenAI/DeepSeek format
+    requestBody = {
+      model: provider.model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      response_format: { type: 'json_object' },
+      max_tokens: 500,
+    };
+    headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${provider.apiKey}`,
+    };
 
-    const response = await fetch(provider.url, {
+    const requestUrl = provider.url;
+
+    const response = await fetch(requestUrl, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody),
@@ -218,18 +201,10 @@ export const ProductExtractor = {
     const data = await response.json() as any;
 
     let text: string;
-    if (provider.format === 'anthropic') {
-      if (data.error) throw new Error(`Anthropic error: ${data.error.message}`);
-      text = data.content
-        ?.filter((b: any) => b.type === 'text')
-        .map((b: any) => b.text ?? '')
-        .join('') ?? '';
-    } else {
-      if (data.error) throw new Error(`${provider.name} error: ${data.error.message}`);
-      text = data.choices?.[0]?.message?.content ?? '';
-    }
+    if (data.error) throw new Error(`${provider.name} error: ${data.error.message}`);
+    text = data.choices?.[0]?.message?.content ?? '';
 
-    const parsed = parseClaudeJSON(text);
+    const parsed = parseAIJSON(text);
     if (!parsed) {
       throw new Error(`Failed to parse ${provider.name} JSON response`);
     }
@@ -309,7 +284,7 @@ export const ProductExtractor = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function parseClaudeJSON(text: string): Record<string, unknown> | null {
+function parseAIJSON(text: string): Record<string, unknown> | null {
   try {
     // Strip any markdown code fences if present
     const clean = text
@@ -333,7 +308,7 @@ function parseClaudeJSON(text: string): Record<string, unknown> | null {
 }
 
 /**
- * When the Claude API is not configured or fails,
+ * When the AI API is not configured or fails,
  * build a basic extraction from the post metadata alone.
  * This ensures the pipeline continues without AI.
  */
@@ -378,30 +353,35 @@ function buildEngagementContext(post: NormalizedPost): string {
 
 function inferNicheFromHashtags(hashtags: string[]): string {
   const nicheMap: Record<string, string> = {
-    kitchen: 'Kitchen & Home',
-    cooking: 'Kitchen & Home',
-    beauty: 'Beauty & Skincare',
-    skincare: 'Beauty & Skincare',
-    makeup: 'Beauty & Skincare',
-    fitness: 'Health & Fitness',
-    workout: 'Health & Fitness',
-    gym: 'Health & Fitness',
-    gadget: 'Tech Gadgets',
-    tech: 'Tech Gadgets',
-    fashion: 'Fashion & Apparel',
-    outfit: 'Fashion & Apparel',
+    kitchen: 'Home & Kitchen',
+    cooking: 'Home & Kitchen',
+    beauty: 'Beauty & Healthcare',
+    skincare: 'Beauty & Healthcare',
+    makeup: 'Beauty & Healthcare',
+    fitness: 'Sports & Outdoors',
+    workout: 'Sports & Outdoors',
+    gym: 'Sports & Outdoors',
+    gadget: 'Electronics & Gadgets',
+    tech: 'Electronics & Gadgets',
+    fashion: 'Fashion & Accessories',
+    outfit: 'Fashion & Accessories',
     pet: 'Pet Supplies',
-    baby: 'Baby & Kids',
-    home: 'Home & Living',
-    travel: 'Travel',
-    gaming: 'Gaming',
+    baby: 'Toys & Hobbies',
+    toy: 'Toys & Hobbies',
+    home: 'Home & Kitchen',
+    travel: 'Sports & Outdoors',
+    automotive: 'Automotive',
+    car: 'Automotive',
+    repair: 'Tools & Home Improvement',
+    office: 'Office Products',
   };
   for (const tag of hashtags) {
+    const lowerTag = tag.toLowerCase();
     for (const [key, niche] of Object.entries(nicheMap)) {
-      if (tag.includes(key)) return niche;
+      if (lowerTag.includes(key)) return niche;
     }
   }
-  return 'General';
+  return 'Beauty & Healthcare'; // default to a safe primary niche if no match
 }
 
 function formatNumber(n?: number): string {

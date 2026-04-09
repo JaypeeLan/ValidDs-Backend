@@ -64,9 +64,9 @@ const envSchema = z.object({
   ),
 
 
-  CREATIVE_CENTER_REGION: z.preprocess(
+  TIKTOK_REGION: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional().default('US')
   ),
 
   // AI Providers

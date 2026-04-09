@@ -1,4 +1,3 @@
-import { CreativeCenterJob } from './creative-center/creative-center.job';
 import { IngestionJobResult, OrchestratorConfig, NormalizedPost } from './ingestion.types';
 import { logger } from '../logger';
 import { Alerts } from '../monitoring/alerts';
@@ -26,8 +25,8 @@ const log = logger.child({ module: 'ingestion-orchestrator' });
  */
 
 const DEFAULT_CONFIG: OrchestratorConfig = {
-  primarySource: 'creative-center',
-  fallbackSources: ['ensemble'],
+  primarySource: 'ensemble',
+  fallbackSources: [],
   maxRetries: 2,
   retryDelayMs: 3000,
 };
@@ -45,7 +44,7 @@ export class IngestionOrchestrator {
 
   constructor(
     config: Partial<OrchestratorConfig> = {},
-    region = process.env.CREATIVE_CENTER_REGION ?? 'US'
+    region = process.env.TIKTOK_REGION ?? 'US'
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.region = region;
@@ -133,20 +132,12 @@ export class IngestionOrchestrator {
   ): Promise<{ posts: NormalizedPost[]; result: IngestionJobResult }> {
     try {
       switch (source) {
-        case 'creative-center': {
-          const job = new CreativeCenterJob(this.region);
-          const { output, result } = await job.run();
-          return { posts: output.posts, result };
-        }
-
         case 'ensemble': {
           const { EnsembleJob } = await import('./ensemble/ensemble.job');
           const job = new EnsembleJob(this.region);
           const { output, result } = await job.run();
           return { posts: output.posts, result };
         }
-
-
 
         default:
           throw new Error(`Unknown source: ${source}`);

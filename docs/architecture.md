@@ -38,13 +38,12 @@ The system is designed for V1 speed of delivery while remaining structurally cle
 ┌───────▼────────────────────────────────────────────────────────┐
 │                   Data Ingestion Pipeline                      │
 │                                                                │
-│  TikTok Creative Center (Internal Scaper)  →  Orchestrator           │
-│    ├─ Top ads (from session-authenticated endpoints)         │
-│    ├─ Trending videos (from session-authenticated endpoints)  │
-│    ├─ Trending hashtags (from session-authenticated endpoints)│
-│    └─ Keyword trends (from session-authenticated endpoints)   │
-│                                                                │
-│  Product Extraction (Multi-Provider AI with Fallback):       │
+│  EnsembleData API (Primary)  →  Orchestrator                      │
+│    ├─ Keyword-based discovery                                     │
+│    ├─ Hashtag-based deep collection                              │
+│    └─ Comment-based intent analysis                              │
+│                                                                  │
+│  Product Extraction (Multi-Provider AI with Fallback):           │
 │    1. DeepSeek API (primary, lowest cost)                    │
 
 │    3. OpenAI GPT-4o-mini (fallback)                          │
@@ -85,7 +84,9 @@ Tracks when each entity type was last successfully updated. Adds freshness metad
 Orchestrates data collection from TikTok via RapidAPI and triggers AI-powered product extraction.
 
 **Sources:**
-- **TikTok Creative Center (Internal Scaper)**: Primary data source collecting trending ads, videos, hashtags, and keyword trends via session-based HTTP requests.
+- **EnsembleData API**: Primary data source collecting trending products, videos, hashtags, and keyword trends via the EnsembleData TikTok API.
+  - Requires: `ENSEMBLE_API_KEY` environment variable.
+  - Configuration: `TIKTOK_REGION` (default: `US`).
 
 **Product Extraction (Multi-Provider AI):**
 The extraction layer uses a provider fallback chain to minimize costs while maintaining availability. If a provider's API key is missing, the system automatically falls back to the next provider.

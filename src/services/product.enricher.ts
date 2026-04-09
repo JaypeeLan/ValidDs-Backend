@@ -83,13 +83,6 @@ export const ProductEnricher = {
 
     return ProductRepository.upsertEnrichedProduct(input);
   },
-
-  /**
-   * Clears all products from the database.
-   */
-  async purgeData(): Promise<void> {
-    await ProductRepository.purgeAll();
-  },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

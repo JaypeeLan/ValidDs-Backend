@@ -21,7 +21,7 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 export type AuthProvider = 'google' | 'local' | 'tiktok';
-export type UserPlan = 'trial' | 'starter' | 'validator' | 'scale';
+export type UserPlan = 'free' | 'trial' | 'pro' | 'team' | 'starter' | 'validator' | 'scale';
 export type UserRole = 'user' | 'admin';
 export type UserStatus = 'active' | 'suspended' | 'deleted';
 
@@ -152,10 +152,13 @@ export interface IUserModel extends Model<IUserDocument> {
 // ── Plan limits ───────────────────────────────────────────────────────────────
 
 export const PLAN_LIMITS: Record<UserPlan, { creditsPerMonth: number; productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
-  trial: { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
-  starter: { creditsPerMonth: 15000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
+  free:      { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
+  trial:     { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
+  pro:       { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
+  team:      { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
+  starter:   { creditsPerMonth: 15000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
   validator: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
-  scale: { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
+  scale:     { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
 };
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -258,8 +261,8 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     },
     plan: {
       type: String,
-      enum: ['trial', 'starter', 'validator', 'scale'] as UserPlan[],
-      default: 'trial',
+      enum: ['free', 'trial', 'pro', 'team', 'starter', 'validator', 'scale'] as UserPlan[],
+      default: 'free',
     },
     planExpiresAt: { type: Date },
 

@@ -12,11 +12,10 @@ const log = logger.child({ module: 'rainforest-service' });
 export const RainforestService = {
   /**
    * Search Amazon using Rainforest API.
-   * Hardcoded parameters based on system schema, except for the dynamic search term.
+   * Single attempt — returns null on any failure (no retries).
    */
   async searchAmazonProducts(
-    searchTerm: string,
-    maxRetries = 3
+    searchTerm: string
   ): Promise<RainforestSearchResponse | null> {
     const apiKey = env.RAINFOREST_API_KEY;
 
@@ -26,7 +25,6 @@ export const RainforestService = {
     }
 
     const url = 'https://api.rainforestapi.com/request';
-    
     const params = {
       api_key: apiKey,
       type: 'search',
@@ -40,48 +38,31 @@ export const RainforestService = {
       direct_search: 'false',
     };
 
-    let attempt = 1;
-    while (attempt <= maxRetries) {
-      try {
-        log.debug(`Requesting Rainforest API (Attempt ${attempt}/${maxRetries})`, { searchTerm });
-        
-        const response = await axios.get<RainforestSearchResponse>(url, { 
-          params,
-          timeout: 15000 // 15 seconds timeout
-        });
-        
-        if (response.data?.request_info?.success === false) {
-           log.error('Rainforest API returned success: false', { 
-             info: response.data.request_info 
-           });
-           throw new Error('Rainforest API request failed internally.');
-        }
+    try {
+      log.debug('Requesting Rainforest API', { searchTerm });
+      const response = await axios.get<RainforestSearchResponse>(url, {
+        params,
+        timeout: 15000,
+      });
 
-        log.debug('Rainforest API search successful', {
-          searchTerm,
-          resultsFound: response.data.search_results?.length || 0,
-        });
-
-        return response.data;
-      } catch (error: any) {
-        log.warn(`Rainforest API attempt ${attempt} failed`, {
-          searchTerm,
-          error: error.message,
-        });
-
-        if (attempt === maxRetries) {
-          log.error('Rainforest API exhausted all retries.', { searchTerm });
-          throw new Error(`Rainforest search failed for "${searchTerm}" after ${maxRetries} attempts.`);
-        }
-        
-        // Exponential backoff buffer before retry
-        const delayMs = attempt * 1000;
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        
-        attempt++;
+      if (response.data?.request_info?.success === false) {
+        log.warn('Rainforest API returned success: false — skipping', { searchTerm });
+        return null;
       }
-    }
 
-    return null;
+      log.debug('Rainforest API search successful', {
+        searchTerm,
+        resultsFound: response.data.search_results?.length || 0,
+      });
+
+      return response.data;
+    } catch (error: any) {
+      log.warn('Rainforest API request failed — skipping product', {
+        searchTerm,
+        error: error.message,
+        status: error.response?.status,
+      });
+      return null;
+    }
   },
 };

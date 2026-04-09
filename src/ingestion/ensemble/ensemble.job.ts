@@ -25,7 +25,7 @@ export class EnsembleJob {
   private readonly client: EnsembleClient;
   private readonly region: string;
 
-  constructor(region = process.env.CREATIVE_CENTER_REGION ?? 'US') {
+  constructor(region = process.env.TIKTOK_REGION ?? 'US') {
     this.region = region;
     this.client = new EnsembleClient(region);
   }
@@ -129,8 +129,8 @@ export class EnsembleJob {
     processPage: (posts: NormalizedPost[]) => Promise<{ shouldStop: boolean }>
   ): Promise<void> {
     const isDev = process.env.NODE_ENV === 'development';
-    // dev = 2 pages (cursor 0 and 20), production = all pages up to ~4000-5000
-    const MAX_CURSOR = isDev ? 20 : 4000;
+    // dev = 3 pages (cursor 0, 20, 40), production = all pages up to ~4000-5000
+    const MAX_CURSOR = isDev ? 40 : 4000;
 
     log.info('Hashtag ingestion started', {
       hashtags,

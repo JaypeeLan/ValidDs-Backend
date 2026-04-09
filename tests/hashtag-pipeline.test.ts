@@ -7,6 +7,7 @@ describe('HashtagIngestionPipeline', () => {
   let RainforestService: any;
   let ProductEnricher: any;
   let FreshnessService: any;
+  let ProductRepository: any;
 
   beforeAll(async () => {
     // Prime env vars FIRST — before any src/ module is loaded
@@ -24,6 +25,7 @@ describe('HashtagIngestionPipeline', () => {
     RainforestService= (await import('../src/services/rainforest.service')).RainforestService;
     ProductEnricher  = (await import('../src/services/product.enricher')).ProductEnricher;
     FreshnessService = (await import('../src/freshness/freshness.service')).FreshnessService;
+    ProductRepository = (await import('../src/db/repositories/product.repository')).ProductRepository;
     HashtagIngestionPipeline = (await import('../src/ingestion/ensemble/hashtag-ingestion.pipeline')).HashtagIngestionPipeline;
   });
 
@@ -68,6 +70,7 @@ describe('HashtagIngestionPipeline', () => {
       });
 
     jest.spyOn(EnsembleJob.prototype, 'getPostComments').mockResolvedValue([]);
+    jest.spyOn(ProductRepository, 'existsByVideoId').mockResolvedValue(false); // no duplicates
 
     // Create the pipeline AFTER the spy is in place so the internal EnsembleJob
     // inherits the patched prototype method.
@@ -119,6 +122,7 @@ describe('HashtagIngestionPipeline', () => {
       });
 
     jest.spyOn(EnsembleJob.prototype, 'getPostComments').mockResolvedValue([]);
+    jest.spyOn(ProductRepository, 'existsByVideoId').mockResolvedValue(false); // no duplicates
 
     const pipeline = new HashtagIngestionPipeline();
 

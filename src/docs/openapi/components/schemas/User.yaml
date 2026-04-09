@@ -25,7 +25,7 @@ properties:
     example: local
   plan:
     type: string
-    enum: [free, pro, team]
+    enum: [free, trial, pro, team, starter, validator, scale]
     example: free
   planExpiresAt:
     type: string

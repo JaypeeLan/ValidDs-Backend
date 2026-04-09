@@ -78,6 +78,7 @@ export interface NormalizedComment {
 export interface ExtractedProduct {
   // Product identity
   productName: string;             // e.g. "Portable Mini Blender"
+  amazonSearchTerm: string;        // optimised short Amazon query e.g. "portable mini blender USB"
   productNiche: string;            // e.g. "Kitchen Gadgets"
   productDescription: string;     // one-line AI-generated summary
   estimatedPrice?: number;        // extracted from comments/description if mentioned
@@ -126,7 +127,6 @@ export interface NormalizedKeyword {
 // ── Source identifiers ────────────────────────────────────────────────────────
 
 export type IngestionSource =
-  | 'creative-center'     // TikTok Creative Center (primary scraper)
   | 'ensemble'            // EnsembleData API
   | 'manual';             // manually added for testing
 

@@ -283,6 +283,15 @@ export const ProductRepository = {
   },
 
   /**
+   * Check if a product with the given videoId already exists in the DB.
+   * Used by the ingestion pipeline to skip already-processed posts.
+   */
+  async existsByVideoId(videoId: string): Promise<boolean> {
+    const count = await Product.countDocuments({ externalId: videoId });
+    return count > 0;
+  },
+
+  /**
    * Upsert a product enriched with both Gemini AI and Rainforest Amazon data.
    *
    * Used exclusively by the hashtag ingestion pipeline.
@@ -362,13 +371,5 @@ export const ProductRepository = {
       log.error('Enriched product upsert failed', err, { videoId: input.videoId });
       throw err;
     }
-  },
-
-  /**
-   * Purge all products. Used for clearing staging data before a fresh seed.
-   */
-  async purgeAll(): Promise<void> {
-    await Product.deleteMany({});
-    log.info('Purged all products from the database');
   },
 };

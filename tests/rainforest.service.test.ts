@@ -72,28 +72,13 @@ describe('RainforestService - Amazon Enrichment', () => {
     });
   });
 
-  it('should retry automatically when API throws an error', async () => {
-    const mockResponse = {
-      data: {
-        request_info: { success: true },
-        search_results: []
-      }
-    };
+  it('should return null (not throw) when API fails, making failures non-fatal', async () => {
+    // Service now makes a single attempt — if it fails, it returns null gracefully
+    mockedAxios.get.mockRejectedValueOnce(new Error('Network Error'));
 
-    // First two fail, third succeeds
-    mockedAxios.get
-      .mockRejectedValueOnce(new Error('Network Error'))
-      .mockRejectedValueOnce(new Error('Timeout'))
-      .mockResolvedValueOnce(mockResponse);
+    const result = await RainforestService.searchAmazonProducts('failed search');
 
-    const start = Date.now();
-    const result = await RainforestService.searchAmazonProducts('retries test');
-    const elapsed = Date.now() - start;
-
-    expect(mockedAxios.get).toHaveBeenCalledTimes(3);
-    expect(result?.request_info.success).toBe(true);
-    
-    // Expect at least 3000ms delay since exponential backoff is 1s + 2s
-    expect(elapsed).toBeGreaterThanOrEqual(2500); 
-  }, 10000); // increase jest timeout for this test
+    expect(mockedAxios.get).toHaveBeenCalledTimes(1);  // only one attempt
+    expect(result).toBeNull();                          // returns null, not throws
+  });
 });

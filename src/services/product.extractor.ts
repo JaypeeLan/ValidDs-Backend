@@ -102,6 +102,7 @@ Respond with this exact JSON structure:
 {
   "isProductVideo": true,
   "productName": "Portable Mini Blender",
+  "amazonSearchTerm": "portable mini blender USB rechargeable",
   "productNiche": "Home & Kitchen",
   "productDescription": "One-sentence description of what the product is and why it is trending",
   "estimatedPrice": 24.99,
@@ -118,6 +119,7 @@ productNiche MUST be one of:
 ${PRODUCT_CATEGORIES.map(c => `- ${c}`).join('\n')}
 
 trendDirection must be one of: "rising", "peaked", "saturating", "unknown"
+amazonSearchTerm: 2-5 keyword Amazon search query — shorter and generic works BETTER (e.g. "motion sensor wall light" not "Magnetic Motion-Sensor Wall Light")
 estimatedPrice must be null if not mentioned
 extractionConfidence is 0-100 — your confidence that this is a real, identifiable product
 trendScore is 0-100 based on engagement signals
@@ -136,6 +138,8 @@ export const ProductExtractor = {
     post: NormalizedPost,
     comments: NormalizedComment[] = []
   ): Promise<ExtractedProduct | null> {
+    let explicitlyRejected = false; // true when AI says isProductVideo: false
+
     for (const provider of PROVIDERS) {
       if (!provider.apiKey) {
         log.debug(`${provider.name} API key not set — skipping`);
@@ -148,9 +152,20 @@ export const ProductExtractor = {
           log.debug(`Extraction successful with ${provider.name}`);
           return result;
         }
+
+        // callProvider returns null when AI said isProductVideo: false
+        // No need to try further providers or the fallback
+        explicitlyRejected = true;
+        break;
       } catch (err) {
         log.warn(`${provider.name} extraction failed`, { err: String(err), videoId: post.videoId });
       }
+    }
+
+    // If AI explicitly said this is NOT a product video, don't use the fallback
+    if (explicitlyRejected) {
+      log.debug('Post discarded — all providers confirm not product-related', { videoId: post.videoId });
+      return null;
     }
 
     log.warn('All AI providers failed — using fallback extraction');
@@ -226,6 +241,7 @@ export const ProductExtractor = {
 
     return {
       productName: String(parsed.productName ?? ''),
+      amazonSearchTerm: String(parsed.amazonSearchTerm ?? parsed.productName ?? ''),
       productNiche: String(parsed.productNiche ?? ''),
       productDescription: String(parsed.productDescription ?? ''),
       estimatedPrice: typeof parsed.estimatedPrice === 'number' ? parsed.estimatedPrice : undefined,
@@ -322,6 +338,7 @@ function buildFallbackExtraction(post: NormalizedPost): ExtractedProduct | null 
 
   return {
     productName: post.title || 'Unknown Product',
+    amazonSearchTerm: post.title || 'Unknown Product',
     productNiche: inferNicheFromHashtags(post.hashtags),
     productDescription: post.description || post.title || '',
     estimatedPrice: undefined,

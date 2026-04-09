@@ -2,7 +2,12 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { Server } from 'http';
 import http from 'http';
 
-type JsonValue = null | boolean | number | string | JsonValue[] | { [k: string]: JsonValue };
+
+interface ApiResponse {
+  success: boolean;
+  message?: string;
+  data: any;
+}
 
 function extractSixDigitCode(html: string): string | null {
   const match = html.match(/\b(\d{6})\b/);
@@ -33,7 +38,7 @@ async function httpJson(opts: {
   path: string;
   body?: unknown;
   headers?: Record<string, string>;
-}): Promise<{ status: number; json: JsonValue; raw: string }> {
+}): Promise<{ status: number; json: ApiResponse; raw: string }> {
   const url = new URL(opts.path, opts.baseUrl);
   const payload = opts.body === undefined ? undefined : Buffer.from(JSON.stringify(opts.body));
 
@@ -57,7 +62,7 @@ async function httpJson(opts: {
         res.on('end', () => {
           const raw = Buffer.concat(chunks).toString('utf8');
           try {
-            const json = raw ? (JSON.parse(raw) as JsonValue) : (null as JsonValue);
+            const json = raw ? (JSON.parse(raw) as ApiResponse) : (null as unknown as ApiResponse);
             resolve({ status: res.statusCode ?? 0, json, raw });
           } catch {
             reject(new Error(`Invalid JSON response (status=${res.statusCode ?? 0}): ${raw}`));
@@ -106,8 +111,8 @@ describe('Auth + Profile', () => {
     mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
     process.env.MONGODB_URI = mongo.getUri();
 
-    const realFetch = global.fetch;
-    global.fetch = (async (input: any, init?: any) => {
+    const realFetch = (global as any).fetch;
+    (global as any).fetch = (async (input: any, init?: any) => {
       const url = typeof input === 'string' ? input : input?.url;
 
       if (url === 'https://api.resend.com/emails') {
@@ -165,7 +170,7 @@ describe('Auth + Profile', () => {
       }
 
       return realFetch(input, init);
-    }) as any;
+    });
 
     jest.resetModules();
     const { connectMongo, disconnectMongo } = await import('../src/db/client');
@@ -209,8 +214,8 @@ describe('Auth + Profile', () => {
     });
 
     expect(registerRes.status).toBe(200);
-    expect((registerRes.json as any).success).toBe(true);
-    expect((registerRes.json as any).data.sent).toBe(true);
+    expect(registerRes.json.success).toBe(true);
+    expect(registerRes.json.data.sent).toBe(true);
 
     const lastEmail = sentEmails[sentEmails.length - 1];
     const verificationCode = lastEmail ? extractSixDigitCode(lastEmail.html) : null;
@@ -223,9 +228,9 @@ describe('Auth + Profile', () => {
       body: { email, code: verificationCode, password, name: 'Local User' },
     });
     expect(verifyRes.status).toBe(200);
-    expect((verifyRes.json as any).success).toBe(true);
-    expect((verifyRes.json as any).data.user.email).toBe(email);
-    const token = (verifyRes.json as any).data.token as string;
+    expect(verifyRes.json.success).toBe(true);
+    expect(verifyRes.json.data.user.email).toBe(email);
+    const token = verifyRes.json.data.token as string;
     expect(typeof token).toBe('string');
 
     const sendCodeRes = await httpJson({
@@ -235,8 +240,8 @@ describe('Auth + Profile', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(sendCodeRes.status).toBe(200);
-    expect((sendCodeRes.json as any).success).toBe(true);
-    expect((sendCodeRes.json as any).data.sent).toBe(true);
+    expect(sendCodeRes.json.success).toBe(true);
+    expect(sendCodeRes.json.data.sent).toBe(true);
 
     const meRes = await httpJson({
       baseUrl,
@@ -245,8 +250,8 @@ describe('Auth + Profile', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(meRes.status).toBe(200);
-    expect((meRes.json as any).success).toBe(true);
-    expect((meRes.json as any).data.user.email).toBe(email);
+    expect(meRes.json.success).toBe(true);
+    expect(meRes.json.data.user.email).toBe(email);
 
     const updateRes = await httpJson({
       baseUrl,
@@ -256,9 +261,9 @@ describe('Auth + Profile', () => {
       body: { timezone: 'Africa/Lagos', locale: 'en-NG' },
     });
     expect(updateRes.status).toBe(200);
-    expect((updateRes.json as any).success).toBe(true);
-    expect((updateRes.json as any).data.user.timezone).toBe('Africa/Lagos');
-    expect((updateRes.json as any).data.user.locale).toBe('en-NG');
+    expect(updateRes.json.success).toBe(true);
+    expect(updateRes.json.data.user.timezone).toBe('Africa/Lagos');
+    expect(updateRes.json.data.user.locale).toBe('en-NG');
   });
 
   it('handles forgot password + reset password', async () => {
@@ -318,8 +323,8 @@ describe('Auth + Profile', () => {
       body: { email, password: newPassword },
     });
     expect(loginRes.status).toBe(200);
-    expect((loginRes.json as any).success).toBe(true);
-    expect(typeof (loginRes.json as any).data.token).toBe('string');
+    expect(loginRes.json.success).toBe(true);
+    expect(typeof loginRes.json.data.token).toBe('string');
   });
 
   it('signs up with Google id token', async () => {
@@ -331,9 +336,9 @@ describe('Auth + Profile', () => {
     });
 
     expect(res.status).toBe(200);
-    expect((res.json as any).success).toBe(true);
-    expect((res.json as any).data.user.email).toBe('google.user@example.com');
-    expect(typeof (res.json as any).data.token).toBe('string');
+    expect(res.json.success).toBe(true);
+    expect(res.json.data.user.email).toBe('google.user@example.com');
+    expect(typeof res.json.data.token).toBe('string');
   });
 
   it('signs up with TikTok', async () => {
@@ -345,8 +350,8 @@ describe('Auth + Profile', () => {
     });
 
     expect(res.status).toBe(200);
-    expect((res.json as any).success).toBe(true);
-    expect(String((res.json as any).data.user.email)).toContain('@tiktok.local');
-    expect(typeof (res.json as any).data.token).toBe('string');
+    expect(res.json.success).toBe(true);
+    expect(String(res.json.data.user.email)).toContain('@tiktok.local');
+    expect(typeof res.json.data.token).toBe('string');
   });
 });

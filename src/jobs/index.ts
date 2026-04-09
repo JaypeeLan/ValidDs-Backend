@@ -21,7 +21,7 @@ const log = logger.child({ module: 'jobs' });
 
 const PRODUCT_REFRESH_INTERVAL_MS  = 2 * 60 * 60 * 1000;      // 2 hours
 const STALE_CLEANUP_INTERVAL_MS    = 30 * 60 * 1000;           // 30 minutes
-const HASHTAG_PIPELINE_INTERVAL_MS = 48 * 60 * 60 * 1000;     // 48 hours
+const HASHTAG_PIPELINE_INTERVAL_MS = 4 * 60 * 60 * 1000;      // 4 hours
 const INITIAL_DELAY_MS             = 10 * 1000;                // 10 seconds
 
 let productRefreshTimer:  ReturnType<typeof setInterval> | null = null;
@@ -76,7 +76,7 @@ export function startJobs(): void {
 
     log.info('Hashtag pipeline scheduled', {
       bootSeedIn: '15s',
-      interval: '48 hours',
+      interval: '4 hours',
     });
   } else {
     log.info('Hashtag pipeline NOT scheduled in development. Run: npm run hashtag-pipeline');
@@ -85,7 +85,7 @@ export function startJobs(): void {
   log.info('Background jobs scheduled', {
     productRefreshInterval: `${PRODUCT_REFRESH_INTERVAL_MS / 60000} minutes`,
     staleCleanupInterval:   `${STALE_CLEANUP_INTERVAL_MS / 60000} minutes`,
-    hashtagPipelineInterval: env.NODE_ENV !== 'development' ? '48 hours' : 'disabled (dev)',
+    hashtagPipelineInterval: env.NODE_ENV !== 'development' ? '4 hours' : 'disabled (dev)',
   });
 }
 

@@ -1,28 +1,24 @@
 # Data Ingestion Architecture
 
-ValidDs sources product data from two pipelines:
+ValidDs sources product data via a unified EnsembleData-powered pipeline:
 
-1. **Creative Center Pipeline** — collects TikTok trending ads/videos via the IngestionOrchestrator, runs every 2 hours.
-2. **Hashtag Pipeline** — fetches posts for tracked hashtags (e.g. `#TikTokMadeMeBuyIt`) via EnsembleData, enriches with Gemini AI + Amazon Rainforest, runs every 48 hours on staging/prod.
+1. **Discovery Job** — follows a light-weight keyword search (e.g. 'tiktokmademebuyit') to find trending dropshipping products. Runs every 2 hours.
+2. **Hashtag Pipeline** — fetches posts for specifically tracked hashtags (e.g. `#TikTokMadeMeBuyIt`) via deep cursor-based pagination. Runs every 48 hours on staging/prod.
 
 ---
 
-## Pipeline 1 — Creative Center (2-hour cycle)
+## Pipeline 1 — Discovery Job (2-hour cycle)
 
 ```
-TikTok Creative Center (HTTP Scraper — Session Mode)
+EnsembleData API (Keyword Search)
          ↓
    IngestionOrchestrator.run()
-         ↓
-   EnsembleData fallback (if Creative Center fails)
          ↓
    transformEnsemblePosts() → NormalizedPost[]
          ↓
    ProductExtractor.extractBatch()   ← DeepSeek / OpenAI
          ↓
-   ImageService.findProductImage()   ← best-effort
-         ↓
-   ProductRepository.upsertFromExtraction()
+   ProductEnricher.mergeAndUpsert()
          ↓
    FreshnessService.markUpdated()
 ```
@@ -73,7 +69,7 @@ Posts with fewer than **50,000 views** are skipped before any AI call. This is t
 
 EnsembleData returns a `nextCursor` in each response. The job follows it until:
 - `nextCursor` is `null` (API has no more pages), or
-- `cursor > MAX_CURSOR` (dev: 20 = 2 pages; prod: 4000 = up to ~200 pages)
+- `cursor > MAX_CURSOR` (dev: 40 = 3 pages; prod: 4000 = up to ~200 pages)
 
 ### Adding a New Tracked Hashtag
 
@@ -204,7 +200,7 @@ Both pipelines are **idempotent** — running them twice doesn't create duplicat
 
 | Job | Interval | First Run | Environments |
 |---|---|---|---|
-| Product Refresh | Every 2 hours | 10s after boot | All |
+| Discovery Job | Every 2 hours | 10s after boot | All |
 | Stale Cleanup | Every 30 minutes | Immediately | All |
 | Hashtag Pipeline | Every 48 hours | 30s after boot | Staging + Prod only |
 

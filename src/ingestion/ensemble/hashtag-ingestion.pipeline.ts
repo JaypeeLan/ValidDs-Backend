@@ -3,6 +3,7 @@ import { TRACKED_HASHTAGS } from './hashtag.constants';
 import { ProductExtractor } from '../../services/product.extractor';
 import { RainforestService } from '../../services/rainforest.service';
 import { ProductEnricher } from '../../services/product.enricher';
+import { ProductRepository } from '../../db/repositories/product.repository';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { logger } from '../../logger';
 import { env } from '../../config/env.validation';
@@ -21,6 +22,7 @@ const MIN_VIEW_COUNT = 50_000;
  * Development is uncapped (uses a small page count anyway).
  */
 const MAX_POSTS_PROD = 50;
+const MAX_POSTS_DEV  = 40;   // Enough for meaningful dev testing
 
 export interface HashtagPipelineResult {
   postsCollected:    number;
@@ -82,7 +84,7 @@ export class HashtagIngestionPipeline {
     await this.job.runHashtagIngestion([...TRACKED_HASHTAGS], async (posts) => {
       
       const isDev = env.NODE_ENV === 'development';
-      const maxAllowed = isDev ? Infinity : MAX_POSTS_PROD;
+      const maxAllowed = isDev ? MAX_POSTS_DEV : MAX_POSTS_PROD;
       
       const availableCapacity = maxAllowed - result.postsCollected;
       const cappedPosts = posts.slice(0, availableCapacity);
@@ -102,12 +104,32 @@ export class HashtagIngestionPipeline {
           continue;
         }
 
+        // Skip: already in DB — avoid re-processing duplicates
+        try {
+          const alreadyExists = await ProductRepository.existsByVideoId(post.videoId);
+          if (alreadyExists) {
+            log.debug('Post already in DB — skipping', { videoId: post.videoId });
+            result.postsFiltered++;
+            continue;
+          }
+        } catch {
+          // DB check failed — still attempt to process the post
+        }
+
         try {
           // Fetch comments only for this specific qualifying post
-          const comments = await this.job.getPostComments(post.videoId);
+          const comments = await this.job.getPostComments(post.videoId).catch(() => []);
 
-          // Step 3a: Gemini AI extraction
-          const extraction = await ProductExtractor.extractFromPost(post, comments);
+          // Step 3a: AI extraction — if limit hit, skip this post gracefully
+          let extraction: Awaited<ReturnType<typeof ProductExtractor.extractFromPost>>;
+          try {
+            extraction = await ProductExtractor.extractFromPost(post, comments);
+          } catch (err: any) {
+            const msg = `Pipeline error for post ${post.videoId}: ${String(err)}`;
+            errors.push(msg);
+            log.warn('AI extraction failed — skipping post', { videoId: post.videoId, err: String(err) });
+            continue;
+          }
 
           if (!extraction) {
             log.debug('Post skipped — AI determined it is not product-related', {
@@ -118,22 +140,22 @@ export class HashtagIngestionPipeline {
 
           result.aiExtractionsDone++;
 
-          // Step 3b: Rainforest Amazon lookup
+          // Step 3b: Rainforest Amazon lookup — failures are non-fatal; use empty results
           const rainforestResponse = await RainforestService.searchAmazonProducts(
-            extraction.productName
-          );
+            extraction.amazonSearchTerm || extraction.productName
+          ).catch(() => null);
 
           const rainforestResults = rainforestResponse?.search_results ?? [];
 
           if (rainforestResults.length > 0) {
             result.rainforestHits++;
           } else {
-            log.debug('Rainforest returned no results for product', {
+            log.debug('Rainforest returned no results for product — continuing without Amazon data', {
               productName: extraction.productName,
             });
           }
 
-          // Step 3c: Merge + upsert to DB
+          // Step 3c: Merge + upsert to DB (always runs, even with 0 Rainforest results)
           await ProductEnricher.mergeAndUpsert(extraction, rainforestResults, post);
           result.dbUpserts++;
 

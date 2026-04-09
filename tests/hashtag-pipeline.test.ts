@@ -64,8 +64,10 @@ describe('HashtagIngestionPipeline', () => {
     // is already created inside EnsembleJob's constructor before the spy can attach.
     jest.spyOn(EnsembleJob.prototype, 'runHashtagIngestion')
       .mockImplementation(async (hashtags: any, processPage: any) => {
-        await processPage(posts, new Map());
+        await processPage(posts);
       });
+
+    jest.spyOn(EnsembleJob.prototype, 'getPostComments').mockResolvedValue([]);
 
     // Create the pipeline AFTER the spy is in place so the internal EnsembleJob
     // inherits the patched prototype method.
@@ -113,8 +115,10 @@ describe('HashtagIngestionPipeline', () => {
 
     jest.spyOn(EnsembleJob.prototype, 'runHashtagIngestion')
       .mockImplementation(async (hashtags: any, processPage: any) => {
-        await processPage(posts, new Map());
+        await processPage(posts);
       });
+
+    jest.spyOn(EnsembleJob.prototype, 'getPostComments').mockResolvedValue([]);
 
     const pipeline = new HashtagIngestionPipeline();
 

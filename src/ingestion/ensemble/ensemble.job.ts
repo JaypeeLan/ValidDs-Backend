@@ -126,7 +126,7 @@ export class EnsembleJob {
    */
   async runHashtagIngestion(
     hashtags: string[],
-    processPage: (posts: NormalizedPost[], commentMap: Map<string, NormalizedComment[]>) => Promise<{ shouldStop: boolean }>
+    processPage: (posts: NormalizedPost[]) => Promise<{ shouldStop: boolean }>
   ): Promise<void> {
     const isDev = process.env.NODE_ENV === 'development';
     // dev = 2 pages (cursor 0 and 20), production = all pages up to ~4000-5000
@@ -154,19 +154,7 @@ export class EnsembleJob {
 
         log.debug(`#${hashtag} cursor=${cursor}: ${normalized.length} posts collected (page ${pagesFetched})`);
 
-        const commentMap = new Map<string, NormalizedComment[]>();
-        // Fetch comments for every post on this page
-        for (const post of normalized) {
-          const rawComments = await this.client.getPostComments(post.videoId);
-          if (rawComments.length > 0) {
-            commentMap.set(
-              post.videoId,
-              transformEnsembleComments(rawComments, post.videoId)
-            );
-          }
-        }
-
-        const { shouldStop } = await processPage(normalized, commentMap);
+        const { shouldStop } = await processPage(normalized);
         if (shouldStop) {
           log.info('Pagination stopped early by processor callback');
           return;
@@ -178,5 +166,17 @@ export class EnsembleJob {
     }
 
     log.info('Hashtag ingestion complete');
+  }
+
+  /**
+   * Fetch comments for a specific post on demand.
+   * Used by the pipeline to fetch comments ONLY for qualifying posts,
+   * saving significant API limits.
+   */
+  async getPostComments(videoId: string): Promise<NormalizedComment[]> {
+    const rawComments = await this.client.getPostComments(videoId);
+    if (rawComments.length === 0) return [];
+    
+    return transformEnsembleComments(rawComments, videoId);
   }
 }

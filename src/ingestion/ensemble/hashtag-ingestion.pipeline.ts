@@ -77,13 +77,9 @@ export class HashtagIngestionPipeline {
       minViewCount: MIN_VIEW_COUNT,
     });
 
-    if (env.NODE_ENV === 'staging') {
-      log.info('✨ Staging environment: Purging old product data before fresh seed...');
-      await ProductEnricher.purgeData();
-    }
 
-    // ── Step 1: Collect posts + comments from EnsembleData page by page ──────
-    await this.job.runHashtagIngestion([...TRACKED_HASHTAGS], async (posts, commentMap) => {
+    // ── Step 1: Collect posts from EnsembleData page by page ───
+    await this.job.runHashtagIngestion([...TRACKED_HASHTAGS], async (posts) => {
       
       const isDev = env.NODE_ENV === 'development';
       const maxAllowed = isDev ? Infinity : MAX_POSTS_PROD;
@@ -107,7 +103,8 @@ export class HashtagIngestionPipeline {
         }
 
         try {
-          const comments = commentMap.get(post.videoId) ?? [];
+          // Fetch comments only for this specific qualifying post
+          const comments = await this.job.getPostComments(post.videoId);
 
           // Step 3a: Gemini AI extraction
           const extraction = await ProductExtractor.extractFromPost(post, comments);

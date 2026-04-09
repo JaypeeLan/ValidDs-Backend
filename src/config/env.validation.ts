@@ -106,13 +106,25 @@ const envSchema = z.object({
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
   ),
-  ANTHROPIC_API_KEY: z.preprocess(
+  GOOGLE_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
   ),
   OPENAI_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
+  ),
+
+  // Rainforest API
+  RAINFOREST_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+
+  // EnsembleData API — token must be ≤ 24 chars (enforced by their API)
+  ENSEMBLE_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().max(24, 'EnsembleData token must be 24 characters or fewer').optional()
   ),
 
   // Fallbacks
@@ -155,7 +167,18 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 function validateEnv(): Env {
-  const result = envSchema.safeParse(process.env);
+  const isStaging = process.env.NODE_ENV === 'staging';
+
+  const envToParse = { ...process.env };
+
+  if (isStaging) {
+    envToParse.INTERNAL_API_KEY = envToParse.INTERNAL_API_KEY || 'dummy_api_key_for_staging_environments_only!';
+    envToParse.JWT_SECRET = envToParse.JWT_SECRET || 'dummy_jwt_secret_for_staging_environments_only!';
+    envToParse.ENCRYPTION_KEY = envToParse.ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    envToParse.MONGODB_URI = envToParse.MONGODB_URI || 'mongodb://localhost:27017/dummy_staging';
+  }
+
+  const result = envSchema.safeParse(envToParse);
 
   if (!result.success) {
     const formatted = result.error.errors
@@ -164,7 +187,13 @@ function validateEnv(): Env {
 
     console.error('\n[ValidDs] Environment validation failed:\n' + formatted + '\n');
     console.error('See .env.example for required variables.\n');
-    process.exit(1);
+    
+    if (isStaging) {
+      console.warn('[ValidDs] STAGING MODE: Bypassing environment validation crash.');
+      return envToParse as unknown as Env;
+    } else {
+      process.exit(1);
+    }
   }
 
   return result.data;

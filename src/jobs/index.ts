@@ -53,10 +53,20 @@ export function startJobs(): void {
     );
   }, STALE_CLEANUP_INTERVAL_MS);
 
-  // Hashtag ingestion pipeline — every 48 hours, staging/prod only.
-  // The initial DB seed is done by `run-hashtag-pipeline.js` before server starts.
+  // Hashtag ingestion pipeline — staging/prod only.
+  //   • Boot run: fires 15 s after server starts to seed the DB on each deployment.
+  //   • Cron run: repeats every 48 h to keep data fresh.
   // Development uses `npm run hashtag-pipeline` instead.
   if (env.NODE_ENV !== 'development') {
+    const HASHTAG_BOOT_DELAY_MS = 15 * 1000; // 15 s — enough for port to bind
+
+    setTimeout(() => {
+      log.info('Running boot-time hashtag ingestion to seed DB');
+      new HashtagIngestionPipeline().run().catch((err) =>
+        log.error('Boot-time hashtag pipeline failed', err)
+      );
+    }, HASHTAG_BOOT_DELAY_MS);
+
     hashtagPipelineTimer = setInterval(() => {
       log.info('Scheduled hashtag pipeline triggered');
       new HashtagIngestionPipeline().run().catch((err) =>
@@ -64,7 +74,10 @@ export function startJobs(): void {
       );
     }, HASHTAG_PIPELINE_INTERVAL_MS);
 
-    log.info('Hashtag pipeline scheduled', { interval: '48 hours' });
+    log.info('Hashtag pipeline scheduled', {
+      bootSeedIn: '15s',
+      interval: '48 hours',
+    });
   } else {
     log.info('Hashtag pipeline NOT scheduled in development. Run: npm run hashtag-pipeline');
   }

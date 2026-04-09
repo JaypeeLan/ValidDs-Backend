@@ -63,7 +63,9 @@ describe('HashtagIngestionPipeline', () => {
     // Mocking EnsembleClient.prototype is too low-level: the client instance
     // is already created inside EnsembleJob's constructor before the spy can attach.
     jest.spyOn(EnsembleJob.prototype, 'runHashtagIngestion')
-      .mockResolvedValue({ posts, commentMap: new Map() });
+      .mockImplementation(async (hashtags: any, processPage: any) => {
+        await processPage(posts, new Map());
+      });
 
     // Create the pipeline AFTER the spy is in place so the internal EnsembleJob
     // inherits the patched prototype method.
@@ -110,7 +112,9 @@ describe('HashtagIngestionPipeline', () => {
     ];
 
     jest.spyOn(EnsembleJob.prototype, 'runHashtagIngestion')
-      .mockResolvedValue({ posts, commentMap: new Map() });
+      .mockImplementation(async (hashtags: any, processPage: any) => {
+        await processPage(posts, new Map());
+      });
 
     const pipeline = new HashtagIngestionPipeline();
 

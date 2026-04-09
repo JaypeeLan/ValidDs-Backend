@@ -5,6 +5,7 @@ import { RainforestService } from '../../services/rainforest.service';
 import { ProductEnricher } from '../../services/product.enricher';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { logger } from '../../logger';
+import { env } from '../../config/env.validation';
 
 const log = logger.child({ module: 'hashtag-ingestion-pipeline' });
 
@@ -13,6 +14,13 @@ const log = logger.child({ module: 'hashtag-ingestion-pipeline' });
  * Posts below this threshold are skipped to conserve Gemini API tokens.
  */
 const MIN_VIEW_COUNT = 50_000;
+
+/**
+ * Maximum number of posts to process per pipeline run on staging/production.
+ * Prevents runaway AI + Rainforest costs on large hashtag pulls.
+ * Development is uncapped (uses a small page count anyway).
+ */
+const MAX_POSTS_PROD = 500;
 
 export interface HashtagPipelineResult {
   postsCollected:    number;
@@ -54,88 +62,102 @@ export class HashtagIngestionPipeline {
     const startTime  = Date.now();
     const errors: string[] = [];
 
-    let postsFiltered     = 0;
-    let aiExtractionsDone = 0;
-    let rainforestHits    = 0;
-    let dbUpserts         = 0;
+    const result: HashtagPipelineResult = {
+      postsCollected:    0,
+      postsFiltered:     0,
+      aiExtractionsDone: 0,
+      rainforestHits:    0,
+      dbUpserts:         0,
+      errors,
+      durationMs:        0,
+    };
 
     log.info('Hashtag ingestion pipeline started', {
       hashtags: TRACKED_HASHTAGS,
       minViewCount: MIN_VIEW_COUNT,
     });
 
-    // ── Step 1: Collect posts + comments from EnsembleData ───────────────────
-    const { posts, commentMap } = await this.job.runHashtagIngestion([...TRACKED_HASHTAGS]);
+    if (env.NODE_ENV === 'staging') {
+      log.info('✨ Staging environment: Purging old product data before fresh seed...');
+      await ProductEnricher.purgeData();
+    }
 
-    log.info(`Collected ${posts.length} posts across ${TRACKED_HASHTAGS.length} hashtag(s)`);
+    // ── Step 1: Collect posts + comments from EnsembleData page by page ──────
+    await this.job.runHashtagIngestion([...TRACKED_HASHTAGS], async (posts, commentMap) => {
+      
+      const isDev = env.NODE_ENV === 'development';
+      const maxAllowed = isDev ? Infinity : MAX_POSTS_PROD;
+      
+      const availableCapacity = maxAllowed - result.postsCollected;
+      const cappedPosts = posts.slice(0, availableCapacity);
 
-    // ── Step 2 + 3: Extract, enrich, and persist each post ───────────────────
-    for (const post of posts) {
+      result.postsCollected += cappedPosts.length;
 
-      // Filter: skip low-engagement posts
-      if (post.viewCount < MIN_VIEW_COUNT) {
-        postsFiltered++;
-        continue;
+      if (cappedPosts.length < posts.length) {
+        log.info(`Post cap reached: processing ${cappedPosts.length} of ${posts.length} posts on this page`);
       }
 
-      try {
-        const comments = commentMap.get(post.videoId) ?? [];
+      // ── Step 2 + 3: Extract, enrich, and persist each post ───────────────────
+      for (const post of cappedPosts) {
 
-        // Step 3a: Gemini AI extraction
-        const extraction = await ProductExtractor.extractFromPost(post, comments);
-
-        if (!extraction) {
-          log.debug('Post skipped — AI determined it is not product-related', {
-            videoId: post.videoId,
-          });
+        // Filter: skip low-engagement posts
+        if (post.viewCount < MIN_VIEW_COUNT) {
+          result.postsFiltered++;
           continue;
         }
 
-        aiExtractionsDone++;
+        try {
+          const comments = commentMap.get(post.videoId) ?? [];
 
-        // Step 3b: Rainforest Amazon lookup
-        const rainforestResponse = await RainforestService.searchAmazonProducts(
-          extraction.productName
-        );
+          // Step 3a: Gemini AI extraction
+          const extraction = await ProductExtractor.extractFromPost(post, comments);
 
-        const rainforestResults = rainforestResponse?.search_results ?? [];
+          if (!extraction) {
+            log.debug('Post skipped — AI determined it is not product-related', {
+              videoId: post.videoId,
+            });
+            continue;
+          }
 
-        if (rainforestResults.length > 0) {
-          rainforestHits++;
-        } else {
-          log.debug('Rainforest returned no results for product', {
-            productName: extraction.productName,
-          });
+          result.aiExtractionsDone++;
+
+          // Step 3b: Rainforest Amazon lookup
+          const rainforestResponse = await RainforestService.searchAmazonProducts(
+            extraction.productName
+          );
+
+          const rainforestResults = rainforestResponse?.search_results ?? [];
+
+          if (rainforestResults.length > 0) {
+            result.rainforestHits++;
+          } else {
+            log.debug('Rainforest returned no results for product', {
+              productName: extraction.productName,
+            });
+          }
+
+          // Step 3c: Merge + upsert to DB
+          await ProductEnricher.mergeAndUpsert(extraction, rainforestResults, post);
+          result.dbUpserts++;
+
+        } catch (err: any) {
+          const msg = `Pipeline error for post ${post.videoId}: ${String(err)}`;
+          errors.push(msg);
+          log.error(msg);
+          // Do not throw — continue processing remaining posts
         }
-
-        // Step 3c: Merge + upsert to DB
-        await ProductEnricher.mergeAndUpsert(extraction, rainforestResults, post);
-        dbUpserts++;
-
-      } catch (err: any) {
-        const msg = `Pipeline error for post ${post.videoId}: ${String(err)}`;
-        errors.push(msg);
-        log.error(msg);
-        // Do not throw — continue processing remaining posts
       }
-    }
+      
+      // Stop paginating if we reached the max allowance
+      return { shouldStop: result.postsCollected >= maxAllowed };
+    });
 
     // ── Freshness update ─────────────────────────────────────────────────────
-    if (dbUpserts > 0) {
+    if (result.dbUpserts > 0) {
       await FreshnessService.markUpdated('product');
     }
 
-    const durationMs = Date.now() - startTime;
-
-    const result: HashtagPipelineResult = {
-      postsCollected:    posts.length,
-      postsFiltered,
-      aiExtractionsDone,
-      rainforestHits,
-      dbUpserts,
-      errors,
-      durationMs,
-    };
+    result.durationMs = Date.now() - startTime;
 
     log.info('Hashtag ingestion pipeline complete', { ...result });
 

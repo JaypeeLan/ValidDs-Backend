@@ -34,7 +34,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc && mkdir -p dist/docs && cp -R src/docs/openapi dist/docs/openapi",
     "seed-db": "node dist/scripts/run-hashtag-pipeline.js",
-    "start": "node dist/scripts/run-hashtag-pipeline.js && node dist/server.js",
+    "start": "node dist/server.js",
     "start:no-seed": "node dist/server.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",

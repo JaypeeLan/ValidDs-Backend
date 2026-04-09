@@ -125,14 +125,12 @@ export class EnsembleJob {
    * Returns the full post list and a commentMap keyed by videoId.
    */
   async runHashtagIngestion(
-    hashtags: string[]
-  ): Promise<{ posts: NormalizedPost[]; commentMap: Map<string, NormalizedComment[]> }> {
+    hashtags: string[],
+    processPage: (posts: NormalizedPost[], commentMap: Map<string, NormalizedComment[]>) => Promise<{ shouldStop: boolean }>
+  ): Promise<void> {
     const isDev = process.env.NODE_ENV === 'development';
     // dev = 2 pages (cursor 0 and 20), production = all pages up to ~4000-5000
     const MAX_CURSOR = isDev ? 20 : 4000;
-
-    const allPosts: NormalizedPost[] = [];
-    const commentMap = new Map<string, NormalizedComment[]>();
 
     log.info('Hashtag ingestion started', {
       hashtags,
@@ -152,11 +150,11 @@ export class EnsembleJob {
         }
 
         const normalized = transformEnsemblePosts(rawPosts);
-        allPosts.push(...normalized);
         pagesFetched++;
 
         log.debug(`#${hashtag} cursor=${cursor}: ${normalized.length} posts collected (page ${pagesFetched})`);
 
+        const commentMap = new Map<string, NormalizedComment[]>();
         // Fetch comments for every post on this page
         for (const post of normalized) {
           const rawComments = await this.client.getPostComments(post.videoId);
@@ -168,16 +166,17 @@ export class EnsembleJob {
           }
         }
 
+        const { shouldStop } = await processPage(normalized, commentMap);
+        if (shouldStop) {
+          log.info('Pagination stopped early by processor callback');
+          return;
+        }
+
         // Use API-provided nextCursor; fall back to null to stop if missing
         cursor = nextCursor;
       }
     }
 
-    log.info('Hashtag ingestion complete', {
-      totalPosts: allPosts.length,
-      postsWithComments: commentMap.size,
-    });
-
-    return { posts: allPosts, commentMap };
+    log.info('Hashtag ingestion complete');
   }
 }

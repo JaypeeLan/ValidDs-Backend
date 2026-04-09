@@ -363,4 +363,12 @@ export const ProductRepository = {
       throw err;
     }
   },
+
+  /**
+   * Purge all products. Used for clearing staging data before a fresh seed.
+   */
+  async purgeAll(): Promise<void> {
+    await Product.deleteMany({});
+    log.info('Purged all products from the database');
+  },
 };

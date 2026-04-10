@@ -9,9 +9,15 @@ interface MarkdownFile {
 
 const filesToConvert: MarkdownFile[] = [
   { src: 'docs/week_2.md', dest: 'project_docs/week_2.docx' },
+  { src: 'docs/week_3.md', dest: 'project_docs/week_3.docx' },
   { src: 'docs/architecture.md', dest: 'project_docs/architecture.docx' },
   { src: 'docs/decision-log.md', dest: 'project_docs/decision_log.docx' },
   { src: 'docs/risks.md', dest: 'project_docs/risks.docx' },
+  { src: 'docs/data-ingestion.md', dest: 'project_docs/data_ingestion.docx' },
+  { src: 'docs/schemas.md', dest: 'project_docs/schemas.docx' },
+  { src: 'docs/endpoints.md', dest: 'project_docs/endpoints.docx' },
+  { src: 'docs/environment-setup.md', dest: 'project_docs/environment_setup.docx' },
+  { src: 'docs/monitoring-details.md', dest: 'project_docs/monitoring_details.docx' },
 ];
 
 function parseMarkdownToDocx(mdContent: string): Document {

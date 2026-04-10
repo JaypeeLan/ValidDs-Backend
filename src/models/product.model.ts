@@ -10,6 +10,7 @@ export type AdStatus = 'active' | 'inactive' | 'unknown';
 export interface IProductVideo {
   videoId: string;
   url?: string;
+  playUrl?: string;
   thumbnailUrl?: string;
   viewCount: number;
   likeCount: number;
@@ -99,6 +100,10 @@ export interface IProduct {
   priceMax?: number;
   currency?: string;
   estimatedMargin?: number;
+  unitsSold: number;
+  store: string;
+  rating?: number;
+  reviewsCount?: number;
 
   // Engagement
   totalViews: number;
@@ -110,6 +115,7 @@ export interface IProduct {
 
   // Videos
   topVideos: IProductVideo[];
+  videoUrl?: string; // Direct .mp4 media link for primary video
 
   // Trend
   trend: IProductTrend;
@@ -147,6 +153,7 @@ const ProductVideoSchema = new Schema<IProductVideo>(
   {
     videoId:          { type: String, required: true },
     url:              { type: String },
+    playUrl:          { type: String },
     thumbnailUrl:     { type: String },
     viewCount:        { type: Number, default: 0 },
     likeCount:        { type: Number, default: 0 },
@@ -243,6 +250,10 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
     priceMax:        { type: Number },
     currency:        { type: String, default: 'USD' },
     estimatedMargin: { type: Number },
+    unitsSold:       { type: Number, default: 0 },
+    store:           { type: String, default: 'TeemDrop' },
+    rating:          { type: Number },
+    reviewsCount:    { type: Number },
 
     totalViews:    { type: Number, default: 0 },
     totalLikes:    { type: Number, default: 0 },
@@ -252,6 +263,7 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
     engagementRate: { type: Number },
 
     topVideos:    { type: [ProductVideoSchema], default: [] },
+    videoUrl:     { type: String },
     trend:        { type: ProductTrendSchema, default: () => ({}) },
     aiExtraction: { type: AIExtractionSchema },
     adSignals:    { type: AdSignalsSchema },

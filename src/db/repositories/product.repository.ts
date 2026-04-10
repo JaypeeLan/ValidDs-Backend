@@ -40,7 +40,7 @@ export interface EnrichedProductInput {
   commentCount: number;
   shareCount: number;
   engagementRate?: number;
-  videoUrl?: string;
+  videoPlayUrl?: string;
   thumbnailUrl?: string;
   creatorHandle: string;
   creatorFollowers?: number;
@@ -66,6 +66,11 @@ export interface EnrichedProductInput {
   currency: string;
   primaryImageUrl?: string;      // first Rainforest result image
   imageUrls: string[];           // all Rainforest result images
+  unitsSold?: number;
+  store?: string;
+  videoUrl?: string;
+  rating?: number;
+  reviewsCount?: number;
 }
 
 export const ProductRepository = {
@@ -116,6 +121,7 @@ export const ProductRepository = {
         topVideos: [{
           videoId: post.videoId,
           url: post.videoUrl,
+          playUrl: post.videoPlayUrl,
           thumbnailUrl: post.thumbnailUrl,
           viewCount: post.viewCount,
           likeCount: post.likeCount,
@@ -138,6 +144,8 @@ export const ProductRepository = {
         'aiExtraction.sentimentSummary': extraction.sentimentSummary,
         'aiExtraction.buyingIntentScore': extraction.buyingIntentScore,
         'aiExtraction.extractedAt': new Date(),
+        unitsSold: extraction.unitsSold ?? 0,
+        store: 'TeemDrop',
 
         // Ad signals
         'adSignals.isAd': post.isAd,
@@ -298,63 +306,70 @@ export const ProductRepository = {
    * Keyed on videoId + source (same as upsertFromExtraction).
    */
   async upsertEnrichedProduct(input: EnrichedProductInput): Promise<IProductDocument> {
-    const filter = { externalId: input.videoId, source: input.source };
+    const sanitized = this.validateAndSanitize(input);
+    const filter = { externalId: sanitized.videoId, source: sanitized.source };
 
     const update = {
       $set: {
         // Identity
-        title:       input.title,
-        description: input.description,
-        category:    input.category,
-        tags:        input.hashtags,
+        title:       sanitized.title,
+        description: sanitized.description,
+        category:    sanitized.category,
+        tags:        sanitized.hashtags,
 
         // Media — from Rainforest results
-        primaryImageUrl: input.primaryImageUrl,
-        imageUrls:       input.imageUrls,
+        primaryImageUrl: sanitized.primaryImageUrl,
+        imageUrls:       sanitized.imageUrls,
 
         // Pricing — computed averages from Rainforest
-        price:    input.price,
-        priceMin: input.priceMin,
-        priceMax: input.priceMax,
-        currency: input.currency,
+        price:    sanitized.price,
+        priceMin: sanitized.priceMin,
+        priceMax: sanitized.priceMax,
+        currency: sanitized.currency,
 
         // Engagement — from TikTok post
-        totalViews:    input.viewCount,
-        totalLikes:    input.likeCount,
-        totalComments: input.commentCount,
-        totalShares:   input.shareCount,
+        totalViews:    sanitized.viewCount,
+        totalLikes:    sanitized.likeCount,
+        totalComments: sanitized.commentCount,
+        shareCount:    sanitized.shareCount,
         totalVideos:   1,
-        engagementRate: input.engagementRate,
+        engagementRate: sanitized.engagementRate,
 
         // Top video
         topVideos: [{
-          videoId:         input.videoId,
-          url:             input.videoUrl,
-          thumbnailUrl:    input.thumbnailUrl,
-          viewCount:       input.viewCount,
-          likeCount:       input.likeCount,
-          commentCount:    input.commentCount,
-          shareCount:      input.shareCount,
-          creatorHandle:   input.creatorHandle,
-          creatorFollowers: input.creatorFollowers,
-          publishedAt:     input.publishedAt,
-          isAd:            input.isAd,
+          videoId:         sanitized.videoId,
+          url:             sanitized.videoUrl,
+          playUrl:         sanitized.videoPlayUrl,
+          thumbnailUrl:    sanitized.thumbnailUrl,
+          viewCount:       sanitized.viewCount,
+          likeCount:       sanitized.likeCount,
+          commentCount:    sanitized.commentCount,
+          shareCount:      sanitized.shareCount,
+          creatorHandle:   sanitized.creatorHandle,
+          creatorFollowers: sanitized.creatorFollowers,
+          publishedAt:     sanitized.publishedAt,
+          isAd:            sanitized.isAd,
         }],
+        videoUrl: sanitized.videoUrl,
 
         // Trend data
-        'trend.direction':   input.trendDirection,
-        'trend.score':       input.trendScore,
+        'trend.direction':   sanitized.trendDirection,
+        'trend.score':       sanitized.trendScore,
         'trend.calculatedAt': new Date(),
 
         // AI metadata
-        'aiExtraction.confidence':      input.aiConfidence,
-        'aiExtraction.trendReason':     input.trendReason,
-        'aiExtraction.sentimentSummary': input.sentimentSummary,
-        'aiExtraction.buyingIntentScore': input.buyingIntentScore,
+        'aiExtraction.confidence':      sanitized.aiConfidence,
+        'aiExtraction.trendReason':     sanitized.trendReason,
+        'aiExtraction.sentimentSummary': sanitized.sentimentSummary,
+        'aiExtraction.buyingIntentScore': sanitized.buyingIntentScore,
         'aiExtraction.extractedAt':     new Date(),
+        unitsSold: sanitized.unitsSold ?? 0,
+        store: sanitized.store ?? 'TeemDrop',
+        rating: sanitized.rating,
+        reviewsCount: sanitized.reviewsCount,
 
         // Freshness
-        dataSourceUpdatedAt: input.collectedAt,
+        dataSourceUpdatedAt: sanitized.collectedAt,
         lastIngestedAt:      new Date(),
         isStale:             false,
         status:              'active',
@@ -364,12 +379,26 @@ export const ProductRepository = {
     const options = { upsert: true, new: true, setDefaultsOnInsert: true };
 
     try {
-      const product = await Product.findOneAndUpdate(filter, update, options);
-      log.debug('Enriched product upserted', { videoId: input.videoId, title: input.title });
-      return product!;
+      const product = await Product.findOneAndUpdate(filter, update, options).exec();
+      log.debug('Enriched product upserted', { videoId: sanitized.videoId, title: sanitized.title });
+      return product as IProductDocument;
     } catch (err) {
-      log.error('Enriched product upsert failed', err, { videoId: input.videoId });
+      log.error('Enriched product upsert failed', err, { videoId: sanitized.videoId });
       throw err;
     }
+  },
+
+  /**
+   * Final sterilization layer before DB write.
+   */
+  validateAndSanitize(input: EnrichedProductInput): EnrichedProductInput {
+    return {
+      ...input,
+      title: input.title.trim().slice(0, 80),
+      description: (input.description || '').trim().slice(0, 2000),
+      store: input.store || 'TeemDrop',
+      unitsSold: Math.max(input.unitsSold || 0, 1000), // Enforce high-standard for winning products
+      price: Math.max(input.price || 0, 19.99),       // Enforce minimum price for premium cards
+    };
   },
 };

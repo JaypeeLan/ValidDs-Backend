@@ -35,6 +35,8 @@ Week 3 focused on finalizing and optimizing the core product ingestion pipeline.
 ---
 
 ## Next Steps (Week 4)
+*   Begin planning strategies to abstract the product enrichment layer to support details from additional service providers (beyond just Amazon).
+*   Evaluate alternative TikTok data providers to serve as a fallback/supplement to EnsembleData, reducing single-point-of-failure risks.
 *   Finalize advanced analytics rendering (e.g. historical trend charts) for frontend consumption.
 *   Implement backend caching layers (Redis) for heavy product feed queries to improve response times under load.
 *   Flesh out webhooks and payment processing flows with Stripe.

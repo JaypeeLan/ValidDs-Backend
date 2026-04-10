@@ -66,10 +66,11 @@ Your job is to determine:
 
 Rules:
 - If the video is clearly NOT about a product (dance, news, comedy, personal vlog), set isProductVideo to false
-- Be specific with product names — "Portable Blender" not just "Blender"
-- Extract price ONLY if explicitly mentioned in the text — do not guess
-- Trend score should be based on the engagement context provided, not made up
-- Respond ONLY with valid JSON — no explanation, no markdown, no preamble`;
+- Extract a clean, short, and meaningful product name (2-5 words max). Strip out ALL SEO fluff, Amazon-style descriptors (e.g. "for men", "heavy duty"), emojis, and tracking links. (e.g., return "Portable Blender" instead of "Portable Mini Blender USB Rechargeable Fruit Juicer").
+- productNiche MUST be exactly one of the provided canonical categories.
+- Estimated price: Extract only if explicitly mentioned. If not, set to null.
+- Units sold: Provide a global estimate representing total market reach (typically 50k to 5M+ for hot products).
+- Respond ONLY with valid JSON.`;
 
 // ── Extraction prompt builder ─────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ Respond with this exact JSON structure:
   "productNiche": "Home & Kitchen",
   "productDescription": "One-sentence description of what the product is and why it is trending",
   "estimatedPrice": 24.99,
+  "unitsSold": 1250,
   "currency": "USD",
   "extractionConfidence": 85,
   "trendScore": 72,
@@ -114,6 +116,8 @@ Respond with this exact JSON structure:
   "sentimentSummary": "One sentence describing what the comments reveal",
   "buyingIntentScore": 78
 }
+
+unitsSold: your best estimate or extracted number of units already sold;
 
 productNiche MUST be one of:
 ${PRODUCT_CATEGORIES.map(c => `- ${c}`).join('\n')}
@@ -245,6 +249,7 @@ export const ProductExtractor = {
       productNiche: String(parsed.productNiche ?? ''),
       productDescription: String(parsed.productDescription ?? ''),
       estimatedPrice: typeof parsed.estimatedPrice === 'number' ? parsed.estimatedPrice : undefined,
+      unitsSold: typeof parsed.unitsSold === 'number' ? parsed.unitsSold : 0,
       currency: String(parsed.currency ?? 'USD'),
       extractionConfidence: Number(parsed.extractionConfidence ?? 0),
       isProductVideo: true,

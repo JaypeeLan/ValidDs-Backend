@@ -3,7 +3,7 @@
 ValidDs sources product data via a unified EnsembleData-powered pipeline:
 
 1. **Discovery Job** — follows a light-weight keyword search (e.g. 'tiktokmademebuyit') to find trending dropshipping products. Runs every 2 hours.
-2. **Hashtag Pipeline** — fetches posts for specifically tracked hashtags (e.g. `#TikTokMadeMeBuyIt`) via deep cursor-based pagination. Runs every 48 hours on staging/prod.
+2. **Hashtag Pipeline** — fetches posts for specifically tracked hashtags (e.g. `#TikTokMadeMeBuyIt`) via deep cursor-based pagination. Runs every 4 hours on staging/prod.
 
 ---
 
@@ -29,7 +29,7 @@ EnsembleData API (Keyword Search)
 
 ---
 
-## Pipeline 2 — Hashtag Ingestion (48-hour cycle)
+## Pipeline 2 — Hashtag Ingestion (4-hour cycle)
 
 ```
 TRACKED_HASHTAGS (src/ingestion/ensemble/hashtag.constants.ts)
@@ -57,9 +57,14 @@ TRACKED_HASHTAGS (src/ingestion/ensemble/hashtag.constants.ts)
    FreshnessService.markUpdated('product')
 ```
 
-**Scheduler:** `src/jobs/index.ts` — `setInterval` every 48 hours. First run 30 s after boot. **Staging/prod only** — skipped in development.
+**Scheduler:** `src/jobs/index.ts` — `setInterval` every 4 hours. **Staging/prod only** — disabled automatically in development to conserve credits.
 **Entry point:** `src/ingestion/ensemble/hashtag-ingestion.pipeline.ts → HashtagIngestionPipeline.run()`
 **Manual trigger:** `npm run hashtag-pipeline`
+
+### Hard Caps on Processed Posts
+To tightly control API spend (AI extractions + Amazon queries), the pipeline forcibly stops after processing a fixed limit of valid posts per run:
+- **Staging / Production**: Capped at **50 posts** (`MAX_POSTS_PROD`).
+- **Development**: Capped at **40 posts** (`MAX_POSTS_DEV`).
 
 ### View Count Filter
 
@@ -202,7 +207,7 @@ Both pipelines are **idempotent** — running them twice doesn't create duplicat
 |---|---|---|---|
 | Discovery Job | Every 2 hours | 10s after boot | All |
 | Stale Cleanup | Every 30 minutes | Immediately | All |
-| Hashtag Pipeline | Every 48 hours | 30s after boot | Staging + Prod only |
+| Hashtag Pipeline | Every 4 hours | Only via cron | Staging + Prod only |
 
 ---
 

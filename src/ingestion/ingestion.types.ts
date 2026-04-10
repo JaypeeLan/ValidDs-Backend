@@ -19,6 +19,7 @@ export interface NormalizedPost {
   // Identity
   videoId: string;
   videoUrl?: string;
+  videoPlayUrl?: string;           // Direct playable media URL
   thumbnailUrl?: string;
 
   // Content — what the AI will read to extract the product
@@ -82,6 +83,7 @@ export interface ExtractedProduct {
   productNiche: string;            // e.g. "Kitchen Gadgets"
   productDescription: string;     // one-line AI-generated summary
   estimatedPrice?: number;        // extracted from comments/description if mentioned
+  unitsSold?: number;             // extracted or estimated number of sales
   currency?: string;              // default USD
 
   // AI confidence

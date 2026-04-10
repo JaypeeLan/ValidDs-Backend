@@ -43,7 +43,7 @@ export const ImageService = {
 // ── Google Custom Search API ──────────────────────────────────────────────────
 
 async function searchGoogleCSE(query: string): Promise<string | null> {
-  const apiKey = process.env.GOOGLE_CSE_API_KEY;
+  const apiKey = process.env.GOOGLE_CSE_API_KEY || process.env.GOOGLE_API_KEY;
   const cx = process.env.GOOGLE_CSE_CX;
 
   if (!apiKey || !cx) return null;
@@ -52,11 +52,11 @@ async function searchGoogleCSE(query: string): Promise<string | null> {
     const params = new URLSearchParams({
       key: apiKey,
       cx,
-      q: `${query} product`,
+      q: `${query} high resolution product photography`,
       searchType: 'image',
-      num: '3',
+      num: '5',
       imgType: 'photo',
-      imgSize: 'medium',
+      imgSize: 'large', // Prefer large images for HD
       safe: 'active',
     });
 
@@ -71,16 +71,22 @@ async function searchGoogleCSE(query: string): Promise<string | null> {
     }
 
     const data = await res.json() as {
-      items?: Array<{ link?: string; image?: { thumbnailLink?: string } }>;
+      items?: Array<{ link?: string; image?: { height?: number; width?: number } }>;
     };
 
-    // Return the first image that looks like a real product photo
+    // Return the first image that looks like a real product photo and is HD-ish
     for (const item of data.items ?? []) {
       const url = item.link;
-      if (url && isAcceptableImageUrl(url)) return url;
+      if (url && isAcceptableImageUrl(url)) {
+        // Bonus points if it's actually large
+        if (item.image && (item.image.width ?? 0) > 800) {
+           return url;
+        }
+        // Fallback to first acceptable one if none are > 800px
+      }
     }
 
-    return null;
+    return data.items?.[0]?.link || null;
   } catch (err) {
     log.debug('Google CSE search failed', { err: String(err) });
     return null;
@@ -97,8 +103,8 @@ async function searchSerpAPI(query: string): Promise<string | null> {
     const params = new URLSearchParams({
       api_key: apiKey,
       engine: 'google_images',
-      q: `${query} product`,
-      num: '3',
+      q: `${query} product photography hd`,
+      num: '5',
       safe: 'active',
     });
 
@@ -110,15 +116,17 @@ async function searchSerpAPI(query: string): Promise<string | null> {
     if (!res.ok) return null;
 
     const data = await res.json() as {
-      images_results?: Array<{ original?: string; thumbnail?: string }>;
+      images_results?: Array<{ original?: string; thumbnail?: string; width?: number; height?: number }>;
     };
 
     for (const item of data.images_results ?? []) {
-      const url = item.thumbnail ?? item.original;
-      if (url && isAcceptableImageUrl(url)) return url;
+      const url = item.original ?? item.thumbnail;
+      if (url && isAcceptableImageUrl(url)) {
+         if ((item.width ?? 0) > 800) return url;
+      }
     }
 
-    return null;
+    return data.images_results?.[0]?.original || null;
   } catch (err) {
     log.debug('SerpAPI search failed', { err: String(err) });
     return null;
@@ -128,10 +136,19 @@ async function searchSerpAPI(query: string): Promise<string | null> {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function isAcceptableImageUrl(url: string): boolean {
-  // Skip obviously bad sources
-  const blocklist = ['pinterest', 'instagram', 'facebook', 'twitter', 'tiktok'];
+  // Skip obviously bad sources or low-res cdn links
+  const blocklist = ['pinterest', 'instagram', 'facebook', 'twitter', 'tiktok', 'p16-', 'p19-'];
   const lower = url.toLowerCase();
+  
+  // Also check for common low-res extensions or patterns
   if (blocklist.some((b) => lower.includes(b))) return false;
   if (!url.startsWith('http')) return false;
+  
+  // Prefer common image extensions
+  const extensions = ['.jpg', '.jpeg', '.png', '.webp'];
+  if (!extensions.some(ext => lower.includes(ext))) {
+     // If no common extension, still allow if it looks like a valid URL, but lower quality
+  }
+
   return true;
 }

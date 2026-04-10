@@ -9,6 +9,7 @@ export function transformEnsemblePosts(posts: EnsemblePost[]): NormalizedPost[] 
     return {
       videoId: post.aweme_id,
       videoUrl: `https://www.tiktok.com/@${post.author?.unique_id || 'unknown'}/video/${post.aweme_id}`,
+      videoPlayUrl: post.video?.play_addr?.url_list?.[0],
       thumbnailUrl: post.video?.cover?.url_list?.[0],
 
       title: desc.split('\n')[0] || 'Unknown Title',

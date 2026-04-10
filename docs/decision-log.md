@@ -189,3 +189,26 @@ Render services can be restarted or moved, which would lead to loss of local Pro
 
 **Reasoning:**
 As the API grows (Auth, Profile, Products, Ingestion), a single `swagger.yaml` becomes unreadable and prone to merge conflicts. Splitting definitions into per-module files (`auth.yaml`, `products.yaml`) makes the documentation easier to maintain and review.
+
+---
+
+## DL-015 — Architecture: Abstracting Product Enrichment Layer
+
+**Date:** 2026-04-10
+**Decision:** Abstract the product enrichment layer to support multiple e-commerce data providers.
+
+**Reasoning:**
+Currently, all product enrichment (pricing, high-quality images) relies solely on the Rainforest API (Amazon). To provide a broader and more accurate view of a product's dropshipping viability, the backend needs to pull details from a diverse set of service providers (e.g. AliExpress, CJ Dropshipping, localized suppliers). By abstracting the enrichment layer, we can aggregate data from multiple parallel providers and fall back gracefully if one fails.
+
+**What might change:** The `ProductEnricher` will be refactored into a strategy pattern allowing dynamic provider execution.
+
+---
+
+## DL-016 — Ingestion: Exploring Alternate TikTok Data Providers
+
+**Date:** 2026-04-10
+**Decision:** Begin exploration of alternative TikTok data providers to supplement/backup EnsembleData.
+
+**Reasoning:**
+After shifting to an EnsembleData-only architecture to remove reliance on fragile undocumented Creative Center scraping, EnsembleData has become a single point of failure for our primary data feed. Exploring secondary TikTok data providers ensures we can implement the Orchestrator Fallback pattern originally designed for the platform, drastically reducing the risk of a full ingestion outage if EnsembleData changes its API or pricing.
+

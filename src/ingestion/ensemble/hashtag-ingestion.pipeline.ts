@@ -22,7 +22,7 @@ const MIN_VIEW_COUNT = 50_000;
  * Development is uncapped (uses a small page count anyway).
  */
 const MAX_POSTS_PROD = 50;
-const MAX_POSTS_DEV  = 40;   // Enough for meaningful dev testing
+const MAX_POSTS_DEV  = 100;   // Enough for meaningful dev testing
 
 export interface HashtagPipelineResult {
   postsCollected:    number;

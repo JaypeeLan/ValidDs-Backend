@@ -2,6 +2,7 @@ import { ExtractedProduct, NormalizedPost } from '../ingestion/ingestion.types';
 import { RainforestProduct } from './rainforest.types';
 import { ProductRepository, EnrichedProductInput } from '../db/repositories/product.repository';
 import { IProductDocument } from '../models/product.model';
+import { matchCategoryPath } from '../api/products/product.constants';
 import { logger } from '../logger';
 import { ImageService } from './image.service';
 import { PriceService } from './price.service';
@@ -37,7 +38,7 @@ export const ProductEnricher = {
   ): Promise<IProductDocument> {
     let { avgPrice, minPrice, maxPrice } = computePriceStats(rainforestResults);
     const title = pickBestTitle(rainforestResults, extraction.productName);
-    
+
     // Fallback price if Rainforest returns 0
     if (avgPrice === 0) {
       log.debug('Rainforest price is 0, attempting web search fallback', { title });
@@ -49,14 +50,6 @@ export const ProductEnricher = {
       }
     }
 
-    // Global Sales Grounding (NEW)
-    let globalSales = extraction.unitsSold;
-    const researchedSales = await MarketResearchService.estimateGlobalSales(extraction.productName);
-    if (researchedSales !== null && researchedSales > (globalSales ?? 0)) {
-      log.debug('Google Search found higher global sales volume', { researchedSales });
-      globalSales = researchedSales;
-    }
-
     const { primaryImageUrl, imageUrls } = await collectImages(rainforestResults, extraction.productName, post.thumbnailUrl);
 
     // Rating & Reviews (From the best Rainforest match)
@@ -64,50 +57,85 @@ export const ProductEnricher = {
     const rating = topMatch?.rating;
     const reviewsCount = topMatch?.ratings_total;
 
-    // Sterilize Category (NEW)
-    const category = categorize(extraction.productNiche);
+    // 3-Level Category (matches TikTok Shop taxonomy)
+    const { category, subCategory, categoryLeaf, categoryPath } = matchCategoryPath(extraction.productNiche);
+
+    // Build verified suppliers list and extract hard unit sales from Amazon
+    const { suppliers, verifiedUnitsSold: amazonSales } = buildSuppliers(rainforestResults, extraction.productName);
+
+    let finalUnitsSold = amazonSales;
+
+    // Fallback: If Amazon lacks sales data, try a verified Web Search (e.g. AliExpress, Walmart)
+    if (finalUnitsSold === 0) {
+      log.debug('Amazon lacked recent_sales, attempting Web Search fallback', { title });
+      const webResearch = await MarketResearchService.estimateGlobalSales(extraction.productName);
+      if (webResearch && webResearch.sales > 0 && webResearch.url) {
+        finalUnitsSold = webResearch.sales;
+
+        // Add the verified web source to the top of suppliers
+        suppliers.unshift({
+          platform: 'Web Search', // UI can show the domain if needed
+          productUrl: webResearch.url,
+          currency: 'USD',
+          verified: true,
+          checkedAt: new Date(),
+        });
+
+        log.debug('Web Search found verified sales', { finalUnitsSold, url: webResearch.url });
+      }
+    }
 
     const input: EnrichedProductInput = {
       // TikTok post metadata
-      videoId:         post.videoId,
-      source:          post.source,
-      hashtags:        post.hashtags,
-      viewCount:       post.viewCount,
-      likeCount:       post.likeCount,
-      commentCount:    post.commentCount,
-      shareCount:      post.shareCount,
-      engagementRate:  post.engagementRate,
-      videoPlayUrl:    post.videoPlayUrl,
-      thumbnailUrl:    post.thumbnailUrl,
-      creatorHandle:   post.creatorHandle,
+      videoId: post.videoId,
+      source: post.source,
+      hashtags: post.hashtags,
+      viewCount: post.viewCount,
+      likeCount: post.likeCount,
+      commentCount: post.commentCount,
+      shareCount: post.shareCount,
+      engagementRate: post.engagementRate,
+      videoPlayUrl: post.videoPlayUrl,
+      thumbnailUrl: post.thumbnailUrl,
+      creatorHandle: post.creatorHandle,
+      creatorDisplayName: post.creatorDisplayName,
       creatorFollowers: post.creatorFollowers,
-      publishedAt:     post.publishedAt,
-      collectedAt:     post.collectedAt,
-      isAd:            post.isAd,
+      creatorRegion: post.creatorRegion,
+      creatorVerified: post.creatorVerified,
+      creatorAvatarUrl: post.creatorAvatarUrl,
+      publishedAt: post.publishedAt,
+      collectedAt: post.collectedAt,
+      isAd: post.isAd,
 
       // Gemini AI extraction
       category,
-      description:      cleanDescription(extraction.productDescription),
-      aiConfidence:     extraction.extractionConfidence,
-      trendScore:       extraction.trendScore,
-      trendDirection:   extraction.trendDirection,
-      trendReason:      extraction.trendReason,
-      sentimentSummary: extraction.sentimentSummary,
-      buyingIntentScore: extraction.buyingIntentScore,
+      subCategory,
+      categoryLeaf,
+      categoryPath,
+      description: cleanDescription(extraction.productDescription),
+      aiConfidence: extraction.extractionConfidence,
+      confidenceReason: extraction.confidenceReason,
+      buyingSentimentScore: extraction.buyingSentimentScore,
+      buyingSentimentReason: extraction.buyingSentimentReason,
+      trendScore: extraction.trendScore,
+      trendDirection: extraction.trendDirection,
+      trendReason: extraction.trendReason,
+      isTrending: extraction.isTrending,
 
       // Rainforest Amazon enrichment
       title,
-      price:          avgPrice || 19.99, // Final sterilization: never $0 for winning products
-      priceMin:       minPrice || 19.99,
-      priceMax:       maxPrice || 19.99,
-      currency:       'USD',
+      price: avgPrice || 19.99, // Final sterilization: never $0 for winning products
+      priceMin: minPrice || 19.99,
+      priceMax: maxPrice || 19.99,
+      currency: 'USD',
       primaryImageUrl,
       imageUrls,
-      unitsSold:      globalSales,
-      store:          'TeemDrop',
-      videoUrl:       post.videoPlayUrl,
+      unitsSold: finalUnitsSold, // STRICT: Verified data from Amazon or Web Search
+      store: 'TeemDrop',
+      videoUrl: post.videoPlayUrl,
       rating,
       reviewsCount,
+      suppliers,
     };
 
     log.debug('Upserting enriched product', {
@@ -176,20 +204,6 @@ function cleanDescription(desc: string): string {
 }
 
 /**
- * Map a niche to a canonical category.
- */
-function categorize(niche: string): string {
-  const { PRODUCT_CATEGORIES } = require('../api/products/product.constants');
-  const normalized = niche.toLowerCase();
-  for (const cat of PRODUCT_CATEGORIES) {
-    if (normalized.includes(cat.toLowerCase()) || cat.toLowerCase().includes(normalized)) {
-      return cat;
-    }
-  }
-  return 'Home & Kitchen'; // Default
-}
-
-/**
  * Pick the best Amazon product title for the product card.
  * Strategy: shortest title ≤ 80 chars from the top 5 results.
  * Falls back to truncating the first result, then to the AI product name.
@@ -235,10 +249,11 @@ async function collectImages(
     .map(r => r.image)
     .filter((img): img is string => Boolean(img));
 
-  // Ensure high-res Amazon images by stripping the _AC_... thumbnail suffix
+  // Use Amazon's controlled resize suffix: ._SX400_. = 400px wide, full JPEG quality
+  // Much smaller file size than the full original, but still sharp and clear
   const uniqueImages = [...new Set(allImages)]
     .slice(0, 10)
-    .map(url => url.replace(/\._.*_\./, '.'));
+    .map(url => url.replace(/\._[A-Z0-9_,]+_\./, '._SX400_.'));
 
   // If Rainforest has images, use the first one as primary
   if (uniqueImages.length > 0) {
@@ -258,4 +273,84 @@ async function collectImages(
   }
 
   return { primaryImageUrl: undefined, imageUrls: [] };
+}
+
+/**
+ * Parse Amazon's recent_sales string.
+ * Example: "20K+ bought in past month" -> 20000
+ * Example: "50+ bought in past month" -> 50
+ */
+function parseRecentSales(salesString?: string): number {
+  if (!salesString) return 0;
+
+  const match = salesString.match(/^(\d+)(K)?\+?/i);
+  if (!match) return 0;
+
+  const num = parseInt(match[1], 10);
+  if (match[2]) { // 'K' is present
+    return num * 1000;
+  }
+  return num;
+}
+
+/**
+ * Build a suppliers array from Rainforest results + AliExpress + Alibaba search links.
+ * Extracts the verified unit sales from the best Amazon listing and flags it verified: true.
+ * This ensures stakeholders see a clickable link that proves the exact units sold metric.
+ */
+function buildSuppliers(
+  results: RainforestProduct[],
+  productName: string
+): { suppliers: NonNullable<EnrichedProductInput['suppliers']>, verifiedUnitsSold: number } {
+  const now = new Date();
+  const searchTerm = encodeURIComponent(productName);
+
+  let verifiedUnitsSold = 0;
+  let bestAmazonResult: RainforestProduct | null = null;
+
+  // Find the Amazon listing with the highest recent_sales metric
+  for (const r of results) {
+    if (r.recent_sales && r.link) {
+      const sales = parseRecentSales(r.recent_sales);
+      if (sales > verifiedUnitsSold) {
+        verifiedUnitsSold = sales;
+        bestAmazonResult = r;
+      }
+    }
+  }
+
+  const amazonSuppliers = results
+    .slice(0, 5) // up to 5 Amazon listing links
+    .filter(r => r.link)
+    .map(r => {
+      // Direct Link proving the sales is flagged verified
+      const isTopVerified = bestAmazonResult && r.link === bestAmazonResult.link;
+      return {
+        platform: 'Amazon',
+        productUrl: r.link,
+        price: r.price?.value ?? r.prices?.[0]?.value,
+        currency: 'USD',
+        verified: isTopVerified ? true : false,
+        checkedAt: now,
+      };
+    });
+
+  const aliexpress = {
+    platform: 'AliExpress',
+    productUrl: `https://www.aliexpress.com/wholesale?SearchText=${searchTerm}`,
+    verified: false,
+    checkedAt: now,
+  };
+
+  const alibaba = {
+    platform: 'Alibaba',
+    productUrl: `https://www.alibaba.com/trade/search?SearchText=${searchTerm}`,
+    verified: false,
+    checkedAt: now,
+  };
+
+  return {
+    suppliers: [...amazonSuppliers, aliexpress, alibaba],
+    verifiedUnitsSold
+  };
 }

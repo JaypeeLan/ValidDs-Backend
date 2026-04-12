@@ -38,5 +38,21 @@ export const ProductSearchQuerySchema = z.object({
   limit:    z.coerce.number().min(1).max(100).default(20),
 });
 
+export const ProductKeywordContextQuerySchema = z.object({
+  name: z.string().min(1, 'Keyword is required').max(200),
+  timeFilter: z.union([
+    z.literal(1),
+    z.literal(7),
+    z.literal(30),
+    z.literal(90),
+    z.literal(180),
+  ]).default(30),
+  sortOrder: z.union([z.literal(0), z.literal(1)]).default(0),
+  country: z.string().regex(/^[a-zA-Z]{2}$/, 'Country must be a 2-letter code').optional(),
+  cursor: z.coerce.number().min(0).default(0),
+  matchExactly: z.coerce.boolean().default(false),
+});
+
 export type ProductFeedQuery  = z.infer<typeof ProductFeedQuerySchema>;
 export type ProductSearchQuery = z.infer<typeof ProductSearchQuerySchema>;
+export type ProductKeywordContextQuery = z.infer<typeof ProductKeywordContextQuerySchema>;

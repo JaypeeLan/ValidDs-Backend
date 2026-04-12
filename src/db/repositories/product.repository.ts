@@ -42,20 +42,31 @@ export interface EnrichedProductInput {
   engagementRate?: number;
   videoPlayUrl?: string;
   thumbnailUrl?: string;
-  creatorHandle: string;
-  creatorFollowers?: number;
   publishedAt?: Date;
   collectedAt: Date;
   isAd: boolean;
 
   // From Gemini AI extraction
-  category: string;              // productNiche mapped to canonical category
+  category: string;              // L1 top-level
+  subCategory?: string;          // L2 subcategory
+  categoryLeaf?: string;         // L3 leaf node
+  categoryPath?: string;         // Full 'L1 / L2 / L3' display path
   aiConfidence: number;
+  confidenceReason?: string;
+  buyingSentimentScore?: number;
+  buyingSentimentReason?: string;
   trendScore: number;
   trendDirection: 'rising' | 'peaked' | 'saturating' | 'unknown';
-  trendReason: string;
-  sentimentSummary?: string;
-  buyingIntentScore?: number;
+  trendReason?: string;
+  isTrending?: boolean;
+
+  // Creator info (from TikTok post)
+  creatorHandle: string;
+  creatorDisplayName?: string;
+  creatorFollowers?: number;
+  creatorRegion?: string;
+  creatorVerified?: boolean;
+  creatorAvatarUrl?: string;
 
   // From Rainforest Amazon enrichment
   title: string;                 // short, searchable Amazon product title (≤80 chars)
@@ -71,6 +82,7 @@ export interface EnrichedProductInput {
   videoUrl?: string;
   rating?: number;
   reviewsCount?: number;
+  suppliers?: Array<{ platform: string; productUrl?: string; price?: number; currency?: string; verified: boolean; checkedAt: Date }>;
 }
 
 export const ProductRepository = {
@@ -128,21 +140,27 @@ export const ProductRepository = {
           commentCount: post.commentCount,
           shareCount: post.shareCount,
           creatorHandle: post.creatorHandle,
+          creatorDisplayName: post.creatorDisplayName,
           creatorFollowers: post.creatorFollowers,
+          creatorRegion: post.creatorRegion,
+          creatorVerified: post.creatorVerified,
+          creatorAvatarUrl: post.creatorAvatarUrl,
           publishedAt: post.publishedAt,
           isAd: post.isAd,
         }],
 
         // Trend data (AI-calculated)
         'trend.direction': extraction.trendDirection,
+        'trend.isTrending': extraction.isTrending,
+        'trend.reason': extraction.trendReason,
         'trend.score': extraction.trendScore,
         'trend.calculatedAt': new Date(),
 
         // AI metadata
         'aiExtraction.confidence': extraction.extractionConfidence,
-        'aiExtraction.trendReason': extraction.trendReason,
-        'aiExtraction.sentimentSummary': extraction.sentimentSummary,
-        'aiExtraction.buyingIntentScore': extraction.buyingIntentScore,
+        'aiExtraction.confidenceReason': extraction.confidenceReason,
+        'aiExtraction.buyingSentimentScore': extraction.buyingSentimentScore,
+        'aiExtraction.buyingSentimentReason': extraction.buyingSentimentReason,
         'aiExtraction.extractedAt': new Date(),
         unitsSold: extraction.unitsSold ?? 0,
         store: 'TeemDrop',
@@ -309,13 +327,35 @@ export const ProductRepository = {
     const sanitized = this.validateAndSanitize(input);
     const filter = { externalId: sanitized.videoId, source: sanitized.source };
 
+    const newVideo = {
+      videoId:          sanitized.videoId,
+      url:              sanitized.videoUrl,
+      playUrl:          sanitized.videoPlayUrl,
+      thumbnailUrl:     sanitized.thumbnailUrl,
+      viewCount:        sanitized.viewCount,
+      likeCount:        sanitized.likeCount,
+      commentCount:     sanitized.commentCount,
+      shareCount:       sanitized.shareCount,
+      creatorHandle:    sanitized.creatorHandle,
+      creatorDisplayName: sanitized.creatorDisplayName,
+      creatorFollowers: sanitized.creatorFollowers,
+      creatorRegion:    sanitized.creatorRegion,
+      creatorVerified:  sanitized.creatorVerified,
+      creatorAvatarUrl: sanitized.creatorAvatarUrl,
+      publishedAt:      sanitized.publishedAt,
+      isAd:             sanitized.isAd,
+    };
+
     const update = {
       $set: {
         // Identity
-        title:       sanitized.title,
-        description: sanitized.description,
-        category:    sanitized.category,
-        tags:        sanitized.hashtags,
+        title:        sanitized.title,
+        description:  sanitized.description,
+        category:     sanitized.category,
+        subCategory:  sanitized.subCategory,
+        categoryLeaf: sanitized.categoryLeaf,
+        categoryPath: sanitized.categoryPath,
+        tags:         sanitized.hashtags,
 
         // Media — from Rainforest results
         primaryImageUrl: sanitized.primaryImageUrl,
@@ -332,40 +372,38 @@ export const ProductRepository = {
         totalLikes:    sanitized.likeCount,
         totalComments: sanitized.commentCount,
         shareCount:    sanitized.shareCount,
-        totalVideos:   1,
         engagementRate: sanitized.engagementRate,
 
-        // Top video
-        topVideos: [{
-          videoId:         sanitized.videoId,
-          url:             sanitized.videoUrl,
-          playUrl:         sanitized.videoPlayUrl,
-          thumbnailUrl:    sanitized.thumbnailUrl,
-          viewCount:       sanitized.viewCount,
-          likeCount:       sanitized.likeCount,
-          commentCount:    sanitized.commentCount,
-          shareCount:      sanitized.shareCount,
-          creatorHandle:   sanitized.creatorHandle,
-          creatorFollowers: sanitized.creatorFollowers,
-          publishedAt:     sanitized.publishedAt,
-          isAd:            sanitized.isAd,
-        }],
+        // Primary video URL (most recent)
         videoUrl: sanitized.videoUrl,
+
+        // Creator fields (from primary/first-seen post)
+        creatorHandle:       sanitized.creatorHandle,
+        creatorDisplayName:  sanitized.creatorDisplayName,
+        creatorFollowers:    sanitized.creatorFollowers,
+        creatorRegion:       sanitized.creatorRegion,
+
+        // Suppliers — for manual verification of units sold
+        ...(sanitized.suppliers && sanitized.suppliers.length > 0
+          ? { suppliers: sanitized.suppliers }
+          : {}),
 
         // Trend data
         'trend.direction':   sanitized.trendDirection,
+        'trend.isTrending':  sanitized.isTrending,
+        'trend.reason':      sanitized.trendReason,
         'trend.score':       sanitized.trendScore,
         'trend.calculatedAt': new Date(),
 
         // AI metadata
-        'aiExtraction.confidence':      sanitized.aiConfidence,
-        'aiExtraction.trendReason':     sanitized.trendReason,
-        'aiExtraction.sentimentSummary': sanitized.sentimentSummary,
-        'aiExtraction.buyingIntentScore': sanitized.buyingIntentScore,
-        'aiExtraction.extractedAt':     new Date(),
-        unitsSold: sanitized.unitsSold ?? 0,
-        store: sanitized.store ?? 'TeemDrop',
-        rating: sanitized.rating,
+        'aiExtraction.confidence':            sanitized.aiConfidence,
+        'aiExtraction.confidenceReason':      sanitized.confidenceReason,
+        'aiExtraction.buyingSentimentScore':  sanitized.buyingSentimentScore,
+        'aiExtraction.buyingSentimentReason': sanitized.buyingSentimentReason,
+        'aiExtraction.extractedAt':           new Date(),
+        unitsSold:    sanitized.unitsSold ?? 0,
+        store:        sanitized.store ?? 'TeemDrop',
+        rating:       sanitized.rating,
         reviewsCount: sanitized.reviewsCount,
 
         // Freshness
@@ -374,6 +412,12 @@ export const ProductRepository = {
         isStale:             false,
         status:              'active',
       },
+      // Accumulate videos — add this post's video if not already in the array
+      $addToSet: {
+        topVideos: newVideo,
+      },
+      // Track total video count
+      $inc: { totalVideos: 1 },
     };
 
     const options = { upsert: true, new: true, setDefaultsOnInsert: true };

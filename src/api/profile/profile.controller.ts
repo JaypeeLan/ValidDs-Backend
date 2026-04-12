@@ -20,6 +20,7 @@ export const ProfileController = {
       if (input.avatarUrl !== undefined) user.avatarUrl = input.avatarUrl;
       if (input.timezone !== undefined) user.timezone = input.timezone;
       if (input.locale !== undefined) user.locale = input.locale;
+      if (input.contentRegion !== undefined) user.contentRegion = input.contentRegion;
 
       if (input.notifications) {
         user.notifications = {

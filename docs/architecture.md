@@ -43,6 +43,10 @@ The system is designed for V1 speed of delivery while remaining structurally cle
 │    ├─ Hashtag-based deep collection                              │
 │    └─ Comment-based intent analysis                              │
 │                                                                  │
+│  Verified Grounding (Hard metric extraction):                    │
+│    ├─ Amazon "recent_sales" (Rainforest API)                     │
+│    └─ Web Search Fallback (AliExpress/Walmart grounding)         │
+│                                                                  │
 │  Product Extraction (Multi-Provider AI with Fallback):           │
 │    1. DeepSeek API (primary, lowest cost)                    │
 
@@ -69,7 +73,7 @@ The system is designed for V1 speed of delivery while remaining structurally cle
 Handles HTTP only. Controllers parse requests, call services, and format responses. They never touch the database directly.
 
 ### Service Layer (`src/services/`)
-All business logic lives here. Services apply rules and cross-cutting logic (authentication, token issuance, email flows) before returning data to controllers.
+All business logic lives here. Services apply rules and cross-cutting logic (authentication, token issuance, regional preferences, email flows) before returning data to controllers.
 
 ### Model Layer (`src/models/`)
 Mongoose schemas and documents. Services currently query models directly (a dedicated repository layer can be introduced later if query complexity grows).
@@ -87,6 +91,11 @@ Orchestrates data collection from TikTok via RapidAPI and triggers AI-powered pr
 - **EnsembleData API**: Primary data source collecting trending products, videos, hashtags, and keyword trends via the EnsembleData TikTok API.
   - Requires: `ENSEMBLE_API_KEY` environment variable.
   - Configuration: `TIKTOK_REGION` (default: `US`).
+- **Verified Unit Sales Grounding**:
+  - The system rejects all AI-estimated unit counts.
+  - It parses hard platform-reported counts from Amazon listings. 
+  - It uses targeted Google Search (`site:aliexpress.com OR site:walmart.com`) if Amazon data is unavailable.
+  - High-confidence sales links are flagged as `verified: true` in the feed.
 
 **Product Extraction (Multi-Provider AI):**
 The extraction layer uses a provider fallback chain to minimize costs while maintaining availability. If a provider's API key is missing, the system automatically falls back to the next provider.

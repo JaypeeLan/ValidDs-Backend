@@ -390,6 +390,37 @@
           ]
         },
         {
+          "name": "Keyword Context",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products/keyword-context?name=tesla&timeFilter=30&sortOrder=0&cursor=0&matchExactly=false",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "keyword-context"],
+              "query": [
+                { "key": "name", "value": "tesla", "description": "Keyword to search. REQUIRED." },
+                { "key": "timeFilter", "value": "30", "description": "1=Last day, 7=Last week, 30=Last month, 90=Last 3 months, 180=Last 6 months." },
+                { "key": "sortOrder", "value": "0", "description": "0=Relevance, 1=Most liked." },
+                { "key": "cursor", "value": "0" },
+                { "key": "matchExactly", "value": "false" }
+              ]
+            },
+            "description": "Pulls TikTok keyword context from EnsembleData full-search and returns suggested hashtags plus candidate videos."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"keyword\": \"tesla\",\n    \"filters\": {\n      \"timeFilter\": 30,\n      \"sortOrder\": 0,\n      \"country\": \"us\",\n      \"matchExactly\": false\n    },\n    \"pagination\": {\n      \"cursor\": 0,\n      \"nextCursor\": 20\n    },\n    \"suggestedHashtags\": [\"tesla\", \"teslatok\"],\n    \"posts\": []\n  }\n}"
+            }
+          ]
+        },
+        {
           "name": "Product Details",
           "request": {
             "method": "GET",
@@ -412,7 +443,7 @@
               "status": "OK",
               "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"product\": {\n      \"_id\": \"<product_id>\",\n      \"title\": \"Example Product\",\n      \"aiExtraction\": {\n        \"sentimentSummary\": \"Users are asking about shipping times.\",\n        \"buyingIntentScore\": 85\n      }\n    },\n    \"freshness\": \"2023-01-01T00:00:00.000Z\"\n  }\n}"
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"product\": {\n      \"_id\": \"<product_id>\",\n      \"title\": \"Example Product\",\n      \"trend\": {\n        \"direction\": \"rising\",\n        \"score\": 82,\n        \"isTrending\": true,\n        \"reason\": \"Comment velocity increased week-over-week\"\n      },\n      \"aiInsight\": {\n        \"confidence\": {\n          \"score\": 84,\n          \"reason\": \"Clear product mentions across caption and comments\"\n        },\n        \"buyingSentiment\": {\n          \"score\": 85,\n          \"reason\": \"Many users are asking where to buy with positive tone\"\n        }\n      },\n      \"creatorsVideos\": [\n        {\n          \"handle\": \"creator_one\",\n          \"displayName\": \"Creator One\",\n          \"followers\": 245000,\n          \"region\": \"US\",\n          \"verified\": true,\n          \"isPrimary\": true,\n          \"videos\": [\n            {\n              \"videoId\": \"123456789\",\n              \"url\": \"https://www.tiktok.com/@creator_one/video/123456789\",\n              \"playUrl\": \"https://v16-webapp-prime.tiktok.com/....mp4\",\n              \"viewCount\": 120000\n            }\n          ]\n        }\n      ]\n    },\n    \"freshness\": \"2023-01-01T00:00:00.000Z\"\n  }\n}"
             }
           ]
         }

@@ -64,7 +64,16 @@ export class EnsembleJob {
 
     try {
       // Gather top posts across trending product-focused keywords
-      const keywords = ['tiktokmademebuyit', 'amazonfinds', 'musthaves'];
+      const keywords = [
+        'tiktokmademebuyit',
+        'amazonfinds',
+        'musthaves',
+        'viralproducts',
+        'kitchengadgets',
+        'beautyfinds',
+        'techtok',
+        'problemsolver',
+      ];
       const rawPosts = [];
 
       for (const kw of keywords) {

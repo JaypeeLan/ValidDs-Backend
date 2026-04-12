@@ -110,11 +110,13 @@ Respond with this exact JSON structure:
   "unitsSold": 1250,
   "currency": "USD",
   "extractionConfidence": 85,
+  "confidenceReason": "One sentence on why this confidence level is assigned",
   "trendScore": 72,
   "trendDirection": "rising",
+  "isTrending": true,
   "trendReason": "One sentence explaining why this product is gaining traction",
-  "sentimentSummary": "One sentence describing what the comments reveal",
-  "buyingIntentScore": 78
+  "buyingSentimentScore": 78,
+  "buyingSentimentReason": "One sentence describing buyer intent and tone in comments"
 }
 
 unitsSold: your best estimate or extracted number of units already sold;
@@ -127,7 +129,7 @@ amazonSearchTerm: 2-5 keyword Amazon search query — shorter and generic works 
 estimatedPrice must be null if not mentioned
 extractionConfidence is 0-100 — your confidence that this is a real, identifiable product
 trendScore is 0-100 based on engagement signals
-buyingIntentScore is 0-100 based on comment intent signals`.trim();
+buyingSentimentScore is 0-100 based on comment intent signals`.trim();
 }
 
 // ── Extractor ─────────────────────────────────────────────────────────────────
@@ -252,12 +254,20 @@ export const ProductExtractor = {
       unitsSold: typeof parsed.unitsSold === 'number' ? parsed.unitsSold : 0,
       currency: String(parsed.currency ?? 'USD'),
       extractionConfidence: Number(parsed.extractionConfidence ?? 0),
+      confidenceReason: typeof parsed.confidenceReason === 'string' ? parsed.confidenceReason : undefined,
       isProductVideo: true,
       trendScore: Number(parsed.trendScore ?? 50),
       trendDirection: (parsed.trendDirection as 'rising' | 'peaked' | 'saturating' | 'unknown') ?? 'unknown',
-      trendReason: String(parsed.trendReason ?? ''),
-      sentimentSummary: typeof parsed.sentimentSummary === 'string' ? parsed.sentimentSummary : undefined,
-      buyingIntentScore: typeof parsed.buyingIntentScore === 'number' ? parsed.buyingIntentScore : undefined,
+      isTrending: typeof parsed.isTrending === 'boolean'
+        ? parsed.isTrending
+        : (parsed.trendDirection !== 'unknown' && Number(parsed.trendScore ?? 0) >= 60),
+      trendReason: typeof parsed.trendReason === 'string' ? parsed.trendReason : undefined,
+      buyingSentimentScore: typeof parsed.buyingSentimentScore === 'number'
+        ? parsed.buyingSentimentScore
+        : (typeof parsed.buyingIntentScore === 'number' ? parsed.buyingIntentScore : undefined),
+      buyingSentimentReason: typeof parsed.buyingSentimentReason === 'string'
+        ? parsed.buyingSentimentReason
+        : (typeof parsed.sentimentSummary === 'string' ? parsed.sentimentSummary : undefined),
       sourceVideoId: post.videoId,
       sourceVideoUrl: post.videoUrl,
     };
@@ -349,12 +359,14 @@ function buildFallbackExtraction(post: NormalizedPost): ExtractedProduct | null 
     estimatedPrice: undefined,
     currency: 'USD',
     extractionConfidence: 30,          // Low confidence — no AI
+    confidenceReason: 'Extracted without AI provider confidence rationale',
     isProductVideo: true,
     trendScore: Math.min(100, Math.round((post.engagementRate ?? 0) * 10)),
     trendDirection: 'unknown',
+    isTrending: false,
     trendReason: 'Extracted without AI — engagement signals only',
-    sentimentSummary: undefined,
-    buyingIntentScore: undefined,
+    buyingSentimentScore: undefined,
+    buyingSentimentReason: undefined,
     sourceVideoId: post.videoId,
     sourceVideoUrl: post.videoUrl,
   };

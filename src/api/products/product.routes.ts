@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { ProductController } from './product.controller';
 import { validate } from '../../middleware/validate.middleware';
 import { optionalAuth } from '../../middleware/auth.middleware';
-import { ProductFeedQuerySchema, ProductSearchQuerySchema } from './product.validator';
+import { ProductFeedQuerySchema, ProductSearchQuerySchema, ProductKeywordContextQuerySchema } from './product.validator';
 
 const router = Router();
 
@@ -30,6 +30,13 @@ router.get(
   optionalAuth,
   validate(ProductSearchQuerySchema, 'query'),
   ProductController.search
+);
+
+router.get(
+  '/keyword-context',
+  optionalAuth,
+  validate(ProductKeywordContextQuerySchema, 'query'),
+  ProductController.keywordContext
 );
 
 router.get('/categories', optionalAuth, ProductController.categories);

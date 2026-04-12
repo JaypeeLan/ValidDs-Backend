@@ -58,3 +58,7 @@ properties:
   updatedAt:
     type: string
     format: date-time
+  contentRegion:
+    type: string
+    enum: [US, CA, MX, UK, ES, DE, IT, FR, AU, NZ]
+    example: US

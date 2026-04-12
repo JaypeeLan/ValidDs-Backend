@@ -118,6 +118,7 @@ export interface IUser {
   notifications: INotificationPrefs;
   timezone?: string;
   locale?: string;
+  contentRegion: string;
 
   // Account status
   status: UserStatus;
@@ -160,6 +161,8 @@ export const PLAN_LIMITS: Record<UserPlan, { creditsPerMonth: number; productsPe
   validator: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
   scale:     { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
 };
+
+export const ALLOWED_CONTENT_REGIONS = ['US', 'CA', 'MX', 'UK', 'ES', 'DE', 'IT', 'FR', 'AU', 'NZ'] as const;
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -296,6 +299,11 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     notifications: { type: NotificationPrefsSchema, default: () => ({}) },
     timezone: { type: String, default: 'UTC' },
     locale: { type: String, default: 'en' },
+    contentRegion: { 
+      type: String, 
+      enum: ALLOWED_CONTENT_REGIONS,
+      default: 'US'
+    },
 
     // Account status
     status: { type: String, enum: ['active', 'suspended', 'deleted'] as UserStatus[], default: 'active' },

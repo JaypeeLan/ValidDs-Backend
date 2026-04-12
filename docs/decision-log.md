@@ -212,3 +212,20 @@ Currently, all product enrichment (pricing, high-quality images) relies solely o
 **Reasoning:**
 After shifting to an EnsembleData-only architecture to remove reliance on fragile undocumented Creative Center scraping, EnsembleData has become a single point of failure for our primary data feed. Exploring secondary TikTok data providers ensures we can implement the Orchestrator Fallback pattern originally designed for the platform, drastically reducing the risk of a full ingestion outage if EnsembleData changes its API or pricing.
 
+## DL-017 — Ingestion: 3-Level TikTok Shop Taxonomy Migration
+
+**Date:** 2026-04-11  
+**Decision:** Migrate from a flat 10-category list to a canonical 3-level TikTok Shop category taxonomy (Primary/Sub/Leaf).
+
+**Reasoning:**
+The previous flat category list was too generic (e.g. "Beauty & Healthcare") and didn't align with how professional dropshippers research niches. By adopting the official 3-level TikTok Shop hierarchy (e.g. \`Beauty & Personal Care / Skincare / Skin Care Kits\`), we provide users with high-fidelity niche data that maps directly to current market trends.
+
+---
+
+## DL-018 — Data Integrity: Strict Grounding of "Units Sold" Metric
+
+**Date:** 2026-04-11  
+**Decision:** Reject all AI-estimated unit counts and strictly ground the "Units Sold" metric in verified platform-reported data (Amazon/AliExpress/Walmart).
+
+**Reasoning:**
+AI-hallucinated sales figures undermined platform trust. To restore data integrity, the \`unitsSold\` field now defaults to 0 and is only populated if our grounding engines (Rainforest API or Web Search) find a specific, verifiable sales string (e.g., "10K+ bought in past month"). Each verified count is accompanied by a \`verified: true\` link directly to the source proof.

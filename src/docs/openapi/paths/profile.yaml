@@ -34,6 +34,9 @@ patch:
             avatarUrl: { type: string, format: uri }
             timezone: { type: string }
             locale: { type: string }
+            contentRegion: 
+              type: string
+              enum: [US, CA, MX, UK, ES, DE, IT, FR, AU, NZ]
             notifications:
               type: object
               properties:

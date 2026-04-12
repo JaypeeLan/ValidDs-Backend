@@ -4,11 +4,12 @@ import { EnsemblePost, EnsembleComment } from './ensemble.client';
 export function transformEnsemblePosts(posts: EnsemblePost[]): NormalizedPost[] {
   return posts.map((post) => {
     const desc = post.desc || '';
-    const hashtags = extractHashtagsFromText(desc);
+    const hashtags = extractHashtags(post);
+    const creatorHandle = post.author?.unique_id || 'unknown';
 
     return {
       videoId: post.aweme_id,
-      videoUrl: `https://www.tiktok.com/@${post.author?.unique_id || 'unknown'}/video/${post.aweme_id}`,
+      videoUrl: `https://www.tiktok.com/@${creatorHandle}/video/${post.aweme_id}`,
       videoPlayUrl: post.video?.play_addr?.url_list?.[0],
       thumbnailUrl: post.video?.cover?.url_list?.[0],
 
@@ -17,10 +18,13 @@ export function transformEnsemblePosts(posts: EnsemblePost[]): NormalizedPost[] 
       hashtags,
       rawText: desc,
 
-      creatorHandle: post.author?.unique_id || 'unknown',
+      creatorHandle,
       creatorDisplayName: post.author?.nickname,
       creatorFollowers: post.author?.follower_count || 0,
       creatorRegion: post.author?.region,
+      creatorVerified: typeof post.author?.verification_type === 'number' ? post.author.verification_type > 0 : undefined,
+      creatorAvatarUrl: post.author?.avatar_thumb?.url_list?.[0],
+      creatorBio: post.author?.signature,
 
       viewCount: post.statistics?.play_count || 0,
       likeCount: post.statistics?.digg_count || 0,
@@ -53,4 +57,13 @@ export function transformEnsembleComments(comments: EnsembleComment[], videoId: 
 function extractHashtagsFromText(text: string): string[] {
   const matches = text.match(/#\w+/g);
   return matches ? matches.map((m) => m.slice(1).toLowerCase()) : [];
+}
+
+function extractHashtags(post: EnsemblePost): string[] {
+  const fromText = extractHashtagsFromText(post.desc || '');
+  const fromMetadata = (post.text_extra ?? [])
+    .map((entry) => entry.hashtag_name?.trim().toLowerCase())
+    .filter((value): value is string => Boolean(value));
+
+  return [...new Set([...fromMetadata, ...fromText])];
 }

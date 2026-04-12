@@ -79,6 +79,72 @@ search:
                           items:
                             $ref: '../components/schemas/Product.yaml'
 
+keywordContext:
+  get:
+    tags: [Products]
+    summary: Search TikTok keyword context from EnsembleData
+    parameters:
+      - name: name
+        in: query
+        required: true
+        schema: { type: string }
+      - name: timeFilter
+        in: query
+        schema: { type: integer, enum: [1, 7, 30, 90, 180], default: 30 }
+      - name: sortOrder
+        in: query
+        schema: { type: integer, enum: [0, 1], default: 0 }
+      - name: country
+        in: query
+        schema: { type: string, example: us }
+      - name: cursor
+        in: query
+        schema: { type: integer, default: 0 }
+      - name: matchExactly
+        in: query
+        schema: { type: boolean, default: false }
+    responses:
+      '200':
+        description: Keyword context retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        keyword: { type: string }
+                        filters:
+                          type: object
+                          properties:
+                            timeFilter: { type: integer, enum: [1, 7, 30, 90, 180] }
+                            sortOrder: { type: integer, enum: [0, 1] }
+                            country: { type: string }
+                            matchExactly: { type: boolean }
+                        pagination:
+                          type: object
+                          properties:
+                            cursor: { type: integer }
+                            nextCursor: { type: integer, nullable: true }
+                        suggestedHashtags:
+                          type: array
+                          items: { type: string }
+                        posts:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              videoId: { type: string }
+                              videoUrl: { type: string }
+                              videoPlayUrl: { type: string }
+                              creatorHandle: { type: string }
+                              creatorDisplayName: { type: string }
+                              creatorFollowers: { type: integer }
+                              creatorRegion: { type: string }
+
 detail:
   get:
     tags: [Products]

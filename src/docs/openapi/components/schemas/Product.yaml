@@ -22,10 +22,16 @@ properties:
     example: High-quality heat-resistant kitchen tools.
   category:
     type: string
-    example: Kitchen
+    example: Beauty & Personal Care
   subCategory:
     type: string
-    example: Utensils
+    example: Skincare
+  categoryLeaf:
+    type: string
+    example: Skin Care Kits
+  categoryPath:
+    type: string
+    example: Beauty & Personal Care / Skincare / Skin Care Kits
   tags:
     type: array
     items:
@@ -62,7 +68,20 @@ properties:
       properties:
         videoId: { type: string }
         url: { type: string, format: uri }
+        playUrl: { type: string, format: uri }
+        thumbnailUrl: { type: string, format: uri }
         viewCount: { type: integer }
+        likeCount: { type: integer }
+        commentCount: { type: integer }
+        shareCount: { type: integer }
+        creatorHandle: { type: string }
+        creatorDisplayName: { type: string }
+        creatorFollowers: { type: integer }
+        creatorRegion: { type: string }
+        creatorVerified: { type: boolean }
+        creatorAvatarUrl: { type: string, format: uri }
+        publishedAt: { type: string, format: date-time }
+        isAd: { type: boolean }
   trend:
     type: object
     properties:
@@ -73,11 +92,76 @@ properties:
         type: string
         enum: [rising, peaked, saturating, unknown]
         example: rising
+      isTrending:
+        type: boolean
+        example: true
+      reason:
+        type: string
+        example: Surge in comments asking where to buy
       velocityScore: { type: number }
+  aiInsight:
+    type: object
+    properties:
+      confidence:
+        type: object
+        properties:
+          score:
+            type: number
+            example: 84
+          reason:
+            type: string
+            example: Multiple product cues are present in video and comments
+      buyingSentiment:
+        type: object
+        properties:
+          score:
+            type: number
+            example: 81
+          reason:
+            type: string
+            example: Comments show strong purchase intent with positive tone
+  creatorsVideos:
+    type: array
+    items:
+      type: object
+      properties:
+        handle: { type: string, example: creator_handle }
+        displayName: { type: string, example: Creator Name }
+        followers: { type: integer, example: 240000 }
+        region: { type: string, example: US }
+        verified: { type: boolean, example: true }
+        avatarUrl: { type: string, format: uri }
+        isPrimary: { type: boolean, example: true }
+        videos:
+          type: array
+          items:
+            type: object
+            properties:
+              videoId: { type: string }
+              url: { type: string, format: uri }
+              playUrl: { type: string, format: uri }
+              thumbnailUrl: { type: string, format: uri }
+              viewCount: { type: integer }
+              likeCount: { type: integer }
+              commentCount: { type: integer }
+              shareCount: { type: integer }
+              publishedAt: { type: string, format: date-time }
+              isAd: { type: boolean }
   status:
     type: string
     enum: [active, archived, stale]
     example: active
+  suppliers:
+    type: array
+    items:
+      type: object
+      properties:
+        platform: { type: string, example: Amazon }
+        productUrl: { type: string, format: uri }
+        price: { type: number }
+        currency: { type: string, example: USD }
+        verified: { type: boolean }
+        checkedAt: { type: string, format: date-time }
   lastIngestedAt:
     type: string
     format: date-time

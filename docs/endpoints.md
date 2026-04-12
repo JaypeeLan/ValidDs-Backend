@@ -9,14 +9,19 @@ All endpoints return standardized success envelopes detailed in `docs/api-respon
 ## 1. Product Endpoints
 
 ### `GET /products`
-Returns a paginated list of trending products.
+Returns a paginated list of trending products with extensive filtering capabilities.
 **Authentication:** Optional.
 **Query Parameters:**
-- `page` (optional): Page number (defaults to 1).
-- `limit` (optional): Items per page (defaults to 20).
-- `category` (optional): Filter by canonical category.
-- `sortBy` (optional): `engagementRate`, `unitsSold`, `price`.
-- `order` (optional): `asc` or `desc`.
+- `page` *(number, optional)*: Page number (defaults to 1).
+- `limit` *(number, optional)*: Items per page (defaults to 20, max 100).
+- `category` *(string, optional)*: Filter by canonical category. Accepts a single string or comma-separated list.
+- `niche` *(string, optional)*: Filter by specific sub-niche string.
+- `trendDirection` *(string, optional)*: Filter by direction. Accepts `rising`, `peaked`, `saturating`, `unknown`.
+- `minTrendScore` *(number, optional)*: Filter items above a given trend momentum score (0-100).
+- `minViews` *(number, optional)*: Filter out products whose primary video has less than this amount of views.
+- `isAd` *(boolean, optional)*: If true, only returns products currently tracked as active ads via Creative Center.
+- `region` *(string, optional)*: Filter down to specific TikTok ingestion region.
+- `market` *(string, optional)*: Filter by target market (e.g. `US`, `UK`, `CA`).
 
 ### `GET /products/:id`
 Returns comprehensive data for a single product.
@@ -80,7 +85,8 @@ Retrieves the user's detailed profile data, usage limits, and active subscriptio
 ### `PATCH /profile`
 Updates current user profile details (e.g. name, preferences).
 **Authentication:** Required.
-**Body:** Updatable standard fields mapping (varies based on usage layer).
+**Body:** `{ "name": "...", "contentRegion": "US|UK|CA|...", ... }` 
+*(Accepts standard fields like firstName, lastName, avatarUrl, timezone, and locale).*
 
 ### `GET /profile/bookmarks`
 Gets all products saved by the user.
@@ -92,7 +98,28 @@ Adds a product to the user's saved list.
 **Body:** `{ "productId": "..." }`
 
 ### `DELETE /profile/bookmarks/:productId`
-Removes a product from the user's saved list.
+
+---
+
+## 4. Background Job Endpoints (`/jobs`)
+
+These endpoints are used for monitoring and triggering the ingestion pipelines.
+**Authentication:** Required. Requires `X-API-Key` header (matches `INTERNAL_API_KEY`).
+
+### `GET /jobs/status`
+Returns the status of background timers and last run timestamps.
+
+### `POST /jobs/product-refresh`
+Triggers the full product refresh pipeline (Ingestion -> AI -> Enrichment -> DB).
+*Use this for external cron triggers.*
+
+### `POST /jobs/hashtag-pipeline`
+Triggers the deep hashtag ingestion pipeline (EnsembleData hashtag crawl).
+
+### `POST /jobs/stale-cleanup`
+Triggers the DB stale data cleanup.
+
+---Removes a product from the user's saved list.
 **Authentication:** Required.
 
 ---

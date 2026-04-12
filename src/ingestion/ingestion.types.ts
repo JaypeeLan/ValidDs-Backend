@@ -34,6 +34,8 @@ export interface NormalizedPost {
   creatorFollowers?: number;
   creatorVerified?: boolean;
   creatorRegion?: string;
+  creatorAvatarUrl?: string;
+  creatorBio?: string;
 
   // Engagement
   viewCount: number;
@@ -88,16 +90,18 @@ export interface ExtractedProduct {
 
   // AI confidence
   extractionConfidence: number;   // 0–100 — how confident the AI is this is a real product
+  confidenceReason?: string;
   isProductVideo: boolean;        // false if the video is clearly not product-related
 
   // Trend signals (AI-calculated from engagement data)
   trendScore: number;             // 0–100 composite
   trendDirection: 'rising' | 'peaked' | 'saturating' | 'unknown';
-  trendReason: string;            // e.g. "High comment-to-view ratio, multiple creators posting"
+  isTrending: boolean;
+  trendReason?: string;           // e.g. "High comment-to-view ratio, multiple creators posting"
 
   // Sentiment from comments
-  sentimentSummary?: string;      // e.g. "Users asking where to buy, positive tone"
-  buyingIntentScore?: number;     // 0–100 — how many comments express buying intent
+  buyingSentimentScore?: number;   // 0–100 — how many comments express buying intent
+  buyingSentimentReason?: string;
 
   // Source post this was extracted from
   sourceVideoId: string;

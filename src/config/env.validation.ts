@@ -155,7 +155,7 @@ function validateEnv(): Env {
 
     console.error('\n[ValidDs] Environment validation failed:\n' + formatted + '\n');
     console.error('See .env.example for required variables.\n');
-    
+
     if (isStaging) {
       console.warn('[ValidDs] STAGING MODE: Bypassing environment validation crash.');
       return envToParse as unknown as Env;

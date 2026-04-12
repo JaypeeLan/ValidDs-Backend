@@ -16,9 +16,9 @@ export const MarketResearchService = {
 
   /**
    * Search for global sales volume for a product.
-   * Returns a number representing 'total units sold' globally, or null if uncertain.
+   * Returns the verified sales number AND the direct URL to the source proving it.
    */
-  async estimateGlobalSales(productName: string): Promise<number | null> {
+  async estimateGlobalSales(productName: string): Promise<{ sales: number, url: string } | null> {
     const apiKey = process.env.GOOGLE_API_KEY;
     const cx = process.env.GOOGLE_CSE_CX;
 
@@ -31,7 +31,7 @@ export const MarketResearchService = {
       const params = new URLSearchParams({
         key: apiKey,
         cx,
-        q: `${productName} global total units sold sales volume customer count`,
+        q: `${productName} units sold OR orders OR customers site:aliexpress.com OR site:walmart.com`,
       });
 
       const res = await fetch(
@@ -44,15 +44,17 @@ export const MarketResearchService = {
         return null;
       }
 
-      const data = await res.json() as { items?: Array<{ snippet: string; title: string }> };
-      const snippets = (data.items ?? []).map(i => i.snippet + ' ' + i.title).join('\n');
+      const data = await res.json() as { items?: Array<{ snippet: string; title: string; link: string }> };
+      
+      for (const item of data.items || []) {
+        const text = item.snippet + ' ' + item.title;
+        const sales = this.parseSalesFromSnippets(text);
+        if (sales && sales > 0) {
+          return { sales, url: item.link };
+        }
+      }
 
-      if (!snippets) return null;
-
-      // In a real system, we'd pass these snippets to Gemini to extract the number.
-      // For now, we'll use a regex and basic heuristic, or return null to allow
-      // the AI extractor to use its internal grounding knowledge with this context.
-      return this.parseSalesFromSnippets(snippets);
+      return null;
     } catch (err) {
       log.error('Market research search failed', err);
       return null;

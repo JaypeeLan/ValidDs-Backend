@@ -61,6 +61,8 @@ paths:
     $ref: './paths/products.yaml#/feed'
   /api/v1/products/search:
     $ref: './paths/products.yaml#/search'
+  /api/v1/products/keyword-context:
+    $ref: './paths/products.yaml#/keywordContext'
   /api/v1/products/categories:
     $ref: './paths/products.yaml#/categories'
   /api/v1/products/{id}:

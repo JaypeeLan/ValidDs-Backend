@@ -18,10 +18,15 @@ export interface EnsemblePost {
   desc?: string;
   create_time?: number;
   author?: {
+    uid?: string;
+    sec_uid?: string;
     unique_id?: string;
     nickname?: string;
+    signature?: string;
     follower_count?: number;
     region?: string;
+    verification_type?: number;
+    avatar_thumb?: { url_list?: string[] };
   };
   statistics?: {
     play_count?: number;
@@ -42,6 +47,16 @@ export interface EnsembleComment {
   digg_count: number;
   create_time: number;
   reply_comment_total: number;
+}
+
+export interface KeywordFullSearchParams {
+  name: string;
+  days: 1 | 7 | 30 | 90 | 180;
+  cursor?: number;
+  period?: 1 | 7 | 30 | 90 | 180;
+  sorting?: 0 | 1;
+  country?: string;
+  matchExactly?: boolean;
 }
 
 export class EnsembleClient {
@@ -90,6 +105,34 @@ export class EnsembleClient {
     } catch (err) {
       log.error('EnsembleData searchPosts failed', err);
       return [];
+    }
+  }
+
+  async searchKeywordFull(params: KeywordFullSearchParams): Promise<{ posts: EnsemblePost[]; nextCursor: number | null }> {
+    await this.throttle();
+    try {
+      const res = await this.client.get('/keyword/full-search', {
+        params: {
+          name: params.name,
+          days: params.days,
+          cursor: params.cursor ?? 0,
+          period: params.period ?? params.days,
+          sorting: params.sorting ?? 0,
+          country: (params.country ?? this.region).toLowerCase(),
+          match_exactly: params.matchExactly ?? false,
+        },
+      });
+
+      const payload = res.data?.data ?? {};
+      const posts = payload?.items ?? payload?.videos ?? payload?.aweme_list ?? [];
+      const nextCursor = payload?.nextCursor ?? payload?.cursor ?? null;
+
+      log.debug(`Fetched ${posts.length} posts via keyword/full-search for "${params.name}"`);
+      return { posts, nextCursor };
+    } catch (err: any) {
+      const details = err.response?.data || String(err);
+      log.warn('EnsembleData keyword/full-search failed', { err: details, name: params.name });
+      return { posts: [], nextCursor: null };
     }
   }
 

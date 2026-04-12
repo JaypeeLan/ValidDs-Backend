@@ -19,14 +19,39 @@ const log = logger.child({ module: 'jobs' });
  * to give the server time to fully start before making external requests.
  */
 
-const PRODUCT_REFRESH_INTERVAL_MS  = 2 * 60 * 60 * 1000;      // 2 hours
-const STALE_CLEANUP_INTERVAL_MS    = 30 * 60 * 1000;           // 30 minutes
+const PRODUCT_REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000;      // 2 hours
+const STALE_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;           // 30 minutes
 const HASHTAG_PIPELINE_INTERVAL_MS = 4 * 60 * 60 * 1000;      // 4 hours
-const INITIAL_DELAY_MS             = 10 * 1000;                // 10 seconds
+const INITIAL_DELAY_MS = 10 * 1000;                // 10 seconds
 
-let productRefreshTimer:  ReturnType<typeof setInterval> | null = null;
-let staleCleanupTimer:    ReturnType<typeof setInterval> | null = null;
+let productRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let staleCleanupTimer: ReturnType<typeof setInterval> | null = null;
 let hashtagPipelineTimer: ReturnType<typeof setInterval> | null = null;
+
+let lastProductRefreshRun: Date | null = null;
+let lastStaleCleanupRun: Date | null = null;
+let lastHashtagPipelineRun: Date | null = null;
+
+export function getJobsStatus() {
+  return {
+    timers: {
+      productRefresh: !!productRefreshTimer,
+      staleCleanup: !!staleCleanupTimer,
+      hashtagPipeline: !!hashtagPipelineTimer,
+    },
+    lastRuns: {
+      productRefresh: lastProductRefreshRun,
+      staleCleanup: lastStaleCleanupRun,
+      hashtagPipeline: lastHashtagPipelineRun,
+    },
+    intervals: {
+      productRefreshMs: PRODUCT_REFRESH_INTERVAL_MS,
+      staleCleanupMs: STALE_CLEANUP_INTERVAL_MS,
+      hashtagPipelineMs: HASHTAG_PIPELINE_INTERVAL_MS,
+    },
+    env: env.NODE_ENV,
+  };
+}
 
 export function startJobs(): void {
   log.info('Starting background jobs');
@@ -34,11 +59,14 @@ export function startJobs(): void {
   // Product refresh — delayed first run, then every 2 hours
   setTimeout(() => {
     log.info('Running initial product refresh');
+    lastProductRefreshRun = new Date();
     runProductRefreshJob().catch((err) =>
       log.error('Initial product refresh failed', err)
     );
 
     productRefreshTimer = setInterval(() => {
+      log.info('Scheduled product refresh triggered');
+      lastProductRefreshRun = new Date();
       runProductRefreshJob().catch((err) =>
         log.error('Scheduled product refresh failed', err)
       );
@@ -46,8 +74,11 @@ export function startJobs(): void {
   }, INITIAL_DELAY_MS);
 
   // Stale cleanup — starts immediately, runs every 30 minutes
-  runStaleCleanupJob().catch(() => {});
+  lastStaleCleanupRun = new Date();
+  runStaleCleanupJob().catch(() => { });
   staleCleanupTimer = setInterval(() => {
+    log.info('Scheduled stale cleanup triggered');
+    lastStaleCleanupRun = new Date();
     runStaleCleanupJob().catch((err) =>
       log.error('Stale cleanup job failed', err)
     );
@@ -59,6 +90,7 @@ export function startJobs(): void {
   if (env.NODE_ENV !== 'development') {
     hashtagPipelineTimer = setInterval(() => {
       log.info('Scheduled hashtag pipeline triggered');
+      lastHashtagPipelineRun = new Date();
       new HashtagIngestionPipeline().run().catch((err) =>
         log.error('Scheduled hashtag pipeline failed', err)
       );
@@ -73,14 +105,14 @@ export function startJobs(): void {
 
   log.info('Background jobs scheduled', {
     productRefreshInterval: `${PRODUCT_REFRESH_INTERVAL_MS / 60000} minutes`,
-    staleCleanupInterval:   `${STALE_CLEANUP_INTERVAL_MS / 60000} minutes`,
+    staleCleanupInterval: `${STALE_CLEANUP_INTERVAL_MS / 60000} minutes`,
     hashtagPipelineInterval: env.NODE_ENV !== 'development' ? '4 hours' : 'disabled (dev)',
   });
 }
 
 export function stopJobs(): void {
-  if (productRefreshTimer)  clearInterval(productRefreshTimer);
-  if (staleCleanupTimer)    clearInterval(staleCleanupTimer);
+  if (productRefreshTimer) clearInterval(productRefreshTimer);
+  if (staleCleanupTimer) clearInterval(staleCleanupTimer);
   if (hashtagPipelineTimer) clearInterval(hashtagPipelineTimer);
   log.info('Background jobs stopped');
 }

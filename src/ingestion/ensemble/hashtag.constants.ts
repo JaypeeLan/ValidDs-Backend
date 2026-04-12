@@ -7,4 +7,15 @@
  */
 export const TRACKED_HASHTAGS = [
   'TikTokMadeMeBuyIt',
+  'AmazonFinds',
+  'TikTokShop',
+  'MustHave',
+  'ViralProducts',
+  'ProblemSolver',
+  'KitchenGadgets',
+  'BeautyFinds',
+  'HomeFinds',
+  'TechTok',
+  'Unboxing',
+  'Dropshipping',
 ] as const;

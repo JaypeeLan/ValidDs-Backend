@@ -9,7 +9,7 @@ export interface RainforestProduct {
   position: number;
   title: string;
   asin: string;
-  link: string;
+  link: string;               // Direct Amazon product URL (e.g. https://www.amazon.com/dp/B0...)
   categories?: { name: string }[];
   image: string;
   rating?: number;
@@ -17,6 +17,8 @@ export interface RainforestProduct {
   prices?: RainforestPrice[];
   price?: RainforestPrice;     // primary price shortcut
   is_prime?: boolean;
+  recent_sales?: string;       // e.g., "20K+ bought in past month"
+  brand?: string;
 }
 
 export interface RainforestRequestInfo {

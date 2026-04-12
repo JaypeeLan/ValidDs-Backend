@@ -116,6 +116,93 @@ describe('Products Endpoints', () => {
     expect(res.status).not.toBe(404);
   });
 
+  it('GET /api/v1/products should include creatorsVideos grouped by creator', async () => {
+    const { Product } = await import('../src/models/product.model');
+    await Product.create({
+      externalId: 'vid_primary_1',
+      source: 'ensemble',
+      title: 'Clip Hair Curler',
+      description: 'Sample product',
+      tags: ['beautyfinds'],
+      imageUrls: ['https://example.com/image.jpg'],
+      primaryImageUrl: 'https://example.com/image.jpg',
+      price: 24.99,
+      currency: 'USD',
+      totalViews: 120000,
+      totalLikes: 12000,
+      totalComments: 900,
+      totalShares: 600,
+      totalVideos: 2,
+      topVideos: [
+        {
+          videoId: 'vid_primary_1',
+          url: 'https://www.tiktok.com/@creator1/video/vid_primary_1',
+          playUrl: 'https://cdn.example.com/vid_primary_1.mp4',
+          viewCount: 90000,
+          likeCount: 9000,
+          commentCount: 700,
+          shareCount: 500,
+          creatorHandle: 'creator1',
+          creatorDisplayName: 'Creator One',
+          creatorFollowers: 500000,
+          creatorRegion: 'US',
+          creatorVerified: true,
+          creatorAvatarUrl: 'https://example.com/creator1.jpg',
+          isAd: false,
+        },
+        {
+          videoId: 'vid_secondary_2',
+          url: 'https://www.tiktok.com/@creator2/video/vid_secondary_2',
+          playUrl: 'https://cdn.example.com/vid_secondary_2.mp4',
+          viewCount: 30000,
+          likeCount: 3000,
+          commentCount: 200,
+          shareCount: 100,
+          creatorHandle: 'creator2',
+          creatorDisplayName: 'Creator Two',
+          creatorFollowers: 120000,
+          creatorRegion: 'GB',
+          creatorVerified: false,
+          creatorAvatarUrl: 'https://example.com/creator2.jpg',
+          isAd: false,
+        },
+      ],
+      creatorHandle: 'creator1',
+      creatorDisplayName: 'Creator One',
+      creatorFollowers: 500000,
+      creatorRegion: 'US',
+      trend: { direction: 'rising', score: 84, isTrending: true, reason: 'Strong cross-creator velocity' },
+      aiExtraction: {
+        confidence: 90,
+        confidenceReason: 'High confidence from clear product framing',
+        buyingSentimentScore: 88,
+        buyingSentimentReason: 'Comments ask where to buy',
+        extractedAt: new Date(),
+      },
+      sourceabilityStatus: 'unverified',
+      suppliers: [],
+      stores: [],
+      status: 'active',
+      dataSourceUpdatedAt: new Date(),
+      lastIngestedAt: new Date(),
+      isStale: false,
+    });
+
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: '/api/v1/products?limit=10',
+    });
+
+    expect(res.status).toBe(200);
+    const parsed = JSON.parse(res.text);
+    const firstProduct = parsed.data.products[0];
+    expect(Array.isArray(firstProduct.creatorsVideos)).toBe(true);
+    expect(firstProduct.creatorsVideos.length).toBeGreaterThan(0);
+    expect(firstProduct.creatorsVideos[0].isPrimary).toBe(true);
+    expect(firstProduct.creatorsVideos[0].videos[0].playUrl).toContain('.mp4');
+  });
+
   it('GET /api/v1/products/:id should handle ID properly', async () => {
     const res = await httpJson({
       baseUrl,

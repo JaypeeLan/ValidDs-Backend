@@ -25,7 +25,20 @@ EnsembleData API (Keyword Search)
 
 **Scheduler:** `src/jobs/index.ts` — `setInterval` every 2 hours, first run 10 s after boot.
 **Entry point:** `src/jobs/product-refresh.job.ts → runProductRefreshJob()`
-**Manual trigger:** `npm run test-ingestion`
+**Manual trigger:** `POST /api/v1/jobs/product-refresh` (requires `X-API-Key` header)
+
+---
+
+## Deployment — Running on Render (Free Tier)
+
+On Render's Free Tier, the service spins down after 15 minutes of inactivity. This clears internal `setInterval` timers. To ensure ingestion runs reliably:
+
+1.  **Use an external cron service** (e.g. [cron-job.org](https://cron-job.org)) to ping the trigger endpoints.
+2.  **Endpoints available:**
+    - `POST /api/v1/jobs/product-refresh` (Run every 2 hours)
+    - `POST /api/v1/jobs/hashtag-pipeline` (Run every 4 hours)
+3.  **Authentication:** Add the header `X-API-Key: YOUR_INTERNAL_API_KEY`.
+4.  **Benefits:** This wakes up the Render instance AND triggers the job regardless of user traffic.
 
 ---
 
@@ -43,18 +56,19 @@ TRACKED_HASHTAGS (src/ingestion/ensemble/hashtag.constants.ts)
          ↓
    transformEnsemblePosts() + transformEnsembleComments()
          ↓
-   ProductExtractor.extractFromPost(post, comments)  ← Gemini AI
-   Returns: { productName, productNiche, trendScore, sentimentSummary, buyingIntentScore, ... }
-         ↓
-   RainforestService.searchAmazonProducts(productName)
-   Returns: { search_results: [{ title, price, image }] }
-         ↓
-   ProductEnricher.mergeAndUpsert()
-   → avgPrice (mean of all results), shortest title ≤ 80 chars, images[]
-         ↓
-   ProductRepository.upsertEnrichedProduct()   ← keyed on videoId + source
-         ↓
-   FreshnessService.markUpdated('product')
+    ProductExtractor.extractFromPost(post, comments)  ← Gemini AI
+    Returns: { productName, productNiche, trendScore, sentimentSummary, buyingIntentScore, ... }
+          ↓
+    RainforestService.searchAmazonProducts(productName)
+    Returns: { search_results: [{ title, price, image, recent_sales, link }] }
+          ↓
+    ProductEnricher.mergeAndUpsert()
+    → verifiedUnitsSold (parsed from Amazon "recent_sales")
+    → Fallback: Web Search (AliExpress/Walmart) if Amazon sales is 0
+          ↓
+    ProductRepository.upsertEnrichedProduct()   ← keyed on videoId + source
+          ↓
+    FreshnessService.markUpdated('product')
 ```
 
 **Scheduler:** `src/jobs/index.ts` — `setInterval` every 4 hours. **Staging/prod only** — disabled automatically in development to conserve credits.
@@ -159,17 +173,28 @@ extractFromPost(post: NormalizedPost, comments: NormalizedComment[]): Promise<Ex
 }
 ```
 
-### Canonical Categories
+### 3-Level TikTok Shop Taxonomy
 
-All products are assigned to one of 10 hardcoded categories defined in `src/api/products/product.constants.ts`:
+All products are assigned to a canonical 3-level TikTok Shop category path:
+**Primary Category / Sub Category / Category Leaf**
 
-```
-Beauty & Healthcare · Electronics & Gadgets · Home & Kitchen
-Fashion & Accessories · Sports & Outdoors · Pet Supplies
-Office Products · Automotive · Toys & Games · Food & Beverages
-```
+Example: \`Beauty & Personal Care / Skincare / Skin Care Kits\`
 
-The AI is instructed to pick from this list. Any extraction that maps to an unknown category falls back to `'Electronics & Gadgets'`.
+The extraction engine maps niches to these paths:
+- **Beauty & Personal Care** (Skincare, Makeup, Hair, etc.)
+- **Electronics & Gadgets**
+- **Home & Living**
+- **Fashion & Accessories**
+- **Sports & Outdoors**
+- **Pet Supplies**
+- **Toys & Games**
+- **Automotive**
+- **Tools & Home Improvement**
+- **Food & Beverages**
+- **Baby & Maternity**
+- **Health & Wellness**
+
+The AI generates a `productNiche`, which the `matchCategoryPath` utility maps into the full formal TikTok Shop hierarchy.
 
 ---
 
@@ -181,9 +206,10 @@ The AI is instructed to pick from this list. Any extraction that maps to an unkn
 |---|---|---|
 | `title` | Rainforest | Shortest Amazon title ≤ 80 chars from top 5 results. Falls back to AI `productName`. |
 | `price` | Rainforest | Average of all valid prices. `0` if no results. |
-| `priceMin/Max` | Rainforest | Min/max across all results. |
-| `category` | AI | `productNiche` from Gemini. |
-| `imageUrls` | Rainforest | Up to 10 unique images. Falls back to TikTok thumbnail. |
+| `unitsSold` | **Verified** | Extracted from Amazon \`recent_sales\` (e.g. "10K+ bought"). Fallback to verified Web Search link. |
+| `suppliers` | Multiple | Amazon links + search links for AliExpress/Alibaba. Top link flagged \`verified: true\`. |
+| `categoryPath` | Utility | Resolved via \`matchCategoryPath(extraction.productNiche)\`. |
+| `imageUrls` | Rainforest | Up to 10 unique images resized with Amazon \`._SX400_.\` suffix for quality/size balance. |
 | `trendScore` | AI | Direct from `ExtractedProduct`. |
 | `sentimentSummary` | AI | Direct from `ExtractedProduct`. |
 | `totalViews` | TikTok post | `NormalizedPost.viewCount`. |

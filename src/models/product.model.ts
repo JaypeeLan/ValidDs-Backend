@@ -17,13 +17,19 @@ export interface IProductVideo {
   commentCount: number;
   shareCount: number;
   creatorHandle?: string;
+  creatorDisplayName?: string;
   creatorFollowers?: number;
+  creatorRegion?: string;
+  creatorVerified?: boolean;
+  creatorAvatarUrl?: string;
   publishedAt?: Date;
   isAd: boolean;
 }
 
 export interface IProductTrend {
   direction: TrendDirection;
+  isTrending: boolean;
+  reason?: string;
   score: number;
   velocityScore: number;
   peakViewsLast7d: number;
@@ -39,9 +45,9 @@ export interface IProductTrend {
  */
 export interface IAIExtraction {
   confidence: number;              // 0–100 — how confident the AI is
-  trendReason?: string;            // e.g. "High comment-to-view ratio"
-  sentimentSummary?: string;       // e.g. "Users asking where to buy, positive tone"
-  buyingIntentScore?: number;      // 0–100
+  confidenceReason?: string;
+  buyingSentimentScore?: number;   // 0–100
+  buyingSentimentReason?: string;
   isProductVideo: boolean;         // false = video isn't really about a product
   extractedAt: Date;
 }
@@ -60,8 +66,8 @@ export interface IAdSignals {
 }
 
 export interface ISupplierRef {
-  platform: string;
-  url?: string;
+  platform: string;       // e.g. 'Amazon', 'AliExpress', 'Alibaba'
+  productUrl?: string;    // Direct link to this product listing for manual verification
   price?: number;
   currency?: string;
   shippingDays?: number;
@@ -86,8 +92,10 @@ export interface IProduct {
   source: string;
   title: string;
   description?: string;
-  category?: string;
-  subCategory?: string;
+  category?: string;        // L1: e.g. 'Beauty & Personal Care'
+  subCategory?: string;     // L2: e.g. 'Skincare'
+  categoryLeaf?: string;    // L3: e.g. 'Skin Care Kits'
+  categoryPath?: string;    // Full path: 'Beauty & Personal Care / Skincare / Skin Care Kits'
   tags: string[];
 
   // Media
@@ -117,6 +125,12 @@ export interface IProduct {
   topVideos: IProductVideo[];
   videoUrl?: string; // Direct .mp4 media link for primary video
 
+  // Creator (from the primary TikTok post)
+  creatorHandle?: string;
+  creatorDisplayName?: string;
+  creatorFollowers?: number;
+  creatorRegion?: string;
+
   // Trend
   trend: IProductTrend;
 
@@ -142,7 +156,7 @@ export interface IProduct {
   updatedAt: Date;
 }
 
-export interface IProductDocument extends IProduct, Document {}
+export interface IProductDocument extends IProduct, Document { }
 export interface IProductModel extends Model<IProductDocument> {
   findByExternalId(externalId: string): Promise<IProductDocument | null>;
 }
@@ -151,81 +165,87 @@ export interface IProductModel extends Model<IProductDocument> {
 
 const ProductVideoSchema = new Schema<IProductVideo>(
   {
-    videoId:          { type: String, required: true },
-    url:              { type: String },
-    playUrl:          { type: String },
-    thumbnailUrl:     { type: String },
-    viewCount:        { type: Number, default: 0 },
-    likeCount:        { type: Number, default: 0 },
-    commentCount:     { type: Number, default: 0 },
-    shareCount:       { type: Number, default: 0 },
-    creatorHandle:    { type: String },
+    videoId: { type: String, required: true },
+    url: { type: String },
+    playUrl: { type: String },
+    thumbnailUrl: { type: String },
+    viewCount: { type: Number, default: 0 },
+    likeCount: { type: Number, default: 0 },
+    commentCount: { type: Number, default: 0 },
+    shareCount: { type: Number, default: 0 },
+    creatorHandle: { type: String },
+    creatorDisplayName: { type: String },
     creatorFollowers: { type: Number },
-    publishedAt:      { type: Date },
-    isAd:             { type: Boolean, default: false },
+    creatorRegion: { type: String },
+    creatorVerified: { type: Boolean },
+    creatorAvatarUrl: { type: String },
+    publishedAt: { type: Date },
+    isAd: { type: Boolean, default: false },
   },
   { _id: false }
 );
 
 const ProductTrendSchema = new Schema<IProductTrend>(
   {
-    direction:          { type: String, enum: ['rising', 'peaked', 'saturating', 'unknown'], default: 'unknown' },
-    score:              { type: Number, default: 0, min: 0, max: 100 },
-    velocityScore:      { type: Number, default: 0 },
-    peakViewsLast7d:    { type: Number, default: 0 },
-    totalVideosLast7d:  { type: Number, default: 0 },
+    direction: { type: String, enum: ['rising', 'peaked', 'saturating', 'unknown'], default: 'unknown' },
+    isTrending: { type: Boolean, default: false },
+    reason: { type: String },
+    score: { type: Number, default: 0, min: 0, max: 100 },
+    velocityScore: { type: Number, default: 0 },
+    peakViewsLast7d: { type: Number, default: 0 },
+    totalVideosLast7d: { type: Number, default: 0 },
     totalVideosLast30d: { type: Number, default: 0 },
-    categoryRank:       { type: Number },
-    calculatedAt:       { type: Date, default: Date.now },
+    categoryRank: { type: Number },
+    calculatedAt: { type: Date, default: Date.now },
   },
   { _id: false }
 );
 
 const AIExtractionSchema = new Schema<IAIExtraction>(
   {
-    confidence:         { type: Number, default: 0, min: 0, max: 100 },
-    trendReason:        { type: String },
-    sentimentSummary:   { type: String },
-    buyingIntentScore:  { type: Number, min: 0, max: 100 },
-    isProductVideo:     { type: Boolean, default: true },
-    extractedAt:        { type: Date, default: Date.now },
+    confidence: { type: Number, default: 0, min: 0, max: 100 },
+    confidenceReason: { type: String },
+    buyingSentimentScore: { type: Number, min: 0, max: 100 },
+    buyingSentimentReason: { type: String },
+    isProductVideo: { type: Boolean, default: true },
+    extractedAt: { type: Date, default: Date.now },
   },
   { _id: false }
 );
 
 const AdSignalsSchema = new Schema<IAdSignals>(
   {
-    isAd:        { type: Boolean, default: false },
+    isAd: { type: Boolean, default: false },
     firstSeenAt: { type: Date },
-    lastSeenAt:  { type: Date },
-    status:      { type: String, enum: ['active', 'inactive', 'unknown'], default: 'unknown' },
+    lastSeenAt: { type: Date },
+    status: { type: String, enum: ['active', 'inactive', 'unknown'], default: 'unknown' },
     landingPage: { type: String },
-    industry:    { type: String },
+    industry: { type: String },
   },
   { _id: false }
 );
 
 const SupplierRefSchema = new Schema<ISupplierRef>(
   {
-    platform:     { type: String, required: true },
-    url:          { type: String },
-    price:        { type: Number },
-    currency:     { type: String, default: 'USD' },
+    platform: { type: String, required: true },
+    productUrl: { type: String },                // Direct listing URL for manual verification
+    price: { type: Number },
+    currency: { type: String, default: 'USD' },
     shippingDays: { type: Number },
-    verified:     { type: Boolean, default: false },
-    checkedAt:    { type: Date, default: Date.now },
+    verified: { type: Boolean, default: false },
+    checkedAt: { type: Date, default: Date.now },
   },
   { _id: false }
 );
 
 const StoreRefSchema = new Schema<IStoreRef>(
   {
-    tiktokShopId:  { type: String },
-    storeName:     { type: String },
-    storeUrl:      { type: String },
-    shopifyUrl:    { type: String },
-    productCount:  { type: Number },
-    totalSales:    { type: Number },
+    tiktokShopId: { type: String },
+    storeName: { type: String },
+    storeUrl: { type: String },
+    shopifyUrl: { type: String },
+    productCount: { type: Number },
+    totalSales: { type: Number },
   },
   { _id: false }
 );
@@ -234,39 +254,47 @@ const StoreRefSchema = new Schema<IStoreRef>(
 
 const ProductSchema = new Schema<IProductDocument, IProductModel>(
   {
-    externalId:   { type: String, required: true },
-    source:       { type: String, required: true },
-    title:        { type: String, required: true, trim: true, maxlength: 500 },
-    description:  { type: String, maxlength: 2000 },
-    category:     { type: String },
-    subCategory:  { type: String },
-    tags:         [{ type: String }],
+    externalId: { type: String, required: true },
+    source: { type: String, required: true },
+    title: { type: String, required: true, trim: true, maxlength: 500 },
+    description: { type: String, maxlength: 2000 },
+    category: { type: String },
+    subCategory: { type: String },
+    categoryLeaf: { type: String },  // L3 leaf node
+    categoryPath: { type: String },  // Full 'L1 / L2 / L3' display path
+    tags: [{ type: String }],
 
-    imageUrls:       [{ type: String }],
+    imageUrls: [{ type: String }],
     primaryImageUrl: { type: String },
 
-    price:           { type: Number },
-    priceMin:        { type: Number },
-    priceMax:        { type: Number },
-    currency:        { type: String, default: 'USD' },
+    price: { type: Number },
+    priceMin: { type: Number },
+    priceMax: { type: Number },
+    currency: { type: String, default: 'USD' },
     estimatedMargin: { type: Number },
-    unitsSold:       { type: Number, default: 0 },
-    store:           { type: String, default: 'TeemDrop' },
-    rating:          { type: Number },
-    reviewsCount:    { type: Number },
+    unitsSold: { type: Number, default: 0 },
+    store: { type: String, default: 'TeemDrop' },
+    rating: { type: Number },
+    reviewsCount: { type: Number },
 
-    totalViews:    { type: Number, default: 0 },
-    totalLikes:    { type: Number, default: 0 },
+    totalViews: { type: Number, default: 0 },
+    totalLikes: { type: Number, default: 0 },
     totalComments: { type: Number, default: 0 },
-    totalShares:   { type: Number, default: 0 },
-    totalVideos:   { type: Number, default: 0 },
+    totalShares: { type: Number, default: 0 },
+    totalVideos: { type: Number, default: 0 },
     engagementRate: { type: Number },
 
-    topVideos:    { type: [ProductVideoSchema], default: [] },
-    videoUrl:     { type: String },
-    trend:        { type: ProductTrendSchema, default: () => ({}) },
+    topVideos: { type: [ProductVideoSchema], default: [] },
+    videoUrl: { type: String },
+
+    creatorHandle: { type: String },
+    creatorDisplayName: { type: String },
+    creatorFollowers: { type: Number },
+    creatorRegion: { type: String },
+
+    trend: { type: ProductTrendSchema, default: () => ({}) },
     aiExtraction: { type: AIExtractionSchema },
-    adSignals:    { type: AdSignalsSchema },
+    adSignals: { type: AdSignalsSchema },
 
     sourceabilityStatus: {
       type: String,
@@ -274,12 +302,12 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
       default: 'unverified',
     },
     suppliers: { type: [SupplierRefSchema], default: [] },
-    stores:    { type: [StoreRefSchema], default: [] },
+    stores: { type: [StoreRefSchema], default: [] },
 
-    status:              { type: String, enum: ['active', 'archived', 'stale'], default: 'active' },
+    status: { type: String, enum: ['active', 'archived', 'stale'], default: 'active' },
     dataSourceUpdatedAt: { type: Date, required: true },
-    lastIngestedAt:      { type: Date, required: true },
-    isStale:             { type: Boolean, default: false },
+    lastIngestedAt: { type: Date, required: true },
+    isStale: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

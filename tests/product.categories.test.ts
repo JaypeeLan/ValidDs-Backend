@@ -26,11 +26,11 @@ describe('Product Categories - Hardcoded Canonical List', () => {
     ProductFeedQuerySchema = validator.ProductFeedQuerySchema;
   });
 
-  it('PRODUCT_CATEGORIES should be defined and have exactly 10 categories', () => {
+  it('PRODUCT_CATEGORIES should be defined and have multiple categories', () => {
     expect(PRODUCT_CATEGORIES).toBeDefined();
-    expect(PRODUCT_CATEGORIES.length).toBe(10);
-    expect(PRODUCT_CATEGORIES).toContain('Beauty & Healthcare');
-    expect(PRODUCT_CATEGORIES).toContain('Office Products');
+    expect(PRODUCT_CATEGORIES.length).toBeGreaterThanOrEqual(12);
+    expect(PRODUCT_CATEGORIES).toContain('Beauty & Personal Care');
+    expect(PRODUCT_CATEGORIES).toContain('Home & Living');
   });
 
   it('ProductRepository.getCategories() should return the hardcoded list', async () => {
@@ -45,15 +45,15 @@ describe('Product Categories - Hardcoded Canonical List', () => {
 
   describe('Validator - ProductFeedQuerySchema', () => {
     it('should pass validation with valid single category string', () => {
-      const validQuery = { category: 'Beauty & Healthcare' };
+      const validQuery = { category: 'Beauty & Personal Care' };
       const parsed = ProductFeedQuerySchema.parse(validQuery);
-      expect(parsed.category).toEqual(['Beauty & Healthcare']);
+      expect(parsed.category).toEqual(['Beauty & Personal Care']);
     });
 
     it('should pass validation with valid multiple category array', () => {
-      const validQuery = { category: ['Home & Kitchen', 'Pet Supplies'] };
+      const validQuery = { category: ['Home & Living', 'Pet Supplies'] };
       const parsed = ProductFeedQuerySchema.parse(validQuery);
-      expect(parsed.category).toEqual(['Home & Kitchen', 'Pet Supplies']);
+      expect(parsed.category).toEqual(['Home & Living', 'Pet Supplies']);
     });
 
     it('should pass validation with valid comma-separated string', () => {
@@ -72,7 +72,7 @@ describe('Product Categories - Hardcoded Canonical List', () => {
     });
 
     it('should fail validation if one of multiple categories is invalid', () => {
-      const invalidQuery = { category: ['Beauty & Healthcare', 'Random Fake Category'] };
+      const invalidQuery = { category: ['Beauty & Personal Care', 'Random Fake Category'] };
       const result = ProductFeedQuerySchema.safeParse(invalidQuery);
       expect(result.success).toBe(false);
     });

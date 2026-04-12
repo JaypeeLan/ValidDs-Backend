@@ -69,6 +69,11 @@ paths:
     $ref: './paths/products.yaml#/detail'
   /api/v1/ingestion/trigger:
     $ref: './paths/ingestion.yaml#/trigger'
+  /api/v1/jobs/status:
+    $ref: './paths/jobs.yaml#/status'
+  /api/v1/jobs/product-refresh:
+    $ref: './paths/jobs.yaml#/productRefresh'
+
 
 components:
   securitySchemes:

@@ -448,8 +448,97 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "Get Jobs Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Api-Key", "value": "{{internalApiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", "status"]
+            },
+            "description": "Returns the current state of background timers and last run timestamps. Useful for checking if the server is actively scheduling jobs."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Background job status retrieved\",\n  \"data\": {\n    \"timers\": {\n      \"productRefresh\": true,\n      \"staleCleanup\": true,\n      \"hashtagPipeline\": true\n    },\n    \"lastRuns\": {\n      \"productRefresh\": \"2023-01-01T00:00:00.000Z\",\n      \"staleCleanup\": \"2023-01-01T00:00:00.000Z\",\n      \"hashtagPipeline\": null\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Trigger Product Refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Api-Key", "value": "{{internalApiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/product-refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", "product-refresh"]
+            },
+            "description": "Triggers the full product refresh pipeline (Ingestion -> AI -> Enrichment -> DB). Returns immediately. The job continues in the background."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Product refresh job started in background\",\n  \"data\": {\n    \"triggered\": true\n  }\n}"
+            },
+            {
+              "name": "405 Method Not Allowed (Warning)",
+              "status": "Method Not Allowed",
+              "code": 405,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": \"METHOD_NOT_ALLOWED\",\n    \"message\": \"This endpoint requires a POST request. You sent a GET.\",\n    \"hint\": \"If you are using cron-job.org, ensure the Method is set to POST and X-API-Key header is added.\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Trigger Hashtag Pipeline",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Api-Key", "value": "{{internalApiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/hashtag-pipeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", "hashtag-pipeline"]
+            }
+          }
+        },
+        {
+          "name": "Trigger Stale Cleanup",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Api-Key", "value": "{{internalApiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/stale-cleanup",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", "stale-cleanup"]
+            }
+          }
+        }
+      ]
     }
   ],
+
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000/api/v1" },
     { "key": "token", "value": "" }

@@ -56,13 +56,20 @@ export function getJobsStatus() {
 export function startJobs(): void {
   log.info('Starting background jobs');
 
-  // Product refresh — delayed first run, then every 2 hours
+  // Product refresh — delayed first run (dev only), then every 2 hours
   setTimeout(() => {
-    log.info('Running initial product refresh');
-    lastProductRefreshRun = new Date();
-    runProductRefreshJob().catch((err) =>
-      log.error('Initial product refresh failed', err)
-    );
+    // We only run the initial job on boot in development.
+    // In production/staging, we rely on external cron-job.org to trigger it
+    // to avoid overloading the instance during wake-up.
+    if (env.NODE_ENV === 'development') {
+      log.info('Running initial product refresh (development mode)');
+      lastProductRefreshRun = new Date();
+      runProductRefreshJob().catch((err) =>
+        log.error('Initial product refresh failed', err)
+      );
+    } else {
+      log.info('Skipping initial product refresh on boot (production/staging) — waiting for external trigger or next interval');
+    }
 
     productRefreshTimer = setInterval(() => {
       log.info('Scheduled product refresh triggered');
@@ -72,6 +79,7 @@ export function startJobs(): void {
       );
     }, PRODUCT_REFRESH_INTERVAL_MS);
   }, INITIAL_DELAY_MS);
+
 
   // Stale cleanup — starts immediately, runs every 30 minutes
   lastStaleCleanupRun = new Date();

@@ -1,0 +1,42 @@
+# Jobs Path Documentation
+status:
+  get:
+    tags:
+      - Jobs
+    summary: Check background job status
+    description: Returns the current state of background timers and last run timestamps.
+    security:
+      - ApiKeyAuth: []
+    responses:
+      '200':
+        description: Success
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+
+productRefresh:
+  post:
+    tags:
+      - Jobs
+    summary: Trigger product refresh
+    description: Triggers the full product refresh pipeline (Ingestion -> AI -> Enrichment -> DB).
+    security:
+      - ApiKeyAuth: []
+    responses:
+      '200':
+        description: Job triggered
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+  get:
+    tags:
+      - Jobs
+    summary: Method warning for product refresh
+    description: Returns a 405 error explaining that POST is required.
+    responses:
+      '405':
+        $ref: '../components/schemas/Common.yaml#/ErrorResponse'

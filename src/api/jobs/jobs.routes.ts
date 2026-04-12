@@ -19,4 +19,10 @@ router.post('/product-refresh', requireApiKey, JobsController.triggerProductRefr
 router.post('/hashtag-pipeline', requireApiKey, JobsController.triggerHashtagPipeline);
 router.post('/stale-cleanup', requireApiKey, JobsController.triggerStaleCleanup);
 
+// GET warnings — helps users diagnose misconfigured cron jobs (which default to GET)
+router.get('/product-refresh', JobsController.getMethodWarning);
+router.get('/hashtag-pipeline', JobsController.getMethodWarning);
+router.get('/stale-cleanup', JobsController.getMethodWarning);
+
+
 export default router;

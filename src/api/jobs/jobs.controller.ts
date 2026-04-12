@@ -16,6 +16,22 @@ const log = logger.child({ module: 'jobs-controller' });
  */
 export const JobsController = {
   /**
+   * Helper for routes that are misconfigured as GET
+   */
+  getMethodWarning(req: Request, res: Response): void {
+    log.warn('Job endpoint hit with GET instead of POST', { path: req.path, ip: req.ip });
+    res.status(405).json({
+      success: false,
+      error: {
+        code: 'METHOD_NOT_ALLOWED',
+        message: `This endpoint requires a POST request. You sent a ${req.method}.`,
+        hint: 'If you are using cron-job.org, ensure the Method is set to POST and X-API-Key header is added.'
+      }
+    });
+  },
+
+  /**
+
    * GET /jobs/status
    * Returns the current state of background timers and last run timestamps.
    */
@@ -29,7 +45,11 @@ export const JobsController = {
    * Triggers the full product refresh pipeline (Ingestion -> AI -> Enrichment -> DB).
    */
   async triggerProductRefresh(req: Request, res: Response): Promise<void> {
-    log.info('Manual product refresh triggered via API');
+    log.info('Manual product refresh triggered via API', {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      hasApiKey: !!req.headers['x-api-key'],
+    });
     
     // We don't await this because it can take 5+ minutes
     runProductRefreshJob().catch((err) => 
@@ -38,6 +58,7 @@ export const JobsController = {
 
     res.json(successResponse({ triggered: true }, 'Product refresh job started in background'));
   },
+
 
   /**
    * POST /jobs/hashtag-pipeline

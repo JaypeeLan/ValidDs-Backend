@@ -210,6 +210,34 @@ export const ProductController = {
     }
   },
 
+  async saved(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.json(successResponse({ products: [], pagination: { total: 0, pages: 0, page: 1, limit: 20 } }, ResponseMessage.PRODUCTS_RETRIEVED, 200));
+        return;
+      }
+
+      // Populate savedProducts to get full product data
+      const user = await req.user.populate('savedProducts.productId');
+      const products = user.savedProducts
+        .filter(p => p.productId) // Guard against deleted products
+        .map(p => formatProductResponse(p.productId as unknown as ProductLike));
+
+      res.json(
+        successResponse(
+          { 
+            products,
+            pagination: { total: products.length, pages: 1, page: 1, limit: products.length || 20 }
+          },
+          ResponseMessage.PRODUCTS_RETRIEVED,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async categories(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const categories = await ProductService.getCategories();

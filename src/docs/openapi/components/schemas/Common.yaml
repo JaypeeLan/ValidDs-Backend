@@ -36,3 +36,25 @@ ErrorResponse:
     requestId:
       type: string
       example: req_123456789
+
+UnauthorizedError:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: false
+    message:
+      type: string
+      example: Unauthorized
+    statusCode:
+      type: integer
+      example: 401
+    error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: UNAUTHORIZED
+    requestId:
+      type: string
+      example: req_123456789

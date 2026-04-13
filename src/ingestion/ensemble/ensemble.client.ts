@@ -100,6 +100,12 @@ export class EnsembleClient {
         },
       });
       const data = res.data?.data?.items || res.data?.data?.videos || [];
+      if (data.length === 0) {
+        log.warn(`EnsembleData searchPosts returned 0 items for "${keyword}"`, { 
+          response: JSON.stringify(res.data).slice(0, 500),
+          region: this.region 
+        });
+      }
       log.debug(`Fetched ${data.length} posts for keyword ${keyword} via EnsembleData`);
       return data;
     } catch (err) {
@@ -176,6 +182,13 @@ export class EnsembleClient {
       const inner      = res.data?.data;          // { nextCursor, data: [...] }
       const posts      = inner?.data ?? [];       // the actual posts array
       const nextCursor = inner?.nextCursor ?? null;
+      
+      if (posts.length === 0) {
+        log.warn(`EnsembleData getHashtagPosts returned 0 items for #${hashtag}`, {
+          response: JSON.stringify(res.data).slice(0, 500)
+        });
+      }
+      
       log.debug(`Fetched ${posts.length} posts for #${hashtag} at cursor=${cursor}, nextCursor=${nextCursor}`);
       return { posts, nextCursor };
     } catch (err: any) {

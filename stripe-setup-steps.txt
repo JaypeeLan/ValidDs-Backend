@@ -1,0 +1,44 @@
+Stripe API Key Setup Steps for ValidDs
+====================================
+
+Follow these steps to obtain and configure your Stripe keys for the ValidDs backend:
+
+1. Create a Stripe Account
+--------------------------
+- Go to https://stripe.com and sign up.
+- Use "Test Mode" for local development (toggle in the top right corner).
+
+2. Create Products and Prices
+-----------------------------
+- Go to Product Catalog --> Add Product.
+- Create your plans:
+    * Starter: $49/month
+    * Validator: $99/month
+    * Scale: $199/month
+- For each product, copy the Price "API ID" (it starts with `price_...`). You'll need these for the frontend.
+
+3. Obtain API Keys
+------------------
+- Go to Developers --> API keys.
+- Copy your "Publishable key" (starts with `pk_...`) for the frontend.
+- Copy your "Secret key" (starts with `sk_...`) for the backend.
+
+4. Configure Local Webhooks (Local Development)
+-----------------------------------------------
+- Install the Stripe CLI and run `stripe login`.
+- Run: `stripe listen --forward-to localhost:3000/api/v1/webhooks/stripe`.
+- Copy the "Webhook signing secret" (starts with `whsec_...`) provided by the CLI.
+
+5. Production Webhooks
+----------------------
+- In your Stripe Dashboard, go to Developers --> Webhooks.
+- Add an endpoint pointing to: `https://your-api-url.com/api/v1/webhooks/stripe`.
+- Copy the secret (starts with `whsec_...`) from that endpoint.
+
+6. Configure Environment Variables
+----------------------------------
+Add these to your .env file:
+STRIPE_SECRET_KEY=sk_test_xxxxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxx
+
+Note: Always use "live" keys (pk_live/sk_live) in your production environment settings (e.g., Render Dashboard).

@@ -13,14 +13,13 @@ const log = logger.child({ module: 'product-refresh-job' });
  *
  * The main scheduled job that runs the full pipeline:
  *
- *  1. Ingestion Orchestrator  — collects posts from Creative Center (primary)
- *                               or falls back to EnsembleData / RapidAPI
+ *  1. Ingestion Orchestrator  — collects trending posts via EnsembleData
  *  2. AI Extractor            — runs each post through the AI to extract
  *                               product name, niche, trend score, sentiment
- *  3. Image Service           — finds a product image by searching the product name
- *  4. Product Repository      — upserts each extracted product into MongoDB
+ *  3. Image Service           | finds a product image by searching the product name
+ *  4. Product Repository      | upserts each extracted product into MongoDB
  *
- * Designed to run on a schedule (every 2 hours via setInterval or cron).
+ * Designed to run on a schedule (every 30 minutes via setInterval or cron).
  * Also callable manually via: npm run test-ingestion
  *
  * A single run typically takes 3–8 minutes depending on:

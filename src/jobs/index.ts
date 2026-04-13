@@ -19,7 +19,7 @@ const log = logger.child({ module: 'jobs' });
  * to give the server time to fully start before making external requests.
  */
 
-const PRODUCT_REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000;      // 2 hours
+const PRODUCT_REFRESH_INTERVAL_MS = 30 * 60 * 1000;      // 30 minutes
 const STALE_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;           // 30 minutes
 const HASHTAG_PIPELINE_INTERVAL_MS = 4 * 60 * 60 * 1000;      // 4 hours
 const INITIAL_DELAY_MS = 10 * 1000;                // 10 seconds
@@ -58,18 +58,11 @@ export function startJobs(): void {
 
   // Product refresh — delayed first run (dev only), then every 2 hours
   setTimeout(() => {
-    // We only run the initial job on boot in development.
-    // In production/staging, we rely on external cron-job.org to trigger it
-    // to avoid overloading the instance during wake-up.
-    if (env.NODE_ENV === 'development') {
-      log.info('Running initial product refresh (development mode)');
-      lastProductRefreshRun = new Date();
-      runProductRefreshJob().catch((err) =>
-        log.error('Initial product refresh failed', err)
-      );
-    } else {
-      log.info('Skipping initial product refresh on boot (production/staging) — waiting for external trigger or next interval');
-    }
+    log.info('Running initial product refresh on boot');
+    lastProductRefreshRun = new Date();
+    runProductRefreshJob().catch((err) =>
+      log.error('Initial product refresh failed', err)
+    );
 
     productRefreshTimer = setInterval(() => {
       log.info('Scheduled product refresh triggered');

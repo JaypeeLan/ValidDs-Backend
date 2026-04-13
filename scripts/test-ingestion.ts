@@ -4,7 +4,7 @@
  * Usage: npm run test-ingestion
  *
  * Runs one full ingestion cycle and logs the results.
- * Useful for testing the Creative Center scraper and AI extractor
+ * Useful for testing the ingestion pipeline and AI extractor
  * without waiting for the scheduled job.
  */
 

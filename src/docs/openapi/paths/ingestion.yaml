@@ -10,8 +10,7 @@ trigger:
       This runs in the background.
 
       ### Tools Triggered:
-      - **Creative Center**: Internal scraper for TikTok trending data.
-      - **EnsembleData**: Fetching missing hashtag details.
+      - **EnsembleData**: Primary source for trending data and hashtag details.
       - **DeepSeek**: Product extraction AI pipeline.
     security:
       - BearerAuth: []

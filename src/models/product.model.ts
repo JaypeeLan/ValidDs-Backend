@@ -53,8 +53,8 @@ export interface IAIExtraction {
 }
 
 /**
- * Ad signal metadata from Creative Center.
- * Only populated for posts sourced from top-ads endpoints.
+ * Ad signal metadata.
+ * Populated if the source provides ad-specific data.
  */
 export interface IAdSignals {
   isAd: boolean;
@@ -137,7 +137,7 @@ export interface IProduct {
   // AI extraction metadata
   aiExtraction?: IAIExtraction;
 
-  // Ad signals (Creative Center)
+  // Ad signals
   adSignals?: IAdSignals;
 
   // Sourceability

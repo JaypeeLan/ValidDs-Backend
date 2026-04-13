@@ -3,7 +3,7 @@
  *
  * Shared normalized types that every ingestion source produces.
  *
- * The transformer for each source (Creative Center, EnsembleData, RapidAPI)
+ * The transformer for each source (e.g. EnsembleData)
  * is responsible for mapping raw API responses into these shapes.
  * Everything downstream — the orchestrator, repositories, AI extractor —
  * only ever works with these types, never with raw source shapes.
@@ -44,7 +44,7 @@ export interface NormalizedPost {
   shareCount: number;
   engagementRate?: number;         // calculated: (likes+comments+shares)/views
 
-  // Ad signals (from Creative Center)
+  // Ad signals
   isAd: boolean;
   adFirstSeenAt?: Date;            // when the ad was first detected
   adLastSeenAt?: Date;             // when the ad was last detected — freshness signal

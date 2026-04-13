@@ -8,15 +8,12 @@ const log = logger.child({ module: 'ingestion-orchestrator' });
  * Ingestion Orchestrator
  *
  * Manages the full data acquisition cycle:
- *  1. Tries the primary source (Creative Center)
- *  2. Falls back to secondary sources if the primary fails
- *  3. Fires alerts if all sources fail
- *  4. Returns unified output for the AI extraction layer
+ *  1. Uses the primary source (EnsembleData)
+ *  2. Fires alerts if the source fails
+ *  3. Returns unified output for the AI extraction layer
  *
  * Current source map:
- *  Primary:    Creative Center (HTTP scraper — no API key required)
- *  Fallback A: EnsembleData (API — pending key)
- *  Fallback B: RapidAPI scrapers (API — pending key)
+ *  Primary:    EnsembleData (API — requires ENSEMBLE_API_KEY)
  *
  * Adding a new source:
  *  1. Create src/ingestion/<name>/<name>.job.ts

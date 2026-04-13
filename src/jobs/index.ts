@@ -19,7 +19,7 @@ const log = logger.child({ module: 'jobs' });
  * to give the server time to fully start before making external requests.
  */
 
-const PRODUCT_REFRESH_INTERVAL_MS = 30 * 60 * 1000;      // 30 minutes
+const PRODUCT_REFRESH_INTERVAL_MS = 1 * 60 * 60 * 1000;      // 1 hour
 const STALE_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;           // 30 minutes
 const HASHTAG_PIPELINE_INTERVAL_MS = 4 * 60 * 60 * 1000;      // 4 hours
 const INITIAL_DELAY_MS = 10 * 1000;                // 10 seconds

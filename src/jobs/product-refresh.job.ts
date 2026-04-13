@@ -19,7 +19,7 @@ const log = logger.child({ module: 'product-refresh-job' });
  *  3. Image Service           | finds a product image by searching the product name
  *  4. Product Repository      | upserts each extracted product into MongoDB
  *
- * Designed to run on a schedule (every 30 minutes via setInterval or cron).
+ * Designed to run on a schedule (every 1 hour via setInterval or cron).
  * Also callable manually via: npm run test-ingestion
  *
  * A single run typically takes 3–8 minutes depending on:

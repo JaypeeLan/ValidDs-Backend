@@ -99,7 +99,7 @@ export class EnsembleClient {
           country: this.region,
         },
       });
-      const data = res.data?.data?.items || res.data?.data?.videos || [];
+      const data = res.data?.data?.items || res.data?.data?.videos || res.data?.data?.data || [];
       if (data.length === 0) {
         log.warn(`EnsembleData searchPosts returned 0 items for "${keyword}"`, { 
           response: JSON.stringify(res.data).slice(0, 500),
@@ -130,7 +130,7 @@ export class EnsembleClient {
       });
 
       const payload = res.data?.data ?? {};
-      const posts = payload?.items ?? payload?.videos ?? payload?.aweme_list ?? [];
+      const posts = payload?.items ?? payload?.videos ?? payload?.aweme_list ?? payload?.data ?? [];
       const nextCursor = payload?.nextCursor ?? payload?.cursor ?? null;
 
       log.debug(`Fetched ${posts.length} posts via keyword/full-search for "${params.name}"`);

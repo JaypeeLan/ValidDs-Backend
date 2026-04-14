@@ -2,6 +2,7 @@ import { IngestionOrchestrator } from '../ingestion/orchestrator';
 import { ProductExtractor } from '../services/product.extractor';
 import { ImageService } from '../services/image.service';
 import { ProductRepository } from '../db/repositories/product.repository';
+import { ProductService } from '../services/product.service';
 import { logger } from '../logger';
 import { ingestionRecordsIngested } from '../monitoring/metrics';
 import { Alerts } from '../monitoring/alerts';
@@ -130,6 +131,9 @@ export async function runProductRefreshJob(): Promise<void> {
       durationMs,
       sources: activeSources,
     });
+
+    const cleanupResult = await ProductService.cleanupProducts();
+    log.info('Post-ingestion cleanup complete', cleanupResult);
 
   } catch (err) {
     log.error('Product refresh job threw an unexpected error', err);

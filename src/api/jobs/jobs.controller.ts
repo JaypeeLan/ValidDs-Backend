@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { runProductRefreshJob, runStaleCleanupJob } from '../../jobs/product-refresh.job';
-import { HashtagIngestionPipeline } from '../../ingestion/ensemble/hashtag-ingestion.pipeline';
-import { getJobsStatus } from '../../jobs/index';
+import { getJobsStatus, runHashtagPipelineJob } from '../../jobs/index';
 import { logger } from '../../logger';
 import { successResponse } from '../../utils/response.util';
 
@@ -66,8 +65,8 @@ export const JobsController = {
    */
   async triggerHashtagPipeline(req: Request, res: Response): Promise<void> {
     log.info('Manual hashtag pipeline triggered via API');
-    
-    new HashtagIngestionPipeline().run().catch((err) => 
+
+    runHashtagPipelineJob().catch((err) =>
       log.error('Manual hashtag pipeline failed', err)
     );
 

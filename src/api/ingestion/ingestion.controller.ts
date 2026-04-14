@@ -1,12 +1,18 @@
 import { Request, Response } from 'express';
 import { IngestionOrchestrator } from '../../ingestion/orchestrator';
+import { ProductService } from '../../services/product.service';
 
 export class IngestionController {
   static async trigger(req: Request, res: Response) {
     // Fire and forget so we don't hold the connection open, as this process may take a while.
-    setImmediate(() => {
+    setImmediate(async () => {
       const orchestrator = new IngestionOrchestrator();
-      orchestrator.run().catch(console.error);
+      try {
+        await orchestrator.run();
+        await ProductService.cleanupProducts();
+      } catch (err) {
+        console.error(err);
+      }
     });
     
     res.json({ 

@@ -16,6 +16,7 @@ process.env.LOG_PRETTY = 'true';
 
 import { connectMongo } from '../src/db/client';
 import { HashtagIngestionPipeline } from '../src/ingestion/ensemble/hashtag-ingestion.pipeline';
+import { ProductService } from '../src/services/product.service';
 import { logger } from '../src/logger';
 
 async function main() {
@@ -45,6 +46,11 @@ async function main() {
       console.log('\nPipeline Warnings/Errors:');
       result.errors.forEach(err => console.log(' -', err));
     }
+
+    console.log('\nRunning product cleanup after pipeline...');
+    const cleanupResult = await ProductService.cleanupProducts();
+    console.log('  Generic products deleted:', cleanupResult.genericDeleted);
+    console.log('  Duplicate products deleted:', cleanupResult.duplicatesDeleted);
 
   } catch (err) {
     logger.error('Pipeline manually terminated due to fatal error:', err);

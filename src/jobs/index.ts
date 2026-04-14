@@ -1,4 +1,5 @@
 import { runProductRefreshJob, runStaleCleanupJob } from './product-refresh.job';
+import { ProductService } from '../services/product.service';
 import { logger } from '../logger';
 import { env } from '../config/env.validation';
 import { HashtagIngestionPipeline } from '../ingestion/ensemble/hashtag-ingestion.pipeline';
@@ -31,6 +32,20 @@ let hashtagPipelineTimer: ReturnType<typeof setInterval> | null = null;
 let lastProductRefreshRun: Date | null = null;
 let lastStaleCleanupRun: Date | null = null;
 let lastHashtagPipelineRun: Date | null = null;
+
+export async function runHashtagPipelineJob(): Promise<void> {
+  const pipeline = new HashtagIngestionPipeline();
+  const result = await pipeline.run();
+
+  log.info('Hashtag pipeline completed', {
+    postsCollected: result.postsCollected,
+    dbUpserts: result.dbUpserts,
+    errors: result.errors.length,
+  });
+
+  const cleanupResult = await ProductService.cleanupProducts();
+  log.info('Hashtag pipeline cleanup complete', cleanupResult);
+}
 
 export function getJobsStatus() {
   return {
@@ -95,7 +110,7 @@ export function startJobs(): void {
     hashtagPipelineTimer = setInterval(() => {
       log.info('Scheduled hashtag pipeline triggered');
       lastHashtagPipelineRun = new Date();
-      new HashtagIngestionPipeline().run().catch((err) =>
+      runHashtagPipelineJob().catch((err) =>
         log.error('Scheduled hashtag pipeline failed', err)
       );
     }, HASHTAG_PIPELINE_INTERVAL_MS);

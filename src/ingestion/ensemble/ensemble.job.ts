@@ -79,13 +79,15 @@ export class EnsembleJob {
 
       if (rawPosts.length > 0) {
         const normalized = transformEnsemblePosts(rawPosts);
-        output.posts.push(...normalized);
+        // Filter out posts with less than 50k views before adding to output
+        const filtered = normalized.filter(post => post.viewCount >= 50_000);
+        output.posts.push(...filtered);
         
         ingestionRecordsIngested.inc(
           { source: 'ensemble', entity: 'product' },
-          normalized.length
+          filtered.length
         );
-        log.info(`Collected ${normalized.length} trending posts from EnsembleData`);
+        log.info(`Collected ${filtered.length} trending posts from EnsembleData (filtered from ${normalized.length} raw posts)`);
       }
     } catch (err) {
       const msg = `EnsembleData posts collection failed: ${String(err)}`;

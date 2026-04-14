@@ -49,7 +49,7 @@ export const ProductService = {
     return { products, freshness };
   },
 
-  async cleanupProducts(): Promise<{ genericDeleted: number; duplicatesDeleted: number }> {
+  async cleanupProducts(): Promise<{ genericDeleted: number; duplicatesDeleted: number; lowViewsDeleted: number }> {
     return ProductRepository.cleanupBadProducts();
   },
 

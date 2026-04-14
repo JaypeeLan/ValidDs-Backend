@@ -445,12 +445,18 @@ export const ProductRepository = {
     return result.deletedCount ?? 0;
   },
 
-  async cleanupBadProducts(): Promise<{ genericDeleted: number; duplicatesDeleted: number }> {
-    const [genericDeleted, duplicatesDeleted] = await Promise.all([
+  async cleanupBadProducts(): Promise<{ genericDeleted: number; duplicatesDeleted: number; lowViewsDeleted: number }> {
+    const [genericDeleted, duplicatesDeleted, lowViewsDeleted] = await Promise.all([
       this.deleteGenericProducts(),
       this.deleteDuplicateProducts(),
+      this.deleteLowViewProducts(),
     ]);
-    return { genericDeleted, duplicatesDeleted };
+    return { genericDeleted, duplicatesDeleted, lowViewsDeleted };
+  },
+
+  async deleteLowViewProducts(): Promise<number> {
+    const result = await Product.deleteMany({ totalViews: { $lt: 50_000 } });
+    return result.deletedCount ?? 0;
   },
 
   /**

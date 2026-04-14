@@ -8,16 +8,18 @@ async function main(): Promise<void> {
     await connectMongo();
     logger.info('Starting database cleanup for products');
 
-    const { genericDeleted, duplicatesDeleted } = await ProductService.cleanupProducts();
+    const { genericDeleted, duplicatesDeleted, lowViewsDeleted } = await ProductService.cleanupProducts();
 
     logger.info('Product cleanup complete', {
       genericDeleted,
       duplicatesDeleted,
+      lowViewsDeleted,
     });
 
     console.log('Product cleanup complete:');
     console.log(`  Generic products deleted: ${genericDeleted}`);
     console.log(`  Duplicate products deleted: ${duplicatesDeleted}`);
+    console.log(`  Low-view products deleted: ${lowViewsDeleted}`);
   } catch (err) {
     logger.error('Product cleanup failed', err);
     console.error('Product cleanup failed:', err);

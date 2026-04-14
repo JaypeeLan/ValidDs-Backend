@@ -99,7 +99,9 @@ export class EnsembleClient {
           country: this.region,
         },
       });
-      const data = res.data?.data?.items || res.data?.data?.videos || res.data?.data?.data || [];
+      const items = res.data?.data?.items || res.data?.data?.videos || res.data?.data?.data || [];
+      const data = items.map((item: any) => item.aweme_info ? item.aweme_info : item);
+      
       if (data.length === 0) {
         log.warn(`EnsembleData searchPosts returned 0 items for "${keyword}"`, { 
           response: JSON.stringify(res.data).slice(0, 500),
@@ -130,7 +132,8 @@ export class EnsembleClient {
       });
 
       const payload = res.data?.data ?? {};
-      const posts = payload?.items ?? payload?.videos ?? payload?.aweme_list ?? payload?.data ?? [];
+      const rawPosts = payload?.items ?? payload?.videos ?? payload?.aweme_list ?? payload?.data ?? [];
+      const posts = rawPosts.map((item: any) => item.aweme_info ? item.aweme_info : item);
       const nextCursor = payload?.nextCursor ?? payload?.cursor ?? null;
 
       log.debug(`Fetched ${posts.length} posts via keyword/full-search for "${params.name}"`);
@@ -180,7 +183,8 @@ export class EnsembleClient {
         params: { name: hashtag, cursor },
       });
       const inner      = res.data?.data;          // { nextCursor, data: [...] }
-      const posts      = inner?.data ?? [];       // the actual posts array
+      const rawPosts   = inner?.data ?? [];       // the actual posts array
+      const posts      = rawPosts.map((item: any) => item.aweme_info ? item.aweme_info : item);
       const nextCursor = inner?.nextCursor ?? null;
       
       if (posts.length === 0) {

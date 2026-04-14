@@ -6,6 +6,7 @@ import productRouter from './products/product.routes';
 
 import ingestionRouter from './ingestion/ingestion.routes';
 import jobsRouter from './jobs/jobs.routes';
+import adminRouter from './admin/admin.routes';
 
 const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
@@ -13,6 +14,7 @@ apiRouter.use('/profile', profileRouter);
 apiRouter.use('/products', productRouter);
 apiRouter.use('/ingestion', ingestionRouter);
 apiRouter.use('/jobs', jobsRouter);
+apiRouter.use('/admin', adminRouter);
 
 // Sentry test endpoint
 apiRouter.get('/debug-sentry', (_req, _res) => {

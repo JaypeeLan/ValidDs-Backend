@@ -1,0 +1,105 @@
+health:
+  get:
+    summary: Server Health
+    description: Returns server metrics such as memory, CPU, DB connectivity, and job statuses.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  example:
+                    system:
+                      uptimeSeconds: 1515
+                      osUptimeSeconds: 147585
+                      memory:
+                        rssMb: 110
+                        heapTotalMb: 60
+                        heapUsedMb: 50
+                      cpuLoadAvg: [1.2, 1.0, 0.9]
+                    database:
+                      mongoStatus: 'connected'
+                      redisStatus: 'connected'
+                      redisLatencyMs: 2
+                    jobs:
+                      timers:
+                        productRefresh: true
+                        staleCleanup: true
+                        hashtagPipeline: true
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+      '403':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+
+analyticsUsers:
+  get:
+    summary: User Analytics
+    description: Returns breakdown of users by plan and status, plus daily acquisition counts.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  example:
+                    totalUsers: 154
+                    newUsersToday: 12
+                    usersByPlan:
+                      free: 100
+                      pro: 30
+                      validator: 24
+                    usersByStatus:
+                      active: 140
+                      suspended: 14
+
+analyticsProducts:
+  get:
+    summary: Product Analytics
+    description: Returns overview of the product ingestion pipeline and category breakdown.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  example:
+                    totalProducts: 1205
+                    freshProducts24h: 305
+                    productsBySource:
+                      ensemble: 1000
+                    topCategories:
+                      "Home & Kitchen": 400
+                      "Beauty & Personal Care": 350

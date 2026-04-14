@@ -31,6 +31,8 @@ tags:
     description: User settings and account management
   - name: Ingestion
     description: Background jobs using DeepSeek and EnsembleData.
+  - name: Admin
+    description: System health and overarching user/product analytics.
 
 paths:
   /health:
@@ -73,6 +75,12 @@ paths:
     $ref: './paths/jobs.yaml#/status'
   /api/v1/jobs/product-refresh:
     $ref: './paths/jobs.yaml#/productRefresh'
+  /api/v1/admin/health:
+    $ref: './paths/admin.yaml#/health'
+  /api/v1/admin/analytics/users:
+    $ref: './paths/admin.yaml#/analyticsUsers'
+  /api/v1/admin/analytics/products:
+    $ref: './paths/admin.yaml#/analyticsProducts'
 
 
 components:

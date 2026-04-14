@@ -13,12 +13,20 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -32,7 +40,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"success\": true,\n  \"data\": {\n    \"sent\": true,\n    \"isNewUser\": true\n  }\n}"
             }
           ]
@@ -42,12 +55,20 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -75,7 +96,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"success\": true,\n  \"data\": {\n    \"token\": \"<jwt>\",\n    \"user\": {\n      \"id\": \"<userId>\",\n      \"email\": \"local.user@example.com\",\n      \"name\": \"Local User\"\n    }\n  }\n}"
             }
           ]
@@ -85,12 +111,20 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/me",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
             }
           },
           "response": [
@@ -100,7 +134,12 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"success\": true,\n  \"data\": {\n    \"user\": {\n      \"id\": \"<userId>\",\n      \"email\": \"local.user@example.com\",\n      \"name\": \"Local User\"\n    }\n  }\n}"
             }
           ]
@@ -110,12 +149,20 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/logout",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "logout"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
             }
           }
         },
@@ -124,12 +171,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/google/token",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "google", "token"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "google",
+                "token"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -156,12 +212,20 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/tiktok",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "tiktok"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "tiktok"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -188,12 +252,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/email/send-code",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "email", "send-code"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "email",
+                "send-code"
+              ]
             }
           }
         },
@@ -202,12 +275,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/email/verify-code",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "email", "verify-code"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "email",
+                "verify-code"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -234,12 +316,20 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/forgot-password",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "forgot-password"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -252,12 +342,20 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/auth/reset-password",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "reset-password"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -275,12 +373,19 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profile"
+              ]
             }
           }
         },
@@ -289,13 +394,23 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profile"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -313,16 +428,35 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/products?page=1&limit=20&sortBy=trendScore",
-              "host": ["{{baseUrl}}"],
-              "path": ["products"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
               "query": [
-                { "key": "page", "value": "1", "description": "Page number for pagination." },
-                { "key": "limit", "value": "20", "description": "Number of results per page." },
-                { "key": "sortBy", "value": "trendScore", "description": "Sorting criteria: 'trendScore', 'views', 'recent', or 'engagement'" }
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination."
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Number of results per page."
+                },
+                {
+                  "key": "sortBy",
+                  "value": "trendScore",
+                  "description": "Sorting criteria: 'trendScore', 'views', 'recent', or 'engagement'"
+                }
               ]
             },
             "description": "Fetches a paginated, filterable feed of trending dropshipping products. The response region is automatically detected based on the authenticated user's profile locale."
@@ -332,7 +466,12 @@
               "name": "200 OK",
               "status": "OK",
               "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"success\": true,\n  \"data\": {\n    \"products\": [],\n    \"pagination\": {\"total\": 10, \"page\": 1, \"limit\": 20},\n    \"freshness\": {\"product\": \"2023-01-01T00:00:00.000Z\"},\n    \"region\": \"US\"\n  }\n}"
             }
           ]
@@ -342,25 +481,45 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/products/search?q=dropship&page=1",
-              "host": ["{{baseUrl}}"],
-              "path": ["products", "search"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "search"
+              ],
               "query": [
-                { "key": "q", "value": "dropship", "description": "Text query to search for across titles, descriptions, and hashtags." },
-                { "key": "page", "value": "1" }
+                {
+                  "key": "q",
+                  "value": "dropship",
+                  "description": "Text query to search for across titles, descriptions, and hashtags."
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
               ]
             },
             "description": "Performs a full-text search against the product database to find relevant items matching a specific keyword or niche."
           },
           "response": [
-             {
+            {
               "name": "200 OK",
               "status": "OK",
               "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"success\": true,\n  \"data\": {\n    \"products\": [],\n    \"pagination\": {\"total\": 5, \"page\": 1, \"limit\": 20}\n  }\n}"
             }
           ]
@@ -370,12 +529,20 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/products/categories",
-              "host": ["{{baseUrl}}"],
-              "path": ["products", "categories"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "categories"
+              ]
             },
             "description": "Returns a list of all unique database categories."
           },
@@ -384,7 +551,12 @@
               "name": "200 OK",
               "status": "OK",
               "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"success\": true,\n  \"message\": \"Operation completed successfully.\",\n  \"data\": {\n    \"categories\": [\"Tech\", \"Beauty\"]\n  }\n}"
             }
           ]
@@ -394,18 +566,44 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/products/keyword-context?name=tesla&timeFilter=30&sortOrder=0&cursor=0&matchExactly=false",
-              "host": ["{{baseUrl}}"],
-              "path": ["products", "keyword-context"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "keyword-context"
+              ],
               "query": [
-                { "key": "name", "value": "tesla", "description": "Keyword to search. REQUIRED." },
-                { "key": "timeFilter", "value": "30", "description": "1=Last day, 7=Last week, 30=Last month, 90=Last 3 months, 180=Last 6 months." },
-                { "key": "sortOrder", "value": "0", "description": "0=Relevance, 1=Most liked." },
-                { "key": "cursor", "value": "0" },
-                { "key": "matchExactly", "value": "false" }
+                {
+                  "key": "name",
+                  "value": "tesla",
+                  "description": "Keyword to search. REQUIRED."
+                },
+                {
+                  "key": "timeFilter",
+                  "value": "30",
+                  "description": "1=Last day, 7=Last week, 30=Last month, 90=Last 3 months, 180=Last 6 months."
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "0",
+                  "description": "0=Relevance, 1=Most liked."
+                },
+                {
+                  "key": "cursor",
+                  "value": "0"
+                },
+                {
+                  "key": "matchExactly",
+                  "value": "false"
+                }
               ]
             },
             "description": "Pulls TikTok keyword context from EnsembleData full-search and returns suggested hashtags plus candidate videos."
@@ -415,7 +613,12 @@
               "name": "200 OK",
               "status": "OK",
               "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"success\": true,\n  \"data\": {\n    \"keyword\": \"tesla\",\n    \"filters\": {\n      \"timeFilter\": 30,\n      \"sortOrder\": 0,\n      \"country\": \"us\",\n      \"matchExactly\": false\n    },\n    \"pagination\": {\n      \"cursor\": 0,\n      \"nextCursor\": 20\n    },\n    \"suggestedHashtags\": [\"tesla\", \"teslatok\"],\n    \"posts\": []\n  }\n}"
             }
           ]
@@ -425,24 +628,41 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/products/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["products", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                ":id"
+              ],
               "variable": [
-                { "key": "id", "value": "<product_id>", "description": "The unique ObjectID of the product." }
+                {
+                  "key": "id",
+                  "value": "<product_id>",
+                  "description": "The unique ObjectID of the product."
+                }
               ]
             },
             "description": "Retrieves the exhaustive details of a specific product. This includes its historical trends, linked videos, and AI-extracted analytics including comment-based Authenticity and Sentiment scores."
           },
           "response": [
-             {
+            {
               "name": "200 OK",
               "status": "OK",
               "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"success\": true,\n  \"data\": {\n    \"product\": {\n      \"_id\": \"<product_id>\",\n      \"title\": \"Example Product\",\n      \"trend\": {\n        \"direction\": \"rising\",\n        \"score\": 82,\n        \"isTrending\": true,\n        \"reason\": \"Comment velocity increased week-over-week\"\n      },\n      \"aiInsight\": {\n        \"confidence\": {\n          \"score\": 84,\n          \"reason\": \"Clear product mentions across caption and comments\"\n        },\n        \"buyingSentiment\": {\n          \"score\": 85,\n          \"reason\": \"Many users are asking where to buy with positive tone\"\n        }\n      },\n      \"creatorsVideos\": [\n        {\n          \"handle\": \"creator_one\",\n          \"displayName\": \"Creator One\",\n          \"followers\": 245000,\n          \"region\": \"US\",\n          \"verified\": true,\n          \"isPrimary\": true,\n          \"videos\": [\n            {\n              \"videoId\": \"123456789\",\n              \"url\": \"https://www.tiktok.com/@creator_one/video/123456789\",\n              \"playUrl\": \"https://v16-webapp-prime.tiktok.com/....mp4\",\n              \"viewCount\": 120000\n            }\n          ]\n        }\n      ]\n    },\n    \"freshness\": \"2023-01-01T00:00:00.000Z\"\n  }\n}"
             }
           ]
@@ -457,12 +677,20 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "X-Api-Key", "value": "{{internalApiKey}}" }
+              {
+                "key": "X-Api-Key",
+                "value": "{{internalApiKey}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/jobs/status",
-              "host": ["{{baseUrl}}"],
-              "path": ["jobs", "status"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "jobs",
+                "status"
+              ]
             },
             "description": "Returns the current state of background timers and last run timestamps. Useful for checking if the server is actively scheduling jobs."
           },
@@ -471,7 +699,12 @@
               "name": "200 OK",
               "status": "OK",
               "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
               "body": "{\n  \"success\": true,\n  \"message\": \"Background job status retrieved\",\n  \"data\": {\n    \"timers\": {\n      \"productRefresh\": true,\n      \"staleCleanup\": true,\n      \"hashtagPipeline\": true\n    },\n    \"lastRuns\": {\n      \"productRefresh\": \"2023-01-01T00:00:00.000Z\",\n      \"staleCleanup\": \"2023-01-01T00:00:00.000Z\",\n      \"hashtagPipeline\": null\n    }\n  }\n}"
             }
           ]
@@ -481,43 +714,42 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-Api-Key", "value": "{{internalApiKey}}" }
+              {
+                "key": "X-API-Key",
+                "value": "{{internalApiKey}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/jobs/product-refresh",
-              "host": ["{{baseUrl}}"],
-              "path": ["jobs", "product-refresh"]
-            },
-            "description": "Triggers the full product refresh pipeline (Ingestion -> AI -> Enrichment -> DB). Returns immediately. The job continues in the background."
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"success\": true,\n  \"message\": \"Product refresh job started in background\",\n  \"data\": {\n    \"triggered\": true\n  }\n}"
-            },
-            {
-              "name": "405 Method Not Allowed (Warning)",
-              "status": "Method Not Allowed",
-              "code": 405,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": \"METHOD_NOT_ALLOWED\",\n    \"message\": \"This endpoint requires a POST request. You sent a GET.\",\n    \"hint\": \"If you are using cron-job.org, ensure the Method is set to POST and X-API-Key header is added.\"\n  }\n}"
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "jobs",
+                "product-refresh"
+              ]
             }
-          ]
+          }
         },
         {
           "name": "Trigger Hashtag Pipeline",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-Api-Key", "value": "{{internalApiKey}}" }
+              {
+                "key": "X-Api-Key",
+                "value": "{{internalApiKey}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/jobs/hashtag-pipeline",
-              "host": ["{{baseUrl}}"],
-              "path": ["jobs", "hashtag-pipeline"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "jobs",
+                "hashtag-pipeline"
+              ]
             }
           }
         },
@@ -526,21 +758,188 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-Api-Key", "value": "{{internalApiKey}}" }
+              {
+                "key": "X-Api-Key",
+                "value": "{{internalApiKey}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/jobs/stale-cleanup",
-              "host": ["{{baseUrl}}"],
-              "path": ["jobs", "stale-cleanup"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "jobs",
+                "stale-cleanup"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Jobs Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{internalApiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "jobs",
+                "status"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "transactions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"<userId>\",\n  \"amount\": 49,\n  \"currency\": \"USD\",\n  \"status\": \"paid\",\n  \"mode\": \"test\",\n  \"provider\": \"stripe\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                ":userId"
+              ],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "<userId>"
+                }
+              ]
             }
           }
         }
       ]
     }
   ],
-
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3000/api/v1" },
-    { "key": "token", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "internalApiKey",
+      "value": ""
+    }
   ]
 }

@@ -393,10 +393,12 @@ export const AuthService = {
     code: string,
     password: string,
     name?: string,
+    firstName?: string,
+    lastName?: string,
     ip?: string
   ): Promise<AuthResult> {
     const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
-      '+localAuth.emailVerificationCodeHash +localAuth.emailVerificationExpiresAt'
+      '+localAuth'
     );
 
     if (!user || user.authProvider !== 'local' || !user.localAuth) {
@@ -423,6 +425,12 @@ export const AuthService = {
 
     if (name) {
       user.name = name;
+    }
+    if (firstName) {
+      user.firstName = firstName;
+    }
+    if (lastName) {
+      user.lastName = lastName;
     }
 
     const isNewUser = (user.loginCount ?? 0) === 0;
@@ -480,17 +488,19 @@ export const AuthService = {
   async localSignIn(email: string, password: string, ip?: string): Promise<AuthResult> {
     // Fetch with passwordHash (select: false by default)
     const user = await User.findOne({ email: email.toLowerCase(), status: 'active' })
-      .select('+localAuth.passwordHash');
+      .select('+localAuth');
 
-    if (!user || !user.localAuth?.passwordHash) {
-      // Constant-time response to prevent user enumeration
-      await dummyHashCompare();
-      throw new UnauthorizedError('Invalid email or password');
+    if (!user) {
+      throw new UnauthorizedError('Email not found');
+    }
+
+    if (!user.localAuth?.passwordHash) {
+      throw new UnauthorizedError('This account does not have a password set (use social login)');
     }
 
     const valid = await verifyPassword(password, user.localAuth.passwordHash);
     if (!valid) {
-      throw new UnauthorizedError('Invalid email or password');
+      throw new UnauthorizedError('Incorrect password');
     }
 
     user.lastLoginAt = new Date();
@@ -503,7 +513,7 @@ export const AuthService = {
   },
 
   async sendEmailVerificationCode(userId: string): Promise<void> {
-    const user = await User.findById(userId).select('+localAuth.emailVerificationCodeHash +localAuth.emailVerificationExpiresAt');
+    const user = await User.findById(userId).select('+localAuth');
     if (!user || user.status !== 'active') {
       throw new AppError(404, 'Account not found', 'NOT_FOUND');
     }
@@ -528,34 +538,61 @@ export const AuthService = {
       '+localAuth.passwordResetToken +localAuth.passwordResetExpiresAt +localAuth.passwordHash'
     );
 
-    if (!user || user.authProvider !== 'local' || !user.localAuth?.passwordHash) {
+    if (!user) {
       return;
     }
 
-    const rawToken = crypto.randomBytes(32).toString('hex');
-    user.localAuth.passwordResetToken = hashToken(rawToken);
-    user.localAuth.passwordResetExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    const { code, hash, expiresAt } = createVerificationCode();
+    
+    // Initialize localAuth if it doesn't exist (for social-login users)
+    if (!user.localAuth) {
+      user.localAuth = { emailVerified: true };
+    }
+
+    user.localAuth.passwordResetToken = hash;
+    user.localAuth.passwordResetExpiresAt = expiresAt;
+    
     await user.save();
 
     await EmailService.sendEmail({
       to: user.email,
       subject: 'Reset your password',
-      html: `<p>Use this token to reset your password:</p><p><strong>${rawToken}</strong></p><p>This token expires in 60 minutes.</p>`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Reset Your Password</h2>
+          <p>You requested to reset your password for your ValidDs account.</p>
+          <p>Please enter the following 6-digit code on the reset page:</p>
+          <div style="margin: 30px 0; background: #f4f4f4; padding: 20px; border-radius: 8px; text-align: center;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #e63946;">${code}</span>
+          </div>
+          <p style="font-size: 14px; color: #666;">This code will expire in 10 minutes.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="font-size: 12px; color: #999;">If you didn't request this, you can safely ignore this email.</p>
+        </div>
+      `,
     });
   },
 
   async resetPassword(email: string, token: string, newPassword: string): Promise<void> {
+    console.log(`[AUTH] Attempting password reset for: ${email}`);
+    
     const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
-      '+localAuth.passwordResetToken +localAuth.passwordResetExpiresAt +localAuth.passwordHash'
+      '+localAuth'
     );
 
-    if (!user || user.authProvider !== 'local' || !user.localAuth?.passwordHash) {
+    if (!user || !user.localAuth) {
+      console.log('[AUTH] Reset failed: User or localAuth not found');
       throw new AppError(400, 'Invalid reset token', 'INVALID_RESET_TOKEN');
     }
 
     const expiresAt = user.localAuth.passwordResetExpiresAt;
     const storedHash = user.localAuth.passwordResetToken;
+    
+    console.log('[AUTH] Found stored hash:', !!storedHash);
+    console.log('[AUTH] Found expiry:', !!expiresAt);
+
     if (!expiresAt || !storedHash) {
+      console.log('[AUTH] Reset failed: Missing token or expiry in DB');
       throw new AppError(400, 'Invalid reset token', 'INVALID_RESET_TOKEN');
     }
     if (expiresAt.getTime() < Date.now()) {
@@ -569,7 +606,11 @@ export const AuthService = {
     user.localAuth.passwordHash = await hashPassword(newPassword);
     user.localAuth.passwordResetToken = undefined;
     user.localAuth.passwordResetExpiresAt = undefined;
+    
+    // Explicitly mark localAuth as modified to ensure Mongoose saves the nested object
+    user.markModified('localAuth');
     await user.save();
+    console.log('[AUTH] Password reset successful and saved to DB');
   },
 
   // ── Token management ────────────────────────────────────────────────────────
@@ -607,7 +648,8 @@ export const AuthService = {
 
 // ── Password hashing (native crypto — no bcrypt) ──────────────────────────────
 
-const ITERATIONS = 310_000;
+// Use 1,000 iterations for tests to stay under timeout, otherwise use production standard
+const ITERATIONS = process.env.NODE_ENV === 'test' ? 1000 : 310_000;
 const KEYLEN = 32;
 const DIGEST = 'sha256';
 

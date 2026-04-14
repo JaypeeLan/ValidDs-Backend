@@ -12,14 +12,14 @@ const log = logger.child({ module: 'jobs' });
  * Uses setInterval rather than a cron library to keep dependencies minimal.
  *
  * Schedule:
- *  Product refresh  — every 2 hours
+ *  Product refresh  — every 24 hours
  *  Stale cleanup    — every 30 minutes
  *
  * The first run of the product refresh is delayed by 10 seconds
  * to give the server time to fully start before making external requests.
  */
 
-const PRODUCT_REFRESH_INTERVAL_MS = 1 * 60 * 60 * 1000;      // 1 hour
+const PRODUCT_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;     // 24 hours
 const STALE_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;           // 30 minutes
 const HASHTAG_PIPELINE_INTERVAL_MS = 4 * 60 * 60 * 1000;      // 4 hours
 const INITIAL_DELAY_MS = 10 * 1000;                // 10 seconds
@@ -54,9 +54,14 @@ export function getJobsStatus() {
 }
 
 export function startJobs(): void {
+  if (env.NODE_ENV === 'development' && !env.ENABLE_DEV_JOBS) {
+    log.info('Background jobs disabled in development (ENABLE_DEV_JOBS=false)');
+    return;
+  }
+
   log.info('Starting background jobs');
 
-  // Product refresh — delayed first run (dev only), then every 2 hours
+  // Product refresh — delayed first run, then every 2 hours
   setTimeout(() => {
     log.info('Running initial product refresh on boot');
     lastProductRefreshRun = new Date();
@@ -85,9 +90,7 @@ export function startJobs(): void {
     );
   }, STALE_CLEANUP_INTERVAL_MS);
 
-  // Hashtag ingestion pipeline — staging/prod only.
-  // Repeats every 4 hours to keep data fresh.
-  // Development uses `npm run hashtag-pipeline` instead.
+  // Hashtag ingestion pipeline — repeats every 4 hours outside local dev.
   if (env.NODE_ENV !== 'development') {
     hashtagPipelineTimer = setInterval(() => {
       log.info('Scheduled hashtag pipeline triggered');

@@ -25,6 +25,8 @@ router.get(
   ProductController.feed
 );
 
+router.get('/all', optionalAuth, ProductController.all);
+
 router.get(
   '/search',
   optionalAuth,

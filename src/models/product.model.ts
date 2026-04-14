@@ -91,6 +91,7 @@ export interface IProduct {
   externalId: string;
   source: string;
   title: string;
+  normalizedTitle?: string;
   description?: string;
   category?: string;        // L1: e.g. 'Beauty & Personal Care'
   subCategory?: string;     // L2: e.g. 'Skincare'
@@ -257,6 +258,7 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
     externalId: { type: String, required: true },
     source: { type: String, required: true },
     title: { type: String, required: true, trim: true, maxlength: 500 },
+    normalizedTitle: { type: String, trim: true, lowercase: true, index: true },
     description: { type: String, maxlength: 2000 },
     category: { type: String },
     subCategory: { type: String },

@@ -98,33 +98,31 @@ Adds a product to the user's saved list.
 **Body:** `{ "productId": "..." }`
 
 ### `DELETE /profile/bookmarks/:productId`
+Removes a product from the user's saved list.
+**Authentication:** Required.
 
 ---
 
 ## 4. Background Job Endpoints (`/jobs`)
 
-These endpoints are used for monitoring and triggering the ingestion pipelines.
+These endpoints are used for monitoring and triggering ingestion/cleanup jobs from external cron services.
 **Authentication:** Required. Requires `X-API-Key` header (matches `INTERNAL_API_KEY`).
 
 ### `GET /jobs/status`
-Returns the status of background timers and last run timestamps.
+Returns the status of job timers and last-run timestamps.
 
 ### `POST /jobs/product-refresh`
-Triggers the full product refresh pipeline (Ingestion -> AI -> Enrichment -> DB).
-*Use this for external cron triggers.*
+Triggers the product refresh pipeline.
 
 ### `POST /jobs/hashtag-pipeline`
-Triggers the deep hashtag ingestion pipeline (EnsembleData hashtag crawl).
+Triggers the hashtag ingestion pipeline.
 
 ### `POST /jobs/stale-cleanup`
-Triggers the DB stale data cleanup.
-
----Removes a product from the user's saved list.
-**Authentication:** Required.
+Triggers stale data cleanup.
 
 ---
 
-## 4. Ingestion & Admin Endpoints (`/ingestion`)
+## 5. Ingestion Endpoints (`/ingestion`)
 
 ### `POST /ingestion/trigger`
 Fires an asynchronous backend pipeline to scrape Social platforms (e.g. TikTok) via EnsembleData and enrich newly discovered products.
@@ -133,7 +131,40 @@ Wait times depend on downstream AI providers (DeepSeek, OpenAI).
 
 ---
 
-## 5. System Health Endpoints
+## 6. Admin Endpoints (`/admin`)
+
+### `GET /admin/health`
+Returns system status metrics (memory, CPU, mongo, redis, jobs).
+**Authentication:** Required (admin role).
+
+### `GET /admin/analytics/users`
+Returns user analytics (total users, new users today, by plan, by status).
+**Authentication:** Required (admin role).
+
+### `GET /admin/analytics/products`
+Returns product analytics (totals, fresh products, top categories, by source).
+**Authentication:** Required (admin role).
+
+### `GET /admin/users`
+Returns paginated user records for dashboard management.
+**Authentication:** Required (admin role).
+
+### `DELETE /admin/users/:userId`
+Soft-deletes a user account.
+**Authentication:** Required (admin role).
+
+### `GET /admin/transactions`
+Returns paginated transaction records.
+**Authentication:** Required (admin role).
+
+### `POST /admin/transactions`
+Stores a transaction record.
+**Authentication:** Required (admin role).
+**Body:** `{ "userId": "...", "amount": 49, "currency": "USD", "status": "paid", "mode": "test", "provider": "stripe" }`
+
+---
+
+## 7. System Health Endpoints
 
 ### `GET /health`
 Liveness probe. Indicates if the Express process is running.

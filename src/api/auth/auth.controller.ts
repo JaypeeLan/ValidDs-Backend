@@ -194,12 +194,14 @@ export const AuthController = {
 
   async verifyEmailCode(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { email, code, password, name } = req.body as Record<string, string>;
+      const { email, code, password, name, firstName, lastName } = req.body as Record<string, string>;
       const { user, token, isNewUser } = await AuthService.completeEmailRegistration(
         email,
         code,
         password,
         name,
+        firstName,
+        lastName,
         req.ip
       );
       res.json({ success: true, data: { token, user: user.toJSON(), isNewUser } });

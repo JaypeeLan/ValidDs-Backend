@@ -227,7 +227,6 @@ export const ProductRepository = {
         totalLikes: post.likeCount,
         totalComments: post.commentCount,
         totalShares: post.shareCount,
-        totalVideos: 1,
         engagementRate: post.engagementRate,
 
         // Top video — the source post itself (used as fallback logic, will be overridden by $addToSet)

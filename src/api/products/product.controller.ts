@@ -173,6 +173,26 @@ export const ProductController = {
     }
   },
 
+  async all(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { products, freshness } = await ProductService.getAllProducts();
+
+      res.json(
+        successResponse(
+          {
+            products: products.map((product) => formatProductResponse(product as unknown as ProductLike)),
+            total: products.length,
+            freshness,
+          },
+          ResponseMessage.PRODUCTS_RETRIEVED,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async search(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { q, category, page, limit } = req.query as unknown as ProductSearchQuery;

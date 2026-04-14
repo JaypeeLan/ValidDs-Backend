@@ -43,7 +43,8 @@
     "seed": "ts-node scripts/seed.ts",
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
     "test-ingestion": "ts-node scripts/test-ingestion.ts",
-    "hashtag-pipeline": "npx ts-node scripts/run-hashtag-pipeline.ts"
+    "hashtag-pipeline": "npx ts-node scripts/run-hashtag-pipeline.ts",
+    "cleanup-products": "ts-node scripts/cleanup-products.ts"
   },
   "dependencies": {
     "@sentry/node": "^7.99.0",

@@ -153,13 +153,13 @@ export interface IUserModel extends Model<IUserDocument> {
 // ── Plan limits ───────────────────────────────────────────────────────────────
 
 export const PLAN_LIMITS: Record<UserPlan, { creditsPerMonth: number; productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
-  free:      { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
-  trial:     { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
-  pro:       { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
-  team:      { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
-  starter:   { creditsPerMonth: 15000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
+  free: { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
+  trial: { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
+  pro: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
+  team: { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
+  starter: { creditsPerMonth: 15000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
   validator: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
-  scale:     { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
+  scale: { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
 };
 
 export const ALLOWED_CONTENT_REGIONS = ['US', 'CA', 'MX', 'UK', 'ES', 'DE', 'IT', 'FR', 'AU', 'NZ'] as const;
@@ -169,7 +169,7 @@ export const ALLOWED_CONTENT_REGIONS = ['US', 'CA', 'MX', 'UK', 'ES', 'DE', 'IT'
 const GoogleAuthSchema = new Schema<IGoogleAuth>(
   {
     googleId: { type: String, required: true },
-    refreshToken: { type: String, select: false },  // Never returned by default
+    refreshToken: { type: String },
     tokenExpiresAt: { type: Date },
   },
   { _id: false }
@@ -185,13 +185,13 @@ const TikTokAuthSchema = new Schema<ITikTokAuth>(
 
 const LocalAuthSchema = new Schema<ILocalAuth>(
   {
-    passwordHash: { type: String, select: false },
-    passwordResetToken: { type: String, select: false },
+    passwordHash: { type: String },
+    passwordResetToken: { type: String },
     passwordResetExpiresAt: { type: Date },
     emailVerified: { type: Boolean, default: false },
-    emailVerificationToken: { type: String, select: false },
-    emailVerificationCodeHash: { type: String, select: false },
-    emailVerificationExpiresAt: { type: Date, select: false },
+    emailVerificationToken: { type: String },
+    emailVerificationCodeHash: { type: String },
+    emailVerificationExpiresAt: { type: Date },
   },
   { _id: false }
 );
@@ -251,21 +251,26 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
       type: String,
       enum: ['google', 'local', 'tiktok'] as AuthProvider[],
       required: true,
+      default: 'local',
     },
-    googleAuth: { type: GoogleAuthSchema },
-    tiktokAuth: { type: TikTokAuthSchema },
-    localAuth: { type: LocalAuthSchema },
+    googleAuth: { type: GoogleAuthSchema, select: false },
+    tiktokAuth: { type: TikTokAuthSchema, select: false },
+    localAuth: { type: LocalAuthSchema, select: false },
 
     // Role & plan
     role: {
       type: String,
       enum: ['user', 'admin'] as UserRole[],
       default: 'user',
+      trim: true,
+      set: (v: string) => v ? v.trim().toLowerCase() : v
     },
     plan: {
       type: String,
       enum: ['free', 'trial', 'pro', 'team', 'starter', 'validator', 'scale'] as UserPlan[],
       default: 'free',
+      trim: true,
+      set: (v: string) => v ? v.trim().toLowerCase() : v
     },
     planExpiresAt: { type: Date },
 
@@ -299,14 +304,20 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     notifications: { type: NotificationPrefsSchema, default: () => ({}) },
     timezone: { type: String, default: 'UTC' },
     locale: { type: String, default: 'en' },
-    contentRegion: { 
-      type: String, 
+    contentRegion: {
+      type: String,
       enum: ALLOWED_CONTENT_REGIONS,
       default: 'US'
     },
 
     // Account status
-    status: { type: String, enum: ['active', 'suspended', 'deleted'] as UserStatus[], default: 'active' },
+    status: {
+      type: String,
+      enum: ['active', 'suspended', 'deleted'] as UserStatus[],
+      default: 'active',
+      trim: true,
+      set: (v: string) => v ? v.trim().toLowerCase() : v
+    },
     lastLoginAt: { type: Date },
     lastLoginIp: { type: String },
     loginCount: { type: Number, default: 0 },

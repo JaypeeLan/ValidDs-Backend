@@ -81,7 +81,18 @@ paths:
     $ref: './paths/admin.yaml#/analyticsUsers'
   /api/v1/admin/analytics/products:
     $ref: './paths/admin.yaml#/analyticsProducts'
-
+  /api/v1/admin/users:
+    $ref: './paths/admin.yaml#/users'
+  /api/v1/admin/users/{userId}:
+    $ref: './paths/admin.yaml#/userDelete'
+  /api/v1/admin/users/{userId}/status:
+    $ref: './paths/admin.yaml#/userStatusUpdate'
+  /api/v1/admin/products:
+    $ref: './paths/admin.yaml#/products'
+  /api/v1/admin/products/{productId}:
+    $ref: './paths/admin.yaml#/productDelete'
+  /api/v1/admin/transactions:
+    $ref: './paths/admin.yaml#/transactions'
 
 components:
   securitySchemes:

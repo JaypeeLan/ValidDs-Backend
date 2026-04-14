@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   // App
-  NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
+  NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
   PORT: z.coerce.number().default(3000),
   APP_NAME: z.string().default('validds-backend'),
   API_VERSION: z.string().default('v1'),
@@ -89,6 +89,32 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
 
+  // Stripe
+  STRIPE_SECRET_KEY_TEST: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_SECRET_KEY_LIVE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_PUBLISHABLE_KEY_TEST: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_PUBLISHABLE_KEY_LIVE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_WEBHOOK_SECRET_TEST: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_WEBHOOK_SECRET_LIVE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+
   // EnsembleData API — token must be ≤ 24 chars (enforced by their API)
   ENSEMBLE_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
@@ -114,6 +140,7 @@ const envSchema = z.object({
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   LOG_PRETTY: z.coerce.boolean().default(false),
+  ENABLE_DEV_JOBS: z.coerce.boolean().default(false),
 
   // Metrics
   METRICS_ENABLED: z.coerce.boolean().default(true),
@@ -159,6 +186,9 @@ function validateEnv(): Env {
     if (isStaging) {
       console.warn('[ValidDs] STAGING MODE: Bypassing environment validation crash.');
       return envToParse as unknown as Env;
+    } else if (process.env.NODE_ENV === 'test') {
+      console.warn('[ValidDs] TEST MODE: Bypassing environment validation crash.');
+      return result.data || (envToParse as unknown as Env);
     } else {
       process.exit(1);
     }

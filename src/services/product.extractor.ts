@@ -59,14 +59,16 @@ const SYSTEM_PROMPT = `You are a product intelligence engine for a dropshipping 
 You receive data from a TikTok video (title, description, hashtags, and top comments) and extract structured product information.
 
 Your job is to determine:
-1. What product is being shown or discussed
-2. Whether this is genuinely a product-related video
-3. Trend signals based on engagement context
-4. What the comments reveal about buying intent
+1. What specific physical product is being shown or discussed.
+2. Whether this is genuinely a product-related video.
+3. Trend signals based on engagement context.
+4. What the comments reveal about buying intent.
 
 Rules:
-- If the video is clearly NOT about a product (dance, news, comedy, personal vlog), set isProductVideo to false
-- Extract a clean, short, and meaningful product name (2-5 words max). Strip out ALL SEO fluff, Amazon-style descriptors (e.g. "for men", "heavy duty"), emojis, and tracking links. (e.g., return "Portable Blender" instead of "Portable Mini Blender USB Rechargeable Fruit Juicer").
+- If the video is clearly NOT about a product (dance, news, comedy, personal vlog), set isProductVideo to false.
+- Extract a SPECIFIC physical product name (e.g., "Sunset Lamp", "Electric Milk Frother"). 
+- STRICTLY IGNORE generic trend titles, hashtag names, or SEO fluff. Never return "Amazon Finds", "TikTok Finds", "Must Haves", "Viral Products", or similar. If the video title is generic, ignore it and look at the description/comments for the actual item name.
+- Strip out all emojis, tracking links, and Amazon-style SEO descriptors (e.g., "for home office", "best quality").
 - productNiche MUST be exactly one of the provided canonical categories.
 - Estimated price: Extract only if explicitly mentioned. If not, set to null.
 - Units sold: Provide a global estimate representing total market reach (typically 50k to 5M+ for hot products).
@@ -351,11 +353,20 @@ function buildFallbackExtraction(post: NormalizedPost): ExtractedProduct | null 
 
   if (!hasProductHashtag && !post.isAd) return null;
 
+  // Clean the title by removing common garbage phrases and hashtags
+  let cleanTitle = (post.title || '').replace(/#/g, '');
+  const garbageRegex = /amazon finds|tiktok made me buy it|must haves|viral products|latest tech prod|tech prod/gi;
+  cleanTitle = cleanTitle.replace(garbageRegex, '').trim();
+
+  if (!cleanTitle || cleanTitle.length < 3) {
+    cleanTitle = 'Unknown Product';
+  }
+
   return {
-    productName: post.title || 'Unknown Product',
-    amazonSearchTerm: post.title || 'Unknown Product',
+    productName: cleanTitle,
+    amazonSearchTerm: cleanTitle,
     productNiche: inferNicheFromHashtags(post.hashtags),
-    productDescription: post.description || post.title || '',
+    productDescription: post.description || cleanTitle || '',
     estimatedPrice: undefined,
     currency: 'USD',
     extractionConfidence: 30,          // Low confidence — no AI

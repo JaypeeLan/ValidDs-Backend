@@ -27,6 +27,8 @@ export const VerifyEmailCodeSchema = z.object({
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[0-9]/, 'Password must contain at least one number'),
   name: z.string().min(2).max(100).trim().optional(),
+  firstName: z.string().min(1).max(50).trim().optional(),
+  lastName: z.string().min(1).max(50).trim().optional(),
 });
 
 export const ForgotPasswordSchema = z.object({

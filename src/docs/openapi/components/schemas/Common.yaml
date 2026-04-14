@@ -58,3 +58,19 @@ UnauthorizedError:
     requestId:
       type: string
       example: req_123456789
+
+Pagination:
+  type: object
+  properties:
+    page:
+      type: integer
+      example: 1
+    limit:
+      type: integer
+      example: 20
+    total:
+      type: integer
+      example: 100
+    totalPages:
+      type: integer
+      example: 5

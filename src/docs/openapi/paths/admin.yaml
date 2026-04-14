@@ -103,3 +103,292 @@ analyticsProducts:
                     topCategories:
                       "Home & Kitchen": 400
                       "Beauty & Personal Care": 350
+
+users:
+  get:
+    summary: List Users
+    description: Returns a paginated list of users with filtering options.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 20
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum: [active, suspended, deleted]
+      - in: query
+        name: plan
+        schema:
+          type: string
+          enum: [free, trial, pro, team, starter, validator, scale]
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Search by name or email
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    users:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/User.yaml'
+                    pagination:
+                      $ref: '../components/schemas/Common.yaml#/Pagination'
+
+products:
+  get:
+    summary: List Products
+    description: Returns a paginated list of products with filtering options.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 20
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum: [active, archived, stale]
+      - in: query
+        name: source
+        schema:
+          type: string
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Search by title or description
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    products:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/Product.yaml'
+                    pagination:
+                      $ref: '../components/schemas/Common.yaml#/Pagination'
+
+userDelete:
+  delete:
+    summary: Delete User
+    description: Permanently delete a user account.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+
+userStatusUpdate:
+  patch:
+    summary: Update User Status
+    description: Update user account status (active | suspended).
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - status
+            properties:
+              status:
+                type: string
+                enum: [active, suspended]
+    responses:
+      '200':
+        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+
+productDelete:
+  delete:
+    summary: Delete Product
+    description: Permanently delete a product.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: path
+        name: productId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+
+transactions:
+  get:
+    summary: List Transactions
+    description: List all transaction records.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 20
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum: [pending, paid, failed, refunded]
+      - in: query
+        name: mode
+        schema:
+          type: string
+          enum: [test, live]
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    transactions:
+                      type: array
+                      items:
+                        type: object
+                    pagination:
+                      $ref: '../components/schemas/Common.yaml#/Pagination'
+
+  post:
+    summary: Create Transaction
+    description: Store a newly created transaction record.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - userId
+              - amount
+            properties:
+              userId:
+                type: string
+              userEmail:
+                type: string
+              amount:
+                type: number
+              currency:
+                type: string
+                default: 'USD'
+              status:
+                type: string
+                enum: [pending, paid, failed, refunded]
+                default: 'pending'
+              mode:
+                type: string
+                enum: [test, live]
+                default: 'test'
+              provider:
+                type: string
+                default: 'stripe'
+              reference:
+                type: string
+              stripePaymentIntentId:
+                type: string
+              stripeCustomerId:
+                type: string
+              metadata:
+                type: object
+                additionalProperties:
+                  type: string
+    responses:
+      '201':
+        description: Transaction created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    transaction:
+                      type: object

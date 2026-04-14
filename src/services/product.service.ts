@@ -43,6 +43,16 @@ export const ProductService = {
     return { feed, freshness };
   },
 
+  async getAllProducts(): Promise<{ products: IProductDocument[]; freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>> }> {
+    const products = await ProductRepository.findAllUniqueProducts();
+    const freshness = await FreshnessService.getResponseMetadata('product');
+    return { products, freshness };
+  },
+
+  async cleanupProducts(): Promise<{ genericDeleted: number; duplicatesDeleted: number }> {
+    return ProductRepository.cleanupBadProducts();
+  },
+
   /**
    * Get a single product by its MongoDB ID.
    */

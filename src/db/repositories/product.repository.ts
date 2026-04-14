@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Product, IProductDocument } from '../../models/product.model';
 import { PRODUCT_CATEGORIES } from '../../api/products/product.constants';
 import { ExtractedProduct, NormalizedPost } from '../../ingestion/ingestion.types';
@@ -5,6 +6,94 @@ import { logger } from '../../logger';
 import { parsePagination, toMongoSkip, buildPaginatedResponse, PaginatedResponse } from '../../utils/pagination.util';
 
 const log = logger.child({ module: 'product-repository' });
+
+const GENERIC_PHRASES = [
+  'amazon finds', 'amazon must-haves', 'amazon must haves',
+  'amazon home finds', 'trending amazon products', 'viral products',
+  'tiktok finds', 'tiktok made me buy it', 'must haves', 'must-haves',
+  'dropshipping products', 'unknown product', 'product name', 
+  'latest tech prod', 'tech prod', 'things you need', 'buy this',
+  'beauty products', 'home products', 'tech products', 'kitchen products',
+  'baby products', 'pet products'
+];
+
+const GENERIC_TITLE_PATTERNS: RegExp[] = [
+  /^(trending|top|best|viral|tiktok)\s+(amazon|tiktok)\s+(products|finds|deals?|must[- ]haves?)/i,
+  /^(amazon|tiktok)\s+(finds|products|deals|must[- ]haves?)/i,
+  /\b(amazon|tiktok)\b.*\b(products|finds|deals|must[- ]haves?)\b/i,
+  /^(dropshipping|dropship)\s+(products|items|deals?)/i,
+  /^(unknown|new)\s+(product|item)/i,
+  /^(beauty|home|tech|kitchen|baby|pet)\s+products?$/i,
+];
+
+function normalizeProductTitle(title: string): string {
+  return title
+    .trim()
+    .replace(/[\u2018\u2019\u201C\u201D]/g, "'")
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function isGenericTitle(title: string): boolean {
+  if (!title) return true;
+  const normalized = normalizeProductTitle(title);
+  if (GENERIC_PHRASES.some((phrase) => normalized.includes(phrase))) {
+    return true;
+  }
+  return GENERIC_TITLE_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function buildGenericTitleFilter(): Array<Record<string, unknown>> {
+  const phraseFilters = GENERIC_PHRASES.map((phrase) => ({ title: { $regex: new RegExp(phrase, 'i') } }));
+  const patternFilters = GENERIC_TITLE_PATTERNS.map((pattern) => ({ title: pattern }));
+  return [...phraseFilters, ...patternFilters];
+}
+
+function buildTitleMatchRegex(title: string): RegExp {
+  const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escapedTitle}$`, 'i');
+}
+
+async function findDuplicateTitle(title: string, source: string): Promise<IProductDocument | null> {
+  const normalizedTitle = normalizeProductTitle(title);
+  return Product.findOne({
+    $and: [
+      { source: { $ne: source } },
+      { status: 'active' },
+      {
+        $or: [
+          { normalizedTitle },
+          { title: { $regex: buildTitleMatchRegex(title) } },
+        ],
+      },
+    ],
+  });
+}
+
+function buildDuplicateTitleCleanupPipeline(): mongoose.PipelineStage[] {
+  return [
+    { $match: { status: 'active' } } as mongoose.PipelineStage,
+    { $sort: { 'trend.score': -1, lastIngestedAt: -1 } } as mongoose.PipelineStage,
+    { $group: {
+      _id: { $ifNull: ['$normalizedTitle', { $toLower: '$title' }] },
+      keepId: { $first: '$_id' },
+      productIds: { $push: '$_id' },
+      count: { $sum: 1 },
+    } } as mongoose.PipelineStage,
+    { $project: {
+      toArchive: {
+        $filter: {
+          input: '$productIds',
+          as: 'id',
+          cond: { $ne: ['$$id', '$keepId'] },
+        },
+      },
+      count: 1,
+    } } as mongoose.PipelineStage,
+    { $match: { count: { $gt: 1 } } } as mongoose.PipelineStage,
+  ];
+}
 
 /**
  * Product Repository
@@ -100,8 +189,19 @@ export const ProductRepository = {
     extraction: ExtractedProduct,
     post: NormalizedPost
   ): Promise<IProductDocument> {
+    if (isGenericTitle(extraction.productName)) {
+      throw new Error(`Blocked insertion of generic product title: "${extraction.productName}"`);
+    }
+
+    const existingDuplicate = await findDuplicateTitle(extraction.productName, post.source);
+    if (existingDuplicate) {
+      throw new Error(
+        `Blocked insertion of duplicate product title from a different source: "${extraction.productName}"`
+      );
+    }
+
     const filter = {
-      externalId: post.videoId,
+      title: { $regex: new RegExp(`^${extraction.productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
       source: post.source,
     };
 
@@ -109,6 +209,7 @@ export const ProductRepository = {
       $set: {
         // Identity — always update from latest extraction
         title: extraction.productName,
+        normalizedTitle: normalizeProductTitle(extraction.productName),
         description: extraction.productDescription,
         category: extraction.productNiche,
         tags: post.hashtags,
@@ -129,7 +230,7 @@ export const ProductRepository = {
         totalVideos: 1,
         engagementRate: post.engagementRate,
 
-        // Top video — the source post itself
+        // Top video — the source post itself (used as fallback logic, will be overridden by $addToSet)
         topVideos: [{
           videoId: post.videoId,
           url: post.videoUrl,
@@ -177,6 +278,29 @@ export const ProductRepository = {
         isStale: false,
         status: 'active',
       },
+      $addToSet: {
+        topVideos: {
+          videoId: post.videoId,
+          url: post.videoUrl,
+          playUrl: post.videoPlayUrl,
+          thumbnailUrl: post.thumbnailUrl,
+          viewCount: post.viewCount,
+          likeCount: post.likeCount,
+          commentCount: post.commentCount,
+          shareCount: post.shareCount,
+          creatorHandle: post.creatorHandle,
+          creatorDisplayName: post.creatorDisplayName,
+          creatorFollowers: post.creatorFollowers,
+          creatorRegion: post.creatorRegion,
+          creatorVerified: post.creatorVerified,
+          creatorAvatarUrl: post.creatorAvatarUrl,
+          publishedAt: post.publishedAt,
+          isAd: post.isAd,
+        }
+      },
+      $inc: { totalVideos: 1 },
+      // Update externalId if inserting (since it's required in the schema, though no longer uniquely determining identity)
+      $setOnInsert: { externalId: post.videoId }
     };
 
     const options = { upsert: true, new: true, setDefaultsOnInsert: true };
@@ -202,6 +326,7 @@ export const ProductRepository = {
     const query: Record<string, unknown> = {
       status: 'active',
       'aiExtraction.confidence': { $gte: 60 },  // only show high-confidence extractions
+      $nor: buildGenericTitleFilter(),
     };
 
     if (filters.category && filters.category.length > 0) {
@@ -226,6 +351,98 @@ export const ProductRepository = {
     ]);
 
     return buildPaginatedResponse(data as unknown as IProductDocument[], total, pagination);
+  },
+
+  /**
+   * Get all products from the database without duplicates and without low-value generic titles.
+   * Deduplicates by normalized title so each product appears once.
+   */
+  async findAllUniqueProducts(): Promise<IProductDocument[]> {
+    const query: Record<string, unknown> = {
+      status: 'active',
+      'aiExtraction.confidence': { $gte: 60 },
+      $nor: buildGenericTitleFilter(),
+    };
+
+    const pipeline: mongoose.PipelineStage[] = [
+      { $match: query } as mongoose.PipelineStage,
+      { $sort: { 'trend.score': -1, lastIngestedAt: -1 } } as mongoose.PipelineStage,
+      { $group: { _id: { $ifNull: ['$normalizedTitle', { $toLower: '$title' }] }, doc: { $first: '$$ROOT' } } } as mongoose.PipelineStage,
+      { $replaceRoot: { newRoot: '$doc' } } as mongoose.PipelineStage,
+    ];
+
+    return Product.aggregate(pipeline).exec() as Promise<IProductDocument[]>;
+  },
+
+  async deleteGenericProducts(): Promise<number> {
+    const products = await Product.find({}).select('title').lean();
+    const idsToDelete = products
+      .filter((product) => isGenericTitle(String(product.title)))
+      .map((product) => product._id);
+
+    if (idsToDelete.length === 0) return 0;
+
+    const result = await Product.deleteMany({ _id: { $in: idsToDelete } });
+    return result.deletedCount ?? 0;
+  },
+
+  async deleteDuplicateProducts(): Promise<number> {
+    const products = await Product.find({})
+      .select('title normalizedTitle trend.score lastIngestedAt')
+      .lean();
+
+    const groups = new Map<string, Array<{ id: unknown; score: number; lastIngestedAt: Date }>>();
+    const bulkUpdates: Array<{ updateOne: { filter: { _id: unknown }; update: Record<string, unknown> } }> = [];
+
+    for (const product of products) {
+      const normalized = normalizeProductTitle(String(product.title));
+      if (!normalized) continue;
+
+      if (!product.normalizedTitle) {
+        bulkUpdates.push({
+          updateOne: {
+            filter: { _id: product._id },
+            update: { normalizedTitle: normalized },
+          },
+        });
+      }
+
+      const bucket = groups.get(normalized) ?? [];
+      bucket.push({
+        id: product._id,
+        score: product.trend?.score ?? 0,
+        lastIngestedAt: product.lastIngestedAt ?? new Date(0),
+      });
+      groups.set(normalized, bucket);
+    }
+
+    if (bulkUpdates.length > 0) {
+      await Product.bulkWrite(bulkUpdates, { ordered: false }).catch(() => undefined);
+    }
+
+    const idsToDelete: unknown[] = [];
+    for (const bucket of groups.values()) {
+      if (bucket.length <= 1) continue;
+      bucket.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return b.lastIngestedAt.getTime() - a.lastIngestedAt.getTime();
+      });
+      const [, ...duplicates] = bucket;
+      idsToDelete.push(...duplicates.map((item) => item.id));
+    }
+
+    if (idsToDelete.length === 0) return 0;
+
+    const result = await Product.deleteMany({ _id: { $in: idsToDelete } });
+    return result.deletedCount ?? 0;
+  },
+
+  async cleanupBadProducts(): Promise<{ genericDeleted: number; duplicatesDeleted: number }> {
+    const [genericDeleted, duplicatesDeleted] = await Promise.all([
+      this.deleteGenericProducts(),
+      this.deleteDuplicateProducts(),
+    ]);
+    return { genericDeleted, duplicatesDeleted };
   },
 
   /**
@@ -260,6 +477,7 @@ export const ProductRepository = {
       ],
       status: 'active',
       'aiExtraction.confidence': { $gte: 50 },
+      $nor: buildGenericTitleFilter(),
     };
 
     if (category && category.length > 0) {
@@ -325,7 +543,21 @@ export const ProductRepository = {
    */
   async upsertEnrichedProduct(input: EnrichedProductInput): Promise<IProductDocument> {
     const sanitized = this.validateAndSanitize(input);
-    const filter = { externalId: sanitized.videoId, source: sanitized.source };
+    if (isGenericTitle(sanitized.title)) {
+      throw new Error(`Blocked insertion of generic product title: "${sanitized.title}"`);
+    }
+
+    const existingDuplicate = await findDuplicateTitle(sanitized.title, sanitized.source);
+    if (existingDuplicate) {
+      throw new Error(
+        `Blocked insertion of duplicate product title from a different source: "${sanitized.title}"`
+      );
+    }
+
+    const filter = {
+      title: { $regex: new RegExp(`^${sanitized.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      source: sanitized.source
+    };
 
     const newVideo = {
       videoId:          sanitized.videoId,
@@ -350,6 +582,7 @@ export const ProductRepository = {
       $set: {
         // Identity
         title:        sanitized.title,
+        normalizedTitle: normalizeProductTitle(sanitized.title),
         description:  sanitized.description,
         category:     sanitized.category,
         subCategory:  sanitized.subCategory,
@@ -418,6 +651,7 @@ export const ProductRepository = {
       },
       // Track total video count
       $inc: { totalVideos: 1 },
+      $setOnInsert: { externalId: sanitized.videoId }
     };
 
     const options = { upsert: true, new: true, setDefaultsOnInsert: true };

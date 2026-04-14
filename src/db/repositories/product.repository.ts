@@ -387,9 +387,18 @@ export const ProductRepository = {
   },
 
   async deleteDuplicateProducts(): Promise<number> {
+    type DuplicateProductLean = {
+      _id: mongoose.Types.ObjectId;
+      title?: string;
+      normalizedTitle?: string;
+      trend?: { score?: number };
+      lastIngestedAt?: Date;
+    };
+
     const products = await Product.find({})
       .select('title normalizedTitle trend.score lastIngestedAt')
-      .lean();
+      .lean()
+      .exec() as DuplicateProductLean[];
 
     const groups = new Map<string, Array<{ id: unknown; score: number; lastIngestedAt: Date }>>();
     const bulkUpdates: Array<{ updateOne: { filter: { _id: unknown }; update: Record<string, unknown> } }> = [];

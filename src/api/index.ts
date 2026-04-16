@@ -3,6 +3,7 @@ import healthRouter from './health/health.routes';
 import authRouter from './auth/auth.routes';
 import profileRouter from './profile/profile.routes';
 import productRouter from './products/product.routes';
+import creativeRouter from './creatives/creative.routes';
 
 import ingestionRouter from './ingestion/ingestion.routes';
 import jobsRouter from './jobs/jobs.routes';
@@ -12,6 +13,7 @@ const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/profile', profileRouter);
 apiRouter.use('/products', productRouter);
+apiRouter.use('/creatives', creativeRouter);
 apiRouter.use('/ingestion', ingestionRouter);
 apiRouter.use('/jobs', jobsRouter);
 apiRouter.use('/admin', adminRouter);

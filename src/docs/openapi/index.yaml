@@ -95,6 +95,10 @@ paths:
     $ref: './paths/admin.yaml#/productDelete'
   /api/v1/admin/transactions:
     $ref: './paths/admin.yaml#/transactions'
+  /api/v1/creatives:
+    $ref: './paths/creatives.yaml#/creatives'
+  /api/v1/creatives/{id}:
+    $ref: './paths/creatives.yaml#/creativeDetail'
 
 components:
   securitySchemes:

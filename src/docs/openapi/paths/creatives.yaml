@@ -1,0 +1,107 @@
+creatives:
+  get:
+    summary: List all creatives
+    description: Retrieves a paginated list of creatives from across all products, with optional filtering.
+    tags:
+      - Creatives
+    security:
+      - bearerAuth: []
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 20
+      - name: productId
+        in: query
+        description: Filter by parent product ID
+        schema:
+          type: string
+      - name: section
+        in: query
+        description: Filter by creative section
+        schema:
+          type: string
+          enum: [top-ads, trending, influencer-reviews, tutorials, viral-unboxings]
+      - name: isAd
+        in: query
+        description: Filter by ad status
+        schema:
+          type: boolean
+      - name: region
+        in: query
+        description: Filter by creator region (2-letter country code)
+        schema:
+          type: string
+      - name: minViews
+        in: query
+        description: Minimum number of views
+        schema:
+          type: integer
+      - name: sortBy
+        in: query
+        description: Sort criteria
+        schema:
+          type: string
+          enum: [views, likes, recent, engagement]
+          default: recent
+    responses:
+      '200':
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/Creative.yaml'
+                    pagination:
+                      $ref: '../components/schemas/Common.yaml#/Pagination'
+      '401':
+        description: Unauthorized
+
+creativeDetail:
+  get:
+    summary: Get creative details
+    description: Retrieves detailed information for a single creative by its MongoDB id.
+    tags:
+      - Creatives
+    security:
+      - bearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                data:
+                  type: object
+                  properties:
+                    creative:
+                      $ref: '../components/schemas/Creative.yaml'
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+      '401':
+        description: Unauthorized

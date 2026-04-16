@@ -187,4 +187,70 @@ export const CreativeService = {
       return false;
     }
   },
+
+  /**
+   * Retrieves a paginated list of creatives from the database based on filters.
+   */
+  async findCreatives(filters: any) {
+    const { 
+      productId, 
+      section, 
+      isAd, 
+      region, 
+      minViews, 
+      hashtags, 
+      page = 1, 
+      limit = 20, 
+      sortBy = 'recent',
+      categoryL1,
+      categoryL2,
+      categoryL3 
+    } = filters;
+
+    const query: any = {};
+
+    if (productId) query.productId = productId;
+    if (section)   query.section = section;
+    if (isAd !== undefined) query.isAd = isAd;
+    if (region)    query['creator.region'] = region.toUpperCase();
+    if (minViews)  query['metrics.viewCount'] = { $gte: Number(minViews) };
+    if (categoryL1) query.categoryL1 = categoryL1;
+    if (categoryL2) query.categoryL2 = categoryL2;
+    if (categoryL3) query.categoryL3 = categoryL3;
+    if (hashtags) {
+      const tagList = Array.isArray(hashtags) ? hashtags : [hashtags];
+      query.hashtags = { $in: tagList };
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const mLimit = Number(limit);
+
+    let sort: any = { createdAt: -1 };
+    if (sortBy === 'views')   sort = { 'metrics.viewCount': -1 };
+    if (sortBy === 'likes')   sort = { 'metrics.likeCount': -1 };
+    if (sortBy === 'engagement') sort = { 'metrics.engagementRate': -1 };
+    if (sortBy === 'recent')  sort = { publishedAt: -1 };
+
+    const [data, total] = await Promise.all([
+      Creative.find(query).sort(sort).skip(skip).limit(mLimit).populate('productId', 'title thumbnailUrl'),
+      Creative.countDocuments(query),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: mLimit,
+        pages: Math.ceil(total / mLimit),
+      },
+    };
+  },
+
+  /**
+   * Retrieves a single creative by its database ID.
+   */
+  async getCreativeById(id: string) {
+    return Creative.findById(id).populate('productId', 'title thumbnailUrl');
+  },
 };

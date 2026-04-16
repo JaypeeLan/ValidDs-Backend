@@ -16,6 +16,10 @@ export enum ResponseMessage {
   PRODUCT_UPDATED = 'Product updated successfully.',
   PRODUCT_DELETED = 'Product deleted successfully.',
 
+  // Creatives
+  CREATIVE_RETRIEVED = 'Creative retrieved successfully.',
+  CREATIVES_RETRIEVED = 'Creatives retrieved successfully.',
+
   // Health
   HEALTH_OK = 'Service is healthy and running.',
 

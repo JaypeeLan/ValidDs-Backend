@@ -6,6 +6,7 @@ function httpJson(opts: {
   baseUrl: string;
   method: string;
   path: string;
+  token?: string;
 }): Promise<{ status: number; text: string }> {
   const url = new URL(opts.path, opts.baseUrl);
   return new Promise((resolve, reject) => {
@@ -15,6 +16,10 @@ function httpJson(opts: {
         hostname: url.hostname,
         port: url.port,
         path: url.pathname + url.search,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(opts.token ? { 'authorization': `Bearer ${opts.token}` } : {}),
+        },
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -36,6 +41,7 @@ describe('Products Endpoints', () => {
   let server: Server;
   let baseUrl: string;
   let disconnectMongoFn: (() => Promise<void>) | null = null;
+  let testToken: string;
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'development';
@@ -81,6 +87,19 @@ describe('Products Endpoints', () => {
     const addr = server.address();
     if (!addr || typeof addr === 'string') throw new Error('Failed to bind server');
     baseUrl = `http://127.0.0.1:${addr.port}`;
+
+    // Create a test user and generate token
+    const { User } = await import('../src/models/user.model');
+    const testUser = await User.create({
+      email: 'test@example.com',
+      name: 'Test User',
+      authProvider: 'local',
+      status: 'active',
+      plan: 'pro',
+    });
+
+    const { signJWT } = await import('../src/security/jwt');
+    testToken = signJWT({ sub: (testUser._id as any).toString(), role: 'user' });
   });
 
   afterAll(async () => {
@@ -100,6 +119,7 @@ describe('Products Endpoints', () => {
       baseUrl,
       method: 'GET',
       path: '/api/v1/products?limit=10',
+      token: testToken,
     });
     expect(res.status).toBe(200);
     expect(res.text).toContain('data');
@@ -110,6 +130,7 @@ describe('Products Endpoints', () => {
       baseUrl,
       method: 'GET',
       path: '/api/v1/products/search?q=test',
+      token: testToken,
     });
     // In memory mongodb text search can throw 500 if text index isn't created before test. 
     // We just verify the route didn't 404.
@@ -199,6 +220,7 @@ describe('Products Endpoints', () => {
       baseUrl,
       method: 'GET',
       path: '/api/v1/products?limit=10',
+      token: testToken,
     });
 
     expect(res.status).toBe(200);
@@ -222,6 +244,7 @@ describe('Products Endpoints', () => {
       baseUrl,
       method: 'GET',
       path: '/api/v1/products/invalid_id',
+      token: testToken,
     });
     // Expected to correctly handle and return 404 for invalid/missing items
     expect(res.status).toBe(404);

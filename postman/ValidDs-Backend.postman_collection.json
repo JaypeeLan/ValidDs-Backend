@@ -670,6 +670,95 @@
       ]
     },
     {
+      "name": "Creatives",
+      "item": [
+        {
+          "name": "List Creatives",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creatives?page=1&limit=20&sortBy=recent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creatives"
+              ],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "productId", "value": "", "disabled": true },
+                { "key": "section", "value": "trending", "disabled": true },
+                { "key": "isAd", "value": "false", "disabled": true },
+                { "key": "region", "value": "US", "disabled": true },
+                { "key": "minViews", "value": "1000", "disabled": true },
+                { "key": "sortBy", "value": "recent" }
+              ]
+            },
+            "description": "Retrieves a paginated list of creatives from across all products. Supports filtering by product, section, ad status, and more."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Creatives retrieved successfully\",\n  \"data\": {\n    \"data\": [],\n    \"pagination\": {\n      \"total\": 0,\n      \"page\": 1,\n      \"limit\": 20,\n      \"pages\": 0\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Creative Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creatives/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creatives",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "<creative_id>",
+                  "description": "The unique ObjectID of the creative."
+                }
+              ]
+            },
+            "description": "Retrieves detailed information for a single creative."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Creative retrieved successfully\",\n  \"data\": {\n    \"creative\": {}\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Jobs",
       "item": [
         {

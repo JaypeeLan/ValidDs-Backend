@@ -1,356 +1,298 @@
-import { ExtractedProduct, NormalizedPost } from '../ingestion/ingestion.types';
-import { RainforestProduct } from './rainforest.types';
 import { ProductRepository, EnrichedProductInput } from '../db/repositories/product.repository';
 import { IProductDocument } from '../models/product.model';
-import { matchCategoryPath } from '../api/products/product.constants';
+import { ExtractedProduct, NormalizedPost } from '../ingestion/ingestion.types';
+import { TeemDropService } from './teemdrop.service';
+import { SerpService } from './serp.service';
+import { CreativeService } from './creative.service';
+import { DiscoveryService } from './discovery.service';
+import { Creative } from '../models/creative.model';
 import { logger } from '../logger';
-import { ImageService } from './image.service';
-import { PriceService } from './price.service';
-import { MarketResearchService } from './market-research.service';
 
 const log = logger.child({ module: 'product-enricher' });
 
 /**
- * Product Enricher
+ * Product Enricher (Discovery 2.0)
  *
- * Merges AI extraction data (Gemini) with Amazon data (Rainforest)
- * into a single, fully-enriched product document and writes it to the DB.
- *
- * Called by the hashtag ingestion pipeline after both AI extraction
- * and Rainforest lookup have completed for a single post.
+ * Orchestrates multi-source enrichment:
+ * 1. SerpApi  → image gallery & market ratings
+ * 2. TeemDrop → supplier pricing & verified product URL
+ * 3. AI       → 3-level taxonomy, confidence reasons, sentiment
+ * 4. EnsembleData → creator-attributed TikTok videos (Creatives)
+ * 5. Discovery → section tagging (trending, top-ads, viral...)
  */
 export const ProductEnricher = {
 
-  /**
-   * Merge AI extraction output with Rainforest Amazon search results,
-   * then upsert the enriched product into MongoDB.
-   *
-   * Rainforest may return 0-20 results for a product name search.
-   * - Average price  = mean of all prices with valid values (0 if none)
-   * - Best title     = shortest Rainforest title ≤ 80 chars, fallback to productName
-   * - Primary image  = first Rainforest result image
-   * - Image array    = all unique Rainforest images
-   */
   async mergeAndUpsert(
     extraction: ExtractedProduct,
-    rainforestResults: RainforestProduct[],
-    post: NormalizedPost
-  ): Promise<IProductDocument> {
-    let { avgPrice, minPrice, maxPrice } = computePriceStats(rainforestResults);
-    const title = pickBestTitle(rainforestResults, extraction.productName);
+    post: NormalizedPost,
+    comments: NormalizedPost['sourceRaw'] extends any ? any[] : any[] = [] // typing as any[] for now, will receive NormalizedComment[]
+  ): Promise<IProductDocument | null> {
+    log.info('Running Discovery 2.0 Enrichment', { product: extraction.productName });
 
-    // Fallback price if Rainforest returns 0
-    if (avgPrice === 0) {
-      log.debug('Rainforest price is 0, attempting web search fallback', { title });
-      const webPrice = await PriceService.findProductPrice(extraction.productName);
-      if (webPrice) {
-        avgPrice = webPrice;
-        minPrice = webPrice;
-        maxPrice = webPrice;
+    // 1. SerpApi — gallery images & multi-source ratings
+    const serpData    = await SerpService.getRichProductData(extraction.productName);
+    const serpGallery = serpData ? SerpService.extractGalleryImages(serpData) : [];
+    const serpRatings = serpData ? SerpService.extractRatingSources(serpData) : [];
+
+    // 2. TeemDrop — supplier match
+    let supplier: { platform: string; productUrl?: string; price?: number; currency?: string; shippingDays?: number; moq?: number; checkedAt: Date } | null = null;
+    let supplierPrice: number | undefined;
+    try {
+      const match = await TeemDropService.findProductDetailByName(extraction.productName);
+      if (match?.product) {
+        const td = match.product;
+        supplierPrice = td.productMinPrice ?? td.discountProductMinPrice ?? undefined;
+        supplier = {
+          platform:    'TeemDrop',
+          productUrl:  undefined,            // TeemDrop detail API does not expose a public URL
+          price:       supplierPrice,
+          currency:    'USD',
+          shippingDays:undefined,
+          checkedAt:   new Date(),
+        };
       }
+    } catch (err) {
+      log.warn('TeemDrop matching failed', { err: String(err) });
     }
 
-    const { primaryImageUrl, imageUrls } = await collectImages(rainforestResults, extraction.productName, post.thumbnailUrl);
+    // 3. Image sourcing (SerpApi first, fallback to grounded AI images)
+    const primaryImageUrl = SerpService.extractBestThumbnail(serpData || {}) || extraction.groundedImages[0];
+    const gallery = serpGallery.length >= 3
+      ? serpGallery
+      : [...new Set([...serpGallery, ...extraction.groundedImages])];
 
-    // Rating & Reviews (From the best Rainforest match)
-    const topMatch = rainforestResults.find(r => r.rating !== undefined && r.ratings_total !== undefined) || rainforestResults[0];
-    const rating = topMatch?.rating;
-    const reviewsCount = topMatch?.ratings_total;
+    // 4. Sales evidence — only include if AI found a concrete source
+    const salesEvidence: EnrichedProductInput['salesEvidence'] = extraction.salesSource?.store !== 'Unknown'
+      ? {
+          unitsSold:  extraction.unitsSold || 0,
+          store:      extraction.salesSource!.store,
+          storeUrl:   extraction.salesSource!.url,
+          timeframe:  extraction.salesSource!.timeframe,
+          fetchedAt:  new Date(),
+        }
+      : undefined;
 
-    // 3-Level Category (matches TikTok Shop taxonomy)
-    const { category, subCategory, categoryLeaf, categoryPath } = matchCategoryPath(extraction.productNiche);
+    // 5. Rating sources (from SerpApi, or AI-estimated fallback from TikTok engagement)
+    let ratingSources: EnrichedProductInput['ratingSources'] = serpRatings.map(r => ({
+      platform:    r.source,
+      rating:      r.rating,
+      reviewCount: r.reviewsCount,
+      sourceUrl:   r.url,
+      fetchedAt:   new Date(),
+    }));
 
-    // Build verified suppliers list and extract hard unit sales from Amazon
-    const { suppliers, verifiedUnitsSold: amazonSales } = buildSuppliers(rainforestResults, extraction.productName);
+    // FALLBACK ALGORTIHM: If Serp returns no ratings, we estimate from TikTok intent + engagement
+    if (ratingSources.length === 0 && post.engagementRate) {
+      const sentiment = extraction.buyingSentimentScore || 50;
+      
+      // Base estimated rating on sentiment (50 sentiment -> 3.5 stars, 100 -> 5.0 stars)
+      let estimatedRating = 3.0 + (sentiment / 100) * 2.0;
+      estimatedRating = Math.min(5.0, Math.max(1.0, estimatedRating)); // Clamp 1-5
 
-    let finalUnitsSold = amazonSales;
+      // Estimated reviews based on comment count and engagement
+      const estimatedReviews = Math.max(10, Math.floor(post.commentCount * 0.15));
 
-    // Fallback: If Amazon lacks sales data, try a verified Web Search (e.g. AliExpress, Walmart)
-    if (finalUnitsSold === 0) {
-      log.debug('Amazon lacked recent_sales, attempting Web Search fallback', { title });
-      const webResearch = await MarketResearchService.estimateGlobalSales(extraction.productName);
-      if (webResearch && webResearch.sales > 0 && webResearch.url) {
-        finalUnitsSold = webResearch.sales;
-
-        // Add the verified web source to the top of suppliers
-        suppliers.unshift({
-          platform: 'Web Search', // UI can show the domain if needed
-          productUrl: webResearch.url,
-          currency: 'USD',
-          verified: true,
-          checkedAt: new Date(),
-        });
-
-        log.debug('Web Search found verified sales', { finalUnitsSold, url: webResearch.url });
-      }
+      ratingSources.push({
+        platform: 'TikTok Engagement (Estimated)',
+        rating: Number(estimatedRating.toFixed(1)),
+        reviewCount: estimatedReviews,
+        fetchedAt: new Date()
+      });
     }
 
+    // 5b. Map top comments for social proof
+    const topComments = comments.slice(0, 10).map((c: any) => ({
+      text: c.text,
+      likeCount: c.likeCount || 0,
+      authorHandle: c.authorHandle,
+      sentiment: extraction.buyingSentimentScore && extraction.buyingSentimentScore > 70 ? 'positive' : 'neutral',
+      source: 'EnsembleData',
+      collectedAt: new Date()
+    }));
+
+    // 6. Related products from SerpApi
+    const relatedProducts = (serpData?.immersive_products || serpData?.shopping_results || [])
+      .slice(0, 6)
+      .map((item: any) => ({
+        title:     item.title,
+        price:     item.price,
+        thumbnail: item.thumbnail,
+        link:      item.link,
+        store:     item.source,
+      }));
+
+    // 7. Build tiktokPostUrl for primary creator
+    const tiktokPostUrl = post.videoUrl
+      || `https://www.tiktok.com/@${post.creatorHandle}/video/${post.videoId}`;
+
+    // 8. Assemble the input
     const input: EnrichedProductInput = {
-      // TikTok post metadata
-      videoId: post.videoId,
-      source: post.source,
-      hashtags: post.hashtags,
-      viewCount: post.viewCount,
-      likeCount: post.likeCount,
-      commentCount: post.commentCount,
-      shareCount: post.shareCount,
-      engagementRate: post.engagementRate,
-      videoPlayUrl: post.videoPlayUrl,
-      thumbnailUrl: post.thumbnailUrl,
-      creatorHandle: post.creatorHandle,
-      creatorDisplayName: post.creatorDisplayName,
-      creatorFollowers: post.creatorFollowers,
-      creatorRegion: post.creatorRegion,
-      creatorVerified: post.creatorVerified,
-      creatorAvatarUrl: post.creatorAvatarUrl,
+      // Identity
+      videoId:     post.videoId,
+      source:      post.source,
+      hashtags:    post.hashtags,
       publishedAt: post.publishedAt,
       collectedAt: post.collectedAt,
-      isAd: post.isAd,
 
-      // Gemini AI extraction
-      category,
-      subCategory,
-      categoryLeaf,
-      categoryPath,
-      description: cleanDescription(extraction.productDescription),
-      aiConfidence: extraction.extractionConfidence,
-      confidenceReason: extraction.confidenceReason,
-      buyingSentimentScore: extraction.buyingSentimentScore,
-      buyingSentimentReason: extraction.buyingSentimentReason,
-      trendScore: extraction.trendScore,
-      trendDirection: extraction.trendDirection,
-      trendReason: extraction.trendReason,
-      isTrending: extraction.isTrending,
+      // Post engagement
+      viewCount:     post.viewCount,
+      likeCount:     post.likeCount,
+      commentCount:  post.commentCount,
+      shareCount:    post.shareCount,
+      engagementRate:post.engagementRate,
+      videoPlayUrl:  post.videoPlayUrl,
+      thumbnailUrl:  post.thumbnailUrl,
+      isAd:          post.isAd,
 
-      // Rainforest Amazon enrichment
-      title,
-      price: avgPrice || 19.99, // Final sterilization: never $0 for winning products
-      priceMin: minPrice || 19.99,
-      priceMax: maxPrice || 19.99,
-      currency: 'USD',
-      primaryImageUrl,
-      imageUrls,
-      unitsSold: finalUnitsSold, // STRICT: Verified data from Amazon or Web Search
-      store: 'TeemDrop',
-      videoUrl: post.videoPlayUrl,
-      rating,
-      reviewsCount,
-      suppliers,
+      // Content
+      title:       extraction.productName,
+      description: extraction.productDescription,
+
+      // Taxonomy
+      categoryL1:   extraction.categoryL1,
+      categoryL2:   extraction.categoryL2,
+      categoryL3:   extraction.categoryL3,
+      categoryPath: extraction.categoryPath || extraction.categoryL1,
+
+      // Media
+      primaryImageUrl: primaryImageUrl || post.thumbnailUrl,
+      imageUrls:       gallery,
+
+      // Pricing
+      price:    supplierPrice ?? extraction.estimatedPrice,
+      currency: extraction.currency || 'USD',
+      suppliers: supplier ? [supplier] : [],
+
+      // Market evidence
+      salesEvidence,
+      ratingSources,
+      rating:      calculateFinalRating(ratingSources, extraction),
+      reviewCount: calculateFinalReviewCount(ratingSources, extraction),
+      topComments: topComments as any,
+
+      // Discovery origin
+      primaryCreator: {
+        handle:        post.creatorHandle || 'unknown',
+        displayName:   post.creatorDisplayName,
+        bio:           post.creatorBio,
+        followers:     post.creatorFollowers,
+        following:     post.creatorFollowing,
+        totalLikes:    post.creatorTotalLikes,
+        region:        post.creatorRegion,
+        verified:      post.creatorVerified,
+        avatarUrl:     post.creatorAvatarUrl,
+        tiktokPostUrl,
+      },
+
+      // AI intelligence
+      aiIntelligence: {
+        confidence:           extraction.extractionConfidence,
+        confidenceReason:     extraction.confidenceReason || 'AI extraction',
+        brand:                extraction.brand,
+        categoryKeywords:     extraction.categoryKeywords || [],
+        buyingSentimentScore: extraction.buyingSentimentScore,
+        buyingSentimentReason:extraction.buyingSentimentReason,
+        extractedAt:          new Date(),
+      },
+
+      // Trend
+      trend: {
+        score:      extraction.trendScore,
+        direction:  extraction.trendDirection,
+        reason:     extraction.trendReason,
+        isTrending: extraction.isTrending,
+        calculatedAt: new Date(),
+      },
+
+      relatedProducts,
+      discoverySections: [],
+      creativeCounts: { ads: 0, organic: 0, reviews: 0, total: 0 },
     };
 
-    log.debug('Upserting enriched product', {
-      videoId: post.videoId,
-      title,
-      avgPrice,
-      images: imageUrls.length,
+    // 9. Persist initial product record
+    const product = await ProductRepository.upsertEnrichedProduct(input);
+    if (!product) return null;
+
+    // 10. Ingest creatives (pass taxonomy + relevance keywords)
+    await CreativeService.fetchAndIngestCreatives(
+      extraction.productName,
+      product._id,
+      {
+        brand:            extraction.brand,
+        categoryKeywords: extraction.categoryKeywords,
+        categoryL1:       extraction.categoryL1,
+        categoryL2:       extraction.categoryL2,
+        categoryL3:       extraction.categoryL3,
+      }
+    );
+
+    // 11. Discovery section tagging
+    const sections = await DiscoveryService.categorizeProduct(product, serpData);
+
+    // 12. Creative counts
+    const [adsCount, totalCount, reviewsCount] = await Promise.all([
+      Creative.countDocuments({ productId: product._id, isAd: true }),
+      Creative.countDocuments({ productId: product._id }),
+      Creative.countDocuments({ productId: product._id, section: 'influencer-reviews' }),
+    ]);
+
+    // 13. Final update
+    product.discoverySections = sections;
+    product.creativeCounts = {
+      ads:     adsCount,
+      organic: totalCount - adsCount,
+      reviews: reviewsCount,
+      total:   totalCount,
+    };
+    await product.save();
+
+    log.info('Discovery 2.0 complete', {
+      title:    product.title,
+      sections: sections.join(','),
+      creatives:totalCount,
     });
 
-    return ProductRepository.upsertEnrichedProduct(input);
+    return product;
   },
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 /**
- * Compute average, min, and max price from Rainforest results.
- * Ignores null / 0 prices. Returns 0 as avg if no prices found (per spec).
+ * Calculates a weighted average rating from multiple sources.
+ * Fallback to AI-estimated rating if no sources exist.
  */
-function computePriceStats(results: RainforestProduct[]): {
-  avgPrice: number;
-  minPrice: number | undefined;
-  maxPrice: number | undefined;
-} {
-  const prices = results
-    .map(r => r.price?.value ?? r.prices?.[0]?.value)
-    .filter((p): p is number => typeof p === 'number' && p > 0);
-
-  if (prices.length === 0) {
-    return { avgPrice: 0, minPrice: undefined, maxPrice: undefined };
+function calculateFinalRating(sources: any[], extraction: any): number | undefined {
+  if (!sources || sources.length === 0) {
+    return extraction.estimatedRating;
   }
 
-  const avg = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+  let totalWeightedScore = 0;
+  let totalReviews = 0;
 
-  return {
-    avgPrice: Math.round(avg * 100) / 100,
-    minPrice: Math.min(...prices),
-    maxPrice: Math.max(...prices),
-  };
-}
-
-/**
- * Clean a product title — removes emojis, SEO junk, and promotional patterns.
- */
-function cleanTitle(title: string): string {
-  if (!title) return '';
-  return title
-    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '') // Emojis
-    .split(' - ')[0]
-    .split(' | ')[0]
-    .split(' — ')[0]
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 80);
-}
-
-/**
- * Clean a product description.
- */
-function cleanDescription(desc: string): string {
-  if (!desc) return '';
-  return desc
-    .replace(/https?:\/\/\S+/g, '') // remove URLs
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * Pick the best Amazon product title for the product card.
- * Strategy: shortest title ≤ 80 chars from the top 5 results.
- * Falls back to truncating the first result, then to the AI product name.
- */
-function pickBestTitle(results: RainforestProduct[], fallback: string): string {
-  const titles = results
-    .slice(0, 5)
-    .map(r => r.title?.trim())
-    .filter((t): t is string => Boolean(t));
-
-  // Clean and shorten Amazon titles to prevent SEO fluff
-  const cleanedTitles = titles.map(t => cleanTitle(t));
-
-  // Prefer the shortest cleaned title that fits inside 80 chars
-  const short = cleanedTitles.find(t => t.length <= 80);
-  if (short) return short;
-
-  // Truncate the first title if it's too long
-  if (cleanedTitles[0]) return cleanedTitles[0].slice(0, 80).trim();
-
-  // Ultimate fallback: the AI-extracted product name
-  return cleanTitle(fallback);
-}
-
-/**
- * Collect product images from Rainforest results.
- * primaryImageUrl = first available image.
- * imageUrls = all unique images across results (max 10).
- * Falls back to the TikTok thumbnail if Rainforest has no images.
- */
-/**
- * Collect product images from Rainforest results.
- * primaryImageUrl = first available image, or high-res web search fallback.
- * imageUrls = all unique images across results (max 10).
- * Falls back to the TikTok thumbnail only if all else fails.
- */
-async function collectImages(
-  results: RainforestProduct[],
-  productName: string,
-  tiktokThumbnail?: string
-): Promise<{ primaryImageUrl: string | undefined; imageUrls: string[] }> {
-  const allImages = results
-    .map(r => r.image)
-    .filter((img): img is string => Boolean(img));
-
-  // Use Amazon's controlled resize suffix: ._SX400_. = 400px wide, full JPEG quality
-  // Much smaller file size than the full original, but still sharp and clear
-  const uniqueImages = [...new Set(allImages)]
-    .slice(0, 10)
-    .map(url => url.replace(/\._[A-Z0-9_,]+_\./, '._SX400_.'));
-
-  // If Rainforest has images, use the first one as primary
-  if (uniqueImages.length > 0) {
-    return { primaryImageUrl: uniqueImages[0], imageUrls: uniqueImages };
-  }
-
-  // Fallback 1: Internet Search for HD version (NEW)
-  log.debug('Rainforest has no images, attempting HD image web search', { productName });
-  const hdImage = await ImageService.findProductImage(productName);
-  if (hdImage) {
-    return { primaryImageUrl: hdImage, imageUrls: [hdImage] };
-  }
-
-  // Fallback 2: The TikTok post thumbnail
-  if (tiktokThumbnail) {
-    return { primaryImageUrl: tiktokThumbnail, imageUrls: [tiktokThumbnail] };
-  }
-
-  return { primaryImageUrl: undefined, imageUrls: [] };
-}
-
-/**
- * Parse Amazon's recent_sales string.
- * Example: "20K+ bought in past month" -> 20000
- * Example: "50+ bought in past month" -> 50
- */
-function parseRecentSales(salesString?: string): number {
-  if (!salesString) return 0;
-
-  const match = salesString.match(/^(\d+)(K)?\+?/i);
-  if (!match) return 0;
-
-  const num = parseInt(match[1], 10);
-  if (match[2]) { // 'K' is present
-    return num * 1000;
-  }
-  return num;
-}
-
-/**
- * Build a suppliers array from Rainforest results + AliExpress + Alibaba search links.
- * Extracts the verified unit sales from the best Amazon listing and flags it verified: true.
- * This ensures stakeholders see a clickable link that proves the exact units sold metric.
- */
-function buildSuppliers(
-  results: RainforestProduct[],
-  productName: string
-): { suppliers: NonNullable<EnrichedProductInput['suppliers']>, verifiedUnitsSold: number } {
-  const now = new Date();
-  const searchTerm = encodeURIComponent(productName);
-
-  let verifiedUnitsSold = 0;
-  let bestAmazonResult: RainforestProduct | null = null;
-
-  // Find the Amazon listing with the highest recent_sales metric
-  for (const r of results) {
-    if (r.recent_sales && r.link) {
-      const sales = parseRecentSales(r.recent_sales);
-      if (sales > verifiedUnitsSold) {
-        verifiedUnitsSold = sales;
-        bestAmazonResult = r;
-      }
+  for (const s of sources) {
+    if (typeof s.rating === 'number' && typeof s.reviewCount === 'number') {
+      totalWeightedScore += s.rating * s.reviewCount;
+      totalReviews += s.reviewCount;
     }
   }
 
-  const amazonSuppliers = results
-    .slice(0, 5) // up to 5 Amazon listing links
-    .filter(r => r.link)
-    .map(r => {
-      // Direct Link proving the sales is flagged verified
-      const isTopVerified = bestAmazonResult && r.link === bestAmazonResult.link;
-      return {
-        platform: 'Amazon',
-        productUrl: r.link,
-        price: r.price?.value ?? r.prices?.[0]?.value,
-        currency: 'USD',
-        verified: isTopVerified ? true : false,
-        checkedAt: now,
-      };
-    });
+  if (totalReviews === 0) return extraction.estimatedRating;
+  
+  const avg = totalWeightedScore / totalReviews;
+  return Math.round(avg * 10) / 10; // Round to 1 decimal
+}
 
-  const aliexpress = {
-    platform: 'AliExpress',
-    productUrl: `https://www.aliexpress.com/wholesale?SearchText=${searchTerm}`,
-    verified: false,
-    checkedAt: now,
-  };
+/**
+ * Sums review counts from multiple sources, or falls back to AI estimate.
+ */
+function calculateFinalReviewCount(sources: any[], extraction: any): number | undefined {
+  if (!sources || sources.length === 0) {
+    return extraction.estimatedReviewCount || 0;
+  }
 
-  const alibaba = {
-    platform: 'Alibaba',
-    productUrl: `https://www.alibaba.com/trade/search?SearchText=${searchTerm}`,
-    verified: false,
-    checkedAt: now,
-  };
+  let total = 0;
+  for (const s of sources) {
+    total += s.reviewCount || 0;
+  }
 
-  return {
-    suppliers: [...amazonSuppliers, aliexpress, alibaba],
-    verifiedUnitsSold
-  };
+  return total > 0 ? total : (extraction.estimatedReviewCount || 0);
 }

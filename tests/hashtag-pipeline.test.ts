@@ -4,7 +4,7 @@ describe('HashtagIngestionPipeline', () => {
   let HashtagIngestionPipeline: any;
   let EnsembleJob: any;
   let ProductExtractor: any;
-  let RainforestService: any;
+  let TeemDropService: any;
   let ProductEnricher: any;
   let FreshnessService: any;
   let ProductRepository: any;
@@ -16,13 +16,14 @@ describe('HashtagIngestionPipeline', () => {
     process.env.JWT_SECRET        = 'x'.repeat(32);
     process.env.ENCRYPTION_KEY    = 'a'.repeat(64);
     process.env.MONGODB_URI       = 'mongodb://localhost:27017/test';
-    process.env.RAINFOREST_API_KEY = 'dummy';
+    process.env.TEEMDROP_APP_KEY  = '100022';
+    process.env.TEEMDROP_APP_SECRET = 'secret';
     process.env.ENSEMBLE_API_KEY   = 'dummy';
 
     // Dynamic imports — env is ready so validation passes
     EnsembleJob      = (await import('../src/ingestion/ensemble/ensemble.job')).EnsembleJob;
     ProductExtractor = (await import('../src/services/product.extractor')).ProductExtractor;
-    RainforestService= (await import('../src/services/rainforest.service')).RainforestService;
+    TeemDropService  = (await import('../src/services/teemdrop.service')).TeemDropService;
     ProductEnricher  = (await import('../src/services/product.enricher')).ProductEnricher;
     FreshnessService = (await import('../src/freshness/freshness.service')).FreshnessService;
     ProductRepository = (await import('../src/db/repositories/product.repository')).ProductRepository;
@@ -52,10 +53,11 @@ describe('HashtagIngestionPipeline', () => {
     title: 'Test post',
     description: 'Test description',
     rawText: 'Test raw text',
+    publishedAt: new Date(),
   });
 
   // ── Test 1 ──────────────────────────────────────────────────────────────────
-  it('should filter posts with < 50k views and only extract from qualifying ones', async () => {
+  it('should prefer TeemDrop when it returns a confident product match', async () => {
     const posts = [
       makePost('vid_high', 60_000),  // ≥ 50k → should be processed
       makePost('vid_low',  10_000),  // < 50k → should be skipped
@@ -64,13 +66,16 @@ describe('HashtagIngestionPipeline', () => {
     // Mock at EnsembleJob level — this is what pipeline.run() actually calls.
     // Mocking EnsembleClient.prototype is too low-level: the client instance
     // is already created inside EnsembleJob's constructor before the spy can attach.
+    let hasRun1 = false;
     jest.spyOn(EnsembleJob.prototype, 'runHashtagIngestion')
       .mockImplementation(async (hashtags: any, processPage: any) => {
-        await processPage(posts);
+        if (!hasRun1) {
+          hasRun1 = true;
+          await processPage(posts);
+        }
       });
 
     jest.spyOn(EnsembleJob.prototype, 'getPostComments').mockResolvedValue([]);
-    jest.spyOn(ProductRepository, 'existsByVideoId').mockResolvedValue(false); // no duplicates
 
     // Create the pipeline AFTER the spy is in place so the internal EnsembleJob
     // inherits the patched prototype method.
@@ -78,18 +83,34 @@ describe('HashtagIngestionPipeline', () => {
 
     jest.spyOn(ProductExtractor, 'extractFromPost').mockResolvedValue({
       productName: 'Gadget Pro',
+      amazonSearchTerm: 'gadget pro',
       productNiche: 'Electronics & Gadgets',
       trendDirection: 'rising',
       productDescription: 'A great gadget',
       extractionConfidence: 0.9,
       trendScore: 80,
       trendReason: 'Viral on TikTok',
-      sentimentSummary: 'Very positive',
-      buyingIntentScore: 8,
+      buyingSentimentScore: 80,
+      sourceVideoId: 'vid_high',
+      isTrending: true,
+      isProductVideo: true,
     });
 
-    jest.spyOn(RainforestService, 'searchAmazonProducts').mockResolvedValue({
-      search_results: [{ title: 'Gadget Pro Ultra', price: { value: 15 } }],
+    jest.spyOn(TeemDropService, 'findProductDetailByName').mockResolvedValue({
+      product: {
+        productId: 'td_1',
+        productNameEn: 'Gadget Pro Ultra',
+        productMinPrice: 15,
+        productMaxPrice: 15,
+        image: 'https://example.com/image.jpg',
+        images: ['https://example.com/image.jpg'],
+      },
+      match: {
+        score: 0.95,
+        pageNum: 1,
+        matchedTitle: 'Gadget Pro Ultra',
+        searchTerm: 'gadget pro',
+      },
     });
 
     jest.spyOn(ProductEnricher,   'mergeAndUpsert').mockResolvedValue(undefined as any);
@@ -100,29 +121,34 @@ describe('HashtagIngestionPipeline', () => {
     expect(result.postsCollected).toBe(2);
     expect(result.postsFiltered).toBe(1);      // vid_low was skipped
     expect(result.aiExtractionsDone).toBe(1);  // only vid_high extracted
-    expect(result.rainforestHits).toBe(1);
+    expect(result.teemdropHits).toBe(1);
     expect(result.dbUpserts).toBe(1);
     expect(result.errors).toHaveLength(0);
+    expect(TeemDropService.findProductDetailByName).toHaveBeenCalledWith('gadget pro');
 
     // Verify the correct post was sent to the AI
     const extractedPost = (ProductExtractor.extractFromPost as jest.Mock).mock.calls[0][0];
     expect(extractedPost.videoId).toBe('vid_high');
   });
 
-  // ── Test 2 ──────────────────────────────────────────────────────────────────
+
+
   it('should continue processing remaining posts when one post throws an error', async () => {
     const posts = [
       makePost('vid_crash', 60_000),  // will throw during AI extraction
       makePost('vid_ok',    70_000),  // should succeed
     ];
 
+    let hasRun2 = false;
     jest.spyOn(EnsembleJob.prototype, 'runHashtagIngestion')
       .mockImplementation(async (hashtags: any, processPage: any) => {
-        await processPage(posts);
+        if (!hasRun2) {
+          hasRun2 = true;
+          await processPage(posts);
+        }
       });
 
     jest.spyOn(EnsembleJob.prototype, 'getPostComments').mockResolvedValue([]);
-    jest.spyOn(ProductRepository, 'existsByVideoId').mockResolvedValue(false); // no duplicates
 
     const pipeline = new HashtagIngestionPipeline();
 
@@ -130,16 +156,20 @@ describe('HashtagIngestionPipeline', () => {
       .mockRejectedValueOnce(new Error('Gemini API unavailable'))  // vid_crash fails
       .mockResolvedValueOnce({                                      // vid_ok succeeds
         productName: 'Good Gadget',
+        amazonSearchTerm: 'good gadget',
         productNiche: 'Electronics & Gadgets',
         trendDirection: 'rising',
         productDescription: 'Works great',
         extractionConfidence: 0.85,
         trendScore: 75,
         trendReason: 'Trending',
-        buyingIntentScore: 7,
+        buyingSentimentScore: 70,
+        sourceVideoId: 'vid_ok',
+        isTrending: true,
+        isProductVideo: true,
       });
 
-    jest.spyOn(RainforestService, 'searchAmazonProducts').mockResolvedValue({ search_results: [] });
+    jest.spyOn(TeemDropService, 'findProductDetailByName').mockResolvedValue(null);
     jest.spyOn(ProductEnricher,   'mergeAndUpsert').mockResolvedValue(undefined as any);
     jest.spyOn(FreshnessService,  'markUpdated').mockResolvedValue(undefined as any);
 
@@ -148,6 +178,7 @@ describe('HashtagIngestionPipeline', () => {
     expect(result.postsCollected).toBe(2);
     expect(result.postsFiltered).toBe(0);
     expect(result.aiExtractionsDone).toBe(1);   // only vid_ok completed
+    expect(result.teemdropHits).toBe(0);
     expect(result.dbUpserts).toBe(1);
     expect(result.errors).toHaveLength(1);       // vid_crash error was caught
     expect(result.errors[0]).toContain('vid_crash');

@@ -74,6 +74,10 @@ const envSchema = z.object({
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
   ),
+  GOOGLE_AI_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
   GOOGLE_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
@@ -83,10 +87,22 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
 
-  // Rainforest API
-  RAINFOREST_API_KEY: z.preprocess(
+  // TeemDrop API
+  TEEMDROP_APP_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
+  ),
+  TEEMDROP_APP_SECRET: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  TEEMDROP_BASE_URL: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional().default('https://openapi.teemdrop.com')
+  ),
+  TEEMDROP_USER_AGENT: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional().default('PostmanRuntime/7.43.0')
   ),
 
   // Stripe

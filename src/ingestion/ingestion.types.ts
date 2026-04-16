@@ -36,6 +36,8 @@ export interface NormalizedPost {
   creatorRegion?: string;
   creatorAvatarUrl?: string;
   creatorBio?: string;
+  creatorFollowing?: number;
+  creatorTotalLikes?: number;
 
   // Engagement
   viewCount: number;
@@ -82,16 +84,34 @@ export interface ExtractedProduct {
   // Product identity
   productName: string;             // e.g. "Portable Mini Blender"
   amazonSearchTerm: string;        // optimised short Amazon query e.g. "portable mini blender USB"
-  productNiche: string;            // e.g. "Kitchen Gadgets"
+  productNiche?: string;           // e.g. "Kitchen Gadgets" (optional)
   productDescription: string;     // one-line AI-generated summary
+  brand?: string;
+  categoryKeywords: string[];      // For relevance filtering
   estimatedPrice?: number;        // extracted from comments/description if mentioned
+  estimatedRating?: number;       // fallback AI rating (1-5)
+  estimatedReviewCount?: number;  // fallback AI review count estimate
   unitsSold?: number;             // extracted or estimated number of sales
   currency?: string;              // default USD
+
+  // Hierarchical Categories
+  categoryL1: string;
+  categoryL2?: string;
+  categoryL3?: string;
+  categoryPath?: string;
+
 
   // AI confidence
   extractionConfidence: number;   // 0–100 — how confident the AI is this is a real product
   confidenceReason?: string;
   isProductVideo: boolean;        // false if the video is clearly not product-related
+
+  // Sales & Social Proof
+  salesSource?: {
+    store: string;
+    url?: string;
+    timeframe?: string;
+  };
 
   // Trend signals (AI-calculated from engagement data)
   trendScore: number;             // 0–100 composite
@@ -106,6 +126,7 @@ export interface ExtractedProduct {
   // Source post this was extracted from
   sourceVideoId: string;
   sourceVideoUrl?: string;
+  groundedImages: string[];
 }
 
 // ── Trending hashtags and keywords ───────────────────────────────────────────

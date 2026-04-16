@@ -69,6 +69,8 @@ paths:
     $ref: './paths/products.yaml#/categories'
   /api/v1/products/{id}:
     $ref: './paths/products.yaml#/detail'
+  /api/v1/products/{id}/creatives:
+    $ref: './paths/products.yaml#/creatives'
   /api/v1/ingestion/trigger:
     $ref: './paths/ingestion.yaml#/trigger'
   /api/v1/jobs/status:
@@ -114,3 +116,5 @@ components:
       $ref: './components/schemas/User.yaml'
     Product:
       $ref: './components/schemas/Product.yaml'
+    Creative:
+      $ref: './components/schemas/Creative.yaml'

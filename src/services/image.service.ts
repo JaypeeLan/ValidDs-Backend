@@ -21,115 +21,122 @@ const log = logger.child({ module: 'image-service' });
  */
 
 export const ImageService = {
+  /**
+   * Search for product images by name.
+   * Returns a list of relevant image URLs, prioritizing high quality and clean backgrounds.
+   * Optimizes for 300x300 containers by preferring centered studio shots.
+   */
+  async findProductImages(productName: string): Promise<string[]> {
+    // 1. Try SerpAPI first (User Priority)
+    const serpResults = await searchSerpAPI(productName);
+    if (serpResults && serpResults.length > 0) {
+      log.debug(`Found ${serpResults.length} images via SerpAPI`, { product: productName });
+      return serpResults;
+    }
+
+    // 2. Fall back to Google CSE (Secondary)
+    const googleResults = await searchGoogleCSE(productName);
+    if (googleResults && googleResults.length > 0) {
+      log.debug(`Found ${googleResults.length} images via Google CSE`, { product: productName });
+      return googleResults;
+    }
+
+    log.debug(`No images found for product: ${productName}`);
+    return [];
+  },
 
   /**
-   * Search for a product image by name.
-   * Returns the first relevant image URL, or null if nothing is found.
+   * Optimized for 178x133 primary display as requested.
    */
-  async findProductImage(productName: string): Promise<string | null> {
-    // Try Google CSE first
-    const googleResult = await searchGoogleCSE(productName);
-    if (googleResult) return googleResult;
-
-    // Fall back to SerpAPI
-    const serpResult = await searchSerpAPI(productName);
-    if (serpResult) return serpResult;
-
-    log.debug(`No image found for product: ${productName}`);
-    return null;
+  async findPrimaryThumbnail(productName: string, serpThumbnail?: string): Promise<string | null> {
+    if (serpThumbnail) return serpThumbnail;
+    const results = await this.findProductImages(productName);
+    return results[0] || null;
   },
 };
 
 // ── Google Custom Search API ──────────────────────────────────────────────────
 
-async function searchGoogleCSE(query: string): Promise<string | null> {
+async function searchGoogleCSE(query: string): Promise<string[]> {
   const apiKey = process.env.GOOGLE_CSE_API_KEY || process.env.GOOGLE_API_KEY;
   const cx = process.env.GOOGLE_CSE_CX;
 
-  if (!apiKey || !cx) return null;
+  if (!apiKey || !cx) return [];
 
   try {
     const params = new URLSearchParams({
       key: apiKey,
       cx,
-      q: `${query} high resolution product photography`,
+      q: `${query} product photography studio white background`,
       searchType: 'image',
-      num: '5',
+      num: '10',
       imgType: 'photo',
-      imgSize: 'large', // Prefer large images for HD
+      imgSize: 'large',
       safe: 'active',
     });
 
     const res = await fetch(
       `https://www.googleapis.com/customsearch/v1?${params.toString()}`,
-      { signal: AbortSignal.timeout(5000) }
+      { signal: AbortSignal.timeout(12000) }
     );
 
     if (!res.ok) {
       log.debug('Google CSE request failed', { status: res.status });
-      return null;
+      return [];
     }
 
     const data = await res.json() as {
       items?: Array<{ link?: string; image?: { height?: number; width?: number } }>;
     };
 
-    // Return the first image that looks like a real product photo and is HD-ish
-    for (const item of data.items ?? []) {
-      const url = item.link;
-      if (url && isAcceptableImageUrl(url)) {
-        // Bonus points if it's actually large
-        if (item.image && (item.image.width ?? 0) > 800) {
-           return url;
-        }
-        // Fallback to first acceptable one if none are > 800px
-      }
-    }
-
-    return data.items?.[0]?.link || null;
+    return (data.items ?? [])
+      .map(item => item.link)
+      .filter((url): url is string => Boolean(url && isAcceptableImageUrl(url)))
+      .slice(0, 10);
   } catch (err) {
     log.debug('Google CSE search failed', { err: String(err) });
-    return null;
+    return [];
   }
 }
 
 // ── SerpAPI ───────────────────────────────────────────────────────────────────
 
-async function searchSerpAPI(query: string): Promise<string | null> {
+async function searchSerpAPI(query: string): Promise<string[]> {
   const apiKey = process.env.SERPAPI_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return [];
 
   try {
     const params = new URLSearchParams({
       api_key: apiKey,
       engine: 'google_images',
-      q: `${query} product photography hd`,
-      num: '5',
+      q: `${query} high resolution product photography lifestyle aesthetic studio white background 4k`,
+      num: '15',
       safe: 'active',
     });
 
     const res = await fetch(
       `https://serpapi.com/search?${params.toString()}`,
-      { signal: AbortSignal.timeout(5000) }
+      { signal: AbortSignal.timeout(12000) }
     );
 
-    if (!res.ok) return null;
+    if (!res.ok) return [];
 
     const data = await res.json() as {
       images_results?: Array<{ original?: string; thumbnail?: string; width?: number; height?: number }>;
     };
 
+    const results: string[] = [];
     for (const item of data.images_results ?? []) {
-      const url = item.original ?? item.thumbnail;
+      const url = item.original || item.thumbnail;
       if (url && isAcceptableImageUrl(url)) {
-         if ((item.width ?? 0) > 800) return url;
+        results.push(url);
       }
     }
 
-    return data.images_results?.[0]?.original || null;
+    return results.slice(0, 10);
   } catch (err) {
     log.debug('SerpAPI search failed', { err: String(err) });
-    return null;
+    return [];
   }
 }
 

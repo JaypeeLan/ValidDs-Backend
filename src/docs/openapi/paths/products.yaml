@@ -171,6 +171,72 @@ detail:
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
 
+creatives:
+  get:
+    tags: [Products]
+    summary: Get all creatives (videos) for a product
+    description: Retrieves all TikTok videos from all content creators that promote this product.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    responses:
+      '200':
+        description: Creatives retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        creators:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              handle:
+                                type: string
+                              displayName:
+                                type: string
+                              avatarUrl:
+                                type: string
+                              followers:
+                                type: integer
+                              verified:
+                                type: boolean
+                              tiktokPostUrl:
+                                type: string
+                              tiktokUserId:
+                                type: string
+                              totalViews:
+                                type: integer
+                              videos:
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    id:
+                                      type: string
+                                    externalVideoId:
+                                      type: string
+                                    videoPlayUrl:
+                                      type: string
+                                    thumbnailUrl:
+                                      type: string
+                                    metrics:
+                                      type: object
+                                    section:
+                                      type: string
+                                    isAd:
+                                      type: boolean
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
 categories:
   get:
     tags: [Products]

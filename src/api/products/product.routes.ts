@@ -45,6 +45,7 @@ router.get('/categories', optionalAuth, ProductController.categories);
 router.get('/saved', optionalAuth, ProductController.saved);
 
 // :id must come last — otherwise "search" or "categories" matches as an id
+router.get('/:id/creatives', optionalAuth, ProductController.creatives);
 router.get('/:id', optionalAuth, ProductController.detail);
 
 export default router;

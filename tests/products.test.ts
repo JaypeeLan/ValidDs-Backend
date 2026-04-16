@@ -116,76 +116,83 @@ describe('Products Endpoints', () => {
     expect(res.status).not.toBe(404);
   });
 
-  it('GET /api/v1/products should include creatorsVideos grouped by creator', async () => {
+  it('GET /api/v1/products should return correctly formatted products and strip AI internals', async () => {
     const { Product } = await import('../src/models/product.model');
     await Product.create({
+      // Identity
       externalId: 'vid_primary_1',
       source: 'ensemble',
+      status: 'active',
+
+      // Content
       title: 'Clip Hair Curler',
+      normalizedTitle: 'clip hair curler',
       description: 'Sample product',
-      tags: ['beautyfinds'],
-      imageUrls: ['https://example.com/image.jpg'],
+      hashtags: ['beautyfinds'],
+
+      // Taxonomy
+      categoryL1: 'Beauty & Personal Care',
+      categoryL2: 'Hair Care',
+      categoryL3: 'Hair Styling Tools',
+      categoryPath: 'Beauty & Personal Care / Hair Care / Hair Styling Tools',
+
+      // Media
       primaryImageUrl: 'https://example.com/image.jpg',
+      imageUrls: ['https://example.com/image.jpg'],
+
+      // Pricing
       price: 24.99,
       currency: 'USD',
-      totalViews: 120000,
-      totalLikes: 12000,
-      totalComments: 900,
-      totalShares: 600,
-      totalVideos: 2,
-      topVideos: [
-        {
-          videoId: 'vid_primary_1',
-          url: 'https://www.tiktok.com/@creator1/video/vid_primary_1',
-          playUrl: 'https://cdn.example.com/vid_primary_1.mp4',
-          viewCount: 90000,
-          likeCount: 9000,
-          commentCount: 700,
-          shareCount: 500,
-          creatorHandle: 'creator1',
-          creatorDisplayName: 'Creator One',
-          creatorFollowers: 500000,
-          creatorRegion: 'US',
-          creatorVerified: true,
-          creatorAvatarUrl: 'https://example.com/creator1.jpg',
-          isAd: false,
-        },
-        {
-          videoId: 'vid_secondary_2',
-          url: 'https://www.tiktok.com/@creator2/video/vid_secondary_2',
-          playUrl: 'https://cdn.example.com/vid_secondary_2.mp4',
-          viewCount: 30000,
-          likeCount: 3000,
-          commentCount: 200,
-          shareCount: 100,
-          creatorHandle: 'creator2',
-          creatorDisplayName: 'Creator Two',
-          creatorFollowers: 120000,
-          creatorRegion: 'GB',
-          creatorVerified: false,
-          creatorAvatarUrl: 'https://example.com/creator2.jpg',
-          isAd: false,
-        },
-      ],
-      creatorHandle: 'creator1',
-      creatorDisplayName: 'Creator One',
-      creatorFollowers: 500000,
-      creatorRegion: 'US',
-      trend: { direction: 'rising', score: 84, isTrending: true, reason: 'Strong cross-creator velocity' },
-      aiExtraction: {
+      suppliers: [],
+
+      // Market Evidence
+      ratingSources: [],
+      topComments: [],
+
+      // Engagement
+      viewCount: 120000,
+      likeCount: 12000,
+      commentCount: 900,
+      shareCount: 600,
+      engagementRate: 11.25,
+
+      // Creator
+      primaryCreator: {
+        handle: 'creator1',
+        displayName: 'Creator One',
+        followers: 500000,
+        region: 'US',
+        verified: true,
+        avatarUrl: 'https://example.com/creator1.jpg',
+        tiktokPostUrl: 'https://www.tiktok.com/@creator1/video/vid_primary_1'
+      },
+
+      // AI
+      aiIntelligence: {
         confidence: 90,
         confidenceReason: 'High confidence from clear product framing',
         buyingSentimentScore: 88,
         buyingSentimentReason: 'Comments ask where to buy',
-        extractedAt: new Date(),
+        extractedAt: new Date()
       },
-      sourceabilityStatus: 'unverified',
-      suppliers: [],
-      stores: [],
-      status: 'active',
+
+      // Trend
+      trend: {
+        score: 84,
+        direction: 'rising',
+        reason: 'Strong cross-creator velocity',
+        isTrending: true,
+        calculatedAt: new Date()
+      },
+
+      // Counts
+      discoverySections: ['trending'],
+      relatedProducts: [],
+      creativeCounts: { ads: 0, organic: 2, reviews: 0, total: 2 },
+
+      // Freshness
       dataSourceUpdatedAt: new Date(),
-      lastIngestedAt: new Date(),
-      isStale: false,
+      lastIngestedAt: new Date()
     });
 
     const res = await httpJson({
@@ -197,10 +204,17 @@ describe('Products Endpoints', () => {
     expect(res.status).toBe(200);
     const parsed = JSON.parse(res.text);
     const firstProduct = parsed.data.products[0];
-    expect(Array.isArray(firstProduct.creatorsVideos)).toBe(true);
-    expect(firstProduct.creatorsVideos.length).toBeGreaterThan(0);
-    expect(firstProduct.creatorsVideos[0].isPrimary).toBe(true);
-    expect(firstProduct.creatorsVideos[0].videos[0].playUrl).toContain('.mp4');
+    
+    // Assert fields are returned cleanly
+    expect(firstProduct.title).toBe('Clip Hair Curler');
+    expect(firstProduct.categoryPath).toBe('Beauty & Personal Care / Hair Care / Hair Styling Tools');
+    expect(firstProduct.primaryCreator.handle).toBe('creator1');
+    expect(firstProduct.trend.isTrending).toBe(true);
+    
+    // Assert internal AI structure is shielded as formatted in controller
+    expect(firstProduct.aiExtraction).toBeUndefined(); // Obsolete field shouldn't exist
+    expect(firstProduct.aiInsight).toBeDefined(); // Controller standardizes it as aiInsight
+    expect(firstProduct.aiInsight.confidence.score).toBe(90);
   });
 
   it('GET /api/v1/products/:id should handle ID properly', async () => {
@@ -209,7 +223,7 @@ describe('Products Endpoints', () => {
       method: 'GET',
       path: '/api/v1/products/invalid_id',
     });
-    // Can be 500 or 400 depending on how the invalid cast is handled in the service
-    expect(res.status).not.toBe(404);
+    // Expected to correctly handle and return 404 for invalid/missing items
+    expect(res.status).toBe(404);
   });
 });

@@ -25,6 +25,8 @@ export function transformEnsemblePosts(posts: EnsemblePost[]): NormalizedPost[] 
       creatorVerified: typeof post.author?.verification_type === 'number' ? post.author.verification_type > 0 : undefined,
       creatorAvatarUrl: post.author?.avatar_thumb?.url_list?.[0],
       creatorBio: post.author?.signature,
+      creatorFollowing: post.author?.following_count,
+      creatorTotalLikes: post.author?.total_favorited,
 
       viewCount: post.statistics?.play_count || 0,
       likeCount: post.statistics?.digg_count || 0,

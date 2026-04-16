@@ -1,168 +1,235 @@
 type: object
 required:
   - id
-  - title
+  - externalId
   - source
+  - status
+  - title
+  - normalizedTitle
+  - categoryL1
+  - categoryPath
+  - primaryCreator
+  - aiIntelligence
+  - trend
 properties:
   id:
     type: string
-    example: prod_827361
   externalId:
     type: string
-    example: 7283910
   source:
     type: string
-    enum: [tiktok, manual]
-    example: tiktok
+  status:
+    type: string
+    enum: [active, archived, stale]
   title:
     type: string
-    example: Silicone Kitchen Utensils
+  normalizedTitle:
+    type: string
   description:
     type: string
-    example: High-quality heat-resistant kitchen tools.
-  category:
-    type: string
-    example: Beauty & Personal Care
-  subCategory:
-    type: string
-    example: Skincare
-  categoryLeaf:
-    type: string
-    example: Skin Care Kits
-  categoryPath:
-    type: string
-    example: Beauty & Personal Care / Skincare / Skin Care Kits
-  tags:
+  hashtags:
     type: array
     items:
       type: string
-    example: [kitchen, gadgets, home]
+  categoryL1:
+    type: string
+  categoryL2:
+    type: string
+  categoryL3:
+    type: string
+  categoryPath:
+    type: string
+  primaryImageUrl:
+    type: string
+    format: uri
   imageUrls:
     type: array
     items:
       type: string
       format: uri
-  primaryImageUrl:
-    type: string
-    format: uri
   price:
     type: number
-    example: 24.99
   currency:
     type: string
-    example: USD
-  totalViews:
-    type: integer
-    example: 15400
-  totalLikes:
-    type: integer
-    example: 890
-  totalComments:
-    type: integer
-  totalVideos:
-    type: integer
-  topVideos:
-    type: array
-    items:
-      type: object
-      properties:
-        videoId: { type: string }
-        url: { type: string, format: uri }
-        playUrl: { type: string, format: uri }
-        thumbnailUrl: { type: string, format: uri }
-        viewCount: { type: integer }
-        likeCount: { type: integer }
-        commentCount: { type: integer }
-        shareCount: { type: integer }
-        creatorHandle: { type: string }
-        creatorDisplayName: { type: string }
-        creatorFollowers: { type: integer }
-        creatorRegion: { type: string }
-        creatorVerified: { type: boolean }
-        creatorAvatarUrl: { type: string, format: uri }
-        publishedAt: { type: string, format: date-time }
-        isAd: { type: boolean }
-  trend:
-    type: object
-    properties:
-      score:
-        type: number
-        example: 85.5
-      direction:
-        type: string
-        enum: [rising, peaked, saturating, unknown]
-        example: rising
-      isTrending:
-        type: boolean
-        example: true
-      reason:
-        type: string
-        example: Surge in comments asking where to buy
-      velocityScore: { type: number }
-  aiInsight:
-    type: object
-    properties:
-      confidence:
-        type: object
-        properties:
-          score:
-            type: number
-            example: 84
-          reason:
-            type: string
-            example: Multiple product cues are present in video and comments
-      buyingSentiment:
-        type: object
-        properties:
-          score:
-            type: number
-            example: 81
-          reason:
-            type: string
-            example: Comments show strong purchase intent with positive tone
-  creatorsVideos:
-    type: array
-    items:
-      type: object
-      properties:
-        handle: { type: string, example: creator_handle }
-        displayName: { type: string, example: Creator Name }
-        followers: { type: integer, example: 240000 }
-        region: { type: string, example: US }
-        verified: { type: boolean, example: true }
-        avatarUrl: { type: string, format: uri }
-        isPrimary: { type: boolean, example: true }
-        videos:
-          type: array
-          items:
-            type: object
-            properties:
-              videoId: { type: string }
-              url: { type: string, format: uri }
-              playUrl: { type: string, format: uri }
-              thumbnailUrl: { type: string, format: uri }
-              viewCount: { type: integer }
-              likeCount: { type: integer }
-              commentCount: { type: integer }
-              shareCount: { type: integer }
-              publishedAt: { type: string, format: date-time }
-              isAd: { type: boolean }
-  status:
-    type: string
-    enum: [active, archived, stale]
-    example: active
   suppliers:
     type: array
     items:
       type: object
       properties:
-        platform: { type: string, example: Amazon }
-        productUrl: { type: string, format: uri }
-        price: { type: number }
-        currency: { type: string, example: USD }
-        verified: { type: boolean }
-        checkedAt: { type: string, format: date-time }
+        platform:
+          type: string
+        productUrl:
+          type: string
+          format: uri
+        price:
+          type: number
+        currency:
+          type: string
+        shippingDays:
+          type: integer
+        moq:
+          type: integer
+        checkedAt:
+          type: string
+          format: date-time
+  salesEvidence:
+    type: object
+    properties:
+      unitsSold:
+        type: integer
+      store:
+        type: string
+      storeUrl:
+        type: string
+        format: uri
+      timeframe:
+        type: string
+      fetchedAt:
+        type: string
+        format: date-time
+  ratingSources:
+    type: array
+    items:
+      type: object
+      properties:
+        platform:
+          type: string
+        rating:
+          type: number
+        reviewCount:
+          type: integer
+        sourceUrl:
+          type: string
+          format: uri
+        fetchedAt:
+          type: string
+          format: date-time
+  topComments:
+    type: array
+    items:
+      type: object
+      properties:
+        text:
+          type: string
+        likeCount:
+          type: integer
+        authorHandle:
+          type: string
+        sentiment:
+          type: string
+          enum: [positive, negative, neutral]
+        source:
+          type: string
+        collectedAt:
+          type: string
+          format: date-time
+  viewCount:
+    type: integer
+  likeCount:
+    type: integer
+  commentCount:
+    type: integer
+  shareCount:
+    type: integer
+  engagementRate:
+    type: number
+  rating:
+    type: number
+    description: "Weighted average rating from all sources (1-5)"
+  reviewCount:
+    type: integer
+    description: "Total number of reviews across all sources"
+  primaryCreator:
+    type: object
+    properties:
+      tiktokUserId:
+        type: string
+      handle:
+        type: string
+      displayName:
+        type: string
+      bio:
+        type: string
+      followers:
+        type: integer
+      following:
+        type: integer
+      totalLikes:
+        type: integer
+      region:
+        type: string
+      verified:
+        type: boolean
+      avatarUrl:
+        type: string
+        format: uri
+      tiktokPostUrl:
+        type: string
+        format: uri
+  aiIntelligence:
+    type: object
+    properties:
+      confidence:
+        type: number
+      confidenceReason:
+        type: string
+      buyingSentimentScore:
+        type: number
+      buyingSentimentReason:
+        type: string
+      extractedAt:
+        type: string
+        format: date-time
+  trend:
+    type: object
+    properties:
+      score:
+        type: number
+      direction:
+        type: string
+      reason:
+        type: string
+      isTrending:
+        type: boolean
+      calculatedAt:
+        type: string
+        format: date-time
+  discoverySections:
+    type: array
+    items:
+      type: string
+  relatedProducts:
+    type: array
+    items:
+      type: object
+      properties:
+        title:
+          type: string
+        price:
+          type: string
+        thumbnail:
+          type: string
+          format: uri
+        link:
+          type: string
+          format: uri
+        store:
+          type: string
+  creativeCounts:
+    type: object
+    properties:
+      ads:
+        type: integer
+      organic:
+        type: integer
+      reviews:
+        type: integer
+      total:
+        type: integer
   lastIngestedAt:
+    type: string
+    format: date-time
+  dataSourceUpdatedAt:
     type: string
     format: date-time
   createdAt:

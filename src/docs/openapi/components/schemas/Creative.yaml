@@ -1,0 +1,93 @@
+type: object
+required:
+  - id
+  - productId
+  - externalVideoId
+  - creator
+  - metrics
+  - isAd
+properties:
+  id:
+    type: string
+    example: 60b9b3b3e2b4f9a0c8b2c1d3
+  productId:
+    type: string
+    example: 60b9b3b3e2b4f9a0c8b2c1d4
+  externalVideoId:
+    type: string
+    example: 7628237127481969942
+  videoPlayUrl:
+    type: string
+    format: uri
+  thumbnailUrl:
+    type: string
+    format: uri
+  creator:
+    type: object
+    properties:
+      tiktokUserId:
+        type: string
+      handle:
+        type: string
+      displayName:
+        type: string
+      bio:
+        type: string
+      avatarUrl:
+        type: string
+        format: uri
+      followers:
+        type: integer
+      following:
+        type: integer
+      totalLikes:
+        type: integer
+      region:
+        type: string
+      verified:
+        type: boolean
+      tiktokPostUrl:
+        type: string
+        format: uri
+  metrics:
+    type: object
+    properties:
+      viewCount:
+        type: integer
+      likeCount:
+        type: integer
+      commentCount:
+        type: integer
+      shareCount:
+        type: integer
+      engagementRate:
+        type: number
+  section:
+    type: string
+    enum: [top-ads, trending, influencer-reviews, tutorials, viral-unboxings]
+  isAd:
+    type: boolean
+  categoryL1:
+    type: string
+  categoryL2:
+    type: string
+  categoryL3:
+    type: string
+  description:
+    type: string
+  hashtags:
+    type: array
+    items:
+      type: string
+  publishedAt:
+    type: string
+    format: date-time
+  collectedAt:
+    type: string
+    format: date-time
+  createdAt:
+    type: string
+    format: date-time
+  updatedAt:
+    type: string
+    format: date-time

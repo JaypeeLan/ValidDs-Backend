@@ -59,12 +59,16 @@ TRACKED_HASHTAGS (src/ingestion/ensemble/hashtag.constants.ts)
     ProductExtractor.extractFromPost(post, comments)  ← Gemini AI
     Returns: { productName, productNiche, trendScore, sentimentSummary, buyingIntentScore, ... }
           ↓
-    RainforestService.searchAmazonProducts(productName)
+    TeemDropService.findProductDetailByName(productName)
+    Returns: { productId, productNameEn, description, productMinPrice, productMaxPrice, images }
+          ↓
+    RainforestService.searchAmazonProducts(productName)   ← fallback only
     Returns: { search_results: [{ title, price, image, recent_sales, link }] }
           ↓
     ProductEnricher.mergeAndUpsert()
-    → verifiedUnitsSold (parsed from Amazon "recent_sales")
-    → Fallback: Web Search (AliExpress/Walmart) if Amazon sales is 0
+    → price uses TeemDrop `productMaxPrice` when available
+    → verifiedUnitsSold comes from Rainforest `recent_sales` or grounded web research
+    → Fallback: Web Search (AliExpress/Walmart) if supplier sales is 0
           ↓
     ProductRepository.upsertEnrichedProduct()   ← keyed on videoId + source
           ↓
@@ -122,6 +126,22 @@ The pipeline will automatically scrape all hashtags in the array on the next run
 
 **Rate limiting:** 2-second enforced delay between all requests (`RATE_LIMIT_MS = 2000` in `ensemble.client.ts`).
 
+### TeemDrop API (`openapi.teemdrop.com`)
+
+**Base URL:** `https://openapi.teemdrop.com`
+**Env vars:** `TEEMDROP_APP_KEY`, `TEEMDROP_APP_SECRET`, `TEEMDROP_BASE_URL`, `TEEMDROP_USER_AGENT`
+
+Auth flow used by `src/services/teemdrop.service.ts`:
+
+1. `POST /openapi/createToken/v1`
+2. Use the returned token to sign:
+   - `POST /openapi/product/list/v1`
+   - `POST /openapi/product/detail/v1`
+
+The service pages through the first few catalog pages, scores product titles against the extracted product name, and fetches `product/detail` only for the best confident match.
+
+**Live verification note:** On April 15, 2026, requests from this workspace were blocked by Cloudflare when using a plain default `curl` user agent. The same requests succeeded with `Accept: application/json` and `User-Agent: PostmanRuntime/7.43.0`.
+
 ### Rainforest API (`rainforestapi.com`)
 
 **Endpoint:** `https://api.rainforestapi.com/request`
@@ -139,7 +159,7 @@ Hardcoded search params:
 | `include_products_count` | `5` |
 | `exclude_sponsored` | `false` |
 
-**Retry logic:** 3 attempts with exponential backoff (1s, 2s, 4s). Returns `null` (not a throw) if all retries fail — the pipeline continues without Rainforest data.
+**Behavior in this repo:** Single attempt. Returns `null` (not a throw) if the call fails — the pipeline continues without Rainforest data and only uses it as a fallback when TeemDrop could not resolve a match.
 
 ---
 
@@ -200,16 +220,16 @@ The AI generates a `productNiche`, which the `matchCategoryPath` utility maps in
 
 ## Product Enrichment (`src/services/product.enricher.ts`)
 
-`ProductEnricher.mergeAndUpsert()` combines AI + Rainforest data before writing to MongoDB:
+`ProductEnricher.mergeAndUpsert()` combines AI + supplier data before writing to MongoDB:
 
 | Field | Source | Logic |
 |---|---|---|
-| `title` | Rainforest | Shortest Amazon title ≤ 80 chars from top 5 results. Falls back to AI `productName`. |
-| `price` | Rainforest | Average of all valid prices. `0` if no results. |
-| `unitsSold` | **Verified** | Extracted from Amazon \`recent_sales\` (e.g. "10K+ bought"). Fallback to verified Web Search link. |
-| `suppliers` | Multiple | Amazon links + search links for AliExpress/Alibaba. Top link flagged \`verified: true\`. |
+| `title` | TeemDrop / Rainforest | Uses `productNameEn` from TeemDrop when available, otherwise the best Rainforest title, then falls back to AI `productName`. |
+| `price` | TeemDrop / Rainforest | Uses TeemDrop `productMaxPrice` when available. Otherwise uses Rainforest average price. `0` if no provider yields a price. |
+| `unitsSold` | **Verified** | Extracted from Rainforest `recent_sales` when available. Falls back to grounded web research. |
+| `suppliers` | Multiple | TeemDrop or Amazon source entry plus search links for AliExpress/Alibaba. Verified web research is inserted at the top when used. |
 | `categoryPath` | Utility | Resolved via \`matchCategoryPath(extraction.productNiche)\`. |
-| `imageUrls` | Rainforest | Up to 10 unique images resized with Amazon \`._SX400_.\` suffix for quality/size balance. |
+| `imageUrls` | TeemDrop / Rainforest | Uses TeemDrop gallery images first, then Rainforest images, then web/TikTok fallbacks. |
 | `trendScore` | AI | Direct from `ExtractedProduct`. |
 | `sentimentSummary` | AI | Direct from `ExtractedProduct`. |
 | `totalViews` | TikTok post | `NormalizedPost.viewCount`. |
@@ -243,7 +263,11 @@ Both pipelines are **idempotent** — running them twice doesn't create duplicat
 # EnsembleData — max 24 chars (enforced by their API)
 ENSEMBLE_API_KEY=your_token
 
-# Rainforest Amazon search
+# TeemDrop catalog enrichment
+TEEMDROP_APP_KEY=your_key
+TEEMDROP_APP_SECRET=your_secret
+
+# Rainforest Amazon fallback
 RAINFOREST_API_KEY=your_key
 
 # AI Providers (at least one required)
@@ -262,5 +286,5 @@ OPENAI_API_KEY=optional
 | `422 Unprocessable Entity` from EnsembleData | `ENSEMBLE_API_KEY` > 24 chars | `grep ENSEMBLE_API_KEY .env` |
 | `0 posts fetched` from hashtag | Wrong response field path | Check `ensemble.client.ts` parser |
 | `0 AI extractions` | No AI key set, or all posts below 50k views | Check `DEEPSEEK_API_KEY`/`OPENAI_API_KEY` and view counts |
-| `Rainforest returned no results` | Bad product name or API quota exceeded | Check Rainforest dashboard |
+| `TeemDrop and Rainforest returned no results` | No confident TeemDrop match and no usable Rainforest response | Check TeemDrop credentials first, then Rainforest quota |
 | Products not appearing in feed | Upsert keyed wrong or category invalid | Check `product.repository.ts` filter + `PRODUCT_CATEGORIES` |

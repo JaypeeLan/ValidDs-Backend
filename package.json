@@ -47,6 +47,7 @@
     "cleanup-products": "ts-node scripts/cleanup-products.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@sentry/node": "^7.99.0",
     "axios": "^1.6.7",
     "bullmq": "^5.1.6",

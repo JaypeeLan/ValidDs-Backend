@@ -1,315 +1,373 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 
-export type ProductStatus = 'active' | 'archived' | 'stale';
-export type TrendDirection = 'rising' | 'peaked' | 'saturating' | 'unknown';
-export type SourceabilityStatus = 'verified' | 'likely' | 'unverified' | 'unavailable';
-export type AdStatus = 'active' | 'inactive' | 'unknown';
+// ── Shared Enums ──────────────────────────────────────────────────────────────
 
-// ── Sub-document interfaces ───────────────────────────────────────────────────
+export type ProductStatus  = 'active' | 'archived' | 'stale';
+export type TrendDirection = 'rising' | 'peaked' | 'saturating' | 'stable' | 'declining' | 'emerging' | 'viral' | 'unknown';
+export type AdStatus       = 'active' | 'inactive' | 'unknown';
 
-export interface IProductVideo {
-  videoId: string;
-  url?: string;
-  playUrl?: string;
-  thumbnailUrl?: string;
-  viewCount: number;
-  likeCount: number;
-  commentCount: number;
-  shareCount: number;
-  creatorHandle?: string;
-  creatorDisplayName?: string;
-  creatorFollowers?: number;
-  creatorRegion?: string;
-  creatorVerified?: boolean;
-  creatorAvatarUrl?: string;
-  publishedAt?: Date;
-  isAd: boolean;
-}
+// ── Sub-document Interfaces ───────────────────────────────────────────────────
 
-export interface IProductTrend {
-  direction: TrendDirection;
-  isTrending: boolean;
-  reason?: string;
-  score: number;
-  velocityScore: number;
-  peakViewsLast7d: number;
-  totalVideosLast7d: number;
-  totalVideosLast30d: number;
-  categoryRank?: number;
-  calculatedAt: Date;
+/**
+ * The original TikTok creator who posted the video that triggered discovery.
+ * Sourced from EnsembleData. This is NOT an influencer list — it is a
+ * single author record for the post we found the product in.
+ */
+export interface IPrimaryCreator {
+  tiktokUserId?: string;
+  handle: string;            // @username
+  displayName?: string;      // nickname
+  bio?: string;
+  followers?: number;        // follower count at time of ingestion
+  following?: number;
+  totalLikes?: number;
+  region?: string;           // country code e.g. 'US'
+  verified?: boolean;
+  avatarUrl?: string;
+  tiktokPostUrl: string;     // direct link to the specific video that was ingested
 }
 
 /**
- * AI extraction metadata.
- * Populated by the product extractor.
+ * A single supplier/sourcing option for this product.
+ * Only populated when a TeemDrop (or future supplier) match is found.
  */
-export interface IAIExtraction {
-  confidence: number;              // 0–100 — how confident the AI is
-  confidenceReason?: string;
-  buyingSentimentScore?: number;   // 0–100
-  buyingSentimentReason?: string;
-  isProductVideo: boolean;         // false = video isn't really about a product
+export interface ISupplier {
+  platform: string;          // e.g. 'TeemDrop', 'AliExpress'
+  productUrl?: string;       // direct listing URL for verification
+  price?: number;
+  currency?: string;
+  shippingDays?: number;
+  moq?: number;              // minimum order quantity
+  checkedAt: Date;
+}
+
+/**
+ * A verified rating entry from a specific platform.
+ * Only stored when sourced from SerpApi or a verified supplier API.
+ */
+export interface IRatingSource {
+  platform: string;          // e.g. 'Amazon', 'Google Shopping', 'TeemDrop'
+  rating: number;            // 1–5 scale
+  reviewCount: number;
+  sourceUrl?: string;        // link to the reviews page
+  fetchedAt: Date;
+}
+
+/**
+ * A representative comment from TikTok users about this product.
+ * Sourced from EnsembleData comment API. Used as social proof on the product card.
+ */
+export interface IProductComment {
+  text: string;                    // comment body
+  likeCount: number;               // comment likes — proxy for usefulness
+  authorHandle?: string;           // commenter's @handle (may be absent)
+  sentiment: 'positive' | 'negative' | 'neutral';  // AI-classified
+  source: string;                  // 'EnsembleData'
+  collectedAt: Date;
+}
+
+/**
+ * Verified sales volume evidence from a specific store.
+ * Only stored when the AI can cite a concrete source.
+ */
+export interface ISalesEvidence {
+  unitsSold: number;
+  store: string;             // e.g. 'Amazon', 'TikTok Shop'
+  storeUrl?: string;         // direct link to the evidence listing
+  timeframe?: string;        // e.g. 'last 30 days', 'all time'
+  fetchedAt: Date;
+}
+
+/**
+ * AI extraction intelligence — all scores come with a human-readable reason.
+ */
+export interface IAIIntelligence {
+  confidence: number;             // 0–100: how certain AI is this is a real product
+  confidenceReason: string;       // e.g. "Product name visible in video + matches 5 Amazon results"
+  brand?: string;                 // e.g. "Stanley", "Anker"
+  categoryKeywords: string[];     // core niche terms used for content relevance filtering
+  buyingSentimentScore?: number;  // 0–100: buying intent from comments
+  buyingSentimentReason?: string; // e.g. "85% of comments express intent to purchase"
   extractedAt: Date;
 }
 
 /**
- * Ad signal metadata.
- * Populated if the source provides ad-specific data.
+ * Trend signals — calculated by Discovery Service from engagement data.
  */
-export interface IAdSignals {
-  isAd: boolean;
-  firstSeenAt?: Date;              // when the ad first appeared
-  lastSeenAt?: Date;               // when the ad was last detected — freshness signal
-  status: AdStatus;
-  landingPage?: string;
-  industry?: string;
+export interface ITrend {
+  score: number;             // 0–100 composite score
+  direction: TrendDirection;
+  reason?: string;           // e.g. "High comment-to-view ratio, multiple creators posting"
+  isTrending: boolean;
+  calculatedAt: Date;
 }
 
-export interface ISupplierRef {
-  platform: string;       // e.g. 'Amazon', 'AliExpress', 'Alibaba'
-  productUrl?: string;    // Direct link to this product listing for manual verification
-  price?: number;
-  currency?: string;
-  shippingDays?: number;
-  verified: boolean;
-  checkedAt: Date;
+/**
+ * A related product card surfaced from SerpApi Shopping results.
+ */
+export interface IRelatedProduct {
+  title: string;
+  price?: string;
+  thumbnail?: string;
+  link?: string;
+  store?: string;           // e.g. 'Amazon', 'Walmart'
 }
 
-export interface IStoreRef {
-  tiktokShopId?: string;
-  storeName?: string;
-  storeUrl?: string;
-  shopifyUrl?: string;             // populated when Shopify integration is added
-  productCount?: number;
-  totalSales?: number;
-}
-
-// ── Main interface ────────────────────────────────────────────────────────────
+// ── Main Product Interface ────────────────────────────────────────────────────
 
 export interface IProduct {
-  // Identity
-  externalId: string;
-  source: string;
-  title: string;
-  normalizedTitle?: string;
-  description?: string;
-  category?: string;        // L1: e.g. 'Beauty & Personal Care'
-  subCategory?: string;     // L2: e.g. 'Skincare'
-  categoryLeaf?: string;    // L3: e.g. 'Skin Care Kits'
-  categoryPath?: string;    // Full path: 'Beauty & Personal Care / Skincare / Skin Care Kits'
-  tags: string[];
+  // ── Identity ─────────────────────────────────────────────────────────────
+  externalId: string;          // TikTok aweme_id of the discovery post
+  source: string;              // ingestion source e.g. 'ensemble'
+  status: ProductStatus;
 
-  // Media
-  imageUrls: string[];
-  primaryImageUrl?: string;
+  // ── Content ──────────────────────────────────────────────────────────────
+  title: string;               // clean, searchable product title (≤120 chars)
+  normalizedTitle: string;     // lowercase, punctuation-stripped for dedup
+  description: string;         // AI-generated product summary
+  hashtags: string[];          // from the discovery post
 
-  // Pricing
+  // ── Taxonomy (3-Level Hierarchy) ─────────────────────────────────────────
+  categoryL1: string;          // e.g. 'Beauty & Personal Care'
+  categoryL2?: string;         // e.g. 'Skin Care'
+  categoryL3?: string;         // e.g. 'Cleansers'
+  categoryPath: string;        // e.g. 'Beauty & Personal Care / Skin Care / Cleansers'
+
+  // ── Media (SerpApi-first) ────────────────────────────────────────────────
+  primaryImageUrl?: string;    // best single image from SerpApi Immersive/Shopping
+  imageUrls: string[];         // full gallery from SerpApi Shopping results
+
+  // ── Pricing (from TeemDrop if matched, otherwise AI estimate) ────────────
   price?: number;
-  priceMin?: number;
-  priceMax?: number;
-  currency?: string;
-  estimatedMargin?: number;
-  unitsSold: number;
-  store: string;
-  rating?: number;
-  reviewsCount?: number;
+  currency: string;
+  suppliers: ISupplier[];      // verified supplier options
 
-  // Engagement
-  totalViews: number;
-  totalLikes: number;
-  totalComments: number;
-  totalShares: number;
-  totalVideos: number;
+  // ── Market Evidence ──────────────────────────────────────────────────────
+  rating?: number;             // average rating across all sources (1–5 scale)
+  reviewCount?: number;        // total number of reviews across all sources
+  salesEvidence?: ISalesEvidence;    // units sold with verifiable source
+  ratingSources: IRatingSource[];    // multi-platform ratings (SerpApi + estimated)
+
+  // ── Social Proof Comments (from EnsembleData) ────────────────────────────
+  topComments: IProductComment[];    // up to 10 representative TikTok comments
+
+  // ── TikTok Engagement (from original discovery post) ─────────────────────
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
   engagementRate?: number;
 
-  // Videos
-  topVideos: IProductVideo[];
-  videoUrl?: string; // Direct .mp4 media link for primary video
+  // ── Discovery Origin ─────────────────────────────────────────────────────
+  primaryCreator: IPrimaryCreator;  // who posted the discovery video
 
-  // Creator (from the primary TikTok post)
-  creatorHandle?: string;
-  creatorDisplayName?: string;
-  creatorFollowers?: number;
-  creatorRegion?: string;
+  // ── AI Intelligence ──────────────────────────────────────────────────────
+  aiIntelligence: IAIIntelligence;
 
-  // Trend
-  trend: IProductTrend;
+  // ── Trend Analysis ───────────────────────────────────────────────────────
+  trend: ITrend;
 
-  // AI extraction metadata
-  aiExtraction?: IAIExtraction;
+  // ── Discovery Sections ───────────────────────────────────────────────────
+  discoverySections: string[];       // e.g. ['trending', 'top-ads', 'viral']
+  relatedProducts: IRelatedProduct[];
 
-  // Ad signals
-  adSignals?: IAdSignals;
+  // ── Creative Summary (counts populated by CreativeService) ───────────────
+  creativeCounts: {
+    ads: number;
+    organic: number;
+    reviews: number;
+    total: number;
+  };
 
-  // Sourceability
-  sourceabilityStatus: SourceabilityStatus;
-  suppliers: ISupplierRef[];
-  stores: IStoreRef[];
-
-  // Freshness
-  status: ProductStatus;
-  dataSourceUpdatedAt: Date;
+  // ── Freshness ────────────────────────────────────────────────────────────
   lastIngestedAt: Date;
-  isStale: boolean;
+  dataSourceUpdatedAt: Date;
 
-  // Timestamps
+  // ── Timestamps (auto by Mongoose) ────────────────────────────────────────
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface IProductDocument extends IProduct, Document { }
+export interface IProductDocument extends IProduct, Document {}
 export interface IProductModel extends Model<IProductDocument> {
   findByExternalId(externalId: string): Promise<IProductDocument | null>;
 }
 
-// ── Sub-schemas ───────────────────────────────────────────────────────────────
+// ── Mongoose Schemas ──────────────────────────────────────────────────────────
 
-const ProductVideoSchema = new Schema<IProductVideo>(
+const PrimaryCreatorSchema = new Schema<IPrimaryCreator>(
   {
-    videoId: { type: String, required: true },
-    url: { type: String },
-    playUrl: { type: String },
-    thumbnailUrl: { type: String },
-    viewCount: { type: Number, default: 0 },
-    likeCount: { type: Number, default: 0 },
-    commentCount: { type: Number, default: 0 },
-    shareCount: { type: Number, default: 0 },
-    creatorHandle: { type: String },
-    creatorDisplayName: { type: String },
-    creatorFollowers: { type: Number },
-    creatorRegion: { type: String },
-    creatorVerified: { type: Boolean },
-    creatorAvatarUrl: { type: String },
-    publishedAt: { type: Date },
-    isAd: { type: Boolean, default: false },
+    tiktokUserId:  { type: String },
+    handle:        { type: String, required: true },
+    displayName:   { type: String },
+    bio:           { type: String },
+    followers:     { type: Number, min: 0 },
+    following:     { type: Number, min: 0 },
+    totalLikes:    { type: Number, min: 0 },
+    region:        { type: String },
+    verified:      { type: Boolean, default: false },
+    avatarUrl:     { type: String },
+    tiktokPostUrl: { type: String, required: true },
   },
   { _id: false }
 );
 
-const ProductTrendSchema = new Schema<IProductTrend>(
+const SupplierSchema = new Schema<ISupplier>(
   {
-    direction: { type: String, enum: ['rising', 'peaked', 'saturating', 'unknown'], default: 'unknown' },
-    isTrending: { type: Boolean, default: false },
-    reason: { type: String },
-    score: { type: Number, default: 0, min: 0, max: 100 },
-    velocityScore: { type: Number, default: 0 },
-    peakViewsLast7d: { type: Number, default: 0 },
-    totalVideosLast7d: { type: Number, default: 0 },
-    totalVideosLast30d: { type: Number, default: 0 },
-    categoryRank: { type: Number },
-    calculatedAt: { type: Date, default: Date.now },
+    platform:    { type: String, required: true },
+    productUrl:  { type: String },
+    price:       { type: Number, min: 0 },
+    currency:    { type: String, default: 'USD' },
+    shippingDays:{ type: Number, min: 0 },
+    moq:         { type: Number, min: 1 },
+    checkedAt:   { type: Date, default: Date.now },
   },
   { _id: false }
 );
 
-const AIExtractionSchema = new Schema<IAIExtraction>(
+const RatingSourceSchema = new Schema<IRatingSource>(
   {
-    confidence: { type: Number, default: 0, min: 0, max: 100 },
-    confidenceReason: { type: String },
-    buyingSentimentScore: { type: Number, min: 0, max: 100 },
+    platform:   { type: String, required: true },
+    rating:     { type: Number, required: true, min: 0, max: 5 },
+    reviewCount:{ type: Number, required: true, min: 0 },
+    sourceUrl:  { type: String },
+    fetchedAt:  { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const SalesEvidenceSchema = new Schema<ISalesEvidence>(
+  {
+    unitsSold:  { type: Number, required: true, min: 0 },
+    store:      { type: String, required: true },
+    storeUrl:   { type: String },
+    timeframe:  { type: String },
+    fetchedAt:  { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const AIIntelligenceSchema = new Schema<IAIIntelligence>(
+  {
+    confidence:            { type: Number, required: true, min: 0, max: 100 },
+    confidenceReason:      { type: String, required: true },
+    brand:                 { type: String },
+    categoryKeywords:      [{ type: String }],
+    buyingSentimentScore:  { type: Number, min: 0, max: 100 },
     buyingSentimentReason: { type: String },
-    isProductVideo: { type: Boolean, default: true },
-    extractedAt: { type: Date, default: Date.now },
+    extractedAt:           { type: Date, default: Date.now },
   },
   { _id: false }
 );
 
-const AdSignalsSchema = new Schema<IAdSignals>(
+const TrendSchema = new Schema<ITrend>(
   {
-    isAd: { type: Boolean, default: false },
-    firstSeenAt: { type: Date },
-    lastSeenAt: { type: Date },
-    status: { type: String, enum: ['active', 'inactive', 'unknown'], default: 'unknown' },
-    landingPage: { type: String },
-    industry: { type: String },
+    score:       { type: Number, required: true, min: 0, max: 100, default: 0 },
+    direction:   {
+      type: String,
+      enum: ['rising', 'peaked', 'saturating', 'stable', 'declining', 'emerging', 'viral', 'unknown'],
+      default: 'unknown',
+    },
+    reason:      { type: String },
+    isTrending:  { type: Boolean, default: false },
+    calculatedAt:{ type: Date, default: Date.now },
   },
   { _id: false }
 );
 
-const SupplierRefSchema = new Schema<ISupplierRef>(
+const RelatedProductSchema = new Schema<IRelatedProduct>(
   {
-    platform: { type: String, required: true },
-    productUrl: { type: String },                // Direct listing URL for manual verification
-    price: { type: Number },
-    currency: { type: String, default: 'USD' },
-    shippingDays: { type: Number },
-    verified: { type: Boolean, default: false },
-    checkedAt: { type: Date, default: Date.now },
+    title:     { type: String, required: true },
+    price:     { type: String },
+    thumbnail: { type: String },
+    link:      { type: String },
+    store:     { type: String },
   },
   { _id: false }
 );
 
-const StoreRefSchema = new Schema<IStoreRef>(
+const ProductCommentSchema = new Schema<IProductComment>(
   {
-    tiktokShopId: { type: String },
-    storeName: { type: String },
-    storeUrl: { type: String },
-    shopifyUrl: { type: String },
-    productCount: { type: Number },
-    totalSales: { type: Number },
+    text:         { type: String, required: true },
+    likeCount:    { type: Number, required: true, min: 0 },
+    authorHandle: { type: String },
+    sentiment:    { type: String, enum: ['positive', 'negative', 'neutral'], required: true },
+    source:       { type: String, required: true, default: 'EnsembleData' },
+    collectedAt:  { type: Date, default: Date.now },
   },
   { _id: false }
 );
 
-// ── Main schema ───────────────────────────────────────────────────────────────
+// ── Main Schema ───────────────────────────────────────────────────────────────
 
 const ProductSchema = new Schema<IProductDocument, IProductModel>(
   {
+    // Identity
     externalId: { type: String, required: true },
-    source: { type: String, required: true },
-    title: { type: String, required: true, trim: true, maxlength: 500 },
-    normalizedTitle: { type: String, trim: true, lowercase: true, index: true },
-    description: { type: String, maxlength: 2000 },
-    category: { type: String },
-    subCategory: { type: String },
-    categoryLeaf: { type: String },  // L3 leaf node
-    categoryPath: { type: String },  // Full 'L1 / L2 / L3' display path
-    tags: [{ type: String }],
+    source:     { type: String, required: true },
+    status:     { type: String, enum: ['active', 'archived', 'stale'], default: 'active', index: true },
 
-    imageUrls: [{ type: String }],
+    // Content
+    title:           { type: String, required: true, maxlength: 120 },
+    normalizedTitle: { type: String, required: true, index: true },
+    description:     { type: String, maxlength: 2000 },
+    hashtags:        [{ type: String }],
+
+    // Taxonomy
+    categoryL1:   { type: String, required: true, index: true },
+    categoryL2:   { type: String },
+    categoryL3:   { type: String },
+    categoryPath: { type: String, required: true },
+
+    // Media
     primaryImageUrl: { type: String },
+    imageUrls:       [{ type: String }],
 
-    price: { type: Number },
-    priceMin: { type: Number },
-    priceMax: { type: Number },
+    // Pricing
+    price:    { type: Number, min: 0 },
     currency: { type: String, default: 'USD' },
-    estimatedMargin: { type: Number },
-    unitsSold: { type: Number, default: 0 },
-    store: { type: String, default: 'TeemDrop' },
-    rating: { type: Number },
-    reviewsCount: { type: Number },
+    suppliers:{ type: [SupplierSchema], default: [] },
 
-    totalViews: { type: Number, default: 0 },
-    totalLikes: { type: Number, default: 0 },
-    totalComments: { type: Number, default: 0 },
-    totalShares: { type: Number, default: 0 },
-    totalVideos: { type: Number, default: 0 },
-    engagementRate: { type: Number },
+    // Market Evidence
+    rating:        { type: Number, min: 0, max: 5 },
+    reviewCount:   { type: Number, min: 0 },
+    salesEvidence: { type: SalesEvidenceSchema },
+    ratingSources: { type: [RatingSourceSchema], default: [] },
 
-    topVideos: { type: [ProductVideoSchema], default: [] },
-    videoUrl: { type: String },
+    // Social Proof
+    topComments: { type: [ProductCommentSchema], default: [] },
 
-    creatorHandle: { type: String },
-    creatorDisplayName: { type: String },
-    creatorFollowers: { type: Number },
-    creatorRegion: { type: String },
+    // Engagement
+    viewCount:     { type: Number, default: 0, min: 0 },
+    likeCount:     { type: Number, default: 0, min: 0 },
+    commentCount:  { type: Number, default: 0, min: 0 },
+    shareCount:    { type: Number, default: 0, min: 0 },
+    engagementRate:{ type: Number, min: 0 },
 
-    trend: { type: ProductTrendSchema, default: () => ({}) },
-    aiExtraction: { type: AIExtractionSchema },
-    adSignals: { type: AdSignalsSchema },
+    // Discovery Origin
+    primaryCreator: { type: PrimaryCreatorSchema, required: true },
 
-    sourceabilityStatus: {
-      type: String,
-      enum: ['verified', 'likely', 'unverified', 'unavailable'],
-      default: 'unverified',
+    // AI Intelligence
+    aiIntelligence: { type: AIIntelligenceSchema, required: true },
+
+    // Trend
+    trend: { type: TrendSchema, required: true, default: () => ({}) },
+
+    // Discovery Sections
+    discoverySections: [{ type: String }],
+    relatedProducts:   { type: [RelatedProductSchema], default: [] },
+
+    // Creative Summary
+    creativeCounts: {
+      ads:     { type: Number, default: 0, min: 0 },
+      organic: { type: Number, default: 0, min: 0 },
+      reviews: { type: Number, default: 0, min: 0 },
+      total:   { type: Number, default: 0, min: 0 },
     },
-    suppliers: { type: [SupplierRefSchema], default: [] },
-    stores: { type: [StoreRefSchema], default: [] },
 
-    status: { type: String, enum: ['active', 'archived', 'stale'], default: 'active' },
+    // Freshness
+    lastIngestedAt:      { type: Date, required: true },
     dataSourceUpdatedAt: { type: Date, required: true },
-    lastIngestedAt: { type: Date, required: true },
-    isStale: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -319,18 +377,12 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
 ProductSchema.index({ externalId: 1, source: 1 }, { unique: true });
 ProductSchema.index({ 'trend.score': -1 });
 ProductSchema.index({ 'trend.direction': 1 });
-ProductSchema.index({ 'aiExtraction.confidence': -1 });
-ProductSchema.index({ 'adSignals.isAd': 1 });
-ProductSchema.index({ 'adSignals.status': 1 });
+ProductSchema.index({ discoverySections: 1 });
 ProductSchema.index({ totalViews: -1 });
-ProductSchema.index({ category: 1 });
-ProductSchema.index({ status: 1 });
-ProductSchema.index({ isStale: 1 });
 ProductSchema.index({ lastIngestedAt: -1 });
-ProductSchema.index({ tags: 1 });
-ProductSchema.index({ title: 'text', description: 'text', tags: 'text' });
+ProductSchema.index({ title: 'text', description: 'text' });
 
-// ── Static methods ────────────────────────────────────────────────────────────
+// ── Static Methods ────────────────────────────────────────────────────────────
 
 ProductSchema.statics.findByExternalId = function (externalId: string) {
   return this.findOne({ externalId, status: { $ne: 'archived' } });

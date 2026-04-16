@@ -186,4 +186,53 @@ export class EnsembleJob {
     
     return transformEnsembleComments(rawComments, videoId);
   }
+
+  /**
+   * Behavioral keyword ingestion with recency constraints.
+   * 
+   * Uses the 'Full Search' endpoint to find high-intent phrases 
+   * (e.g., "I need this") posted within the last X days.
+   */
+  async runBehavioralSearch(
+    keywords: string[],
+    days: 1 | 7 | 30 = 7,
+    processPage: (posts: NormalizedPost[]) => Promise<{ shouldStop: boolean }>
+  ): Promise<void> {
+    log.info('Behavioral keyword ingestion started', { keywords, days });
+
+    for (const kw of keywords) {
+      let cursor: number | null = 0;
+      let pagesFetched = 0;
+      const MAX_PAGES = 3; // Keep behavioral searches tight to conserve credits
+
+      while (cursor !== null && pagesFetched < MAX_PAGES) {
+        const { posts: rawPosts, nextCursor } = await this.client.searchKeywordFull({
+          name: kw,
+          days,
+          cursor,
+          sorting: 1, // Sort by 'Relevance' or 'Most Recent' (Ensemble docs vary, usually 1 is relevance/trend)
+        });
+
+        if (rawPosts.length === 0) {
+          log.debug(`Keyword "${kw}" returned 0 posts — stopping pagination`);
+          break;
+        }
+
+        const normalized = transformEnsemblePosts(rawPosts);
+        pagesFetched++;
+
+        log.debug(`Keyword "${kw}" page ${pagesFetched}: ${normalized.length} posts collected`);
+
+        const { shouldStop } = await processPage(normalized);
+        if (shouldStop) {
+          log.info('Behavioral search stopped early');
+          return;
+        }
+
+        cursor = nextCursor;
+      }
+    }
+
+    log.info('Behavioral keyword ingestion complete');
+  }
 }

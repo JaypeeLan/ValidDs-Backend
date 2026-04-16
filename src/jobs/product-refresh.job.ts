@@ -1,6 +1,6 @@
 import { IngestionOrchestrator } from '../ingestion/orchestrator';
 import { ProductExtractor } from '../services/product.extractor';
-import { ImageService } from '../services/image.service';
+import { ProductEnricher } from '../services/product.enricher';
 import { ProductRepository } from '../db/repositories/product.repository';
 import { ProductService } from '../services/product.service';
 import { logger } from '../logger';
@@ -101,20 +101,12 @@ export async function runProductRefreshJob(): Promise<void> {
         const sourcePost = posts.find((p) => p.videoId === extraction.sourceVideoId);
         if (!sourcePost) continue;
 
-        // Search for product image (best-effort — never blocks the upsert)
-        if (!sourcePost.thumbnailUrl) {
-          const imageUrl = await ImageService.findProductImage(extraction.productName);
-          if (imageUrl) sourcePost.thumbnailUrl = imageUrl;
+        // Use the full enrichment pipeline (Serp + TeemDrop + Creatives)
+        const product = await ProductEnricher.mergeAndUpsert(extraction, sourcePost);
+        if (product) {
+          saved++;
+          ingestionRecordsIngested.inc({ source: sourcePost.source, entity: 'product' }, 1);
         }
-
-        // Upsert into MongoDB
-        await ProductRepository.upsertFromExtraction(extraction, sourcePost);
-        saved++;
-
-        ingestionRecordsIngested.inc(
-          { source: sourcePost.source, entity: 'product' },
-          1
-        );
       } catch (err) {
         failed++;
         log.warn('Failed to save product', { err: String(err), videoId: extraction.sourceVideoId });
@@ -149,7 +141,7 @@ export async function runProductRefreshJob(): Promise<void> {
 export async function runStaleCleanupJob(): Promise<void> {
   log.debug('Stale cleanup job started');
   const TWO_HOURS = 2 * 60 * 60 * 1000;
-  const count = await ProductRepository.markStaleProducts(TWO_HOURS);
+  const count = await ProductRepository.markStaleProducts(2); // 2 days
   if (count > 0) {
     log.info(`Marked ${count} products as stale`);
   }

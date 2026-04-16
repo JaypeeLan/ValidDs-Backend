@@ -31,6 +31,7 @@ async function main() {
       postsCollected: result.postsCollected,
       postsFiltered: result.postsFiltered,
       aiExtractionsDone: result.aiExtractionsDone,
+      teemdropHits: result.teemdropHits,
       rainforestHits: result.rainforestHits,
       dbUpserts: result.dbUpserts,
       errors: result.errors.length,

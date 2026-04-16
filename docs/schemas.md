@@ -22,11 +22,11 @@ All schemas are implemented via Mongoose and stored in MongoDB Atlas.
 | `description` | `String` | Single-sentence AI-generated summary of the product. |
 | `category` | `String` | High-level, canonical category (e.g., `Home & Kitchen`, `Tech Gadgets`) for broad directory filtering. |
 | `tags` | `[String]` | Array of hashtags from the original viral post. Used for search and categorization. |
-| `primaryImageUrl` | `String` | Original high-resolution product image, typically extracted from Rainforest/Amazon. Used as the main thumbnail. |
+| `primaryImageUrl` | `String` | Original high-resolution product image, typically extracted from TeemDrop first and Rainforest/Amazon second. Used as the main thumbnail. |
 | `imageUrls` | `[String]` | Array of supporting high-res product images. |
-| `price` | `Number` | The average market price, providing dropshippers with a baseline for expected retail logic. |
-| `unitsSold` | `Number` | A scaled estimate of global sales. Grounded at a minimum of 1,000 for "winning" products, used to gauge market size and demand. |
-| `store` | `String` | Originating store name (Defaults to `TeemDrop` for brand consistency in MVP). |
+| `price` | `Number` | The supplier price chosen for the product card. When TeemDrop is used, this now comes from `productMaxPrice`. |
+| `unitsSold` | `Number` | Verified sales estimate from supplier proof or grounded web research. Defaults to `0` when no verifiable source exists. |
+| `store` | `String` | The supplier source used for the enrichment payload, typically `TeemDrop` or `Amazon`. |
 | `rating` | `Number` | Aggregated market rating (e.g., 4.7), providing immediate trust signals. |
 | `reviewsCount` | `Number` | Total review count in the broader market, establishing product authority. |
 | `engagementRate` | `Number` | Derived metric combining likes, comments, and shares against total views. The primary signal for true virality. |
@@ -95,5 +95,5 @@ All schemas are implemented via Mongoose and stored in MongoDB Atlas.
 | Field | Type | Description & Purpose |
 |-------|------|-----------------------|
 | `name` | `String` | Name of the supplier platform. |
-| `url` | `String` | Direct link to the supplier page where the item can be purchased at wholesale. |
+| `url` | `String` | Direct link to the supplier page where the item can be purchased at wholesale, when one is available. |
 | `wholesalePrice` | `Number` | The base cost to acquire the item, which alongside the market `price`, determines the `estimatedMargin`. |

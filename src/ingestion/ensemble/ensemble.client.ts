@@ -24,6 +24,8 @@ export interface EnsemblePost {
     nickname?: string;
     signature?: string;
     follower_count?: number;
+    following_count?: number;
+    total_favorited?: number;
     region?: string;
     verification_type?: number;
     avatar_thumb?: { url_list?: string[] };

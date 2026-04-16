@@ -4,7 +4,7 @@ import { ProductFeedQuery, ProductSearchQuery, ProductKeywordContextQuery } from
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 
 type ProductLike = Record<string, unknown> & {
-  aiExtraction?: {
+  aiIntelligence?: {
     confidence?: number;
     confidenceReason?: string;
     buyingSentimentScore?: number;
@@ -47,71 +47,12 @@ function getProfileCountryCode(req: Request): string {
   return 'us';
 }
 
-function buildCreatorsVideos(topVideos: NonNullable<ProductLike['topVideos']>): Array<Record<string, unknown>> {
-  const creators = new Map<string, {
-    handle: string;
-    displayName?: string;
-    followers?: number;
-    region?: string;
-    verified?: boolean;
-    avatarUrl?: string;
-    totalViews: number;
-    videos: Array<Record<string, unknown>>;
-  }>();
-
-  for (const video of topVideos) {
-    const handle = video.creatorHandle || 'unknown';
-    const existing = creators.get(handle) ?? {
-      handle,
-      displayName: video.creatorDisplayName,
-      followers: video.creatorFollowers,
-      region: video.creatorRegion,
-      verified: video.creatorVerified,
-      avatarUrl: video.creatorAvatarUrl,
-      totalViews: 0,
-      videos: [],
-    };
-
-    existing.totalViews += video.viewCount ?? 0;
-    existing.displayName = existing.displayName || video.creatorDisplayName;
-    existing.followers = existing.followers ?? video.creatorFollowers;
-    existing.region = existing.region || video.creatorRegion;
-    existing.verified = existing.verified ?? video.creatorVerified;
-    existing.avatarUrl = existing.avatarUrl || video.creatorAvatarUrl;
-    existing.videos.push({
-      videoId: video.videoId,
-      url: video.url,
-      playUrl: video.playUrl,
-      thumbnailUrl: video.thumbnailUrl,
-      viewCount: video.viewCount ?? 0,
-      likeCount: video.likeCount ?? 0,
-      commentCount: video.commentCount ?? 0,
-      shareCount: video.shareCount ?? 0,
-      publishedAt: video.publishedAt,
-      isAd: Boolean(video.isAd),
-    });
-    creators.set(handle, existing);
-  }
-
-  const rankedCreators = [...creators.values()].sort((a, b) => b.totalViews - a.totalViews);
-  return rankedCreators.map((creator, index) => ({
-    handle: creator.handle,
-    displayName: creator.displayName,
-    followers: creator.followers,
-    region: creator.region,
-    verified: creator.verified,
-    avatarUrl: creator.avatarUrl,
-    isPrimary: index === 0,
-    videos: creator.videos.sort((a, b) => Number((b.viewCount as number) ?? 0) - Number((a.viewCount as number) ?? 0)),
-  }));
-}
+// Removed buildCreatorsVideos as 'topVideos' is deleted. It is now handled via the /creatives endpoint.
 
 function formatProductResponse(input: ProductLike): Record<string, unknown> {
   const product = typeof input.toObject === 'function' ? input.toObject() : input;
-  const aiExtraction = (product.aiExtraction ?? {}) as NonNullable<ProductLike['aiExtraction']>;
+  const aiIntelligence = (product.aiIntelligence ?? {}) as NonNullable<ProductLike['aiIntelligence']>;
   const trend = (product.trend ?? {}) as NonNullable<ProductLike['trend']>;
-  const creatorsVideos = buildCreatorsVideos((product.topVideos ?? []) as NonNullable<ProductLike['topVideos']>);
-
   const response = {
     ...product,
     trend: {
@@ -121,18 +62,18 @@ function formatProductResponse(input: ProductLike): Record<string, unknown> {
     },
     aiInsight: {
       confidence: {
-        score: aiExtraction.confidence,
-        reason: aiExtraction.confidenceReason,
+        score: aiIntelligence.confidence,
+        reason: aiIntelligence.confidenceReason,
       },
       buyingSentiment: {
-        score: aiExtraction.buyingSentimentScore,
-        reason: aiExtraction.buyingSentimentReason,
+        score: aiIntelligence.buyingSentimentScore,
+        reason: aiIntelligence.buyingSentimentReason,
       },
     },
-    creatorsVideos,
   } as Record<string, unknown>;
 
-  delete response.aiExtraction;
+  delete response.aiIntelligence;
+  delete response.aiExtraction; // Cleanup legacy field if present
   return response;
 }
 
@@ -222,6 +163,57 @@ export const ProductController = {
         successResponse(
           { product: formatProductResponse(product as unknown as ProductLike), freshness },
           ResponseMessage.PRODUCT_RETRIEVED,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async creatives(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { Creative } = await import('../../models/creative.model');
+      
+      const creatives = await Creative.find({ productId: id })
+        .sort({ 'metrics.viewCount': -1 })
+        .limit(100);
+
+      const creatorsMap = new Map<string, any>();
+      
+      for (const doc of creatives) {
+        const creative = doc.toObject();
+        const handle = creative.creator?.handle || 'unknown';
+        
+        if (!creatorsMap.has(handle)) {
+          creatorsMap.set(handle, {
+            ...creative.creator, // Now correctly spreads plain object fields
+            totalViews: 0,
+            videos: [],
+          });
+        }
+        
+        const existing = creatorsMap.get(handle);
+        existing.totalViews += (creative.metrics?.viewCount || 0);
+        
+        existing.videos.push({
+          id: creative._id,
+          externalVideoId: creative.externalVideoId,
+          videoPlayUrl: creative.videoPlayUrl,
+          thumbnailUrl: creative.thumbnailUrl,
+          metrics: creative.metrics,
+          section: creative.section,
+          isAd: creative.isAd,
+        });
+      }
+      
+      const groupedCreators = [...creatorsMap.values()].sort((a, b) => b.totalViews - a.totalViews);
+
+      res.json(
+        successResponse(
+          { creators: groupedCreators },
+          'Creatives retrieved successfully',
           200
         )
       );

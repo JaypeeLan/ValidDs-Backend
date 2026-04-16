@@ -18,6 +18,7 @@ Each guide covers:
 |---|---|---|---|
 | **MongoDB Atlas** | Primary database | 512MB storage | [mongodb-atlas.md](./mongodb-atlas.md) |
 | **Redis** | Cache + job queues | Depends on provider | [redis.md](./redis.md) |
+| **TeemDrop** | Primary supplier catalog enrichment | Depends on plan | [teemdrop.md](./teemdrop.md) |
 | **Sentry** | Error tracking | 5k errors/month | [sentry.md](./sentry.md) |
 | **Prometheus + Grafana Cloud** | Metrics + dashboards | 10k series, 14-day retention | [prometheus.md](./prometheus.md) |
 | **Render** | Cloud deployment | Always-on with cold starts | [render-deployment.md](./render-deployment.md) |
@@ -54,10 +55,13 @@ For a working deployment on Render:
 | `MONGODB_URI` | MongoDB Atlas | Yes |
 | `MONGODB_DB_NAME` | MongoDB Atlas | Yes |
 | `REDIS_URL` | Redis | Yes |
+| `TEEMDROP_APP_KEY` | TeemDrop | No |
+| `TEEMDROP_APP_SECRET` | TeemDrop | No |
 | `SENTRY_DSN` | Sentry | No (but recommended) |
 | `SENTRY_ENVIRONMENT` | Sentry | No |
 | `METRICS_ENABLED` | Prometheus | No |
 | `METRICS_PORT` | Prometheus | No |
 
 See `.env.example` in the project root for the full list.
-| **Google OAuth** | Sign in with Google | Free | [google-oauth.md](./google-oauth.md) |
+
+Additional auth guide: [google-oauth.md](./google-oauth.md)

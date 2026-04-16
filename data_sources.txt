@@ -1,0 +1,36 @@
+# ValidDs Data Source Mapping (Discovery 2.0)
+
+Every field in the ValidDs product schema is sourced from the most reliable market intelligence provider.
+
+## 1. Product Discovery & Content
+- title: AI Extraction (Sanitized from TikTok/SerpApi)
+- description: AI Extraction (High-converting product description)
+- categoryL1 / categoryL2 / categoryL3: AI Extraction (3-Level Taxonomy)
+- hashtags: TikTok (Original Viral Post)
+- primaryImageUrl: SerpApi (178x133 Immersive Search)
+- imageUrls: SerpApi (Full High-Res Gallery - Primary Source)
+- videoUrl: TikTok (Direct media .mp4 link)
+
+## 2. Market Intelligence (SerpApi / AI)
+- unitsSold: AI Grounded Search (Amazon/Global estimates)
+- salesSource: AI Grounded Search (Store name, proves volume, direct link)
+- ratingSources: SerpApi (Multi-platform ratings with source URLs) OR estimated from TikTok engagement
+- relatedProducts: SerpApi (Google "Immersive Products" carousel)
+
+## 3. Social Proof & Engagement (TikTok / EnsembleData)
+- totalViews / totalLikes / totalComments / shares: TikTok (Real-time engagement)
+- engagementRate: EnsembledData/Calculated (Normalized engagement)
+- primaryCreator: TikTok (Original Viral Video Author & Link)
+- topComments: EnsembleData (Real representative comments & AI sentiment)
+- Creatives (Sub-Collection): EnsembleData (100 TikTok videos per product, each mapped to a creator)
+
+## 4. AI Logic & Confidence
+- Discovery Sections: Discovery Service (Internal Algorithm: trending, top-ads, etc.)
+- extractionConfidence / Reason: AI Extraction (DeepSeek/Gemini dynamic assessment)
+- buyingSentiment / Reason: AI Extraction (Comment analysis for purchase intent)
+- trendScore / Direction / Reason: AI Extraction (Growth trajectory analysis)
+
+## 5. Supplier Data (TeemDrop)
+- price: TeemDrop (Direct supplier price)
+- currency: TeemDrop
+- suppliers: TeemDrop (Verified dropshipping partners)

@@ -165,6 +165,7 @@ Each service used by this project has a dedicated setup guide in the [docs/third
 | -------------------- | ---------------------- | -------------------------------------------------------------------------------- |
 | MongoDB Atlas        | Primary database       | [docs/third-party/mongodb-atlas.md](./docs/third-party/mongodb-atlas.md)         |
 | Redis                | Caching and job queues | [docs/third-party/redis.md](./docs/third-party/redis.md)                         |
+| TeemDrop             | Primary supplier data  | [docs/third-party/teemdrop.md](./docs/third-party/teemdrop.md)                   |
 | Sentry               | Error tracking         | [docs/third-party/sentry.md](./docs/third-party/sentry.md)                       |
 | Prometheus + Grafana | Performance metrics    | [docs/third-party/prometheus.md](./docs/third-party/prometheus.md)               |
 | Render               | Cloud deployment       | [docs/third-party/render-deployment.md](./docs/third-party/render-deployment.md) |

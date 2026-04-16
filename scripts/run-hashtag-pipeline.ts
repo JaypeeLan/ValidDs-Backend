@@ -4,7 +4,7 @@
  * Usage: npm run hashtag-pipeline
  * Or:    npx ts-node scripts/run-hashtag-pipeline.ts
  *
- * Runs one full cycle of the EnsembleData -> Gemini AI -> Rainforest pipeline
+ * Runs one full cycle of the EnsembleData -> Gemini AI -> TeemDrop/Rainforest pipeline
  * and logs every step of the process.
  */
 
@@ -37,6 +37,7 @@ async function main() {
     console.log(`Posts Collected:        ${result.postsCollected}`);
     console.log(`Low-View Posts Skipped: ${result.postsFiltered}`);
     console.log(`AI Extractions Run:     ${result.aiExtractionsDone}`);
+    console.log(`TeemDrop Hits:          ${result.teemdropHits}`);
     console.log(`Amazon Rainforest Hits: ${result.rainforestHits}`);
     console.log(`Database Upserts:       ${result.dbUpserts}`);
     console.log(`Errors Encountered:     ${result.errors.length}`);

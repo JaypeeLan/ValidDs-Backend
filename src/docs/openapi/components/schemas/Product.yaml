@@ -198,6 +198,11 @@ properties:
     type: array
     items:
       type: string
+  isTopAd:
+    type: boolean
+    description: |
+      Present on API list/detail responses: `true` when `discoverySections` contains the slug `top-ads`.
+      Use query `section=top-ads` or `isAd=true` to list only these products.
   relatedProducts:
     type: array
     items:

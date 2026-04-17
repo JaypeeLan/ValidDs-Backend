@@ -193,6 +193,21 @@ export interface ProductFeedFilters {
   sortBy?: 'trendScore' | 'views' | 'recent' | 'engagement';
 }
 
+/** Applies discovery-section rules to a Mongo filter (feed or text search). */
+function applyDiscoverySectionRules(
+  filter: Record<string, unknown>,
+  opts: { section?: string; isAd?: boolean }
+): void {
+  const parts: Record<string, unknown>[] = [];
+  if (opts.section) parts.push({ discoverySections: opts.section });
+  if (opts.isAd === true) parts.push({ discoverySections: 'top-ads' });
+  if (opts.isAd === false) parts.push({ $nor: [{ discoverySections: 'top-ads' }] });
+
+  if (parts.length === 0) return;
+  if (parts.length === 1) Object.assign(filter, parts[0]!);
+  else filter.$and = parts;
+}
+
 // ── Repository ────────────────────────────────────────────────────────────────
 
 export const ProductRepository = {
@@ -304,8 +319,7 @@ export const ProductRepository = {
     if (filters.trendDirection)         query['trend.direction'] = filters.trendDirection;
     if (filters.minTrendScore != null)  query['trend.score'] = { $gte: filters.minTrendScore };
     if (filters.minViews != null)       query['viewCount'] = { $gte: filters.minViews };
-    if (filters.isAd != null)           query['adSignals.isAd'] = filters.isAd;
-    if (filters.section)                query['discoverySections'] = filters.section;
+    applyDiscoverySectionRules(query, { section: filters.section, isAd: filters.isAd });
 
     const sortMap: Record<string, Record<string, 1 | -1>> = {
       trendScore:  { 'trend.score': -1 },
@@ -341,6 +355,7 @@ export const ProductRepository = {
     category?: string[],
     page = 1,
     limit = 20,
+    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd'>,
   ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
     const skip    = (page - 1) * limit;
     const filter: Record<string, unknown> = {
@@ -348,6 +363,7 @@ export const ProductRepository = {
       $text: { $search: query },
     };
     if (category?.length) filter['categoryL1'] = { $in: category };
+    if (discovery) applyDiscoverySectionRules(filter, discovery);
 
     const [data, total] = await Promise.all([
       Product.find(filter, { score: { $meta: 'textScore' } })

@@ -5,6 +5,9 @@ import { logger } from '../logger';
 
 const log = logger.child({ module: 'discovery-service' });
 
+/** TikTok views at/above this are treated as high-reach (often ad-supported) when harder ad signals are missing. */
+const TOP_AD_ABSOLUTE_VIEW_FLOOR = 350_000;
+
 export const DiscoveryService = {
   /**
    * Categorizes a product into various discovery sections.
@@ -19,8 +22,13 @@ export const DiscoveryService = {
         productId: product._id, 
         isAd: true 
       });
-      
-      if (hasSerpAds || creativeAdsCount >= 2) {
+      const viewCount = Math.max(0, Number(product.viewCount) || 0);
+
+      if (
+        hasSerpAds ||
+        creativeAdsCount >= 1 ||
+        viewCount >= TOP_AD_ABSOLUTE_VIEW_FLOOR
+      ) {
         sections.add('top-ads');
       }
 

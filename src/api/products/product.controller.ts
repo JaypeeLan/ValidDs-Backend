@@ -59,10 +59,15 @@ function formatProductResponse(input: ProductLike): Record<string, unknown> {
   const finalRating = typeof (product as any).rating === 'number' && (product as any).rating > 0
     ? (product as any).rating
     : derivedRating;
+  const discoverySections = Array.isArray((product as any).discoverySections)
+    ? ((product as any).discoverySections as string[])
+    : [];
+
   const response = {
     ...product,
     rating: finalRating,
     ratings: finalRating,
+    isTopAd: discoverySections.includes('top-ads'),
     trend: {
       ...trend,
       isTrending: Boolean(trend.isTrending),
@@ -119,7 +124,10 @@ export const ProductController = {
       }
 
       if (query.q) {
-        const results = await ProductService.search(query.q, query.category, query.page, query.limit);
+        const results = await ProductService.search(query.q, query.category, query.page, query.limit, {
+          section: query.section,
+          isAd: query.isAd,
+        });
         const freshness = await FreshnessService.getResponseMetadata('product');
 
         res.json(
@@ -143,6 +151,7 @@ export const ProductController = {
         minTrendScore: query.minTrendScore,
         minViews: query.minViews,
         isAd: query.isAd,
+        section: query.section,
         page: query.page,
         limit: query.limit,
         sortBy: query.sortBy,

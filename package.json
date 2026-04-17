@@ -50,7 +50,8 @@
     "ingest-600": "ts-node scripts/ingest-600-products-creatives.ts",
     "fast-seed": "ts-node scripts/seed-fast-70.ts",
     "remove-mock-data": "ts-node scripts/remove-mock-data.ts",
-    "ingest-creatives": "ts-node scripts/batch-ingest-creatives.ts"
+    "ingest-creatives": "ts-node scripts/batch-ingest-creatives.ts",
+    "backfill:discovery-top-ads": "ts-node scripts/backfill-discovery-top-ads.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

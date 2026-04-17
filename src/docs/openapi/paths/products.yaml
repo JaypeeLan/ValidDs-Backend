@@ -36,7 +36,14 @@ feed:
         schema: { type: number }
       - name: isAd
         in: query
+        description: When true, same as discovery bucket top-ads; when false, excludes products tagged top-ads. (Uses `discoverySections`, not a separate adSignals field.)
         schema: { type: boolean }
+      - name: section
+        in: query
+        description: Require this discovery section slug on the product (e.g. `top-ads` for top ads).
+        schema:
+          type: string
+          enum: [top-ads, trending, top-rated, viral, influencer-reviews, tutorials, viral-unboxings]
       - name: sortBy
         in: query
         description: Ignored when `q` is present.

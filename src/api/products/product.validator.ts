@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PRODUCT_CATEGORIES } from './product.constants';
+import { PRODUCT_CATEGORIES, PRODUCT_DISCOVERY_SECTIONS } from './product.constants';
 
 const CategoryFilterSchema = z.union([z.string(), z.array(z.string())])
   .optional()
@@ -36,7 +36,10 @@ export const ProductFeedQuerySchema = z.object({
   trendDirection: z.enum(['rising', 'peaked', 'saturating', 'unknown']).optional(),
   minTrendScore:  z.coerce.number().min(0).max(100).optional(),
   minViews:       z.coerce.number().min(0).optional(),
+  /** When true, only products in the top-ads discovery bucket; false excludes that bucket. Maps to `discoverySections`. */
   isAd:           z.coerce.boolean().optional(),
+  /** Filter by discovery section slug (e.g. `top-ads`). Matches if the value appears in `discoverySections`. */
+  section:        z.enum(PRODUCT_DISCOVERY_SECTIONS).optional(),
   sortBy:         z.enum(['trendScore', 'views', 'recent', 'engagement']).default('trendScore'),
   region:         z.string().optional(),
 });

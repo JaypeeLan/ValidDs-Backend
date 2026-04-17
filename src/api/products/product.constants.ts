@@ -249,6 +249,17 @@ export const CATEGORY_TAXONOMY: Record<string, Record<string, string[]>> = {
 /** All top-level (L1) categories */
 export const PRODUCT_CATEGORIES = Object.keys(CATEGORY_TAXONOMY) as string[];
 
+/** Stored on `Product.discoverySections` (DiscoveryService + creative overlap). */
+export const PRODUCT_DISCOVERY_SECTIONS = [
+  'top-ads',
+  'trending',
+  'top-rated',
+  'viral',
+  'influencer-reviews',
+  'tutorials',
+  'viral-unboxings',
+] as const;
+
 /** All available subcategories (L2) across all L1 categories */
 export const PRODUCT_SUBCATEGORIES = Object.values(CATEGORY_TAXONOMY)
   .flatMap(sub => Object.keys(sub));

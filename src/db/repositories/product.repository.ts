@@ -297,7 +297,8 @@ export const ProductRepository = {
     const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
     const skip  = (page - 1) * limit;
 
-    const query: Record<string, unknown> = { status: 'active' };
+    // Include stale rows so the catalog does not go empty between refreshes; exclude only archived.
+    const query: Record<string, unknown> = { status: { $ne: 'archived' } };
 
     if (filters.category?.length)       query['categoryL1'] = { $in: filters.category };
     if (filters.trendDirection)         query['trend.direction'] = filters.trendDirection;
@@ -343,7 +344,7 @@ export const ProductRepository = {
   ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
     const skip    = (page - 1) * limit;
     const filter: Record<string, unknown> = {
-      status: 'active',
+      status: { $ne: 'archived' },
       $text: { $search: query },
     };
     if (category?.length) filter['categoryL1'] = { $in: category };

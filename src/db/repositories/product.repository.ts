@@ -96,6 +96,11 @@ export interface EnrichedProductInput {
     store: string;
     storeUrl?: string;
     timeframe?: string;
+    sourceBreakdown?: Array<{
+      source: string;
+      unitsSold: number;
+      url?: string;
+    }>;
     fetchedAt: Date;
   };
   ratingSources?: Array<{
@@ -114,6 +119,11 @@ export interface EnrichedProductInput {
     authorHandle?: string;
     sentiment: 'positive' | 'negative' | 'neutral';
     source: string;
+    collectedAt: Date;
+  }>;
+  reviews?: Array<{
+    source: string;
+    text: string;
     collectedAt: Date;
   }>;
 
@@ -238,6 +248,7 @@ export const ProductRepository = {
 
             // Social Proof
             topComments: input.topComments ?? [],
+            reviews: input.reviews ?? [],
 
             // TikTok engagement
             viewCount:     input.viewCount,
@@ -283,7 +294,7 @@ export const ProductRepository = {
 
   async findFeed(filters: ProductFeedFilters): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
     const page  = Math.max(1, filters.page ?? 1);
-    const limit = Math.min(150, Math.max(1, filters.limit ?? 20));
+    const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
     const skip  = (page - 1) * limit;
 
     const query: Record<string, unknown> = { status: 'active' };
@@ -318,10 +329,6 @@ export const ProductRepository = {
   async findById(id: string): Promise<IProductDocument | null> {
     if (!mongoose.isValidObjectId(id)) return null;
     return Product.findById(id);
-  },
-
-  async findAllUniqueProducts(): Promise<IProductDocument[]> {
-    return Product.find({ status: 'active' }).sort({ 'trend.score': -1 }).limit(500);
   },
 
   async getCategories(): Promise<string[]> {

@@ -76,8 +76,16 @@ ${topComments}
     "unitsSold": 15000,
     "store": "Amazon",
     "url": "https://www.amazon.com/...",
-    "timeframe": "last month"
+    "timeframe": "last month",
+    "breakdown": [
+      { "source": "Amazon", "unitsSold": 520, "url": "https://www.amazon.com/..." },
+      { "source": "Walmart", "unitsSold": 300, "url": "https://www.walmart.com/..." }
+    ]
   },
+  "reviews": [
+    { "source": "Amazon", "text": "Quiet motor and very easy to clean." },
+    { "source": "Walmart", "text": "Works well for smoothies but battery is average." }
+  ],
   "trendScore": 85,
   "trendReason": "High engagement growth in last 7 days",
   "trendDirection": "rising",
@@ -113,6 +121,8 @@ export const ProductExtractor = {
       const confidence = parsed.confidence || { score: 70, reason: 'Low data available' };
       const cat = parsed.categoryHierarchy || { l1: 'Other' };
       const sales = parsed.salesData || { unitsSold: 0, store: 'Unknown' };
+      const salesBreakdown = Array.isArray(sales.breakdown) ? sales.breakdown : [];
+      const parsedReviews = Array.isArray(parsed.reviews) ? parsed.reviews : [];
 
       const validDirections = ['rising', 'peaked', 'saturating', 'stable', 'declining', 'emerging', 'viral', 'unknown'];
       let parsedDirection = String(parsed.trendDirection || 'unknown').toLowerCase();
@@ -133,6 +143,13 @@ export const ProductExtractor = {
         currency: 'USD',
         
         unitsSold: Number(sales.unitsSold || 0),
+        unitsSoldBreakdown: salesBreakdown
+          .map((entry: any) => ({
+            source: String(entry?.source || '').trim(),
+            unitsSold: Number(entry?.unitsSold || 0),
+            url: entry?.url ? String(entry.url) : undefined,
+          }))
+          .filter((entry: any) => entry.source && entry.unitsSold > 0),
         salesSource: {
           store: String(sales.store || 'Unknown'),
           url: sales.url ? String(sales.url) : undefined,
@@ -144,6 +161,12 @@ export const ProductExtractor = {
         
         buyingSentimentScore: Number(parsed.buyingSentimentScore || 50),
         buyingSentimentReason: String(parsed.buyingSentimentReason || ''),
+        reviews: parsedReviews
+          .map((review: any) => ({
+            source: String(review?.source || '').trim(),
+            text: String(review?.text || '').trim(),
+          }))
+          .filter((review: any) => review.source && review.text),
         
         estimatedRating: Number(parsed.estimatedRating) || undefined,
         estimatedReviewCount: Number(parsed.estimatedReviewCount) || undefined,
@@ -231,6 +254,7 @@ function buildFallbackExtraction(post: NormalizedPost): ExtractedProduct | null 
     currency: 'USD',
     
     unitsSold: 0,
+    unitsSoldBreakdown: [],
     salesSource: {
       store: 'Unknown'
     },
@@ -245,6 +269,7 @@ function buildFallbackExtraction(post: NormalizedPost): ExtractedProduct | null 
     
     brand: undefined,
     categoryKeywords: post.hashtags.slice(0, 5), // Use top hashtags as keywords for fallback
+    reviews: [],
 
     sourceVideoId: post.videoId,
     sourceVideoUrl: post.videoUrl,

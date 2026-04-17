@@ -55,7 +55,7 @@ export interface IRatingSource {
 
 /**
  * A representative comment from TikTok users about this product.
- * Sourced from EnsembleData comment API. Used as social proof on the product card.
+ * Sourced from TikTok comments (via EnsembleData API). Used as social proof on the product card.
  */
 export interface IProductComment {
   comment: string;                 // normalized comment body
@@ -63,7 +63,7 @@ export interface IProductComment {
   likeCount: number;               // comment likes — proxy for usefulness
   authorHandle?: string;           // commenter's @handle (may be absent)
   sentiment: 'positive' | 'negative' | 'neutral';  // AI-classified
-  source: string;                  // 'EnsembleData'
+  source: string;                  // e.g. 'TikTok'
   collectedAt: Date;
 }
 
@@ -76,7 +76,18 @@ export interface ISalesEvidence {
   store: string;             // e.g. 'Amazon', 'TikTok Shop'
   storeUrl?: string;         // direct link to the evidence listing
   timeframe?: string;        // e.g. 'last 30 days', 'all time'
+  sourceBreakdown?: Array<{
+    source: string;
+    unitsSold: number;
+    url?: string;
+  }>;
   fetchedAt: Date;
+}
+
+export interface IProductReview {
+  source: string;
+  text: string;
+  collectedAt: Date;
 }
 
 /**
@@ -148,8 +159,9 @@ export interface IProduct {
   reviewCount?: number;        // total number of reviews across all sources
   salesEvidence?: ISalesEvidence;    // units sold with verifiable source
   ratingSources: IRatingSource[];    // multi-platform ratings (SerpApi + estimated)
+  reviews: IProductReview[];         // short review snippets with source
 
-  // ── Social Proof Comments (from EnsembleData) ────────────────────────────
+  // ── Social Proof Comments (from TikTok) ──────────────────────────────────
   topComments: IProductComment[];    // up to 10 representative TikTok comments
 
   // ── TikTok Engagement (from original discovery post) ─────────────────────
@@ -243,7 +255,24 @@ const SalesEvidenceSchema = new Schema<ISalesEvidence>(
     store:      { type: String, required: true },
     storeUrl:   { type: String },
     timeframe:  { type: String },
+    sourceBreakdown: {
+      type: [{
+        source:   { type: String, required: true },
+        unitsSold:{ type: Number, required: true, min: 0 },
+        url:      { type: String },
+      }],
+      default: [],
+    },
     fetchedAt:  { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const ProductReviewSchema = new Schema<IProductReview>(
+  {
+    source:      { type: String, required: true },
+    text:        { type: String, required: true },
+    collectedAt: { type: Date, default: Date.now },
   },
   { _id: false }
 );
@@ -294,7 +323,7 @@ const ProductCommentSchema = new Schema<IProductComment>(
     likeCount:    { type: Number, required: true, min: 0 },
     authorHandle: { type: String },
     sentiment:    { type: String, enum: ['positive', 'negative', 'neutral'], required: true },
-    source:       { type: String, required: true, default: 'EnsembleData' },
+    source:       { type: String, required: true, default: 'TikTok' },
     collectedAt:  { type: Date, default: Date.now },
   },
   { _id: false }
@@ -335,6 +364,7 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
     reviewCount:   { type: Number, min: 0 },
     salesEvidence: { type: SalesEvidenceSchema },
     ratingSources: { type: [RatingSourceSchema], default: [] },
+    reviews:       { type: [ProductReviewSchema], default: [] },
 
     // Social Proof
     topComments: { type: [ProductCommentSchema], default: [] },

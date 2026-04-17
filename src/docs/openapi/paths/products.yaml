@@ -1,15 +1,23 @@
 feed:
   get:
     tags: [Products]
-    summary: Get product feed
-    description: Returns a paginated list of trending products.
+    summary: List products (paginated)
+    description: |
+      Returns active products with default pagination (`page`, `limit`).
+      With no filters, this is the full catalog, one page at a time.
+      Pass `q` to run full-text search on the same endpoint (results ordered by relevance; `sortBy` is ignored when `q` is set).
     parameters:
+      - name: q
+        in: query
+        required: false
+        description: Full-text search query (optional).
+        schema: { type: string, maxLength: 200 }
       - name: page
         in: query
-        schema: { type: integer, default: 1 }
+        schema: { type: integer, default: 1, minimum: 1 }
       - name: limit
         in: query
-        schema: { type: integer, default: 20 }
+        schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
       - name: category
         in: query
         description: Filter by category. Pass multiple times or as comma-separated string for multi-select.
@@ -17,9 +25,25 @@ feed:
           type: array
           items:
             type: string
-      - name: minScore
+      - name: trendDirection
+        in: query
+        schema: { type: string, enum: [rising, peaked, saturating, unknown] }
+      - name: minTrendScore
         in: query
         schema: { type: number }
+      - name: minViews
+        in: query
+        schema: { type: number }
+      - name: isAd
+        in: query
+        schema: { type: boolean }
+      - name: sortBy
+        in: query
+        description: Ignored when `q` is present.
+        schema: { type: string, enum: [trendScore, views, recent, engagement], default: trendScore }
+      - name: region
+        in: query
+        schema: { type: string }
     responses:
       '200':
         description: List of products retrieved
@@ -37,47 +61,12 @@ feed:
                           type: array
                           items:
                             $ref: '../components/schemas/Product.yaml'
-                        hasMore: { type: boolean }
-
-search:
-  get:
-    tags: [Products]
-    summary: Full-text search products
-    parameters:
-      - name: q
-        in: query
-        required: true
-        schema: { type: string }
-      - name: category
-        in: query
-        description: Filter by category. Pass multiple times or as comma-separated string for multi-select.
-        schema: 
-          type: array
-          items:
-            type: string
-      - name: page
-        in: query
-        schema: { type: integer, default: 1 }
-      - name: limit
-        in: query
-        schema: { type: integer, default: 20 }
-    responses:
-      '200':
-        description: Search results retrieved
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        products:
-                          type: array
-                          items:
-                            $ref: '../components/schemas/Product.yaml'
+                        pagination:
+                          type: object
+                        freshness:
+                          type: object
+                        region:
+                          type: string
 
 keywordContext:
   get:
@@ -168,72 +157,6 @@ detail:
                       type: object
                       properties:
                         product: { $ref: '../components/schemas/Product.yaml' }
-      '404':
-        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
-
-creatives:
-  get:
-    tags: [Products]
-    summary: Get all creatives (videos) for a product
-    description: Retrieves all TikTok videos from all content creators that promote this product.
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema: { type: string }
-    responses:
-      '200':
-        description: Creatives retrieved
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        creators:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              handle:
-                                type: string
-                              displayName:
-                                type: string
-                              avatarUrl:
-                                type: string
-                              followers:
-                                type: integer
-                              verified:
-                                type: boolean
-                              tiktokPostUrl:
-                                type: string
-                              tiktokUserId:
-                                type: string
-                              totalViews:
-                                type: integer
-                              videos:
-                                type: array
-                                items:
-                                  type: object
-                                  properties:
-                                    id:
-                                      type: string
-                                    externalVideoId:
-                                      type: string
-                                    videoPlayUrl:
-                                      type: string
-                                    thumbnailUrl:
-                                      type: string
-                                    metrics:
-                                      type: object
-                                    section:
-                                      type: string
-                                    isAd:
-                                      type: boolean
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
 

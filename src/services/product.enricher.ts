@@ -62,15 +62,22 @@ export const ProductEnricher = {
       : [...new Set([...serpGallery, ...extraction.groundedImages])];
 
     // 4. Sales evidence — only include if AI found a concrete source
-    const salesEvidence: EnrichedProductInput['salesEvidence'] = extraction.salesSource?.store !== 'Unknown'
-      ? {
-          unitsSold:  extraction.unitsSold || 0,
-          store:      extraction.salesSource!.store,
-          storeUrl:   extraction.salesSource!.url,
-          timeframe:  extraction.salesSource!.timeframe,
-          fetchedAt:  new Date(),
-        }
-      : undefined;
+    const sourceBreakdown = normalizeUnitsSoldBreakdown(extraction.unitsSoldBreakdown);
+    if (sourceBreakdown.length === 0) {
+      sourceBreakdown.push(buildFallbackUnitsSoldSource(extraction, post));
+    }
+    const unitsSoldTotal = sourceBreakdown.reduce((sum, item) => sum + item.unitsSold, 0);
+    const primarySource = sourceBreakdown[0];
+    const salesEvidence: EnrichedProductInput['salesEvidence'] = {
+      unitsSold: unitsSoldTotal,
+      store: extraction.salesSource?.store && extraction.salesSource.store !== 'Unknown'
+        ? extraction.salesSource.store
+        : primarySource.source,
+      storeUrl: extraction.salesSource?.url || primarySource.url,
+      timeframe: extraction.salesSource?.timeframe,
+      sourceBreakdown,
+      fetchedAt: new Date(),
+    };
 
     // 5. Rating sources (from SerpApi, or AI-estimated fallback from TikTok engagement)
     let ratingSources: NonNullable<EnrichedProductInput['ratingSources']> = serpRatings.map(r => ({
@@ -95,9 +102,10 @@ export const ProductEnricher = {
       likeCount: c.likeCount || 0,
       authorHandle: c.authorHandle,
       sentiment: extraction.buyingSentimentScore && extraction.buyingSentimentScore > 70 ? 'positive' : 'neutral',
-      source: 'EnsembleData',
+      source: 'TikTok',
       collectedAt: new Date()
     }));
+    const reviews = buildProductReviews(extraction, serpData, topComments);
 
     // 6. Related products from SerpApi
     const relatedProducts = (serpData?.immersive_products || serpData?.shopping_results || [])
@@ -158,6 +166,7 @@ export const ProductEnricher = {
       rating:      calculateFinalRating(ratingSources, extraction),
       reviewCount: calculateFinalReviewCount(ratingSources, extraction),
       topComments: topComments as any,
+      reviews,
 
       // Discovery origin
       primaryCreator: {
@@ -328,4 +337,78 @@ function buildFallbackRatingSource(extraction: any, post: NormalizedPost): NonNu
     reviewCount: reviews,
     fetchedAt: new Date(),
   };
+}
+
+function normalizeUnitsSoldBreakdown(
+  breakdown: ExtractedProduct['unitsSoldBreakdown']
+): Array<{ source: string; unitsSold: number; url?: string }> {
+  return (breakdown || [])
+    .map((entry) => ({
+      source: String(entry?.source || '').trim(),
+      unitsSold: Math.max(0, Math.round(Number(entry?.unitsSold || 0))),
+      url: entry?.url,
+    }))
+    .filter((entry) => entry.source && entry.unitsSold > 0);
+}
+
+function buildFallbackUnitsSoldSource(
+  extraction: ExtractedProduct,
+  post: NormalizedPost
+): { source: string; unitsSold: number; url?: string } {
+  const aiUnits = Math.max(0, Math.round(Number(extraction.unitsSold || 0)));
+  if (aiUnits > 0 && extraction.salesSource?.store && extraction.salesSource.store !== 'Unknown') {
+    return {
+      source: extraction.salesSource.store,
+      unitsSold: aiUnits,
+      url: extraction.salesSource.url,
+    };
+  }
+
+  const estimatedDemand = Math.max(
+    50,
+    Math.round((post.commentCount || 0) * 10 + (post.shareCount || 0) * 4 + (post.likeCount || 0) * 0.01)
+  );
+  return {
+    source: 'TikTok Demand Signal (Estimated)',
+    unitsSold: estimatedDemand,
+  };
+}
+
+function buildProductReviews(
+  extraction: ExtractedProduct,
+  serpData: any,
+  topComments: Array<{ comment: string; source: string; collectedAt: Date }>
+): Array<{ source: string; text: string; collectedAt: Date }> {
+  const fromAi = (extraction.reviews || [])
+    .map((review) => ({
+      source: review.source,
+      text: review.text,
+      collectedAt: new Date(),
+    }))
+    .filter((review) => review.source && review.text);
+
+  const fromSerp = (serpData?.organic_results || [])
+    .slice(0, 5)
+    .map((row: any) => ({
+      source: String(row?.source || row?.domain || 'Web'),
+      text: String(row?.snippet || '').trim(),
+      collectedAt: new Date(),
+    }))
+    .filter((review: any) => review.text.length > 0);
+
+  const fromTikTok = topComments.slice(0, 5).map((comment) => ({
+    source: comment.source,
+    text: comment.comment,
+    collectedAt: new Date(),
+  }));
+
+  const dedup = new Set<string>();
+  const combined = [...fromAi, ...fromSerp, ...fromTikTok].filter((review) => {
+    const key = `${review.source}|${review.text}`.toLowerCase();
+    if (dedup.has(key)) return false;
+    dedup.add(key);
+    return true;
+  });
+
+  return combined.slice(0, 20);
 }

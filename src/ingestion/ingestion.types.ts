@@ -92,6 +92,11 @@ export interface ExtractedProduct {
   estimatedRating?: number;       // fallback AI rating (1-5)
   estimatedReviewCount?: number;  // fallback AI review count estimate
   unitsSold?: number;             // extracted or estimated number of sales
+  unitsSoldBreakdown?: Array<{
+    source: string;
+    unitsSold: number;
+    url?: string;
+  }>;
   currency?: string;              // default USD
 
   // Hierarchical Categories
@@ -122,6 +127,10 @@ export interface ExtractedProduct {
   // Sentiment from comments
   buyingSentimentScore?: number;   // 0–100 — how many comments express buying intent
   buyingSentimentReason?: string;
+  reviews?: Array<{
+    source: string;
+    text: string;
+  }>;
 
   // Source post this was extracted from
   sourceVideoId: string;

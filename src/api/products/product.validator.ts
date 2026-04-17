@@ -19,6 +19,16 @@ const CategoryFilterSchema = z.union([z.string(), z.array(z.string())])
   });
 
 export const ProductFeedQuerySchema = z.object({
+  /** Full-text search; when set, results are ranked by text relevance (other sort options are ignored). */
+  q: z
+    .string()
+    .max(200)
+    .optional()
+    .transform((val) => {
+      if (val == null || val === '') return undefined;
+      const t = val.trim();
+      return t.length ? t : undefined;
+    }),
   page:           z.coerce.number().min(1).default(1),
   limit:          z.coerce.number().min(1).max(100).default(20),
   category:       CategoryFilterSchema,
@@ -29,13 +39,6 @@ export const ProductFeedQuerySchema = z.object({
   isAd:           z.coerce.boolean().optional(),
   sortBy:         z.enum(['trendScore', 'views', 'recent', 'engagement']).default('trendScore'),
   region:         z.string().optional(),
-});
-
-export const ProductSearchQuerySchema = z.object({
-  q:        z.string().min(1, 'Search query is required').max(200),
-  category: CategoryFilterSchema,
-  page:     z.coerce.number().min(1).default(1),
-  limit:    z.coerce.number().min(1).max(100).default(20),
 });
 
 export const ProductKeywordContextQuerySchema = z.object({
@@ -54,5 +57,4 @@ export const ProductKeywordContextQuerySchema = z.object({
 });
 
 export type ProductFeedQuery  = z.infer<typeof ProductFeedQuerySchema>;
-export type ProductSearchQuery = z.infer<typeof ProductSearchQuerySchema>;
 export type ProductKeywordContextQuery = z.infer<typeof ProductKeywordContextQuerySchema>;

@@ -125,15 +125,14 @@ describe('Products Endpoints', () => {
     expect(res.text).toContain('data');
   });
 
-  it('GET /api/v1/products/search should perform search', async () => {
+  it('GET /api/v1/products?q= should accept search on the list endpoint', async () => {
     const res = await httpJson({
       baseUrl,
       method: 'GET',
-      path: '/api/v1/products/search?q=test',
+      path: '/api/v1/products?q=test',
       token: testToken,
     });
-    // In memory mongodb text search can throw 500 if text index isn't created before test. 
-    // We just verify the route didn't 404.
+    // In-memory MongoDB text search can error if text index is missing; we only assert the route exists.
     expect(res.status).not.toBe(404);
   });
 

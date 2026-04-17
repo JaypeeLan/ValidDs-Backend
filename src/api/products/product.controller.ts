@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ProductService } from '../../services/product.service';
-import { ProductFeedQuery, ProductSearchQuery, ProductKeywordContextQuery } from './product.validator';
+import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
+import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 
 type ProductLike = Record<string, unknown> & {
@@ -103,9 +104,8 @@ function deriveAverageRatingFromSources(sources: any[]): number | undefined {
 /**
  * Product Controller
  *
- * GET /api/v1/products         — product feed (paginated, filtered)
- * GET /api/v1/products/search  — full-text search
- * GET /api/v1/products/:id     — product detail
+ * GET /api/v1/products — paginated list or full-text search (`q`); optional filters
+ * GET /api/v1/products/:id — product detail
  */
 
 export const ProductController = {
@@ -118,7 +118,35 @@ export const ProductController = {
         query.region = getProfileCountryCode(req).toUpperCase();
       }
 
-      const { feed, freshness } = await ProductService.getFeed(query);
+      if (query.q) {
+        const results = await ProductService.search(query.q, query.category, query.page, query.limit);
+        const freshness = await FreshnessService.getResponseMetadata('product');
+
+        res.json(
+          successResponse(
+            {
+              products: results.data.map((product) => formatProductResponse(product as unknown as ProductLike)),
+              pagination: results.pagination,
+              freshness,
+              region: query.region,
+            },
+            ResponseMessage.PRODUCTS_RETRIEVED,
+            200
+          )
+        );
+        return;
+      }
+
+      const { feed, freshness } = await ProductService.getFeed({
+        category: query.category,
+        trendDirection: query.trendDirection,
+        minTrendScore: query.minTrendScore,
+        minViews: query.minViews,
+        isAd: query.isAd,
+        page: query.page,
+        limit: query.limit,
+        sortBy: query.sortBy,
+      });
 
       res.json(
         successResponse(
@@ -127,46 +155,6 @@ export const ProductController = {
             pagination: feed.pagination,
             freshness,
             region: query.region,
-          },
-          ResponseMessage.PRODUCTS_RETRIEVED,
-          200
-        )
-      );
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  async all(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { products, freshness } = await ProductService.getAllProducts();
-
-      res.json(
-        successResponse(
-          {
-            products: products.map((product) => formatProductResponse(product as unknown as ProductLike)),
-            total: products.length,
-            freshness,
-          },
-          ResponseMessage.PRODUCTS_RETRIEVED,
-          200
-        )
-      );
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  async search(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { q, category, page, limit } = req.query as unknown as ProductSearchQuery;
-      const results = await ProductService.search(q, category, page, limit);
-
-      res.json(
-        successResponse(
-          {
-            products: results.data.map((product) => formatProductResponse(product as unknown as ProductLike)),
-            pagination: results.pagination,
           },
           ResponseMessage.PRODUCTS_RETRIEVED,
           200

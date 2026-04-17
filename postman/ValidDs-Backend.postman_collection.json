@@ -487,13 +487,12 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/products/search?q=dropship&page=1",
+              "raw": "{{baseUrl}}/products?q=dropship&page=1",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "products",
-                "search"
+                "products"
               ],
               "query": [
                 {

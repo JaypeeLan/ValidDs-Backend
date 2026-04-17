@@ -26,7 +26,7 @@ tags:
   - name: Auth
     description: User registration, login, email verification, and session management
   - name: Products
-    description: Product feed, full-text search, and product details
+    description: Product list (paginated, optional search and filters) and product details
   - name: Profile
     description: User settings and account management
   - name: Ingestion
@@ -61,16 +61,12 @@ paths:
     $ref: './paths/bookmarks.yaml#/resource'
   /api/v1/products:
     $ref: './paths/products.yaml#/feed'
-  /api/v1/products/search:
-    $ref: './paths/products.yaml#/search'
   /api/v1/products/keyword-context:
     $ref: './paths/products.yaml#/keywordContext'
   /api/v1/products/categories:
     $ref: './paths/products.yaml#/categories'
   /api/v1/products/{id}:
     $ref: './paths/products.yaml#/detail'
-  /api/v1/products/{id}/creatives:
-    $ref: './paths/products.yaml#/creatives'
   /api/v1/ingestion/trigger:
     $ref: './paths/ingestion.yaml#/trigger'
   /api/v1/jobs/status:

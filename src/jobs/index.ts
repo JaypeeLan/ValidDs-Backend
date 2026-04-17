@@ -3,6 +3,9 @@ import { ProductService } from '../services/product.service';
 import { logger } from '../logger';
 import { env } from '../config/env.validation';
 import { HashtagIngestionPipeline } from '../ingestion/ensemble/hashtag-ingestion.pipeline';
+import { Product } from '../models/product.model';
+import { Creative } from '../models/creative.model';
+import { CreativeService } from '../services/creative.service';
 
 const log = logger.child({ module: 'jobs' });
 
@@ -20,18 +23,21 @@ const log = logger.child({ module: 'jobs' });
  * to give the server time to fully start before making external requests.
  */
 
-const PRODUCT_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;     // 24 hours
-const STALE_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;           // 30 minutes
-const HASHTAG_PIPELINE_INTERVAL_MS = 4 * 60 * 60 * 1000;      // 4 hours
-const INITIAL_DELAY_MS = 10 * 1000;                // 10 seconds
+const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;               // 24 hours
+const STALE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;            // 5 minutes
+const DAILY_TARGET_PRODUCTS = 300;
+const DAILY_TARGET_CREATIVES = 300;
+const TARGET_BATCH_SIZE = 25;
+const MAX_DAILY_CYCLES = 200;
 
 let productRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let staleCleanupTimer: ReturnType<typeof setInterval> | null = null;
-let hashtagPipelineTimer: ReturnType<typeof setInterval> | null = null;
+let dailyTargetIngestionTimeout: ReturnType<typeof setTimeout> | null = null;
+let dailyTargetIngestionInterval: ReturnType<typeof setInterval> | null = null;
 
 let lastProductRefreshRun: Date | null = null;
 let lastStaleCleanupRun: Date | null = null;
-let lastHashtagPipelineRun: Date | null = null;
+let lastDailyTargetRun: Date | null = null;
 
 export async function runHashtagPipelineJob(): Promise<void> {
   const pipeline = new HashtagIngestionPipeline();
@@ -52,20 +58,104 @@ export function getJobsStatus() {
     timers: {
       productRefresh: !!productRefreshTimer,
       staleCleanup: !!staleCleanupTimer,
-      hashtagPipeline: !!hashtagPipelineTimer,
+      dailyTargetIngestion: !!dailyTargetIngestionInterval || !!dailyTargetIngestionTimeout,
     },
     lastRuns: {
       productRefresh: lastProductRefreshRun,
       staleCleanup: lastStaleCleanupRun,
-      hashtagPipeline: lastHashtagPipelineRun,
+      dailyTargetIngestion: lastDailyTargetRun,
     },
     intervals: {
-      productRefreshMs: PRODUCT_REFRESH_INTERVAL_MS,
+      productRefreshMs: DAILY_INTERVAL_MS,
       staleCleanupMs: STALE_CLEANUP_INTERVAL_MS,
-      hashtagPipelineMs: HASHTAG_PIPELINE_INTERVAL_MS,
+      dailyTargetIngestionMs: DAILY_INTERVAL_MS,
     },
     env: env.NODE_ENV,
   };
+}
+
+function getDelayUntilNextLagos3PM(): number {
+  const now = new Date();
+  const lagosNowText = now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' });
+  const lagosNow = new Date(lagosNowText);
+  const nextRun = new Date(lagosNow);
+  nextRun.setHours(15, 0, 0, 0);
+  if (nextRun <= lagosNow) nextRun.setDate(nextRun.getDate() + 1);
+  return nextRun.getTime() - lagosNow.getTime();
+}
+
+async function getCreativeVideoTotal(): Promise<number> {
+  const rows = await Creative.aggregate([
+    {
+      $project: {
+        videoCount: {
+          $add: [1, { $size: { $ifNull: ['$relatedVideos', []] } }],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: '$videoCount' },
+      },
+    },
+  ]);
+  return rows[0]?.total || 0;
+}
+
+async function runDailyTargetIngestionJob(): Promise<void> {
+  log.info('Daily target ingestion job started', {
+    targetProducts: DAILY_TARGET_PRODUCTS,
+    targetCreatives: DAILY_TARGET_CREATIVES,
+    timezone: 'Africa/Lagos',
+  });
+
+  const pipeline = new HashtagIngestionPipeline();
+  let cycles = 0;
+
+  while (cycles < MAX_DAILY_CYCLES) {
+    const productCount = await Product.countDocuments({ status: 'active' });
+    if (productCount >= DAILY_TARGET_PRODUCTS) break;
+    await pipeline.run();
+    cycles += 1;
+  }
+
+  cycles = 0;
+  while (cycles < MAX_DAILY_CYCLES) {
+    const creativeTotal = await getCreativeVideoTotal();
+    if (creativeTotal >= DAILY_TARGET_CREATIVES) break;
+
+    const products: any[] = await Product.find({ status: 'active' })
+      .sort({ lastIngestedAt: 1, createdAt: 1 })
+      .limit(TARGET_BATCH_SIZE);
+
+    if (products.length === 0) break;
+
+    for (const product of products) {
+      await CreativeService.fetchAndIngestCreatives(product.title, product._id, {
+        brand: product.aiIntelligence?.brand,
+        categoryKeywords: product.aiIntelligence?.categoryKeywords || [],
+        categoryL1: product.categoryL1,
+        categoryL2: product.categoryL2,
+        categoryL3: product.categoryL3,
+        productDescription: product.description,
+      });
+    }
+
+    cycles += 1;
+  }
+
+  const [products, creatives, creativeVideos] = await Promise.all([
+    Product.countDocuments({ status: 'active' }),
+    Creative.countDocuments({}),
+    getCreativeVideoTotal(),
+  ]);
+
+  log.info('Daily target ingestion job complete', {
+    products,
+    creativeDocs: creatives,
+    creativeVideos,
+  });
 }
 
 export function startJobs(): void {
@@ -76,23 +166,8 @@ export function startJobs(): void {
 
   log.info('Starting background jobs');
 
-  // Product refresh — delayed first run, then every 2 hours
-  setTimeout(() => {
-    log.info('Running initial product refresh on boot');
-    lastProductRefreshRun = new Date();
-    runProductRefreshJob().catch((err) =>
-      log.error('Initial product refresh failed', err)
-    );
-
-    productRefreshTimer = setInterval(() => {
-      log.info('Scheduled product refresh triggered');
-      lastProductRefreshRun = new Date();
-      runProductRefreshJob().catch((err) =>
-        log.error('Scheduled product refresh failed', err)
-      );
-    }, PRODUCT_REFRESH_INTERVAL_MS);
-  }, INITIAL_DELAY_MS);
-
+  // Product refresh remains available for manual/API trigger only.
+  productRefreshTimer = null;
 
   // Stale cleanup — starts immediately, runs every 30 minutes
   lastStaleCleanupRun = new Date();
@@ -105,33 +180,42 @@ export function startJobs(): void {
     );
   }, STALE_CLEANUP_INTERVAL_MS);
 
-  // Hashtag ingestion pipeline — repeats every 4 hours outside local dev.
-  if (env.NODE_ENV !== 'development') {
-    hashtagPipelineTimer = setInterval(() => {
-      log.info('Scheduled hashtag pipeline triggered');
-      lastHashtagPipelineRun = new Date();
-      runHashtagPipelineJob().catch((err) =>
-        log.error('Scheduled hashtag pipeline failed', err)
-      );
-    }, HASHTAG_PIPELINE_INTERVAL_MS);
+  // Daily target ingestion at 3:00 PM Africa/Lagos. No boot-time ingestion.
+  const initialDelay = getDelayUntilNextLagos3PM();
+  dailyTargetIngestionTimeout = setTimeout(() => {
+    log.info('Scheduled daily target ingestion triggered');
+    lastDailyTargetRun = new Date();
+    runDailyTargetIngestionJob().catch((err) =>
+      log.error('Daily target ingestion failed', err)
+    );
 
-    log.info('Hashtag pipeline scheduled', {
-      interval: '4 hours',
-    });
-  } else {
-    log.info('Hashtag pipeline NOT scheduled in development. Run: npm run hashtag-pipeline');
-  }
+    dailyTargetIngestionInterval = setInterval(() => {
+      log.info('Scheduled daily target ingestion triggered');
+      lastDailyTargetRun = new Date();
+      runDailyTargetIngestionJob().catch((err) =>
+        log.error('Daily target ingestion failed', err)
+      );
+    }, DAILY_INTERVAL_MS);
+  }, initialDelay);
+
+  log.info('Daily target ingestion scheduled', {
+    timezone: 'Africa/Lagos',
+    runAt: '15:00',
+    interval: '24 hours',
+    targets: { products: DAILY_TARGET_PRODUCTS, creatives: DAILY_TARGET_CREATIVES },
+  });
 
   log.info('Background jobs scheduled', {
-    productRefreshInterval: `${PRODUCT_REFRESH_INTERVAL_MS / 60000} minutes`,
+    productRefreshInterval: `${DAILY_INTERVAL_MS / 60000} minutes`,
     staleCleanupInterval: `${STALE_CLEANUP_INTERVAL_MS / 60000} minutes`,
-    hashtagPipelineInterval: env.NODE_ENV !== 'development' ? '4 hours' : 'disabled (dev)',
+    dailyTargetIngestion: '15:00 Africa/Lagos (daily)',
   });
 }
 
 export function stopJobs(): void {
   if (productRefreshTimer) clearInterval(productRefreshTimer);
   if (staleCleanupTimer) clearInterval(staleCleanupTimer);
-  if (hashtagPipelineTimer) clearInterval(hashtagPipelineTimer);
+  if (dailyTargetIngestionTimeout) clearTimeout(dailyTargetIngestionTimeout);
+  if (dailyTargetIngestionInterval) clearInterval(dailyTargetIngestionInterval);
   log.info('Background jobs stopped');
 }

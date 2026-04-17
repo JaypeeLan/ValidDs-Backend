@@ -1,36 +1,187 @@
-# ValidDs Data Source Mapping (Discovery 2.0)
+# ValidDs Data Sources 
 
-Every field in the ValidDs product schema is sourced from the most reliable market intelligence provider.
+This file explains where each field in our current database comes from.
+It is written for non-technical readers.
 
-## 1. Product Discovery & Content
-- title: AI Extraction (Sanitized from TikTok/SerpApi)
-- description: AI Extraction (High-converting product description)
-- categoryL1 / categoryL2 / categoryL3: AI Extraction (3-Level Taxonomy)
-- hashtags: TikTok (Original Viral Post)
-- primaryImageUrl: SerpApi (178x133 Immersive Search)
-- imageUrls: SerpApi (Full High-Res Gallery - Primary Source)
-- videoUrl: TikTok (Direct media .mp4 link)
+If a field is marked "calculated", it is created by our backend from other saved data.
 
-## 2. Market Intelligence (SerpApi / AI)
-- unitsSold: AI Grounded Search (Amazon/Global estimates)
-- salesSource: AI Grounded Search (Store name, proves volume, direct link)
-- ratingSources: SerpApi (Multi-platform ratings with source URLs) OR estimated from TikTok engagement
-- relatedProducts: SerpApi (Google "Immersive Products" carousel)
+------------------------------------------------------------------------------
+PRODUCTS COLLECTION (main product records)
+------------------------------------------------------------------------------
 
-## 3. Social Proof & Engagement (TikTok / EnsembleData)
-- totalViews / totalLikes / totalComments / shares: TikTok (Real-time engagement)
-- engagementRate: EnsembledData/Calculated (Normalized engagement)
-- primaryCreator: TikTok (Original Viral Video Author & Link)
-- topComments: EnsembleData (Real representative comments & AI sentiment)
-- Creatives (Sub-Collection): EnsembleData (100 TikTok videos per product, each mapped to a creator)
+1) Basic identity
+- externalId: TikTok video ID from EnsembleData (the discovery post ID)
+- source: Ingestion source label from our backend (for example "ensemble")
+- status: Internal lifecycle state set by backend ("active", "archived", "stale")
 
-## 4. AI Logic & Confidence
-- Discovery Sections: Discovery Service (Internal Algorithm: trending, top-ads, etc.)
-- extractionConfidence / Reason: AI Extraction (DeepSeek/Gemini dynamic assessment)
-- buyingSentiment / Reason: AI Extraction (Comment analysis for purchase intent)
-- trendScore / Direction / Reason: AI Extraction (Growth trajectory analysis)
+2) Product content
+- title: Product name extracted by AI from TikTok post + comments
+- normalizedTitle: Backend-normalized form of title (lowercase/cleaned) for dedupe/search
+- description: Product description extracted by AI
+- hashtags: Hashtags from the discovery TikTok post (EnsembleData)
 
-## 5. Supplier Data (TeemDrop)
-- price: TeemDrop (Direct supplier price)
-- currency: TeemDrop
-- suppliers: TeemDrop (Verified dropshipping partners)
+3) Category
+- categoryL1, categoryL2, categoryL3: AI classification
+- categoryPath: Combined readable category path built from AI category levels
+
+4) Images
+- primaryImageUrl: Best image selected from SerpApi data, fallback to TikTok thumbnail
+- imageUrls: Image gallery from SerpApi, fallback includes AI-grounded image links
+
+5) Pricing and suppliers
+- price: TeemDrop matched price (if found), otherwise AI estimated price
+- currency: Usually AI output; defaults to USD when missing
+- suppliers[].platform: Supplier source name (currently TeemDrop when matched)
+- suppliers[].productUrl: Supplier listing URL (if available)
+- suppliers[].price: Supplier price
+- suppliers[].currency: Supplier currency
+- suppliers[].shippingDays: Supplier shipping estimate (if provided)
+- suppliers[].moq: Supplier minimum order quantity (if provided)
+- suppliers[].checkedAt: Time we checked supplier data
+
+6) Sales and rating evidence
+- salesEvidence.unitsSold: AI-estimated units sold
+- salesEvidence.store: Store/source name from AI extraction
+- salesEvidence.storeUrl: Store link from AI extraction (if provided)
+- salesEvidence.timeframe: Time period of sales estimate (if provided)
+- salesEvidence.fetchedAt: When we recorded this evidence
+
+- rating: Final average rating value used by the app
+- reviewCount: Final total review count used by the app
+- ratingSources[]: All rating sources used to justify rating
+  - ratingSources[].platform: Where rating came from (SerpApi store source, or fallback estimate source)
+  - ratingSources[].rating: Rating value from that source
+  - ratingSources[].reviewCount: Number of reviews supporting that source
+  - ratingSources[].sourceUrl: Link to source (when available)
+  - ratingSources[].fetchedAt: When source was captured
+
+7) Product comments/social proof
+- topComments[].comment: Comment text (normalized field)
+- topComments[].text: Same comment text (legacy compatibility field)
+- topComments[].likeCount: Likes on the comment
+- topComments[].authorHandle: Comment author handle (if available)
+- topComments[].sentiment: Sentiment label from backend logic ("positive", "neutral", "negative")
+- topComments[].source: Source label (currently EnsembleData/TikTok flow)
+- topComments[].collectedAt: When comment was collected
+
+8) Discovery post engagement (TikTok)
+- viewCount: Views from discovery TikTok post
+- likeCount: Likes from discovery TikTok post
+- commentCount: Comments from discovery TikTok post
+- shareCount: Shares from discovery TikTok post
+- engagementRate: Calculated from post engagement metrics
+
+9) Discovery creator (the original TikTok creator)
+- primaryCreator.tiktokUserId: Creator ID from TikTok/EnsembleData (if available)
+- primaryCreator.handle: Creator username
+- primaryCreator.displayName: Creator display name
+- primaryCreator.bio: Creator bio/signature
+- primaryCreator.followers: Creator followers
+- primaryCreator.following: Creator following count
+- primaryCreator.totalLikes: Creator profile total likes
+- primaryCreator.region: Creator region code
+- primaryCreator.verified: Creator verification status
+- primaryCreator.avatarUrl: Creator profile image
+- primaryCreator.tiktokPostUrl: Canonical TikTok link to discovery post
+
+10) AI intelligence fields
+- aiIntelligence.confidence: AI confidence score for extraction quality
+- aiIntelligence.confidenceReason: AI reason for confidence
+- aiIntelligence.brand: AI-extracted brand (if available)
+- aiIntelligence.categoryKeywords: AI keywords used for relevance
+- aiIntelligence.buyingSentimentScore: AI buying intent score
+- aiIntelligence.buyingSentimentReason: AI reason for buying sentiment score
+- aiIntelligence.extractedAt: When AI extraction happened
+
+11) Trend fields
+- trend.score: Trend score from AI/discovery logic
+- trend.direction: Trend direction label
+- trend.reason: Explanation for trend direction/score
+- trend.isTrending: Boolean flag for trending status
+- trend.calculatedAt: When trend score was calculated
+
+12) Discovery and creative summary
+- discoverySections: Internal section tags assigned by discovery logic
+- relatedProducts[]: Related items from SerpApi-like result sets
+  - relatedProducts[].title
+  - relatedProducts[].price
+  - relatedProducts[].thumbnail
+  - relatedProducts[].link
+  - relatedProducts[].store
+
+- creativeCounts.ads: Count of ad creatives linked to this product
+- creativeCounts.organic: Count of non-ad creatives linked to this product
+- creativeCounts.reviews: Count of influencer-review creatives linked
+- creativeCounts.total: Total linked creatives
+
+13) Freshness/timestamps
+- lastIngestedAt: Last time this product was refreshed by ingestion
+- dataSourceUpdatedAt: Time of source data update captured by pipeline
+- createdAt, updatedAt: Automatic database timestamps
+
+------------------------------------------------------------------------------
+CREATIVES COLLECTION (video creative records)
+------------------------------------------------------------------------------
+
+1) Identity
+- productId: Product this creative belongs to
+- externalVideoId: TikTok video ID for the primary creative video
+
+2) Primary video media
+- videoPlayUrl: Playable video URL (may expire)
+- thumbnailUrl: Video thumbnail URL
+
+3) Creator profile
+- creator.tiktokUserId: Creator ID
+- creator.handle: Creator username
+- creator.displayName: Creator display name
+- creator.bio: Creator bio/signature
+- creator.avatarUrl: Creator avatar
+- creator.followers: Creator follower count
+- creator.following: Creator following count
+- creator.totalLikes: Creator total profile likes
+- creator.region: Creator region code
+- creator.verified: Creator verification status
+- creator.tiktokPostUrl: Canonical TikTok URL to this exact video
+
+4) Primary video performance
+- metrics.viewCount: Views
+- metrics.likeCount: Likes
+- metrics.commentCount: Comment count
+- metrics.shareCount: Shares
+- metrics.engagementRate: Calculated engagement rate
+- metrics.source: Metric source label (currently EnsembleData)
+- metrics.fetchedAt: When these metrics were captured
+
+5) Creative classification and product context
+- section: Creative type bucket ("top-ads", "trending", etc.)
+- isAd: Whether video is treated as an ad
+- productName: Product name linked to this creative
+- productDescription: Product description linked to this creative
+- categoryL1, categoryL2, categoryL3: Product category context
+
+6) Creative metadata
+- description: Legacy description field (kept for compatibility; now aligned to product description logic)
+- hashtags: Hashtags from creative video
+- topComments[]: Structured comments for primary creative video
+  - topComments[].comment
+  - topComments[].source
+  - topComments[].likeCount
+  - topComments[].authorHandle
+  - topComments[].collectedAt
+
+7) Related videos for same product creative group
+- relatedVideos[]: Additional videos linked to same product creative record
+  - relatedVideos[].externalVideoId
+  - relatedVideos[].videoPlayUrl
+  - relatedVideos[].thumbnailUrl
+  - relatedVideos[].creator (same shape as primary creator)
+  - relatedVideos[].metrics (same shape as primary metrics, including source + fetchedAt)
+  - relatedVideos[].topComments (same structured shape as primary topComments)
+  - relatedVideos[].publishedAt
+
+8) Timing fields
+- publishedAt: Primary video publish date
+- ingestedAt: When creative was ingested
+- createdAt, updatedAt: Automatic database timestamps
+

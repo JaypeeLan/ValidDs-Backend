@@ -355,8 +355,8 @@ export const ProductRepository = {
     };
   },
 
-  async markStaleProducts(olderThanDays = 7): Promise<number> {
-    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000);
+  async markStaleProducts(olderThanMinutes = 10): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanMinutes * 60_000);
     const result = await Product.updateMany(
       { lastIngestedAt: { $lt: cutoff }, status: 'active' },
       { $set: { status: 'stale' } }

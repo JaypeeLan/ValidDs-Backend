@@ -28,7 +28,7 @@ const MAX_POSTS_DEV  = 50;   // Enough for meaningful dev testing
 /**
  * Recency Guard: Reject any post older than this to avoid stale trends.
  */
-const MAX_AGE_DAYS = 30;
+const MAX_AGE_DAYS = 180;
 
 export interface HashtagPipelineResult {
   postsCollected:    number;

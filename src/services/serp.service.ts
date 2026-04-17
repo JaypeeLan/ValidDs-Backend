@@ -2,6 +2,7 @@ import axios from 'axios';
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'serp-service' });
+const SEARCH_API_BASE_URL = 'https://www.searchapi.io/api/v1/search';
 
 export interface SerpShoppingResult {
   title: string;
@@ -21,6 +22,46 @@ export interface SerpRichData {
   local_results?: any;
   organic_results?: any[];
   knowledge_graph?: any;
+}
+
+function normalizeSearchApiResponse(raw: any): SerpRichData {
+  const shoppingAds = Array.isArray(raw?.shopping_ads) ? raw.shopping_ads : [];
+  const inlineShopping = Array.isArray(raw?.inline_shopping) ? raw.inline_shopping : [];
+
+  const normalizedFromAds: SerpShoppingResult[] = shoppingAds.map((item: any) => ({
+    title: item.title || '',
+    source: item.seller || '',
+    price: item.price,
+    price_raw: typeof item.extracted_price === 'number' ? item.extracted_price : undefined,
+    thumbnail: item.image,
+    link: item.product_link || item.link,
+    rating: typeof item.rating === 'number' ? item.rating : undefined,
+    reviews: typeof item.reviews === 'number' ? item.reviews : undefined,
+    is_ad: true,
+  }));
+
+  const normalizedFromInline: SerpShoppingResult[] = inlineShopping.map((item: any) => ({
+    title: item.title || '',
+    source: item.seller || '',
+    price: item.price,
+    price_raw: typeof item.extracted_price === 'number' ? item.extracted_price : undefined,
+    thumbnail: item.thumbnail,
+    link: item.product_link || item.link,
+    rating: typeof item.rating === 'number' ? item.rating : undefined,
+    reviews: typeof item.reviews === 'number' ? item.reviews : undefined,
+    is_ad: false,
+  }));
+
+  const shopping_results = [...normalizedFromAds, ...normalizedFromInline]
+    .filter((item) => item.title && item.source);
+
+  return {
+    shopping_results,
+    immersive_products: raw?.immersive_products || [],
+    local_results: raw?.local_results,
+    organic_results: raw?.organic_results || [],
+    knowledge_graph: raw?.knowledge_graph,
+  };
 }
 
 export const SerpService = {
@@ -46,12 +87,12 @@ export const SerpService = {
         hl: 'en'
       };
 
-      const response = await axios.get('https://serpapi.com/search', {
+      const response = await axios.get(SEARCH_API_BASE_URL, {
         params,
         timeout: 15000
       });
 
-      return response.data as SerpRichData;
+      return normalizeSearchApiResponse(response.data);
     } catch (err: any) {
       log.error('SerpAPI rich search failed', { 
         error: err.message,

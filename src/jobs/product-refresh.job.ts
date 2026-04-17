@@ -135,13 +135,11 @@ export async function runProductRefreshJob(): Promise<void> {
 
 /**
  * Stale data cleanup job.
- * Marks products that haven't been updated in 2 hours as stale.
- * Run less frequently (every 30 minutes).
+ * Marks products that haven't been updated in a few minutes as stale.
  */
 export async function runStaleCleanupJob(): Promise<void> {
   log.debug('Stale cleanup job started');
-  const TWO_HOURS = 2 * 60 * 60 * 1000;
-  const count = await ProductRepository.markStaleProducts(2); // 2 days
+  const count = await ProductRepository.markStaleProducts(10); // 10 minutes
   if (count > 0) {
     log.info(`Marked ${count} products as stale`);
   }

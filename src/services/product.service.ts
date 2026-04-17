@@ -32,11 +32,14 @@ export const ProductService = {
       JSON.stringify({ ...filters, page: undefined, limit: undefined })
     );
 
-    const feed = await CacheService.getOrSet(
-      cacheKey,
-      CACHE_TTL.PRODUCT_FEED,
-      () => ProductRepository.findFeed(filters)
-    );
+    let feed = await CacheService.get<PaginatedResponse<IProductDocument>>(cacheKey);
+    if (feed === null) {
+      feed = await ProductRepository.findFeed(filters);
+      // Do not cache an empty page — avoids locking in "no products" for 5m after deploy or ingestion lag.
+      if (feed.pagination.total > 0) {
+        await CacheService.set(cacheKey, feed, CACHE_TTL.PRODUCT_FEED);
+      }
+    }
 
     const freshness = await FreshnessService.getResponseMetadata('product');
 

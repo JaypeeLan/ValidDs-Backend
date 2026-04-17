@@ -13,10 +13,13 @@
  * - No key collision bugs from typos
  */
 
+/** Bump when feed query semantics change so Redis does not serve stale empty/wrong slices. */
+const PRODUCT_FEED_CACHE_REVISION = 'v2';
+
 export const CacheKeys = {
   // Product feed — varies by page + limit + filters
   productFeed: (page: number, limit: number, filters?: string) =>
-    `product:feed:${page}:${limit}${filters ? `:${filters}` : ''}`,
+    `product:feed:${PRODUCT_FEED_CACHE_REVISION}:${page}:${limit}${filters ? `:${filters}` : ''}`,
 
   // Individual product detail
   productDetail: (id: string) => `product:detail:${id}`,

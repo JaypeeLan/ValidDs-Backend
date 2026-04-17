@@ -58,6 +58,7 @@ export interface IRatingSource {
  * Sourced from EnsembleData comment API. Used as social proof on the product card.
  */
 export interface IProductComment {
+  comment: string;                 // normalized comment body
   text: string;                    // comment body
   likeCount: number;               // comment likes — proxy for usefulness
   authorHandle?: string;           // commenter's @handle (may be absent)
@@ -288,6 +289,7 @@ const RelatedProductSchema = new Schema<IRelatedProduct>(
 
 const ProductCommentSchema = new Schema<IProductComment>(
   {
+    comment:      { type: String, required: true },
     text:         { type: String, required: true },
     likeCount:    { type: Number, required: true, min: 0 },
     authorHandle: { type: String },

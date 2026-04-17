@@ -44,7 +44,12 @@
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
     "test-ingestion": "ts-node scripts/test-ingestion.ts",
     "hashtag-pipeline": "npx ts-node scripts/run-hashtag-pipeline.ts",
-    "cleanup-products": "ts-node scripts/cleanup-products.ts"
+    "cleanup-products": "ts-node scripts/cleanup-products.ts",
+    "clear-db": "ts-node scripts/clear-db.ts",
+    "batch-ingest": "ts-node scripts/batch-ingest.ts",
+    "fast-seed": "ts-node scripts/seed-fast-70.ts",
+    "remove-mock-data": "ts-node scripts/remove-mock-data.ts",
+    "ingest-creatives": "ts-node scripts/batch-ingest-creatives.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

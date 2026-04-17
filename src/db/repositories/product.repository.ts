@@ -108,6 +108,7 @@ export interface EnrichedProductInput {
   rating?: number;
   reviewCount?: number;
   topComments?: Array<{
+    comment: string;
     text: string;
     likeCount: number;
     authorHandle?: string;

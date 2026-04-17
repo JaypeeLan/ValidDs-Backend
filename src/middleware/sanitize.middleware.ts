@@ -16,28 +16,47 @@ import sanitize = require('mongo-sanitize');
  */
 
 export function sanitizeMiddleware(req: Request, _res: Response, next: NextFunction): void {
-  if (req.body) req.body = sanitize(req.body);
-  if (req.params) req.params = sanitize(req.params);
-  if (req.query) req.query = sanitize(req.query) as any;
-
-  // Basic XSS strip on string body fields
-  if (req.body && typeof req.body === 'object') {
-    stripXSS(req.body);
+  if (req.body) {
+    req.body = sanitize(req.body);
+    req.body = deepSanitizeStrings(req.body);
+  }
+  if (req.params) {
+    req.params = deepSanitizeStrings(sanitize(req.params));
+  }
+  if (req.query) {
+    req.query = deepSanitizeStrings(sanitize(req.query)) as any;
   }
 
   next();
 }
 
-function stripXSS(obj: Record<string, unknown>): void {
-  for (const key of Object.keys(obj)) {
-    const val = obj[key];
-    if (typeof val === 'string') {
-      obj[key] = val
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/on\w+="[^"]*"/gi, '')
-        .replace(/on\w+='[^']*'/gi, '');
-    } else if (val && typeof val === 'object' && !Array.isArray(val)) {
-      stripXSS(val as Record<string, unknown>);
-    }
+function deepSanitizeStrings(value: unknown): any {
+  if (typeof value === 'string') {
+    return sanitizeString(value);
   }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => deepSanitizeStrings(item));
+  }
+
+  if (value && typeof value === 'object') {
+    const output: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      output[key] = deepSanitizeStrings(val);
+    }
+    return output;
+  }
+
+  return value;
+}
+
+function sanitizeString(raw: string): string {
+  return raw
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/on\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/on\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/on\w+\s*=\s*[^\s>]+/gi, '')
+    .replace(/javascript:/gi, '')
+    .trim();
 }

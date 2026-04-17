@@ -11,7 +11,9 @@ export class AIOrchestrator {
 
   private static getGemini() {
     if (!this.geminiClient) {
-      const apiKey = process.env.GOOGLE_AI_API_KEY;
+      const apiKey =
+        process.env.GOOGLE_AI_API_KEY ||
+        process.env.GOOGLE_API_KEY;
       if (apiKey) {
         this.geminiClient = new GoogleGenerativeAI(apiKey);
       }

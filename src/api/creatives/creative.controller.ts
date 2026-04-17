@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { CreativeService } from '../../services/creative.service';
-import { CreativeListQuery } from './creative.validator';
+import { CreativeListQuery, CreativeIngestBody } from './creative.validator';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { NotFoundError } from '../../middleware/error.middleware';
 
@@ -44,6 +44,26 @@ export const CreativeController = {
           { creative },
           ResponseMessage.CREATIVE_RETRIEVED,
           200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+  /**
+   * Standalone creative ingestion by keyword.
+   * POST /api/v1/creatives/ingest
+   */
+  async ingest(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { keyword, limit, period, country } = req.body as CreativeIngestBody;
+      const result = await CreativeService.ingestByKeyword(keyword, { limit, period, country });
+
+      res.status(201).json(
+        successResponse(
+          result,
+          ResponseMessage.CREATIVES_INGESTED,
+          201
         )
       );
     } catch (err) {

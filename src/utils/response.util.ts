@@ -19,6 +19,7 @@ export enum ResponseMessage {
   // Creatives
   CREATIVE_RETRIEVED = 'Creative retrieved successfully.',
   CREATIVES_RETRIEVED = 'Creatives retrieved successfully.',
+  CREATIVES_INGESTED = 'Creatives ingested successfully.',
 
   // Health
   HEALTH_OK = 'Service is healthy and running.',

@@ -40,6 +40,32 @@ export interface IVideoMetrics {
   commentCount: number;
   shareCount: number;
   engagementRate?: number;   // (likes + comments + shares) / views * 100
+  source: string;            // where metrics came from (e.g. 'EnsembleData')
+  fetchedAt: Date;           // snapshot timestamp for metric freshness
+}
+
+/**
+ * Structured comments for a creative/video.
+ */
+export interface ICreativeComment {
+  comment: string;
+  source: string;            // e.g. 'TikTok', 'SerpApi'
+  likeCount?: number;
+  authorHandle?: string;
+  collectedAt: Date;
+}
+
+/**
+ * Secondary videos for the same product.
+ */
+export interface ISecondaryVideo {
+  externalVideoId: string;
+  videoPlayUrl?: string;
+  thumbnailUrl?: string;
+  creator: ICreatorProfile;
+  metrics: IVideoMetrics;
+  topComments: ICreativeComment[];
+  publishedAt: Date;
 }
 
 // ── Main Creative Interface ───────────────────────────────────────────────────
@@ -62,6 +88,8 @@ export interface ICreative {
   // ── Classification ────────────────────────────────────────────────────
   section: CreativeSection;    // how this video is categorized in the feed
   isAd: boolean;               // true = detected as a paid TikTok ad
+  productName?: string;        // explicitly extracted product name shown in video
+  productDescription?: string; // normalized product description (not video caption)
 
   // ── Taxonomy (mirrors parent product) ────────────────────────────────
   categoryL1?: string;
@@ -69,8 +97,12 @@ export interface ICreative {
   categoryL3?: string;
 
   // ── Content Metadata ──────────────────────────────────────────────────
-  description?: string;        // video caption
+  description?: string;        // legacy description field (kept for backward compatibility)
   hashtags: string[];
+  topComments: ICreativeComment[];
+
+  // ── Variations/Related Videos ─────────────────────────────────────────
+  relatedVideos: ISecondaryVideo[];
 
   // ── Timing ────────────────────────────────────────────────────────────
   publishedAt: Date;
@@ -109,6 +141,32 @@ const VideoMetricsSchema = new Schema<IVideoMetrics>(
     commentCount:  { type: Number, required: true, default: 0, min: 0 },
     shareCount:    { type: Number, required: true, default: 0, min: 0 },
     engagementRate:{ type: Number, min: 0 },
+    source:        { type: String, required: true, default: 'EnsembleData' },
+    fetchedAt:     { type: Date, required: true, default: Date.now },
+  },
+  { _id: false }
+);
+
+const CreativeCommentSchema = new Schema<ICreativeComment>(
+  {
+    comment:     { type: String, required: true },
+    source:      { type: String, required: true },
+    likeCount:   { type: Number, min: 0 },
+    authorHandle:{ type: String },
+    collectedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const SecondaryVideoSchema = new Schema<ISecondaryVideo>(
+  {
+    externalVideoId: { type: String, required: true },
+    videoPlayUrl:    { type: String },
+    thumbnailUrl:    { type: String },
+    creator:         { type: CreatorProfileSchema, required: true },
+    metrics:         { type: VideoMetricsSchema, required: true },
+    topComments:     { type: [CreativeCommentSchema], default: [] },
+    publishedAt:     { type: Date, required: true },
   },
   { _id: false }
 );
@@ -139,6 +197,8 @@ const CreativeSchema = new Schema<ICreativeDocument>(
       index: true,
     },
     isAd: { type: Boolean, default: false, index: true },
+    productName: { type: String },
+    productDescription: { type: String, maxlength: 2000 },
 
     // Taxonomy
     categoryL1: { type: String, index: true },
@@ -148,6 +208,10 @@ const CreativeSchema = new Schema<ICreativeDocument>(
     // Content Metadata
     description: { type: String, maxlength: 2000 },
     hashtags:    [{ type: String }],
+    topComments: { type: [CreativeCommentSchema], default: [] },
+
+    // Variations
+    relatedVideos: { type: [SecondaryVideoSchema], default: [] },
 
     // Timing
     publishedAt: { type: Date, required: true },

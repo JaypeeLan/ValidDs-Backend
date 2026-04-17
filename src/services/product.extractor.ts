@@ -114,6 +114,11 @@ export const ProductExtractor = {
       const cat = parsed.categoryHierarchy || { l1: 'Other' };
       const sales = parsed.salesData || { unitsSold: 0, store: 'Unknown' };
 
+      const validDirections = ['rising', 'peaked', 'saturating', 'stable', 'declining', 'emerging', 'viral', 'unknown'];
+      let parsedDirection = String(parsed.trendDirection || 'unknown').toLowerCase();
+      if (parsedDirection === 'plateauing') parsedDirection = 'saturating';
+      if (!validDirections.includes(parsedDirection)) parsedDirection = 'unknown';
+
       return {
         productName: String(parsed.productName || ''),
         amazonSearchTerm: String(parsed.productName || ''),
@@ -148,7 +153,7 @@ export const ProductExtractor = {
 
         trendScore: Number(parsed.trendScore || 50),
         trendReason: String(parsed.trendReason || ''),
-        trendDirection: (parsed.trendDirection as any) || 'unknown',
+        trendDirection: parsedDirection as any,
         isTrending: Number(parsed.trendScore || 0) > 60,
         isProductVideo: true,
         

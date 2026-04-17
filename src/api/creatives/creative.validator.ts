@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const CreativeListQuerySchema = z.object({
   page:      z.coerce.number().min(1).default(1),
   limit:     z.coerce.number().min(1).max(100).default(20),
+  q:         z.string().trim().min(1).max(120).optional(),
   productId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid productId format').optional(),
   section:   z.enum(['top-ads', 'trending', 'influencer-reviews', 'tutorials', 'viral-unboxings']).optional(),
   isAd:      z.coerce.boolean().optional(),
@@ -20,3 +21,12 @@ export const CreativeIdParamSchema = z.object({
 });
 
 export type CreativeListQuery = z.infer<typeof CreativeListQuerySchema>;
+
+export const CreativeIngestBodySchema = z.object({
+  keyword: z.string().min(2).max(100),
+  limit:   z.coerce.number().min(1).max(50).default(10),
+  period:  z.coerce.number().min(1).max(90).default(30),
+  country: z.string().length(2).default('us'),
+});
+
+export type CreativeIngestBody = z.infer<typeof CreativeIngestBodySchema>;

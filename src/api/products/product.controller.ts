@@ -53,8 +53,15 @@ function formatProductResponse(input: ProductLike): Record<string, unknown> {
   const product = typeof input.toObject === 'function' ? input.toObject() : input;
   const aiIntelligence = (product.aiIntelligence ?? {}) as NonNullable<ProductLike['aiIntelligence']>;
   const trend = (product.trend ?? {}) as NonNullable<ProductLike['trend']>;
+  const ratingSources = Array.isArray((product as any).ratingSources) ? (product as any).ratingSources : [];
+  const derivedRating = deriveAverageRatingFromSources(ratingSources);
+  const finalRating = typeof (product as any).rating === 'number' && (product as any).rating > 0
+    ? (product as any).rating
+    : derivedRating;
   const response = {
     ...product,
+    rating: finalRating,
+    ratings: finalRating,
     trend: {
       ...trend,
       isTrending: Boolean(trend.isTrending),
@@ -75,6 +82,22 @@ function formatProductResponse(input: ProductLike): Record<string, unknown> {
   delete response.aiIntelligence;
   delete response.aiExtraction; // Cleanup legacy field if present
   return response;
+}
+
+function deriveAverageRatingFromSources(sources: any[]): number | undefined {
+  if (!Array.isArray(sources) || sources.length === 0) return undefined;
+  let weighted = 0;
+  let reviews = 0;
+  for (const source of sources) {
+    const rating = Number(source?.rating);
+    const reviewCount = Number(source?.reviewCount);
+    if (Number.isFinite(rating) && Number.isFinite(reviewCount) && rating > 0 && reviewCount > 0) {
+      weighted += rating * reviewCount;
+      reviews += reviewCount;
+    }
+  }
+  if (reviews <= 0) return undefined;
+  return Math.round((weighted / reviews) * 10) / 10;
 }
 
 /**

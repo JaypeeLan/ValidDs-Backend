@@ -1,16 +1,19 @@
 import { NormalizedPost, NormalizedComment } from '../ingestion.types';
 import { EnsemblePost, EnsembleComment } from './ensemble.client';
 
-export function transformEnsemblePosts(posts: EnsemblePost[]): NormalizedPost[] {
-  return posts.map((post) => {
-    const desc = post.desc || '';
-    const hashtags = extractHashtags(post);
-    const creatorHandle = post.author?.unique_id || 'unknown';
+export function transformEnsemblePosts(posts: any[]): NormalizedPost[] {
+  return posts.map((item) => {
+    const post = item.aweme_info || item;
+    const desc = post.desc || post.text || '';
+    const hashtags = extractHashtagsIdentified(post);
+    const author = post.author || {};
+    const creatorHandle = author.unique_id || author.uniqueId || 'unknown';
+    const videoId = post.aweme_id || post.id || post.videoId;
 
     return {
-      videoId: post.aweme_id,
-      videoUrl: `https://www.tiktok.com/@${creatorHandle}/video/${post.aweme_id}`,
-      videoPlayUrl: post.video?.play_addr?.url_list?.[0],
+      videoId,
+      videoUrl: `https://www.tiktok.com/@${creatorHandle}/video/${videoId}`,
+      videoPlayUrl: post.video?.play_addr?.url_list?.[0] || post.video?.play_url,
       thumbnailUrl: post.video?.cover?.url_list?.[0],
 
       title: desc.split('\n')[0] || 'Unknown Title',
@@ -19,30 +22,39 @@ export function transformEnsemblePosts(posts: EnsemblePost[]): NormalizedPost[] 
       rawText: desc,
 
       creatorHandle,
-      creatorDisplayName: post.author?.nickname,
-      creatorFollowers: post.author?.follower_count || 0,
-      creatorRegion: post.author?.region,
-      creatorVerified: typeof post.author?.verification_type === 'number' ? post.author.verification_type > 0 : undefined,
-      creatorAvatarUrl: post.author?.avatar_thumb?.url_list?.[0],
-      creatorBio: post.author?.signature,
-      creatorFollowing: post.author?.following_count,
-      creatorTotalLikes: post.author?.total_favorited,
+      creatorDisplayName: author.nickname || author.nickName,
+      creatorFollowers: author.follower_count || author.followerCount || 0,
+      creatorRegion: author.region,
+      creatorVerified: typeof author.verification_type === 'number' ? author.verification_type > 0 : !!author.verified,
+      creatorAvatarUrl: author.avatar_thumb?.url_list?.[0],
+      creatorBio: author.signature,
+      creatorFollowing: author.following_count || author.followingCount,
+      creatorTotalLikes: author.total_favorited || author.heartCount,
 
-      viewCount: post.statistics?.play_count || 0,
-      likeCount: post.statistics?.digg_count || 0,
-      commentCount: post.statistics?.comment_count || 0,
-      shareCount: post.statistics?.share_count || 0,
+      viewCount: post.statistics?.play_count || post.statistics?.playCount || 0,
+      likeCount: post.statistics?.digg_count || post.statistics?.diggCount || 0,
+      commentCount: post.statistics?.comment_count || post.statistics?.commentCount || 0,
+      shareCount: post.statistics?.share_count || post.statistics?.shareCount || 0,
 
-      isAd: false, // Ensemble organic search
+      isAd: !!(post.is_ad || post.isAd),
       adStatus: 'unknown',
 
       publishedAt: post.create_time ? new Date(post.create_time * 1000) : undefined,
       collectedAt: new Date(),
 
       source: 'ensemble',
-      sourceRaw: post,
+      sourceRaw: item,
     };
   });
+}
+
+function extractHashtagsIdentified(post: any): string[] {
+  const fromText = extractHashtagsFromText(post.desc || post.text || '');
+  const fromMetadata = (post.text_extra ?? [])
+    .map((entry: any) => entry.hashtag_name?.trim().toLowerCase())
+    .filter((value: any): value is string => Boolean(value));
+
+  return [...new Set([...fromMetadata, ...fromText])];
 }
 
 export function transformEnsembleComments(comments: EnsembleComment[], videoId: string): NormalizedComment[] {

@@ -73,35 +73,24 @@ export const ProductEnricher = {
       : undefined;
 
     // 5. Rating sources (from SerpApi, or AI-estimated fallback from TikTok engagement)
-    let ratingSources: EnrichedProductInput['ratingSources'] = serpRatings.map(r => ({
+    let ratingSources: NonNullable<EnrichedProductInput['ratingSources']> = serpRatings.map(r => ({
       platform:    r.source,
       rating:      r.rating,
       reviewCount: r.reviewsCount,
       sourceUrl:   r.url,
       fetchedAt:   new Date(),
     }));
+    ratingSources = normalizeRatingSources(ratingSources);
 
     // FALLBACK ALGORTIHM: If Serp returns no ratings, we estimate from TikTok intent + engagement
-    if (ratingSources.length === 0 && post.engagementRate) {
-      const sentiment = extraction.buyingSentimentScore || 50;
-      
-      // Base estimated rating on sentiment (50 sentiment -> 3.5 stars, 100 -> 5.0 stars)
-      let estimatedRating = 3.0 + (sentiment / 100) * 2.0;
-      estimatedRating = Math.min(5.0, Math.max(1.0, estimatedRating)); // Clamp 1-5
-
-      // Estimated reviews based on comment count and engagement
-      const estimatedReviews = Math.max(10, Math.floor(post.commentCount * 0.15));
-
-      ratingSources.push({
-        platform: 'TikTok Engagement (Estimated)',
-        rating: Number(estimatedRating.toFixed(1)),
-        reviewCount: estimatedReviews,
-        fetchedAt: new Date()
-      });
+    if (ratingSources.length === 0) {
+      ratingSources.push(buildFallbackRatingSource(extraction, post));
+      ratingSources = normalizeRatingSources(ratingSources);
     }
 
     // 5b. Map top comments for social proof
     const topComments = comments.slice(0, 10).map((c: any) => ({
+      comment: c.text,
       text: c.text,
       likeCount: c.likeCount || 0,
       authorHandle: c.authorHandle,
@@ -261,24 +250,27 @@ export const ProductEnricher = {
  * Fallback to AI-estimated rating if no sources exist.
  */
 function calculateFinalRating(sources: any[], extraction: any): number | undefined {
-  if (!sources || sources.length === 0) {
-    return extraction.estimatedRating;
-  }
+  if (!sources || sources.length === 0) return sanitizeRating(extraction.estimatedRating);
 
   let totalWeightedScore = 0;
   let totalReviews = 0;
 
   for (const s of sources) {
-    if (typeof s.rating === 'number' && typeof s.reviewCount === 'number') {
+    if (
+      typeof s.rating === 'number' &&
+      typeof s.reviewCount === 'number' &&
+      s.rating > 0 &&
+      s.reviewCount > 0
+    ) {
       totalWeightedScore += s.rating * s.reviewCount;
       totalReviews += s.reviewCount;
     }
   }
 
-  if (totalReviews === 0) return extraction.estimatedRating;
+  if (totalReviews === 0) return sanitizeRating(extraction.estimatedRating);
   
   const avg = totalWeightedScore / totalReviews;
-  return Math.round(avg * 10) / 10; // Round to 1 decimal
+  return sanitizeRating(Math.round(avg * 10) / 10); // Round to 1 decimal
 }
 
 /**
@@ -286,13 +278,54 @@ function calculateFinalRating(sources: any[], extraction: any): number | undefin
  */
 function calculateFinalReviewCount(sources: any[], extraction: any): number | undefined {
   if (!sources || sources.length === 0) {
-    return extraction.estimatedReviewCount || 0;
+    return Math.max(1, Number(extraction.estimatedReviewCount) || 1);
   }
 
   let total = 0;
   for (const s of sources) {
-    total += s.reviewCount || 0;
+    total += Math.max(0, Number(s.reviewCount) || 0);
   }
 
-  return total > 0 ? total : (extraction.estimatedReviewCount || 0);
+  if (total > 0) return total;
+  return Math.max(1, Number(extraction.estimatedReviewCount) || 1);
+}
+
+function sanitizeRating(value: any): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 3.5;
+  return Math.min(5, Math.max(1, Number(numeric.toFixed(1))));
+}
+
+function normalizeRatingSources(
+  sources: EnrichedProductInput['ratingSources'] = []
+): NonNullable<EnrichedProductInput['ratingSources']> {
+  const cleaned = (sources || [])
+    .map((source) => ({
+      ...source,
+      rating: sanitizeRating(source.rating),
+      reviewCount: Math.max(1, Number(source.reviewCount) || 1),
+      fetchedAt: source.fetchedAt || new Date(),
+    }))
+    .filter((source) => !!source.platform);
+
+  return cleaned;
+}
+
+function buildFallbackRatingSource(extraction: any, post: NormalizedPost): NonNullable<EnrichedProductInput['ratingSources']>[number] {
+  const sentiment = Number(extraction.buyingSentimentScore || 50);
+  let estimated = Number(extraction.estimatedRating);
+
+  if (!Number.isFinite(estimated) || estimated <= 0) {
+    estimated = 3.0 + (sentiment / 100) * 2.0;
+  }
+
+  const reviewsFromPost = Math.max(1, Math.floor((post.commentCount || 0) * 0.15));
+  const reviews = Math.max(10, Number(extraction.estimatedReviewCount) || reviewsFromPost);
+
+  return {
+    platform: post.engagementRate ? 'TikTok Engagement (Estimated)' : 'AI Estimate (Gemini/DeepSeek)',
+    rating: sanitizeRating(estimated),
+    reviewCount: reviews,
+    fetchedAt: new Date(),
+  };
 }

@@ -8,7 +8,7 @@ info:
     
     ### Authentication
     - **API Key**: Required for internal/service-to-service communication.
-    - **JWT**: Required for user-facing routes.
+    - **JWT**: Required for account-specific routes (auth, profile, saved products, ingestion, admin). Product and creative **list/detail/search** are public unless noted on the operation.
   version: 1.0.0
   contact:
     name: ValidDs Support

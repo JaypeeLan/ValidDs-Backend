@@ -9,31 +9,29 @@ const router = Router();
 /**
  * Product Routes
  *
- * GET /products — paginated list (all active products) or full-text search when `q` is set
- * GET /products/categories — list unique categories
- * GET /products/:id — product detail
- *
- * All routes use requireAuth — authentication is mandatory for all endpoints.
+ * GET /products — paginated list or search (public discovery)
+ * GET /products/keyword-context — public
+ * GET /products/categories — public
+ * GET /products/:id — product detail (public)
+ * GET /products/saved — requires JWT (user bookmarks)
  */
 
 router.get(
   '/',
-  requireAuth,
   validate(ProductFeedQuerySchema, 'query'),
   ProductController.feed
 );
 
 router.get(
   '/keyword-context',
-  requireAuth,
   validate(ProductKeywordContextQuerySchema, 'query'),
   ProductController.keywordContext
 );
 
-router.get('/categories', requireAuth, ProductController.categories);
+router.get('/categories', ProductController.categories);
 router.get('/saved', requireAuth, ProductController.saved);
 
 // :id must come last — otherwise static segments like "categories" match as an id
-router.get('/:id', requireAuth, ProductController.detail);
+router.get('/:id', ProductController.detail);
 
 export default router;

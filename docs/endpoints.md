@@ -10,7 +10,7 @@ All endpoints return standardized success envelopes detailed in `docs/api-respon
 
 ### `GET /products`
 Returns a paginated list of products (full catalog by page). Supports optional full-text search and filters on the **same** route.
-**Authentication:** Required (JWT).
+**Authentication:** Not required (optional JWT improves default `region` when logged in).
 **Query Parameters:**
 - `page` *(number, optional)*: Page number (defaults to 1).
 - `limit` *(number, optional)*: Items per page (defaults to 20, max 100).
@@ -27,12 +27,12 @@ Returns a paginated list of products (full catalog by page). Supports optional f
 
 ### `GET /products/:id`
 Returns comprehensive data for a single product.
-**Authentication:** Required (JWT).
+**Authentication:** Not required.
 **Path Parameters:** `id` (MongoDB ObjectId).
 
 ### `GET /products/categories`
 Returns a highly distinct array of existing categories.
-**Authentication:** Required (JWT).
+**Authentication:** Not required.
 
 ---
 

@@ -8,10 +8,10 @@ const router = Router();
 
 /**
  * Creative Routes
- * 
- * GET /api/v1/creatives      — List all creatives with filters
- * POST /api/v1/creatives/ingest — Standalone ingestion of creatives by keyword
- * GET /api/v1/creatives/:id  — Get detail for a single creative
+ *
+ * GET /api/v1/creatives — List creatives (public discovery)
+ * GET /api/v1/creatives/:id — Detail (public)
+ * POST /api/v1/creatives/ingest — requires JWT
  */
 
 router.post(
@@ -23,14 +23,12 @@ router.post(
 
 router.get(
   '/',
-  requireAuth,
   validate(CreativeListQuerySchema, 'query'),
   CreativeController.list
 );
 
 router.get(
   '/:id',
-  requireAuth,
   validate(CreativeIdParamSchema, 'params'),
   CreativeController.detail
 );

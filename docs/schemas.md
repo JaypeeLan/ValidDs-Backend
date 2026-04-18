@@ -1,99 +1,65 @@
 # ValidDs Backend — Schema Documentation
 
-This document explicitly outlines the data models established for ValidDs V1. Because ValidDs serves as a product research and validation platform for dropshippers, the schema is hyper-focused on collecting and structuring engagement metrics, trend momentum, and sourcing intelligence.
-
-All schemas are implemented via Mongoose and stored in MongoDB Atlas.
+Mongoose models in **`src/models/product.model.ts`** and **`src/models/creative.model.ts`** are the source of truth. Public HTTP shapes are described in **`src/docs/openapi/`**. A Word export aligned to these models lives at **`project_docs/schemas.docx`** (updated 2026-04-18).
 
 ---
 
-## 1. Product Entity
+## 1. `Product` collection
 
-**Entity Name:** `Product`  
-**Purpose:** Serves as the core entity within ValidDs. It represents a trending dropshipping item extracted from viral social media posts.  
-**Relationships:** Acts as the parent container for `ProductVideo`, `ProductTrend`, `StoreRef`, and `SupplierRef` subdocuments.
+One document per product discovered from a TikTok post. **Unique index:** `externalId` + `source`. **`status`:** `active` \| `stale` \| `archived`.
 
-### Why these fields exist
+| Area | Fields (summary) |
+|------|-------------------|
+| Identity | `externalId`, `source`, `status` |
+| Content | `title`, `normalizedTitle`, `description`, `hashtags` |
+| Taxonomy | `categoryL1`, `categoryL2`, `categoryL3`, `categoryPath` |
+| Media | `primaryImageUrl`, `imageUrls[]` |
+| Pricing | `price`, `currency`, `suppliers[]` (platform, productUrl, price, currency, shippingDays, moq, checkedAt) |
+| Market | `rating`, `reviewCount`, `salesEvidence` (unitsSold, store, storeUrl, timeframe, **sourceBreakdown[]**, fetchedAt), `ratingSources[]`, `reviews[]` |
+| Social | `topComments[]` (TikTok comments + sentiment) |
+| Engagement | `viewCount`, `likeCount`, `commentCount`, `shareCount`, `engagementRate` |
+| Creator | `primaryCreator` (handle, followers, tiktokPostUrl, …) |
+| AI | `aiIntelligence` (confidence, reasons, brand, categoryKeywords, buying sentiment, extractedAt) |
+| Trend | `trend` (score, direction, reason, isTrending, calculatedAt) |
+| Discovery | `discoverySections[]` (e.g. `trending`, `top-ads`, `viral`), `relatedProducts[]` |
+| Creatives rollup | `creativeCounts` { ads, organic, reviews, total } |
+| Freshness | `lastIngestedAt`, `dataSourceUpdatedAt`, `createdAt`, `updatedAt` |
 
-| Field | Type | Description & Purpose |
-|-------|------|-----------------------|
-| `externalId` | `String` | The unique identifier from the primary social media source (e.g., TikTok video ID). Prevents duplicate processing during ingestion. |
-| `source` | `String` | Determines where the product was scraped from (usually `tiktok`). |
-| `title` | `String` | Sterilized, concise name of the product (≤ 80 characters). Vital for UI rendering and dropshipper readability. |
-| `description` | `String` | Single-sentence AI-generated summary of the product. |
-| `category` | `String` | High-level, canonical category (e.g., `Home & Kitchen`, `Tech Gadgets`) for broad directory filtering. |
-| `tags` | `[String]` | Array of hashtags from the original viral post. Used for search and categorization. |
-| `primaryImageUrl` | `String` | Original high-resolution product image, typically extracted from TeemDrop first and Rainforest/Amazon second. Used as the main thumbnail. |
-| `imageUrls` | `[String]` | Array of supporting high-res product images. |
-| `price` | `Number` | The supplier price chosen for the product card. When TeemDrop is used, this now comes from `productMaxPrice`. |
-| `unitsSold` | `Number` | Verified sales estimate from supplier proof or grounded web research. Defaults to `0` when no verifiable source exists. |
-| `store` | `String` | The supplier source used for the enrichment payload, typically `TeemDrop` or `Amazon`. |
-| `rating` | `Number` | Aggregated market rating (e.g., 4.7), providing immediate trust signals. |
-| `reviewsCount` | `Number` | Total review count in the broader market, establishing product authority. |
-| `engagementRate` | `Number` | Derived metric combining likes, comments, and shares against total views. The primary signal for true virality. |
-| `aiExtraction` | `Object` | (Subdocument) Stores AI metadata like `confidence`, `sentimentSummary`, and `buyingIntentScore` which quantify the comment-section psychology. |
-| `adSignals` | `Object` | (Subdocument) Indicates if the product data was captured from an active Ad campaign via Creative Center, which is a massive validation signal. |
+**Text search:** MongoDB text index on `title` + `description` supports `GET /api/v1/products?q=…`.
+
+**Removed / obsolete concepts (do not document on Product):** embedded `ProductVideo`, `adSignals`, `aiExtraction`, flat `category`/`tags` instead of taxonomy + `hashtags`.
 
 ---
 
-## 2. Videos Entity (Subdocument)
+## 2. `Creative` collection
 
-**Entity Name:** `ProductVideo`  
-**Purpose:** Represents the viral social media post that established the product's trend velocity. Embedded inside the `Product` entity because in V1, videos exist entirely to validate the Product.
+One document per TikTok video tied to a product (`**productId**`).
 
-### Why these fields exist
-
-| Field | Type | Description & Purpose |
-|-------|------|-----------------------|
-| `videoId` | `String` | The native TikTok/social identifier. |
-| `url` | `String` | The direct URL to the video on the native platform. |
-| `playUrl` | `String` | Direct `.mp4` link from the origin server (if available without auth) for localized playback. |
-| `viewCount` / `likeCount` / `commentCount` / `shareCount` | `Number` | The raw foundational engagement metrics. Required to calculate momentum. |
-| `creatorHandle` | `String` | The name/handle of the account that posted it, allowing dropshippers to track specific creators. |
-| `isAd` | `Boolean` | Flag indicating if this specific video is an organic post or paid media. |
-
----
-
-## 3. Trends Entity (Subdocument)
-
-**Entity Name:** `ProductTrend`  
-**Purpose:** Standardizes the velocity and momentum tracking for the product over time.
-
-### Why these fields exist
-
-| Field | Type | Description & Purpose |
-|-------|------|-----------------------|
-| `direction` | `Enum` | Can be `rising`, `peaked`, `saturating`, or `unknown`. A generalized signal of trend lifecycle. |
-| `score` | `Number` | An AI-estimated momentum score (0-100). |
-| `calculatedAt` | `Date` | Timestamp of when the velocity metrics were last computed. |
-
-*(Note: Advanced 7-day and 30-day view velocity fields are designed into the schema for Phase 2 historical calculation but are largely null in V1 since data ingestion is snapshot-based.)*
+| Area | Fields (summary) |
+|------|-------------------|
+| Identity | `productId`, `externalVideoId` |
+| Media | `videoPlayUrl`, `thumbnailUrl` |
+| Creator | `creator` (tiktokUserId, handle, displayName, followers, verified, tiktokPostUrl, …) |
+| Metrics | `metrics` (views, likes, comments, shares, engagementRate, **source**, **fetchedAt**) |
+| Classification | `section` (`top-ads` \| `trending` \| `influencer-reviews` \| `tutorials` \| `viral-unboxings`), `isAd` |
+| Copy | `productName`, `productDescription`, `description` (legacy), `hashtags[]`, `topComments[]` |
+| Related | `relatedVideos[]` (nested creator, metrics, topComments, publishedAt) |
+| Timing | `publishedAt`, `ingestedAt`, `createdAt`, `updatedAt` |
 
 ---
 
-## 4. Competitor / Stores Entity (Subdocument)
+## 3. API-only response fields (Product)
 
-**Entity Name:** `StoreRef`  
-**Purpose:** References live dropshipping stores currently selling this exact product.
+Returned by controllers, not stored as separate columns:
 
-### Why these fields exist
-
-| Field | Type | Description & Purpose |
-|-------|------|-----------------------|
-| `storeName` | `String` | The name of the competing store. |
-| `url` | `String` | Direct link to the competitor's product page for intelligence gathering. |
-| `price` | `Number` | The price the competitor is selling it for, helping the user competitively position their own offer. |
+| Field | Meaning |
+|-------|---------|
+| `isTopAd` | `true` when `discoverySections` contains `top-ads`. |
+| `aiInsight` | Reshaped view of `aiIntelligence` for clients. |
+| `ratings` | Alias for the resolved numeric rating in list/detail payloads. |
 
 ---
 
-## 5. Supplier / Sourceability Entity (Subdocument)
+## 4. Other collections
 
-**Entity Name:** `SupplierRef`  
-**Purpose:** Connects a viral product to its actual manufacturing source (e.g., AliExpress, CJ Dropshipping), transitioning the platform from "research" to "fulfillment."
-
-### Why these fields exist
-
-| Field | Type | Description & Purpose |
-|-------|------|-----------------------|
-| `name` | `String` | Name of the supplier platform. |
-| `url` | `String` | Direct link to the supplier page where the item can be purchased at wholesale, when one is available. |
-| `wholesalePrice` | `Number` | The base cost to acquire the item, which alongside the market `price`, determines the `estimatedMargin`. |
+User, auth, bookmarks, jobs, and admin analytics live in their respective models under `src/models/`. Extend this file when those contracts stabilize.

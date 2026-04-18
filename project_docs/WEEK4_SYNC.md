@@ -22,3 +22,5 @@ This Markdown file supplements **`week_4.docx`**. It lists sources that changed 
 ## Suggested manual refresh
 
 If you maintain Word copies of `endpoints.docx` or `data_ingestion.docx`, refresh sections that describe: product routes, auth throttling, Serp vs SearchAPI, and scheduled jobs.
+
+**Done (2026-04-18):** `schemas.docx` and `docs/schemas.md` were regenerated to match current Product and Creative Mongoose models (removed obsolete `ProductVideo` / `adSignals` / `aiExtraction` narrative).

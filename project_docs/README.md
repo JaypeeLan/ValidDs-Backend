@@ -16,6 +16,7 @@ This folder holds **weekly status Word reports** and **static reference exports*
 | File | Purpose |
 |------|---------|
 | `week_2.docx`, `week_3.docx`, `week_4.docx` | Week-by-week delivery narrative |
-| `architecture.docx`, `data_ingestion.docx`, `schemas.docx`, … | Point-in-time design exports — treat as **historical** unless refreshed manually |
+| `architecture.docx`, `data_ingestion.docx`, … | Point-in-time design exports — treat as **historical** unless refreshed manually |
+| `schemas.docx` | **Regenerated 2026-04-18** from `product.model.ts` / `creative.model.ts` + API response notes (replaces obsolete ProductVideo / adSignals text) |
 
 When you ship a major API or ingestion change, either **re-export** the affected Word doc from your template or add a short note under `project_docs/` in Markdown (see `WEEK4_SYNC.md`).

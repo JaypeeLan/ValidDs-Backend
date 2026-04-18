@@ -74,11 +74,10 @@ src/api/index.ts        ← apiRouter — mounts all feature routers
 Each feature router maps HTTP methods + paths to controller functions:
 
 ```typescript
-// Example: product.routes.ts
-router.get('/',        authenticate, getFeed);      // GET /api/v1/products
-router.get('/search',  authenticate, search);       // GET /api/v1/products/search
-router.get('/:id',     authenticate, getById);      // GET /api/v1/products/:id
-router.get('/categories', authenticate, getCategories);
+// Example: product.routes.ts (simplified)
+router.get('/',         requireAuth, getFeed);       // GET /api/v1/products — list + optional ?q= search
+router.get('/categories', requireAuth, getCategories);
+router.get('/:id',      requireAuth, getById);       // GET /api/v1/products/:id
 ```
 
 ---

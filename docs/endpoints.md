@@ -9,33 +9,30 @@ All endpoints return standardized success envelopes detailed in `docs/api-respon
 ## 1. Product Endpoints
 
 ### `GET /products`
-Returns a paginated list of trending products with extensive filtering capabilities.
-**Authentication:** Optional.
+Returns a paginated list of products (full catalog by page). Supports optional full-text search and filters on the **same** route.
+**Authentication:** Required (JWT).
 **Query Parameters:**
 - `page` *(number, optional)*: Page number (defaults to 1).
 - `limit` *(number, optional)*: Items per page (defaults to 20, max 100).
+- `q` *(string, optional)*: When set, runs MongoDB text search on titles/descriptions; results ordered by relevance (`sortBy` is ignored).
 - `category` *(string, optional)*: Filter by canonical category. Accepts a single string or comma-separated list.
 - `niche` *(string, optional)*: Filter by specific sub-niche string.
 - `trendDirection` *(string, optional)*: Filter by direction. Accepts `rising`, `peaked`, `saturating`, `unknown`.
 - `minTrendScore` *(number, optional)*: Filter items above a given trend momentum score (0-100).
 - `minViews` *(number, optional)*: Filter out products whose primary video has less than this amount of views.
-- `isAd` *(boolean, optional)*: If true, only returns products currently tracked as active ads via Creative Center.
-- `region` *(string, optional)*: Filter down to specific TikTok ingestion region.
-- `market` *(string, optional)*: Filter by target market (e.g. `US`, `UK`, `CA`).
+- `section` *(string, optional)*: Require a discovery section slug on the product (e.g. `top-ads`, `trending`, `viral`). See OpenAPI enum.
+- `isAd` *(boolean, optional)*: When `true`, same as the `top-ads` discovery bucket (`discoverySections` contains `top-ads`). When `false`, excludes that bucket.
+- `sortBy` *(string, optional)*: `trendScore` (default), `views`, `recent`, `engagement` (ignored when `q` is set).
+- `region` *(string, optional)*: Echoed in the response; defaults from the user profile when omitted.
 
 ### `GET /products/:id`
 Returns comprehensive data for a single product.
-**Authentication:** Optional.
+**Authentication:** Required (JWT).
 **Path Parameters:** `id` (MongoDB ObjectId).
-
-### `GET /products/search`
-Performs a full text search across product titles and tags.
-**Authentication:** Optional.
-**Query Parameters:** `q` (The search query), `page` (optional).
 
 ### `GET /products/categories`
 Returns a highly distinct array of existing categories.
-**Authentication:** Optional.
+**Authentication:** Required (JWT).
 
 ---
 

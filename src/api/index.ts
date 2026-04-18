@@ -8,6 +8,7 @@ import creativeRouter from './creatives/creative.routes';
 import ingestionRouter from './ingestion/ingestion.routes';
 import jobsRouter from './jobs/jobs.routes';
 import adminRouter from './admin/admin.routes';
+import billingRouter from './billing/billing.routes';
 
 const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
@@ -17,6 +18,7 @@ apiRouter.use('/creatives', creativeRouter);
 apiRouter.use('/ingestion', ingestionRouter);
 apiRouter.use('/jobs', jobsRouter);
 apiRouter.use('/admin', adminRouter);
+apiRouter.use('/billing', billingRouter);
 
 // Sentry test endpoint
 apiRouter.get('/debug-sentry', (_req, _res) => {

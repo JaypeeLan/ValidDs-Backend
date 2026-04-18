@@ -60,21 +60,31 @@ For production, you will configure a live Webhook Endpoint inside **Developers**
 
 ## Step 5: Set Your Environment Variables
 
-Add these to your `.env` file for the backend:
+Add these to your `.env` file for the backend (see `.env.example`):
 
 ```env
-STRIPE_SECRET_KEY=sk_test_xxxxxx
-STRIPE_WEBHOOK_SECRET=whsec_xxxxxx
+STRIPE_SECRET_KEY_TEST=sk_test_xxxx
+STRIPE_PUBLISHABLE_KEY_TEST=pk_test_xxxx
+STRIPE_WEBHOOK_SECRET_TEST=whsec_xxxx   # from `stripe listen` locally, or Dashboard webhook secret in prod
 ```
 
-> **Note:** Do NOT commit your secret keys. For Render/Production, enter these directly into the Environment Variables settings panel using the `live` versions of the keys.
+For **production** (`NODE_ENV=production`), the server uses `STRIPE_SECRET_KEY_LIVE`, `STRIPE_PUBLISHABLE_KEY_LIVE`, and `STRIPE_WEBHOOK_SECRET_LIVE` instead.
+
+> **Note:** Do NOT commit secret keys. Use Render/host env var UI for staging/production.
+
+### Implemented backend routes
+
+| Route | Purpose |
+|-------|---------|
+| `GET /api/v1/billing/stripe-config` | Returns `{ publishableKey, mode, secretKeyConfigured }` for Stripe.js |
+| `POST /api/v1/webhooks/stripe` | Verifies Stripe signature and acknowledges events (`checkout.session.completed` is logged; user provisioning TODO) |
 
 ---
 
 ## Security Notes
 
 - **Never log or expose** the `STRIPE_SECRET_KEY` or `STRIPE_WEBHOOK_SECRET`.
-- The Webhook endpoint MUST parse the raw HTTP body explicitly to verify the payload signature securely against the `STRIPE_WEBHOOK_SECRET`. Middleware like Express body-parser must be bypassed for this specific route so Stripe's native `validateHeader` features can work perfectly.
+- The webhook route is registered **before** `express.json()` with `express.raw({ type: 'application/json' })` so signatures verify against `STRIPE_WEBHOOK_SECRET_TEST` / `STRIPE_WEBHOOK_SECRET_LIVE`.
 - In production, always mandate HTTPS. Stripe will refuse to send secure payloads to raw HTTP endpoints.
 
 ---
@@ -82,7 +92,7 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxxx
 ## Troubleshooting
 
 **Webhook signature verification failed**
-Make sure you are passing the exact `STRIPE_WEBHOOK_SECRET` provided by `stripe listen` locally, or the direct webhook dashboard secret in production. Express' default `express.json()` mutates the payload formatting preventing secure hashing; ensure you are using `express.raw({ type: 'application/json' })` for your webhook route.
+Make sure you are passing the exact `STRIPE_WEBHOOK_SECRET_TEST` (or `_LIVE`) matching the environment. The app registers the webhook **before** `express.json()` so the raw body is preserved.
 
 **Products aren't returning valid Customer records**
 Ensure your Stripe Checkout call explicitly passes the `client_reference_id` (usually your local MongoDB User ID). This allows the webhook payload to seamlessly find the original user triggering the session so your Backend can correctly update `user.stripeCustomerId`.

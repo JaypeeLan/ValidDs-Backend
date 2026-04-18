@@ -33,6 +33,8 @@ tags:
     description: Background jobs using DeepSeek and EnsembleData.
   - name: Admin
     description: System health and overarching user/product analytics.
+  - name: Billing
+    description: Stripe billing and client configuration
 
 paths:
   /health:
@@ -95,6 +97,10 @@ paths:
     $ref: './paths/creatives.yaml#/creatives'
   /api/v1/creatives/{id}:
     $ref: './paths/creatives.yaml#/creativeDetail'
+  /api/v1/billing/stripe-config:
+    $ref: './paths/billing.yaml#/stripeConfig'
+  /api/v1/webhooks/stripe:
+    $ref: './paths/billing.yaml#/stripeWebhook'
 
 components:
   securitySchemes:

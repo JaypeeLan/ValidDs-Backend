@@ -104,6 +104,75 @@ analyticsProducts:
                       "Home & Kitchen": 400
                       "Beauty & Personal Care": 350
 
+analyticsCreatives:
+  get:
+    summary: Creative Analytics
+    description: |
+      Returns TikTok creative (video) inventory: document counts, total video slots (primary + related),
+      ingestion in the last 24h, breakdown by feed section, ads vs organic, and top L1 categories.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    totalCreatives:
+                      type: integer
+                      description: Number of creative documents in MongoDB
+                    totalVideos:
+                      type: integer
+                      description: Sum of primary videos plus all relatedVideos per document
+                    freshCreatives24h:
+                      type: integer
+                      description: Creative documents ingested in the last 24 hours (ingestedAt)
+                    creativesBySection:
+                      type: object
+                      additionalProperties:
+                        type: integer
+                      example:
+                        trending: 120
+                        top-ads: 45
+                    creativesByAdType:
+                      type: object
+                      properties:
+                        ads:
+                          type: integer
+                        organic:
+                          type: integer
+                    topCategories:
+                      type: object
+                      additionalProperties:
+                        type: integer
+                      description: Top 10 by categoryL1 (mirrors product taxonomy when set)
+                  example:
+                    totalCreatives: 800
+                    totalVideos: 2100
+                    freshCreatives24h: 40
+                    creativesBySection:
+                      trending: 300
+                      top-ads: 100
+                      influencer-reviews: 150
+                      tutorials: 120
+                      viral-unboxings: 130
+                    creativesByAdType:
+                      ads: 200
+                      organic: 600
+                    topCategories:
+                      "Home & Kitchen": 250
+                      "Beauty & Personal Care": 180
+
 users:
   get:
     summary: List Users

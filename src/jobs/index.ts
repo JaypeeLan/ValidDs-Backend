@@ -16,8 +16,8 @@ const log = logger.child({ module: 'jobs' });
  * Uses setInterval rather than a cron library to keep dependencies minimal.
  *
  * Schedule:
- *  Product refresh  — every 24 hours
- *  Stale cleanup    — every 30 minutes
+ *  Daily target ingestion — 15:00 Africa/Lagos, then every 24h (hashtag pipeline → products; then creatives toward caps)
+ *  Stale cleanup         — every 5 minutes
  *
  * The first run of the product refresh is delayed by 10 seconds
  * to give the server time to fully start before making external requests.
@@ -169,7 +169,7 @@ export function startJobs(): void {
   // Product refresh remains available for manual/API trigger only.
   productRefreshTimer = null;
 
-  // Stale cleanup — starts immediately, runs every 30 minutes
+  // Stale cleanup — starts immediately, runs every 5 minutes
   lastStaleCleanupRun = new Date();
   runStaleCleanupJob().catch(() => { });
   staleCleanupTimer = setInterval(() => {

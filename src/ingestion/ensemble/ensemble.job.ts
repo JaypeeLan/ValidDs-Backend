@@ -1,4 +1,5 @@
 import { EnsembleClient } from './ensemble.client';
+import { ENSEMBLE_CATEGORY_KEYWORDS } from './hashtag.constants';
 import { transformEnsemblePosts, transformEnsembleComments } from './ensemble.transformer';
 import { NormalizedPost, NormalizedComment, NormalizedHashtag, NormalizedKeyword, IngestionJobResult } from '../ingestion.types';
 import { logger } from '../../logger';
@@ -17,7 +18,7 @@ export interface EnsembleJobOutput {
  * EnsembleData Ingestion Job
  *
  * Runs data collection cycle using EnsembleData:
- * Searches for 'tiktokmademebuyit' / 'dropshipping' / 'product' posts to seed feed.
+ * Searches category keywords (plus tiktokmademebuyit) via keyword search to seed feed.
  *
  * Scheduled as a fallback inside IngestionOrchestrator.
  */
@@ -63,16 +64,10 @@ export class EnsembleJob {
     }
 
     try {
-      // Gather top posts across trending product-focused keywords
-      const keywords = [
-        'tiktokmademebuyit',
-        'amazonfinds',
-        'musthaves',
-        'viralproducts',
-      ];
+      // Gather top posts: same category terms as hashtags, lowercased for keyword API
       const rawPosts = [];
 
-      for (const kw of keywords) {
+      for (const kw of ENSEMBLE_CATEGORY_KEYWORDS) {
         const posts = await this.client.searchPosts(kw);
         rawPosts.push(...posts);
       }

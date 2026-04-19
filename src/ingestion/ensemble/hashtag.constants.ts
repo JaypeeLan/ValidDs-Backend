@@ -39,33 +39,19 @@ export const PRODUCT_NICHES = {
   ],
 } as const;
 
-export const INTENT_HASHTAGS = [
-  'TikTokMadeMeBuyIt',
-  'AmazonFinds',
-  'MustHave',
-  'ViralProducts',
-  'ProblemSolver',
-  'UnnecessaryPurchase',
-  'IWantOne',
-  'ShutUpAndTakeMyMoney',
-  'GiftIdeas',
-] as const;
+/** Every niche tag — used for both Ensemble keyword search and hashtag feeds. */
+export const ALL_CATEGORY_TAGS = Object.values(PRODUCT_NICHES).flat() as readonly string[];
 
 /**
- * High-intent behavioral keywords for "Full Search" ingestion.
- * These find the "conversational" viral products.
+ * Hashtag discovery (e.g. `/hashtag/posts`): all category tags plus TikTokMadeMeBuyIt.
  */
-export const BEHAVIORAL_KEYWORDS = [
-  'I need this',
-  'Game Changer',
-  'Why did I not know about this',
-  'Best purchase ever',
-  'TikTok made me buy this',
-  'I wish I found this sooner',
-  'Mind Blown',
-] as const;
-
 export const TRACKED_HASHTAGS = [
-  ...INTENT_HASHTAGS,
-  ...Object.values(PRODUCT_NICHES).flat(),
-] as const;
+  ...new Set([...ALL_CATEGORY_TAGS, 'TikTokMadeMeBuyIt']),
+] as readonly string[];
+
+/**
+ * Lowercase terms for `/keyword/search` in EnsembleJob.run — mirrors category tags + buying-intent.
+ */
+export const ENSEMBLE_CATEGORY_KEYWORDS = [
+  ...new Set([...ALL_CATEGORY_TAGS.map((t) => t.toLowerCase()), 'tiktokmademebuyit']),
+] as readonly string[];

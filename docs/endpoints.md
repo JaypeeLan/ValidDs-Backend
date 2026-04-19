@@ -142,6 +142,10 @@ Returns user analytics (total users, new users today, by plan, by status).
 Returns product analytics (totals, fresh products, top categories, by source).
 **Authentication:** Required (admin role).
 
+### `GET /admin/analytics/creatives`
+Returns TikTok creative analytics: total creative documents, total video slots (primary plus related videos), creatives ingested in the last 24h, counts by feed `section`, ads vs organic (`isAd`), and top 10 `categoryL1` buckets.
+**Authentication:** Required (admin role).
+
 ### `GET /admin/users`
 Returns paginated user records for dashboard management.
 **Authentication:** Required (admin role).

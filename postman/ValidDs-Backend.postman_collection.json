@@ -891,6 +891,101 @@
       "name": "Admin",
       "item": [
         {
+          "name": "Server Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "health"
+              ]
+            },
+            "description": "Admin-only: memory, Mongo/Redis, background job timers."
+          }
+        },
+        {
+          "name": "User Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/analytics/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "analytics",
+                "users"
+              ]
+            },
+            "description": "Totals, new users today, breakdown by plan and status."
+          }
+        },
+        {
+          "name": "Product Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/analytics/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "analytics",
+                "products"
+              ]
+            },
+            "description": "Product counts, fresh 24h, by source, top categories."
+          }
+        },
+        {
+          "name": "Creative Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/analytics/creatives",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "analytics",
+                "creatives"
+              ]
+            },
+            "description": "Creative documents, total video slots (incl. related), fresh 24h, by section, ads vs organic, top L1 categories."
+          }
+        },
+        {
           "name": "List Transactions",
           "request": {
             "method": "GET",

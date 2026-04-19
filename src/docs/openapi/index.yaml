@@ -32,7 +32,7 @@ tags:
   - name: Ingestion
     description: Background jobs using DeepSeek and EnsembleData.
   - name: Admin
-    description: System health and overarching user/product analytics.
+    description: System health and analytics for users, products, and TikTok creatives.
   - name: Billing
     description: Stripe billing and client configuration
 
@@ -81,6 +81,8 @@ paths:
     $ref: './paths/admin.yaml#/analyticsUsers'
   /api/v1/admin/analytics/products:
     $ref: './paths/admin.yaml#/analyticsProducts'
+  /api/v1/admin/analytics/creatives:
+    $ref: './paths/admin.yaml#/analyticsCreatives'
   /api/v1/admin/users:
     $ref: './paths/admin.yaml#/users'
   /api/v1/admin/users/{userId}:

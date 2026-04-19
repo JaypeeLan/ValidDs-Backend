@@ -1,5 +1,5 @@
 import { EnsembleJob } from './ensemble.job';
-import { TRACKED_HASHTAGS, BEHAVIORAL_KEYWORDS, PRODUCT_NICHES } from './hashtag.constants';
+import { TRACKED_HASHTAGS, PRODUCT_NICHES } from './hashtag.constants';
 import { ProductExtractor } from '../../services/product.extractor';
 import { ProductEnricher } from '../../services/product.enricher';
 import { ProductRepository } from '../../db/repositories/product.repository';
@@ -46,11 +46,8 @@ export interface HashtagPipelineResult {
  *
  * Full ETL cycle for the hashtag-based product discovery flow:
  *
- *   1. Fetch TikTok posts from EnsembleData for all TRACKED_HASHTAGS
- *      — paginated (dev: 2 pages, staging/prod: all pages up to ~4000)
- *
+ *   1. Category hashtags (PRODUCT_NICHES), then TRACKED_HASHTAGS fallback if under cap.
  *   2. Filter: skip posts with < 50k views (not engaging enough to extract)
- *
  *   3. For each qualifying post:
  *      a. Fetch comments (already done during ingestion step)
  *      b. Run Gemini AI extraction → productName, productNiche, sentiment, etc.
@@ -86,20 +83,12 @@ export class HashtagIngestionPipeline {
     log.info('Hashtag ingestion pipeline started', {
       hashtags: TRACKED_HASHTAGS,
       niches: Object.keys(PRODUCT_NICHES),
-      behavioralKeywords: BEHAVIORAL_KEYWORDS,
       minViewCount: MIN_VIEW_COUNT,
       maxAgeDays: MAX_AGE_DAYS,
     });
 
-
-    // ── Phase 1: High-Intent Behavioral Keyword Search ───────────────
-    log.info('Phase 1: Behavioral keyword discovery');
-    await this.job.runBehavioralSearch([...BEHAVIORAL_KEYWORDS], 7, async (posts) => {
-      return this.processPosts(posts, result, errors);
-    });
-
-    // ── Phase 2: Categorized Niche Discovery ───────────────────────────
-    log.info('Phase 2: Categorized niche discovery');
+    // ── Phase 1: Categorized Niche Discovery ───────────────────────────
+    log.info('Phase 1: Categorized niche discovery');
     for (const [niche, tags] of Object.entries(PRODUCT_NICHES)) {
       log.debug(`Ingesting niche: ${niche}`, { tags });
       await this.job.runHashtagIngestion([...tags], async (posts) => {
@@ -111,9 +100,9 @@ export class HashtagIngestionPipeline {
       if (result.postsCollected >= maxAllowed) break;
     }
 
-    // ── Phase 3: Generic Viral Growth Fallback ────────────────────────
+    // ── Phase 2: Tracked-hashtag fallback ─────────────────────────────
     if (result.postsCollected < (env.NODE_ENV === 'development' ? MAX_POSTS_DEV : MAX_POSTS_PROD)) {
-       log.info('Phase 3: Generic viral growth fallback');
+       log.info('Phase 2: Tracked-hashtag fallback');
        await this.job.runHashtagIngestion([...TRACKED_HASHTAGS], async (posts) => {
          return this.processPosts(posts, result, errors);
        });
@@ -135,7 +124,7 @@ export class HashtagIngestionPipeline {
    * Universal Post Processor
    * 
    * Filters, Extracts, Enriches, and Persists a batch of normalized posts.
-   * shared by hashtag search, niche discovery, and behavioral keyword search.
+   * shared by hashtag search and niche discovery.
    */
   private async processPosts(
     posts: NormalizedPost[],

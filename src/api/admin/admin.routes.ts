@@ -29,6 +29,10 @@ router.get('/analytics/users', adminController.getUserAnalytics);
 // Desc: Returns product analytics (total, fresh 24h, by source, top categories)
 router.get('/analytics/products', adminController.getProductAnalytics);
 
+// Route: GET /api/v1/admin/analytics/creatives
+// Desc: Returns creative (TikTok video) analytics: counts, sections, ads vs organic, top categories
+router.get('/analytics/creatives', adminController.getCreativeAnalytics);
+
 // Route: GET /api/v1/admin/users
 // Desc: List users with pagination and filters (admin only)
 router.get('/users', validate(AdminUsersQuerySchema, 'query'), adminController.listUsers);

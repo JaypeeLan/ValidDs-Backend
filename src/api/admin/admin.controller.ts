@@ -5,6 +5,7 @@ import { getRedisClient } from '../../cache/redis.client';
 import { getJobsStatus } from '../../jobs/index';
 import { User } from '../../models/user.model';
 import { Product } from '../../models/product.model';
+import { Creative } from '../../models/creative.model';
 import { successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
 import type {
@@ -137,6 +138,67 @@ export const getProductAnalytics = async (req: Request, res: Response, next: Nex
         productsBySource,
         topCategories
       }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getCreativeAnalytics = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const totalCreatives = await Creative.countDocuments();
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const freshCreatives24h = await Creative.countDocuments({ ingestedAt: { $gte: oneDayAgo } });
+
+    const [adsCount, organicCount] = await Promise.all([
+      Creative.countDocuments({ isAd: true }),
+      Creative.countDocuments({ isAd: false }),
+    ]);
+
+    const sectionAggregation = await Creative.aggregate([
+      { $group: { _id: '$section', count: { $sum: 1 } } },
+    ]);
+    const creativesBySection = sectionAggregation.reduce((acc, curr) => {
+      acc[curr._id || 'unknown'] = curr.count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const categoryAggregation = await Creative.aggregate([
+      { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+    ]);
+    const topCategories = categoryAggregation.reduce((acc, curr) => {
+      acc[curr._id || 'Uncategorized'] = curr.count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const videoTotalRows = await Creative.aggregate([
+      {
+        $project: {
+          videoCount: {
+            $add: [1, { $size: { $ifNull: ['$relatedVideos', []] } }],
+          },
+        },
+      },
+      { $group: { _id: null, totalVideos: { $sum: '$videoCount' } } },
+    ]);
+    const totalVideos = videoTotalRows[0]?.totalVideos ?? 0;
+
+    res.json({
+      success: true,
+      data: {
+        totalCreatives,
+        totalVideos,
+        freshCreatives24h,
+        creativesBySection,
+        creativesByAdType: {
+          ads: adsCount,
+          organic: organicCount,
+        },
+        topCategories,
+      },
     });
   } catch (err) {
     next(err);

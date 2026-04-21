@@ -177,6 +177,19 @@ export interface EnrichedProductInput {
     reviews: number;
     total: number;
   };
+
+  // EchoTik-specific shop metrics (optional — only populated when source = 'echotik')
+  echotikProductId?: string;
+  region?: string;
+  commissionRate?: number;
+  totalSale30d?: number;
+  totalSale7d?: number;
+  totalGmv?: number;
+  totalGmv30d?: number;
+  totalCreators?: number;
+  salesChannel?: 'video' | 'live' | 'none';
+  freeShipping?: boolean;
+  isManagedStore?: boolean;
 }
 
 // ── Query filter types ────────────────────────────────────────────────────────
@@ -191,6 +204,7 @@ export interface ProductFeedFilters {
   page?: number;
   limit?: number;
   sortBy?: 'trendScore' | 'views' | 'recent' | 'engagement';
+  userRegion?: string;
 }
 
 /** Applies discovery-section rules to a Mongo filter (feed or text search). */
@@ -286,6 +300,19 @@ export const ProductRepository = {
             relatedProducts:   input.relatedProducts ?? [],
             creativeCounts:    input.creativeCounts ?? { ads: 0, organic: 0, reviews: 0, total: 0 },
 
+            // EchoTik shop metrics (conditionally included)
+            ...(input.echotikProductId !== undefined && { echotikProductId: input.echotikProductId }),
+            ...(input.region           !== undefined && { region:           input.region }),
+            ...(input.commissionRate   !== undefined && { commissionRate:   input.commissionRate }),
+            ...(input.totalSale30d     !== undefined && { totalSale30d:     input.totalSale30d }),
+            ...(input.totalSale7d      !== undefined && { totalSale7d:      input.totalSale7d }),
+            ...(input.totalGmv         !== undefined && { totalGmv:         input.totalGmv }),
+            ...(input.totalGmv30d      !== undefined && { totalGmv30d:      input.totalGmv30d }),
+            ...(input.totalCreators    !== undefined && { totalCreators:    input.totalCreators }),
+            ...(input.salesChannel     !== undefined && { salesChannel:     input.salesChannel }),
+            ...(input.freeShipping     !== undefined && { freeShipping:     input.freeShipping }),
+            ...(input.isManagedStore   !== undefined && { isManagedStore:   input.isManagedStore }),
+
             // Freshness
             lastIngestedAt:      new Date(),
             dataSourceUpdatedAt: input.collectedAt,
@@ -314,6 +341,21 @@ export const ProductRepository = {
 
     // Include stale rows so the catalog does not go empty between refreshes; exclude only archived.
     const query: Record<string, unknown> = { status: { $ne: 'archived' } };
+
+    // ── Multi-Region Fallback Logic ──────────────────────────────────────────
+    let regionFilterApplied = false;
+    if (filters.userRegion) {
+      // Check if we have *any* products for this region before filtering by it
+      const regionCount = await Product.countDocuments({ region: filters.userRegion, status: 'active' });
+      if (regionCount > 0) {
+        query['region'] = filters.userRegion;
+        regionFilterApplied = true;
+      }
+    }
+    // If the user's region isn't supported or they didn't provide one, default to 'US' if available
+    if (!regionFilterApplied) {
+      query['region'] = 'US';
+    }
 
     if (filters.category?.length)       query['categoryL1'] = { $in: filters.category };
     if (filters.trendDirection)         query['trend.direction'] = filters.trendDirection;

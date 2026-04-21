@@ -8,7 +8,7 @@ const log = logger.child({ module: 'image-service' });
  * Fetches a product image URL by searching for the product name.
  *
  * Primary:   Google Custom Search API (100 free queries/day)
- * Fallback:  SerpAPI (100 free searches/month)
+ * Fallback:  SearchApi (google_images engine)
  *
  * For V1, images are best-effort. If no image is found, the
  * product record is still created with primaryImageUrl = null.
@@ -17,7 +17,7 @@ const log = logger.child({ module: 'image-service' });
  * Setup required in .env:
  *   GOOGLE_CSE_API_KEY=   (Google Custom Search API key)
  *   GOOGLE_CSE_CX=        (Search engine ID)
- *   SERPAPI_KEY=          (fallback)
+ *   SEARCHAPI_KEY=        (fallback)
  */
 
 export const ImageService = {
@@ -99,10 +99,10 @@ async function searchGoogleCSE(query: string): Promise<string[]> {
   }
 }
 
-// ── SerpAPI ───────────────────────────────────────────────────────────────────
+// ── SearchApi ─────────────────────────────────────────────────────────────────
 
 async function searchSerpAPI(query: string): Promise<string[]> {
-  const apiKey = process.env.SERPAPI_KEY;
+  const apiKey = process.env.SEARCHAPI_KEY ?? process.env.SERPAPI_KEY;
   if (!apiKey) return [];
 
   try {
@@ -115,7 +115,7 @@ async function searchSerpAPI(query: string): Promise<string[]> {
     });
 
     const res = await fetch(
-      `https://serpapi.com/search?${params.toString()}`,
+      `https://www.searchapi.io/api/v1/search?${params.toString()}`,
       { signal: AbortSignal.timeout(12000) }
     );
 
@@ -135,7 +135,7 @@ async function searchSerpAPI(query: string): Promise<string[]> {
 
     return results.slice(0, 10);
   } catch (err) {
-    log.debug('SerpAPI search failed', { err: String(err) });
+    log.debug('SearchApi image search failed', { err: String(err) });
     return [];
   }
 }

@@ -192,11 +192,24 @@ export interface IProduct {
     total: number;
   };
 
-  // ── Freshness ────────────────────────────────────────────────────────────
+  // ── EchoTik Shop Metrics (populated when source = 'echotik') ──────────────────
+  echotikProductId?: string;       // TikTok Shop product_id
+  region?: string;                 // e.g. 'US', 'GB'
+  commissionRate?: number;          // decimal e.g. 0.13 = 13%
+  totalSale30d?: number;            // total_sale_30d_cnt
+  totalSale7d?: number;             // total_sale_7d_cnt
+  totalGmv?: number;                // total_sale_gmv_amt
+  totalGmv30d?: number;             // total_sale_gmv_30d_amt
+  totalCreators?: number;           // total_ifl_cnt — influencers selling this
+  salesChannel?: 'video' | 'live' | 'none'; // whether video or live drives sales
+  freeShipping?: boolean;
+  isManagedStore?: boolean;         // is_s_shop
+
+  // ── Freshness ──────────────────────────────────────────────────────
   lastIngestedAt: Date;
   dataSourceUpdatedAt: Date;
 
-  // ── Timestamps (auto by Mongoose) ────────────────────────────────────────
+  // ── Timestamps (auto by Mongoose) ──────────────────────────────────
   createdAt: Date;
   updatedAt: Date;
 }
@@ -397,6 +410,19 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
       total:   { type: Number, default: 0, min: 0 },
     },
 
+    // EchoTik Shop Metrics
+    echotikProductId: { type: String },
+    region:           { type: String, index: true },
+    commissionRate:   { type: Number, min: 0, max: 1 },
+    totalSale30d:     { type: Number, min: 0 },
+    totalSale7d:      { type: Number, min: 0 },
+    totalGmv:         { type: Number, min: 0 },
+    totalGmv30d:      { type: Number, min: 0 },
+    totalCreators:    { type: Number, min: 0 },
+    salesChannel:     { type: String, enum: ['video', 'live', 'none'] },
+    freeShipping:     { type: Boolean },
+    isManagedStore:   { type: Boolean },
+
     // Freshness
     lastIngestedAt:      { type: Date, required: true },
     dataSourceUpdatedAt: { type: Date, required: true },
@@ -407,6 +433,7 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
 // ── Indexes ───────────────────────────────────────────────────────────────────
 
 ProductSchema.index({ externalId: 1, source: 1 }, { unique: true });
+ProductSchema.index({ echotikProductId: 1 }, { sparse: true });
 ProductSchema.index({ 'trend.score': -1 });
 ProductSchema.index({ 'trend.direction': 1 });
 ProductSchema.index({ discoverySections: 1 });

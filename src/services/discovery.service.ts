@@ -1,6 +1,6 @@
 import { IProductDocument } from '../models/product.model';
 import { Creative } from '../models/creative.model';
-import { SerpRichData } from './serp.service';
+import { SearchApiRichData } from './search.service';
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'discovery-service' });
@@ -12,7 +12,7 @@ export const DiscoveryService = {
   /**
    * Categorizes a product into various discovery sections.
    */
-  async categorizeProduct(product: IProductDocument, serpData?: SerpRichData | null): Promise<string[]> {
+  async categorizeProduct(product: IProductDocument, serpData?: SearchApiRichData | null): Promise<string[]> {
     const sections: Set<string> = new Set(product.discoverySections || []);
 
     try {

@@ -2,7 +2,7 @@ import { runProductRefreshJob, runStaleCleanupJob } from './product-refresh.job'
 import { ProductService } from '../services/product.service';
 import { logger } from '../logger';
 import { env } from '../config/env.validation';
-import { HashtagIngestionPipeline } from '../ingestion/ensemble/hashtag-ingestion.pipeline';
+import { EchoTikIngestionPipeline } from '../ingestion/echotik/echotik.pipeline';
 import { Product } from '../models/product.model';
 import { Creative } from '../models/creative.model';
 import { CreativeService } from '../services/creative.service';
@@ -38,19 +38,103 @@ let dailyTargetIngestionInterval: ReturnType<typeof setInterval> | null = null;
 let lastProductRefreshRun: Date | null = null;
 let lastStaleCleanupRun: Date | null = null;
 let lastDailyTargetRun: Date | null = null;
+let lastProductRefreshSuccessAt: Date | null = null;
+let lastEchoTikPipelineSuccessAt: Date | null = null;
+let lastProductRefreshError: string | null = null;
+let lastEchoTikPipelineError: string | null = null;
+let isProductRefreshRunning = false;
+let isEchoTikPipelineRunning = false;
 
-export async function runHashtagPipelineJob(): Promise<void> {
-  const pipeline = new HashtagIngestionPipeline();
-  const result = await pipeline.run();
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
 
-  log.info('Hashtag pipeline completed', {
-    postsCollected: result.postsCollected,
-    dbUpserts: result.dbUpserts,
-    errors: result.errors.length,
-  });
+export function triggerProductRefreshJob(): { started: boolean; reason?: string } {
+  if (isProductRefreshRunning) {
+    return { started: false, reason: 'Product refresh job is already running' };
+  }
 
-  const cleanupResult = await ProductService.cleanupProducts();
-  log.info('Hashtag pipeline cleanup complete', cleanupResult);
+  isProductRefreshRunning = true;
+  lastProductRefreshRun = new Date();
+  lastProductRefreshError = null;
+
+  void runProductRefreshJob()
+    .then(() => {
+      lastProductRefreshSuccessAt = new Date();
+    })
+    .catch((err) => {
+      lastProductRefreshError = toErrorMessage(err);
+      log.error('Product refresh job failed', err);
+    })
+    .finally(() => {
+      isProductRefreshRunning = false;
+    });
+
+  return { started: true };
+}
+
+export async function runEchoTikPipelineJob(region = 'US'): Promise<void> {
+  if (isEchoTikPipelineRunning) {
+    log.warn('EchoTik pipeline trigger skipped: already running');
+    return;
+  }
+
+  isEchoTikPipelineRunning = true;
+  lastDailyTargetRun = new Date();
+  lastEchoTikPipelineError = null;
+
+  const pipeline = new EchoTikIngestionPipeline();
+  try {
+    const result = await pipeline.run({ region });
+
+    log.info('EchoTik pipeline completed', {
+      productsIngested: result.productsIngested,
+      dbUpserts:        result.dbUpserts,
+      errors:           result.errors.length,
+    });
+    lastEchoTikPipelineSuccessAt = new Date();
+
+    const cleanupResult = await ProductService.cleanupProducts();
+    log.info('EchoTik pipeline cleanup complete', cleanupResult);
+  } catch (err) {
+    lastEchoTikPipelineError = toErrorMessage(err);
+    throw err;
+  } finally {
+    isEchoTikPipelineRunning = false;
+  }
+}
+
+export function triggerEchoTikPipelineJob(): { started: boolean; reason?: string } {
+  if (isEchoTikPipelineRunning) {
+    return { started: false, reason: 'EchoTik pipeline is already running' };
+  }
+
+  isEchoTikPipelineRunning = true;
+  lastDailyTargetRun = new Date();
+  lastEchoTikPipelineError = null;
+
+  const pipeline = new EchoTikIngestionPipeline();
+  void pipeline.run()
+    .then(async (result) => {
+      log.info('EchoTik pipeline completed', {
+        productsIngested: result.productsIngested,
+        dbUpserts:        result.dbUpserts,
+        errors:           result.errors.length,
+      });
+      lastEchoTikPipelineSuccessAt = new Date();
+      const cleanupResult = await ProductService.cleanupProducts();
+      log.info('EchoTik pipeline cleanup complete', cleanupResult);
+    })
+    .catch((err) => {
+      lastEchoTikPipelineError = toErrorMessage(err);
+      log.error('EchoTik pipeline failed', err);
+    })
+    .finally(() => {
+      isEchoTikPipelineRunning = false;
+    });
+
+  return { started: true };
 }
 
 export function getJobsStatus() {
@@ -64,6 +148,18 @@ export function getJobsStatus() {
       productRefresh: lastProductRefreshRun,
       staleCleanup: lastStaleCleanupRun,
       dailyTargetIngestion: lastDailyTargetRun,
+    },
+    outcomes: {
+      productRefresh: {
+        running: isProductRefreshRunning,
+        lastSuccessAt: lastProductRefreshSuccessAt,
+        lastError: lastProductRefreshError,
+      },
+      echotikPipeline: {
+        running: isEchoTikPipelineRunning,
+        lastSuccessAt: lastEchoTikPipelineSuccessAt,
+        lastError: lastEchoTikPipelineError,
+      },
     },
     intervals: {
       productRefreshMs: DAILY_INTERVAL_MS,
@@ -105,22 +201,39 @@ async function getCreativeVideoTotal(): Promise<number> {
 
 async function runDailyTargetIngestionJob(): Promise<void> {
   log.info('Daily target ingestion job started', {
-    targetProducts: DAILY_TARGET_PRODUCTS,
     targetCreatives: DAILY_TARGET_CREATIVES,
     timezone: 'Africa/Lagos',
   });
 
-  const pipeline = new HashtagIngestionPipeline();
-  let cycles = 0;
+  // Phase 1: EchoTik product ingestion (multi-region priority)
+  const regions = [
+    { id: 'US', target: DAILY_TARGET_PRODUCTS },
+    // South America
+    { id: 'BR', target: 50 },
+    { id: 'MX', target: 50 },
+    // Europe
+    { id: 'GB', target: 50 },
+    { id: 'FR', target: 50 },
+    { id: 'DE', target: 50 },
+    { id: 'ES', target: 50 },
+    { id: 'IT', target: 50 },
+    // Oceania
+    { id: 'AU', target: 50 },
+    { id: 'NZ', target: 50 },
+  ];
 
-  while (cycles < MAX_DAILY_CYCLES) {
-    const productCount = await Product.countDocuments({ status: 'active' });
-    if (productCount >= DAILY_TARGET_PRODUCTS) break;
-    await pipeline.run();
-    cycles += 1;
+  for (const { id: regionId, target } of regions) {
+    let cycles = 0;
+    while (cycles < MAX_DAILY_CYCLES) {
+      const productCount = await Product.countDocuments({ status: 'active', region: regionId });
+      if (productCount >= target) break;
+      if (isEchoTikPipelineRunning) break;
+      await runEchoTikPipelineJob(regionId);
+      cycles += 1;
+    }
   }
 
-  cycles = 0;
+  let cycles = 0;
   while (cycles < MAX_DAILY_CYCLES) {
     const creativeTotal = await getCreativeVideoTotal();
     if (creativeTotal >= DAILY_TARGET_CREATIVES) break;

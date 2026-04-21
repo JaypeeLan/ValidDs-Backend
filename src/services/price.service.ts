@@ -14,9 +14,9 @@ export const PriceService = {
    * Returns the estimated price in USD, or null if nothing is found.
    */
   async findProductPrice(productName: string): Promise<number | null> {
-    const apiKey = process.env.SERPAPI_KEY;
+    const apiKey = process.env.SEARCHAPI_KEY ?? process.env.SERPAPI_KEY;
     if (!apiKey) {
-      log.debug('SERPAPI_KEY missing - cannot search for price online');
+      log.debug('SEARCHAPI_KEY missing - cannot search for price online');
       return null;
     }
 
@@ -31,7 +31,7 @@ export const PriceService = {
       });
 
       const res = await fetch(
-        `https://serpapi.com/search?${params.toString()}`,
+        `https://www.searchapi.io/api/v1/search?${params.toString()}`,
         { signal: AbortSignal.timeout(5000) }
       );
 

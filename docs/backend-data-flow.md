@@ -261,9 +261,11 @@ src/models/<feature>.model.ts               ← Mongoose schema
 | `src/middleware/rate-limit.middleware.ts` | Request throttling |
 | `src/middleware/sanitize.middleware.ts` | NoSQL injection + XSS prevention |
 | `src/config/env.validation.ts` | Zod schema for all env vars — crashes on startup if invalid |
-| `src/jobs/index.ts` | Background job scheduler (product refresh, hashtag pipeline, stale cleanup) |
-| `src/ingestion/orchestrator.ts` | Creative Center ingestion entrypoint |
-| `src/ingestion/ensemble/hashtag-ingestion.pipeline.ts` | Hashtag pipeline entrypoint |
+| `src/jobs/index.ts` | Background job scheduler (EchoTik pipeline, creative ingestion, stale cleanup) |
+| `src/ingestion/echotik/echotik.pipeline.ts` | EchoTik product ingestion entrypoint |
+| `src/ingestion/echotik/echotik.image.ts` | Serve-time EchoTik image URL resolution (Redis cache-aside) |
+| `src/ingestion/ensemble/ensemble.client.ts` | EnsembleData client — used for creator enrichment |
+| `src/services/search.service.ts` | SearchApi client — Google Shopping reviews + related products |
 | `src/freshness/freshness.service.ts` | Tracks when data was last updated |
 | `src/monitoring/metrics.ts` | Prometheus counters/gauges |
 | `src/monitoring/alerts.ts` | Webhook/Sentry alert triggers |

@@ -2,7 +2,7 @@ import { ProductRepository, EnrichedProductInput } from '../db/repositories/prod
 import { IProductDocument } from '../models/product.model';
 import { ExtractedProduct, NormalizedPost } from '../ingestion/ingestion.types';
 import { TeemDropService } from './teemdrop.service';
-import { SerpService } from './serp.service';
+import { SearchApiService } from './search.service';
 import { CreativeService } from './creative.service';
 import { DiscoveryService } from './discovery.service';
 import { Creative } from '../models/creative.model';
@@ -30,9 +30,9 @@ export const ProductEnricher = {
     log.info('Running Discovery 2.0 Enrichment', { product: extraction.productName });
 
     // 1. SerpApi — gallery images & multi-source ratings
-    const serpData    = await SerpService.getRichProductData(extraction.productName);
-    const serpGallery = serpData ? SerpService.extractGalleryImages(serpData) : [];
-    const serpRatings = serpData ? SerpService.extractRatingSources(serpData) : [];
+    const serpData    = await SearchApiService.getRichProductData(extraction.productName);
+    const serpGallery = serpData ? SearchApiService.extractGalleryImages(serpData) : [];
+    const serpRatings = serpData ? SearchApiService.extractRatingSources(serpData) : [];
 
     // 2. TeemDrop — supplier match
     let supplier: { platform: string; productUrl?: string; price?: number; currency?: string; shippingDays?: number; moq?: number; checkedAt: Date } | null = null;
@@ -56,7 +56,7 @@ export const ProductEnricher = {
     }
 
     // 3. Image sourcing (SerpApi first, fallback to grounded AI images)
-    const primaryImageUrl = SerpService.extractBestThumbnail(serpData || {}) || extraction.groundedImages[0];
+    const primaryImageUrl = SearchApiService.extractBestThumbnail(serpData || {}) || extraction.groundedImages[0];
     const gallery = serpGallery.length >= 3
       ? serpGallery
       : [...new Set([...serpGallery, ...extraction.groundedImages])];

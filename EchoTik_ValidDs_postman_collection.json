@@ -1,0 +1,1054 @@
+{
+  "info": {
+    "name": "EchoTik API — ValidDs",
+    "description": "EchoTik API endpoints for ValidDs: Products, Search, and Shops.\n\nAuth: Basic Authentication — set ECHOTIK_USERNAME and ECHOTIK_PASSWORD in the collection variables. The pre-request script handles Base64 encoding and injects the Authorization header automatically.\n\nThe requestId returned in every response is a unique trace ID from EchoTik's backend. It is automatically captured into LAST_REQUEST_ID after each call. Log it alongside your own request logs for debugging failed or unexpected responses.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "https://open.echotik.live/api/v3/echotik",
+      "type": "string"
+    },
+    {
+      "key": "ECHOTIK_USERNAME",
+      "value": "YOUR_USERNAME_HERE",
+      "type": "string"
+    },
+    {
+      "key": "ECHOTIK_PASSWORD",
+      "value": "YOUR_PASSWORD_HERE",
+      "type": "string"
+    },
+    {
+      "key": "REGION",
+      "value": "US",
+      "type": "string"
+    },
+    {
+      "key": "SAMPLE_PRODUCT_ID",
+      "value": "",
+      "type": "string",
+      "description": "Auto-populated from the first product_id in a Product List or Ranking List response."
+    },
+    {
+      "key": "SAMPLE_SELLER_ID",
+      "value": "",
+      "type": "string",
+      "description": "Auto-populated from the first seller_id in a Product List or Shop List response."
+    },
+    {
+      "key": "LAST_REQUEST_ID",
+      "value": "",
+      "type": "string",
+      "description": "Automatically captured from the last response. Use this when reporting issues to EchoTik support."
+    }
+  ],
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{ECHOTIK_USERNAME}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{ECHOTIK_PASSWORD}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Build Basic Auth header from collection variables",
+          "const username = pm.collectionVariables.get('ECHOTIK_USERNAME');",
+          "const password = pm.collectionVariables.get('ECHOTIK_PASSWORD');",
+          "const encoded = btoa(`${username}:${password}`);",
+          "pm.request.headers.upsert({",
+          "  key: 'Authorization',",
+          "  value: `Basic ${encoded}`",
+          "});"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Capture requestId from every response for traceability",
+          "try {",
+          "  const json = pm.response.json();",
+          "  if (json && json.requestId) {",
+          "    pm.collectionVariables.set('LAST_REQUEST_ID', json.requestId);",
+          "    console.log('EchoTik requestId:', json.requestId);",
+          "  }",
+          "  pm.test('Response code is 0 (success)', () => {",
+          "    pm.expect(json.code).to.equal(0);",
+          "  });",
+          "  pm.test('HTTP status is 200', () => {",
+          "    pm.response.to.have.status(200);",
+          "  });",
+          "} catch (e) {",
+          "  console.error('Test script error:', e.message);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "📦 Products",
+      "item": [
+        {
+          "name": "Product List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/product/list?region={{REGION}}&page_num=1&page_size=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["product", "list"],
+              "query": [
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US, UK, ID, TH, VN, MY, PH, SG"
+                },
+                {
+                  "key": "page_num",
+                  "value": "1",
+                  "description": "REQUIRED. Page number, starts from 1, max 100,000"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10",
+                  "description": "REQUIRED. Items per page, max 10"
+                },
+                {
+                  "key": "category_id",
+                  "value": "",
+                  "description": "Primary category ID (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "category_l2_id",
+                  "value": "",
+                  "description": "Secondary category ID (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "category_l3_id",
+                  "value": "",
+                  "description": "Subcategory ID (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "sales_trend_flag",
+                  "value": "",
+                  "description": "7-day sales trend: 0=stable, 1=up, 2=down (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "sales_flag",
+                  "value": "",
+                  "description": "Sales method: 1=video, 2=live streaming (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_spu_avg_price",
+                  "value": "",
+                  "description": "Min average SKU price filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_spu_avg_price",
+                  "value": "",
+                  "description": "Max average SKU price filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_product_commission_rate",
+                  "value": "",
+                  "description": "Min commission rate filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_product_commission_rate",
+                  "value": "",
+                  "description": "Max commission rate filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_total_sale_cnt",
+                  "value": "",
+                  "description": "Min total sales count filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_total_sale_cnt",
+                  "value": "",
+                  "description": "Max total sales count filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_total_sale_30d_cnt",
+                  "value": "",
+                  "description": "Min sales in last 30 days (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_total_sale_30d_cnt",
+                  "value": "",
+                  "description": "Max sales in last 30 days (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_total_sale_gmv_amt",
+                  "value": "",
+                  "description": "Min total GMV filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_total_sale_gmv_amt",
+                  "value": "",
+                  "description": "Max total GMV filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_total_sale_gmv_30d_amt",
+                  "value": "",
+                  "description": "Min GMV in last 30 days (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_total_sale_gmv_30d_amt",
+                  "value": "",
+                  "description": "Max GMV in last 30 days (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_total_ifl_cnt",
+                  "value": "",
+                  "description": "Min number of sales creators (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_total_ifl_cnt",
+                  "value": "",
+                  "description": "Max number of sales creators (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_total_video_cnt",
+                  "value": "",
+                  "description": "Min number of sales videos (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_total_video_cnt",
+                  "value": "",
+                  "description": "Max number of sales videos (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_total_views_cnt",
+                  "value": "",
+                  "description": "Min sales video views (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_total_views_cnt",
+                  "value": "",
+                  "description": "Max sales video views (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_product_rating",
+                  "value": "",
+                  "description": "Min product rating (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_product_rating",
+                  "value": "",
+                  "description": "Max product rating (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_review_count",
+                  "value": "",
+                  "description": "Min review count (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_review_count",
+                  "value": "",
+                  "description": "Max review count (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "is_s_shop",
+                  "value": "",
+                  "description": "Fully managed store only: 0=No, 1=Yes (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "free_shipping",
+                  "value": "",
+                  "description": "Free shipping filter: 0=No, 1=Yes (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_first_crawl_dt",
+                  "value": "",
+                  "description": "First captured date range start, format yyyyMMdd (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_first_crawl_dt",
+                  "value": "",
+                  "description": "First captured date range end, format yyyyMMdd (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "product_sort_field",
+                  "value": "",
+                  "description": "Sort by: 1=total_sale_cnt, 2=total_sale_gmv_amt, 3=spu_avg_price, 4=total_sale_7d_cnt, 5=total_sale_30d_cnt, 6=total_sale_gmv_7d_amt, 7=total_sale_gmv_30d_amt (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_type",
+                  "value": "",
+                  "description": "Sort order: 0=asc, 1=desc (optional)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Primary ingestion source. T+1 updated. Returns product_id, product_name, pricing, cover_url, category, region, sales_trend_flag, and full time-windowed sales metrics (1d/7d/15d/30d/60d/90d) for both unit sales and GMV.\n\nUse this as the seed for your BullMQ ingestion job. Paginate through all pages, then enrich top products with the Batch Detail endpoint.\n\nNOTE: page_size max is 10. Pagination uses page_num (not page) and page_size (not limit). End of data is signalled by an empty data array."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"product_id\": \"1729823940123456789\",\n      \"product_name\": \"Portable Mini Blender USB Rechargeable\",\n      \"region\": \"US\",\n      \"category_id\": \"600001\",\n      \"category_l2_id\": \"600003\",\n      \"category_l3_id\": \"600011\",\n      \"cover_url\": \"https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/example.jpg\",\n      \"min_price\": 12.99,\n      \"max_price\": 19.99,\n      \"spu_avg_price\": 15.49,\n      \"product_commission_rate\": 10,\n      \"product_rating\": 48,\n      \"review_count\": 3240,\n      \"free_shipping\": 1,\n      \"is_s_shop\": 0,\n      \"off_mark\": 0,\n      \"sales_trend_flag\": 1,\n      \"sales_flag\": 1,\n      \"seller_id\": \"7312345678901234567\",\n      \"first_crawl_dt\": 20240315,\n      \"total_sale_cnt\": 128000,\n      \"total_sale_1d_cnt\": 420,\n      \"total_sale_7d_cnt\": 2800,\n      \"total_sale_15d_cnt\": 5600,\n      \"total_sale_30d_cnt\": 10200,\n      \"total_sale_60d_cnt\": 19800,\n      \"total_sale_90d_cnt\": 28400,\n      \"total_sale_gmv_amt\": 1981920.00,\n      \"total_sale_gmv_7d_amt\": 43344.00,\n      \"total_sale_gmv_30d_amt\": 157956.00,\n      \"total_sale_gmv_90d_amt\": 439888.00,\n      \"total_video_cnt\": 3420,\n      \"total_video_7d_cnt\": 88,\n      \"total_video_30d_cnt\": 310,\n      \"total_ifl_cnt\": 1850,\n      \"total_views_cnt\": 48200000,\n      \"total_views_7d_cnt\": 1240000\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.length > 0) {",
+                  "  pm.collectionVariables.set('SAMPLE_PRODUCT_ID', json.data[0].product_id);",
+                  "  pm.collectionVariables.set('SAMPLE_SELLER_ID', json.data[0].seller_id);",
+                  "  console.log('Captured product_id:', json.data[0].product_id);",
+                  "  console.log('Captured seller_id:', json.data[0].seller_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Product Ranking List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/product/ranklist?region={{REGION}}&date=2025-04-19&rank_type=1&product_rank_field=1&page_num=1&page_size=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["product", "ranklist"],
+              "query": [
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                },
+                {
+                  "key": "date",
+                  "value": "2025-04-19",
+                  "description": "REQUIRED. Date in yyyy-MM-dd format. Weekly = always a Monday; Monthly = always the 1st of the month"
+                },
+                {
+                  "key": "rank_type",
+                  "value": "1",
+                  "description": "REQUIRED. Ranking period: 1=daily, 2=weekly, 3=monthly"
+                },
+                {
+                  "key": "product_rank_field",
+                  "value": "1",
+                  "description": "REQUIRED. Rank metric: 1=total_sale_cnt (best-selling), 2=total_ifl_cnt (most creators)"
+                },
+                {
+                  "key": "page_num",
+                  "value": "1",
+                  "description": "REQUIRED. Page number, starts from 1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10",
+                  "description": "REQUIRED. Items per page, max 10"
+                },
+                {
+                  "key": "category_id",
+                  "value": "",
+                  "description": "Filter by primary category ID (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "category_l2_id",
+                  "value": "",
+                  "description": "Filter by secondary category ID (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "category_l3_id",
+                  "value": "",
+                  "description": "Filter by subcategory ID (optional)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Best-selling and most-promoted product rankings. Returns incremental data for the selected period — values represent growth within that window, not cumulative totals.\n\nThis is your primary trendScore signal — ranked products have pre-validated market demand. Run daily (rank_type=1) in your ingestion job.\n\nNOTE: rank_type replaces the old 'period' string param. product_rank_field 2 ranks by creator count, not 'featured'."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"product_id\": \"1729823940123456789\",\n      \"product_name\": \"Portable Mini Blender USB Rechargeable\",\n      \"region\": \"US\",\n      \"category_id\": \"600001\",\n      \"category_l2_id\": \"600003\",\n      \"category_l3_id\": \"600011\",\n      \"min_price\": 12.99,\n      \"max_price\": 19.99,\n      \"spu_avg_price\": 15.49,\n      \"product_commission_rate\": 10.0,\n      \"total_sale_cnt\": 4200,\n      \"total_sale_gmv_amt\": 65058.00,\n      \"total_ifl_cnt\": 320,\n      \"total_video_cnt\": 580,\n      \"total_live_cnt\": 140\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.length > 0) {",
+                  "  pm.collectionVariables.set('SAMPLE_PRODUCT_ID', json.data[0].product_id);",
+                  "  console.log('Captured product_id:', json.data[0].product_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Product Trends (Snapshot)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/product/trend?product_id={{SAMPLE_PRODUCT_ID}}&region={{REGION}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["product", "trend"],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{SAMPLE_PRODUCT_ID}}",
+                  "description": "REQUIRED. Product ID from Product List or Ranking List"
+                },
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                }
+              ]
+            },
+            "description": "Historical daily trend snapshots for a specific product, up to the past 180 days. Each entry is a point-in-time snapshot of that product's metrics on that date.\n\nPowers your frontend trend charts and feeds trendDirection ('rising' | 'peaked' | 'saturating') on ExtractedProduct.\n\nNOTE: path is /product/trend (not /product/trends)."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"dt\": 20250418,\n      \"total_sale_cnt\": 127580,\n      \"total_sale_gmv_amt\": 1976120.20,\n      \"total_video_cnt\": 3410,\n      \"total_ifl_cnt\": 1845,\n      \"spu_avg_price\": 15.49\n    },\n    {\n      \"dt\": 20250417,\n      \"total_sale_cnt\": 127160,\n      \"total_sale_gmv_amt\": 1969616.40,\n      \"total_video_cnt\": 3390,\n      \"total_ifl_cnt\": 1840,\n      \"spu_avg_price\": 15.49\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Batch Product Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/product/detail?product_ids={{SAMPLE_PRODUCT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["product", "detail"],
+              "query": [
+                {
+                  "key": "product_ids",
+                  "value": "{{SAMPLE_PRODUCT_ID}}",
+                  "description": "REQUIRED. Comma-separated product IDs, max 10 per call. e.g. id1,id2,id3"
+                }
+              ]
+            },
+            "description": "Full product enrichment: desc_detail (structured description blocks with text + images), sale_props (variants/SKUs), specification, review_count, skus with real_price.\n\nCall after product/list or product/ranklist to hydrate top products. The desc_detail text feeds your Claude AI extraction layer as rawText.\n\nNOTE: path is /product/detail (not /product/detail/batch). No region param — product_ids is the only required param."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"product_id\": \"1729823940123456789\",\n      \"product_name\": \"Portable Mini Blender USB Rechargeable\",\n      \"region\": \"US\",\n      \"category_id\": \"600001\",\n      \"category_l2_id\": \"600003\",\n      \"category_l3_id\": \"600011\",\n      \"cover_url\": \"https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/example.jpg\",\n      \"desc_detail\": \"{\\\"blocks\\\":[{\\\"type\\\":\\\"text\\\",\\\"content\\\":\\\"High-speed 6-blade motor...\\\"},{\\\"type\\\":\\\"image\\\",\\\"url\\\":\\\"https://...\\\"}]}\",\n      \"sale_props\": \"{\\\"colors\\\":[\\\"Pink\\\",\\\"Blue\\\",\\\"Green\\\"],\\\"capacity\\\":[\\\"380ml\\\",\\\"450ml\\\"]}\",\n      \"skus\": \"[{\\\"sku_id\\\":\\\"SKU001\\\",\\\"price\\\":12.99,\\\"stock\\\":840},{\\\"sku_id\\\":\\\"SKU002\\\",\\\"price\\\":14.99,\\\"stock\\\":620}]\",\n      \"min_price\": 12.99,\n      \"max_price\": 19.99,\n      \"spu_avg_price\": 15.49,\n      \"product_commission_rate\": 10,\n      \"product_rating\": 48,\n      \"review_count\": 3240,\n      \"free_shipping\": 1,\n      \"is_s_shop\": 0,\n      \"off_mark\": 0,\n      \"sales_trend_flag\": 1,\n      \"sales_flag\": 1,\n      \"seller_id\": \"7312345678901234567\",\n      \"discount\": \"15\",\n      \"first_crawl_dt\": 20240315,\n      \"total_sale_cnt\": 128000,\n      \"total_sale_7d_cnt\": 2800,\n      \"total_sale_30d_cnt\": 10200,\n      \"total_sale_gmv_amt\": 1981920.00,\n      \"total_sale_gmv_30d_amt\": 157956.00,\n      \"total_video_cnt\": 3420,\n      \"total_ifl_cnt\": 1850\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Product Review List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/product/comment?product_id={{SAMPLE_PRODUCT_ID}}&region={{REGION}}&page_num=1&page_size=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["product", "comment"],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{SAMPLE_PRODUCT_ID}}",
+                  "description": "REQUIRED. Product ID"
+                },
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                },
+                {
+                  "key": "page_num",
+                  "value": "1",
+                  "description": "REQUIRED. Page number, starts from 1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10",
+                  "description": "REQUIRED. Items per page, max 10"
+                }
+              ]
+            },
+            "description": "Verified buyer reviews for a product collected by EchoTik. Better signal than comment scraping. Use review text to populate sentimentSummary and buyingIntentScore on ExtractedProduct via Claude extraction.\n\nNOTE: path is /product/comment (not /product/review/list)."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"comment_id\": \"7312345678901234001\",\n      \"content\": \"Works great! Makes perfect smoothies in under 30 seconds. Very easy to clean.\",\n      \"rating\": 5,\n      \"create_time\": 1712534400,\n      \"user_name\": \"smoothie_fan99\",\n      \"sku_desc\": \"Pink / 380ml\",\n      \"like_cnt\": 42,\n      \"images\": []\n    },\n    {\n      \"comment_id\": \"7312345678901234002\",\n      \"content\": \"Battery life could be better but overall really happy with the purchase.\",\n      \"rating\": 4,\n      \"create_time\": 1712448000,\n      \"user_name\": \"health_nut_jane\",\n      \"sku_desc\": \"Blue / 450ml\",\n      \"like_cnt\": 18,\n      \"images\": []\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Product Associated Videos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/product/video/list?product_id={{SAMPLE_PRODUCT_ID}}&region={{REGION}}&page_num=1&page_size=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["product", "video", "list"],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{SAMPLE_PRODUCT_ID}}",
+                  "description": "REQUIRED. Product ID"
+                },
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                },
+                {
+                  "key": "page_num",
+                  "value": "1",
+                  "description": "REQUIRED. Page number, starts from 1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10",
+                  "description": "REQUIRED. Items per page, max 10"
+                }
+              ]
+            },
+            "description": "Which TikTok videos are driving sales for this product. Links products back to content — lets you show dropshippers the viral videos behind a product's momentum. Maps to your sourceVideoId / sourceVideoUrl fields."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"video_id\": \"7312345678901234500\",\n      \"video_title\": \"This blender changed my morning routine 🥤\",\n      \"cover_url\": \"https://p16-sign-va.tiktokcdn.com/tos-maliva-p-0068/example.jpg\",\n      \"play_cnt\": 4820000,\n      \"like_cnt\": 312000,\n      \"comment_cnt\": 8400,\n      \"share_cnt\": 22000,\n      \"sale_cnt\": 1840,\n      \"sale_gmv_amt\": 28489.60,\n      \"user_id\": \"7298765432109876543\",\n      \"unique_id\": \"smoothiequeenofficial\",\n      \"create_time\": 1712102400\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Product Associated Creators",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/product/influencer/list?product_id={{SAMPLE_PRODUCT_ID}}&region={{REGION}}&page_num=1&page_size=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["product", "influencer", "list"],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{SAMPLE_PRODUCT_ID}}",
+                  "description": "REQUIRED. Product ID"
+                },
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                },
+                {
+                  "key": "page_num",
+                  "value": "1",
+                  "description": "REQUIRED. Page number, starts from 1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10",
+                  "description": "REQUIRED. Items per page, max 10"
+                }
+              ]
+            },
+            "description": "Lists all influencers associated with selling this product. Returns core creator identifiers and sales metrics — for full creator details, call the Batch Influencer Details endpoint using the returned user_id values."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"user_id\": \"7298765432109876543\",\n      \"unique_id\": \"smoothiequeenofficial\",\n      \"nickname\": \"Smoothie Queen\",\n      \"avatar_url\": \"https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/example.jpg\",\n      \"follower_cnt\": 2840000,\n      \"total_sale_cnt\": 3240,\n      \"total_sale_gmv_amt\": 50145.60\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Product Associated Live Streams",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/product/live/list?product_id={{SAMPLE_PRODUCT_ID}}&region={{REGION}}&page_num=1&page_size=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["product", "live", "list"],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{SAMPLE_PRODUCT_ID}}",
+                  "description": "REQUIRED. Product ID"
+                },
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                },
+                {
+                  "key": "page_num",
+                  "value": "1",
+                  "description": "REQUIRED. Page number, starts from 1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10",
+                  "description": "REQUIRED. Items per page, max 10"
+                }
+              ]
+            },
+            "description": "Live stream sessions associated with selling this product. Shows which live broadcasts drove sales — useful for identifying top-performing live sellers for this niche."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"room_id\": \"7312345678901299001\",\n      \"user_id\": \"7298765432109876543\",\n      \"unique_id\": \"smoothiequeenofficial\",\n      \"nickname\": \"Smoothie Queen\",\n      \"start_time\": 1712102400,\n      \"duration\": 3600,\n      \"viewer_cnt\": 42000,\n      \"sale_cnt\": 620,\n      \"sale_gmv_amt\": 9599.80\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔍 Search",
+      "item": [
+        {
+          "name": "General Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/search/items?keyword=portable blender&region={{REGION}}&type=product",
+              "host": ["{{BASE_URL}}"],
+              "path": ["search", "items"],
+              "query": [
+                {
+                  "key": "keyword",
+                  "value": "portable blender",
+                  "description": "REQUIRED. Search keyword. Supports fuzzy search (2+ words) and precise search."
+                },
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                },
+                {
+                  "key": "type",
+                  "value": "product",
+                  "description": "REQUIRED. Entity type: product / influencer / shop / video / live"
+                }
+              ]
+            },
+            "description": "Unified search across products, shops, videos, and creators by keyword. Returns max 30 results with core metrics. Supports fuzzy and precise search modes.\n\nPowers your frontend search bar in ValidDs. Note: fewer fields returned than list endpoints — use this for discovery, then call detail endpoints to enrich results."
+          },
+          "response": [
+            {
+              "name": "200 Success — type=product",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"product_id\": \"1729823940123456789\",\n      \"product_name\": \"Portable Mini Blender USB Rechargeable\",\n      \"region\": \"US\",\n      \"min_price\": 12.99,\n      \"max_price\": 19.99,\n      \"spu_avg_price\": 15.49,\n      \"cover_url\": \"https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/example.jpg\",\n      \"total_sale_cnt\": 128000,\n      \"total_sale_gmv_amt\": 1981920.00,\n      \"product_commission_rate\": 10,\n      \"category_id\": \"600001\"\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Search by Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image_url\": \"https://example.com/product-image.jpg\",\n  \"region\": \"{{REGION}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/product/image_search",
+              "host": ["{{BASE_URL}}"],
+              "path": ["product", "image_search"]
+            },
+            "description": "Reverse image search across EchoTik's product catalog. A dropshipper uploads a product photo found anywhere (competitor ad, AliExpress, etc.) and instantly finds the matching TikTok Shop listing.\n\nStrong frontend differentiator. Replace image_url with a publicly accessible image URL.\n\nNOTE: path is /product/image_search (not /search/image)."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"product_id\": \"1729823940123456789\",\n      \"product_name\": \"Portable Mini Blender USB Rechargeable\",\n      \"region\": \"US\",\n      \"min_price\": 12.99,\n      \"max_price\": 19.99,\n      \"cover_url\": \"https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/example.jpg\",\n      \"similarity\": 0.97\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🏪 Shops",
+      "item": [
+        {
+          "name": "Shop List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/seller/list?region={{REGION}}&page_num=1&page_size=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["seller", "list"],
+              "query": [
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                },
+                {
+                  "key": "page_num",
+                  "value": "1",
+                  "description": "REQUIRED. Page number, starts from 1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10",
+                  "description": "REQUIRED. Items per page, max 10"
+                },
+                {
+                  "key": "category_id",
+                  "value": "",
+                  "description": "Filter by primary category ID (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "category_l2_id",
+                  "value": "",
+                  "description": "Filter by secondary category ID (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "sales_trend_flag",
+                  "value": "",
+                  "description": "7-day GMV trend: 0=stable, 1=up, 2=down (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_total_sale_gmv_amt",
+                  "value": "",
+                  "description": "Min total GMV filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_total_sale_gmv_amt",
+                  "value": "",
+                  "description": "Max total GMV filter (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "product_sort_field",
+                  "value": "",
+                  "description": "Sort by: 1=total_sale_cnt, 2=total_sale_gmv_amt, etc. (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_type",
+                  "value": "",
+                  "description": "Sort order: 0=asc, 1=desc (optional)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Discovery feed for competitor shops. T+1 updated. Returns seller_name, seller_id, total_sale_cnt, total_sale_gmv_amt, time-windowed sales (1d/7d/30d/90d), total_product_cnt, spu_avg_price, rating, and sales_trend_flag.\n\nIngests into your Store MongoDB collection. Run in scheduled BullMQ job alongside product ingestion."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"seller_id\": \"7312345678901234567\",\n      \"seller_name\": \"BlendPro Official Store\",\n      \"region\": \"US\",\n      \"category_id\": \"600001\",\n      \"avatar_url\": \"https://p16-oec-va.ibyteimg.com/tos-maliva-avt-0068/example.jpg\",\n      \"follower_cnt\": 128000,\n      \"total_product_cnt\": 42,\n      \"spu_avg_price\": 18.50,\n      \"sales_trend_flag\": 1,\n      \"total_sale_cnt\": 284000,\n      \"total_sale_gmv_amt\": 5254000.00,\n      \"total_sale_1d_cnt\": 940,\n      \"total_sale_7d_cnt\": 6200,\n      \"total_sale_30d_cnt\": 24800,\n      \"total_sale_90d_cnt\": 71400,\n      \"total_sale_gmv_7d_amt\": 114700.00,\n      \"total_sale_gmv_30d_amt\": 458800.00\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.length > 0) {",
+                  "  pm.collectionVariables.set('SAMPLE_SELLER_ID', json.data[0].seller_id);",
+                  "  console.log('Captured seller_id:', json.data[0].seller_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Shop Ranking List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/seller/ranklist?region={{REGION}}&date=2025-04-19&rank_type=1&page_num=1&page_size=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["seller", "ranklist"],
+              "query": [
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                },
+                {
+                  "key": "date",
+                  "value": "2025-04-19",
+                  "description": "REQUIRED. Date in yyyy-MM-dd. Weekly = Monday, Monthly = 1st of month"
+                },
+                {
+                  "key": "rank_type",
+                  "value": "1",
+                  "description": "REQUIRED. Ranking period: 1=daily, 2=weekly, 3=monthly"
+                },
+                {
+                  "key": "page_num",
+                  "value": "1",
+                  "description": "REQUIRED. Page number, starts from 1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10",
+                  "description": "REQUIRED. Items per page, max 10"
+                },
+                {
+                  "key": "category_id",
+                  "value": "",
+                  "description": "Filter by category (optional)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Top performing shops ranked by GMV for the period. Values are incremental data for the selected window, not lifetime totals.\n\nCompetitor intelligence — shows which stores are winning in a given niche. Run daily.\n\nNOTE: rank_type replaces the old 'period' string param (daily/weekly/monthly)."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"seller_id\": \"7312345678901234567\",\n      \"seller_name\": \"BlendPro Official Store\",\n      \"region\": \"US\",\n      \"category_id\": \"600001\",\n      \"total_sale_cnt\": 6200,\n      \"total_sale_gmv_amt\": 114700.00,\n      \"total_product_cnt\": 42,\n      \"spu_avg_price\": 18.50\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Shop Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/seller/detail?seller_id={{SAMPLE_SELLER_ID}}&region={{REGION}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["seller", "detail"],
+              "query": [
+                {
+                  "key": "seller_id",
+                  "value": "{{SAMPLE_SELLER_ID}}",
+                  "description": "REQUIRED. Seller ID from Shop List or Shop Ranking List"
+                },
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                }
+              ]
+            },
+            "description": "Full profile of a specific shop: product count, associated creators, video count, GMV breakdown, category distribution. Use after seller/list or seller/ranklist to enrich Store records on demand."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": {\n    \"seller_id\": \"7312345678901234567\",\n    \"seller_name\": \"BlendPro Official Store\",\n    \"region\": \"US\",\n    \"category_id\": \"600001\",\n    \"avatar_url\": \"https://p16-oec-va.ibyteimg.com/tos-maliva-avt-0068/example.jpg\",\n    \"follower_cnt\": 128000,\n    \"total_product_cnt\": 42,\n    \"total_ifl_cnt\": 3820,\n    \"total_video_cnt\": 12400,\n    \"spu_avg_price\": 18.50,\n    \"sales_trend_flag\": 1,\n    \"total_sale_cnt\": 284000,\n    \"total_sale_gmv_amt\": 5254000.00,\n    \"total_sale_7d_cnt\": 6200,\n    \"total_sale_30d_cnt\": 24800,\n    \"total_sale_gmv_7d_amt\": 114700.00,\n    \"total_sale_gmv_30d_amt\": 458800.00,\n    \"is_s_shop\": 0,\n    \"free_shipping\": 1\n  },\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Shop Trends (Snapshot)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/seller/trend?seller_id={{SAMPLE_SELLER_ID}}&region={{REGION}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["seller", "trend"],
+              "query": [
+                {
+                  "key": "seller_id",
+                  "value": "{{SAMPLE_SELLER_ID}}",
+                  "description": "REQUIRED. Seller ID"
+                },
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                }
+              ]
+            },
+            "description": "Historical daily trend snapshots for a specific shop, up to the past 180 days. Mirrors the product trend endpoint but for store-level metrics. Use to assess shop momentum over time."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"dt\": 20250418,\n      \"total_sale_cnt\": 283060,\n      \"total_sale_gmv_amt\": 5235610.00,\n      \"total_product_cnt\": 42,\n      \"total_video_cnt\": 12350\n    },\n    {\n      \"dt\": 20250417,\n      \"total_sale_cnt\": 282120,\n      \"total_sale_gmv_amt\": 5218350.00,\n      \"total_product_cnt\": 41,\n      \"total_video_cnt\": 12280\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Shop's Product List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/seller/product/list?seller_id={{SAMPLE_SELLER_ID}}&region={{REGION}}&page_num=1&page_size=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["seller", "product", "list"],
+              "query": [
+                {
+                  "key": "seller_id",
+                  "value": "{{SAMPLE_SELLER_ID}}",
+                  "description": "REQUIRED. Seller ID"
+                },
+                {
+                  "key": "region",
+                  "value": "{{REGION}}",
+                  "description": "REQUIRED. Region code e.g. US"
+                },
+                {
+                  "key": "page_num",
+                  "value": "1",
+                  "description": "REQUIRED. Page number, starts from 1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10",
+                  "description": "REQUIRED. Items per page, max 10"
+                }
+              ]
+            },
+            "description": "All products sold by a specific shop. Use to see exactly what a competitor store is selling — great for niche validation and sourcing intelligence."
+          },
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"code\": 0,\n  \"message\": \"success\",\n  \"data\": [\n    {\n      \"product_id\": \"1729823940123456789\",\n      \"product_name\": \"Portable Mini Blender USB Rechargeable\",\n      \"region\": \"US\",\n      \"category_id\": \"600001\",\n      \"cover_url\": \"https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/example.jpg\",\n      \"min_price\": 12.99,\n      \"max_price\": 19.99,\n      \"spu_avg_price\": 15.49,\n      \"product_commission_rate\": 10,\n      \"total_sale_cnt\": 128000,\n      \"total_sale_gmv_amt\": 1981920.00,\n      \"total_sale_30d_cnt\": 10200,\n      \"sales_trend_flag\": 1\n    }\n  ],\n  \"requestId\": \"01HVXYZ1234ABCD5678EFGH90JK\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

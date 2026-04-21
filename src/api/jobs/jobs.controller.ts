@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
-import { runProductRefreshJob, runStaleCleanupJob } from '../../jobs/product-refresh.job';
-import { getJobsStatus, runHashtagPipelineJob } from '../../jobs/index';
+import { runStaleCleanupJob } from '../../jobs/product-refresh.job';
+import {
+  getJobsStatus,
+  triggerEchoTikPipelineJob,
+  triggerProductRefreshJob,
+} from '../../jobs/index';
 import { logger } from '../../logger';
 import { successResponse } from '../../utils/response.util';
 
@@ -50,27 +54,31 @@ export const JobsController = {
       hasApiKey: !!req.headers['x-api-key'],
     });
     
-    // We don't await this because it can take 5+ minutes
-    runProductRefreshJob().catch((err) => 
-      log.error('Manual product refresh failed', err)
-    );
+    // Do not block the HTTP request; run asynchronously with guard against overlaps.
+    const trigger = triggerProductRefreshJob();
+    if (!trigger.started) {
+      res.status(409).json(successResponse({ triggered: false }, 'Product refresh already running'));
+      return;
+    }
 
     res.json(successResponse({ triggered: true }, 'Product refresh job started in background'));
   },
 
 
   /**
-   * POST /jobs/hashtag-pipeline
-   * Triggers the deep hashtag ingestion pipeline.
+   * POST /jobs/echotik-pipeline
+   * Triggers the EchoTik ingestion pipeline.
    */
-  async triggerHashtagPipeline(req: Request, res: Response): Promise<void> {
-    log.info('Manual hashtag pipeline triggered via API');
+  async triggerEchoTikPipeline(req: Request, res: Response): Promise<void> {
+    log.info('Manual EchoTik pipeline triggered via API');
 
-    runHashtagPipelineJob().catch((err) =>
-      log.error('Manual hashtag pipeline failed', err)
-    );
+    const trigger = triggerEchoTikPipelineJob();
+    if (!trigger.started) {
+      res.status(409).json(successResponse({ triggered: false }, 'EchoTik pipeline already running'));
+      return;
+    }
 
-    res.json(successResponse({ triggered: true }, 'Hashtag pipeline started in background'));
+    res.json(successResponse({ triggered: true }, 'EchoTik pipeline started in background'));
   },
 
   /**

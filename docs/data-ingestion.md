@@ -1,280 +1,213 @@
 # Data Ingestion Architecture
 
-ValidDs sources product data via a unified EnsembleData-powered pipeline:
-
-1. **Discovery Job** — follows a light-weight keyword search (e.g. 'tiktokmademebuyit') to find trending dropshipping products. Runs every 2 hours.
-2. **Hashtag Pipeline** — fetches posts for specifically tracked hashtags (e.g. `#TikTokMadeMeBuyIt`) via deep cursor-based pagination. Runs every 4 hours on staging/prod.
+ValidDs sources product data via the **EchoTik pipeline** (primary) enriched by **EnsembleData** (creator resolution) and **SearchApi** (reviews + related products).
 
 ---
 
-## Pipeline 1 — Discovery Job (2-hour cycle)
+## Primary Pipeline — EchoTik Product Ingestion
 
 ```
-EnsembleData API (Keyword Search)
+EchoTik API (/product/list — sorted by 30d sales)
          ↓
-   IngestionOrchestrator.run()
+   EchoTikJob.runPaginated()
          ↓
-   transformEnsemblePosts() → NormalizedPost[]
+   Filter: skip off-market products (off_mark = 1)
          ↓
-   ProductExtractor.extractBatch()   ← DeepSeek / OpenAI
+   EchoTikJob — fetch /product/comment per product
          ↓
-   ProductEnricher.mergeAndUpsert()
+   EchoTikIngestionPipeline.persistProduct()
+         │
+         ├─ ProductRepository.upsertEnrichedProduct()   ← MongoDB upsert, keyed externalId + source
+         │
+         ├─ DiscoveryService.categorizeProduct()        ← assigns discoverySections[]
+         │
+         ├─ Creative.countDocuments()                   ← sync creativeCounts
+         │
+         ├─ SearchApiService.fetchProductReviews()      ← google_shopping → google_product → reviews
+         │     Non-blocking: skipped if product has no Google Shopping presence
+         │
+         └─ EnsembleClient.searchKeywordFull()          ← find real TikTok creator promoting product
+               Non-blocking: seller remains as fallback if no creator post found
          ↓
-   FreshnessService.markUpdated()
+   saved.save()
+         ↓
+   FreshnessService.markUpdated('product')
 ```
 
-**Scheduler:** `src/jobs/index.ts` — `setInterval` every 2 hours, first run 10 s after boot.
-**Entry point:** `src/jobs/product-refresh.job.ts → runProductRefreshJob()`
-**Manual trigger:** `POST /api/v1/jobs/product-refresh` (requires `X-API-Key` header)
+**Scheduler:** Daily at 15:00 Africa/Lagos, then every 24 hours.
+**Entry point:** `src/ingestion/echotik/echotik.pipeline.ts → EchoTikIngestionPipeline.run()`
+**Manual trigger:** `POST /api/v1/jobs/echotik-pipeline` (requires `X-API-Key` header)
+
+### Multi-Region Ingestion
+
+The daily job runs the pipeline sequentially for each region:
+
+| Region | Daily Target |
+|--------|-------------|
+| US | 300 products |
+| BR, MX, GB, FR, DE, ES, IT, AU, NZ | 50 products each |
+
+### Hard Caps
+
+| Environment | Max Products |
+|---|---|
+| Development | 30 |
+| Staging / Production | 300 (per region run) |
+
+### Off-Market Filter
+
+Products with `off_mark = 1` from EchoTik are skipped entirely and counted under `productsSkipped`.
+
+### Image URLs
+
+EchoTik images are hosted on `echosell-images.tos-ap-southeast-1.volces.com` (volces.com). These URLs expire after 24 hours and **cannot be stored as-is**.
+
+**Architecture:**
+- **At ingestion:** original volces.com URLs are stored in MongoDB (`imageUrls`, `primaryImageUrl`)
+- **At serve time:** `resolveEchoTikImageUrls()` in `src/ingestion/echotik/echotik.image.ts` exchanges them for temp URLs via `/batch/cover/download`, caching results in Redis for 20 hours (72,000s TTL)
+- **Cache key pattern:** `echotik:img:<original-url>`
+
+The product controller calls `toPlainWithImages()` which runs resolution transparently before returning any EchoTik product to a client.
+
+### Stale Cleanup
+
+Products that have not been re-ingested within **24 hours** are marked `status: 'stale'`. The cleanup job runs every 5 minutes but uses a 1440-minute (24h) cutoff, matching the daily ingestion cycle.
 
 ---
 
-## Deployment — Running on Render (Free Tier)
+## Creator Enrichment — EnsembleData
 
-On Render's Free Tier, the service spins down after 15 minutes of inactivity. This clears internal `setInterval` timers. To ensure ingestion runs reliably:
+After persisting each EchoTik product, the pipeline searches EnsembleData for TikTok posts mentioning the product name and overwrites `primaryCreator` with the top creator (by view count).
 
-1.  **Use an external cron service** (e.g. [cron-job.org](https://cron-job.org)) to ping the trigger endpoints.
-2.  **Endpoints available:**
-    - `POST /api/v1/jobs/product-refresh` (Run every 2 hours)
-    - `POST /api/v1/jobs/hashtag-pipeline` (Run every 4 hours)
-3.  **Authentication:** Add the header `X-API-Key: YOUR_INTERNAL_API_KEY`.
-4.  **Benefits:** This wakes up the Render instance AND triggers the job regardless of user traffic.
+```
+EnsembleClient.searchKeywordFull({ name: productName, days: 30 })
+         ↓
+   Sort posts by statistics.play_count desc → pick top post
+         ↓
+   Map author → primaryCreator { handle, displayName, bio, followers, avatarUrl, tiktokPostUrl, … }
+         ↓
+   Overwrite viewCount / likeCount / commentCount / shareCount from the creator post
+```
+
+**Fallback:** If Ensemble returns no posts or the API call fails, the EchoTik seller record remains as `primaryCreator`.
+
+**Rate limiting:** EnsembleClient enforces a 2-second delay between requests (`RATE_LIMIT_MS = 2000`).
 
 ---
 
-## Pipeline 2 — Hashtag Ingestion (4-hour cycle)
+## Review & Related Product Enrichment — SearchApi
 
 ```
-TRACKED_HASHTAGS (src/ingestion/ensemble/hashtag.constants.ts)
-         ↓
-   EnsembleClient.getHashtagPosts()   ← cursor-based pagination
-   Response: { data: { nextCursor, data: EnsemblePost[] } }
-         ↓
-   Filter: skip posts with viewCount < 50,000
-         ↓
-   EnsembleClient.getPostComments()   ← per post
-         ↓
-   transformEnsemblePosts() + transformEnsembleComments()
-         ↓
-    ProductExtractor.extractFromPost(post, comments)  ← Gemini AI
-    Returns: { productName, productNiche, trendScore, sentimentSummary, buyingIntentScore, ... }
-          ↓
-    TeemDropService.findProductDetailByName(productName)
-    Returns: { productId, productNameEn, description, productMinPrice, productMaxPrice, images }
-          ↓
-    RainforestService.searchAmazonProducts(productName)   ← fallback only
-    Returns: { search_results: [{ title, price, image, recent_sales, link }] }
-          ↓
-    ProductEnricher.mergeAndUpsert()
-    → price uses TeemDrop `productMaxPrice` when available
-    → verifiedUnitsSold comes from Rainforest `recent_sales` or grounded web research
-    → Fallback: Web Search (AliExpress/Walmart) if supplier sales is 0
-          ↓
-    ProductRepository.upsertEnrichedProduct()   ← keyed on videoId + source
-          ↓
-    FreshnessService.markUpdated('product')
+SearchApiService.fetchProductReviews(productName)
+         │
+         ├─ Step 1: GET /api/v1/search?engine=google_shopping&q=<productName>
+         │          → extract shopping_results[0].product_token
+         │
+         └─ Step 2: GET /api/v1/search?engine=google_product&product_token=<token>
+                    → reviews[]       → saved to product.reviews
+                    → related_products[] → saved to product.relatedProducts
 ```
 
-**Scheduler:** `src/jobs/index.ts` — `setInterval` every 4 hours. **Staging/prod only** — disabled automatically in development to conserve credits.
-**Entry point:** `src/ingestion/ensemble/hashtag-ingestion.pipeline.ts → HashtagIngestionPipeline.run()`
-**Manual trigger:** `npm run hashtag-pipeline`
-
-### Hard Caps on Processed Posts
-To tightly control API spend (AI extractions + Amazon queries), the pipeline forcibly stops after processing a fixed limit of valid posts per run:
-- **Staging / Production**: Capped at **50 posts** (`MAX_POSTS_PROD`).
-- **Development**: Capped at **40 posts** (`MAX_POSTS_DEV`).
-
-### View Count Filter
-
-Posts with fewer than **50,000 views** are skipped before any AI call. This is the single biggest cost-control lever — low-engagement posts are unlikely to drive product discovery and would waste Gemini tokens.
-
-### Pagination
-
-EnsembleData returns a `nextCursor` in each response. The job follows it until:
-- `nextCursor` is `null` (API has no more pages), or
-- `cursor > MAX_CURSOR` (dev: 40 = 3 pages; prod: 4000 = up to ~200 pages)
-
-### Adding a New Tracked Hashtag
-
-Edit **one file**:
-
-```typescript
-// src/ingestion/ensemble/hashtag.constants.ts
-export const TRACKED_HASHTAGS = [
-  'TikTokMadeMeBuyIt',
-  'AmazonFinds',          // ← add here
-] as const;
-```
-
-The pipeline will automatically scrape all hashtags in the array on the next run.
+**Base URL:** `https://www.searchapi.io/api/v1/search`
+**Env var:** `SEARCHAPI_KEY`
+**Non-blocking:** skipped gracefully if product has no Google Shopping presence.
 
 ---
 
 ## Data Sources
 
+### EchoTik (`echotik.com`)
+
+**Env vars:** `ECHOTIK_USERNAME`, `ECHOTIK_PASSWORD`
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /product/list` | Paginated product listing sorted by sales |
+| `POST /product/comment` | Verified buyer reviews per product |
+| `POST /batch/cover/download` | Temp URL exchange for product images (24h expiry) |
+
+**Params used for product list:**
+- `product_sort_field: 5` — sort by 30-day sales
+- `sort_type: 1` — descending
+- `min_total_sale_30d_cnt: 50` — minimum 50 sales in last 30 days
+
 ### EnsembleData (`ensembledata.com`)
 
 **Base URL:** `https://ensembledata.com/apis/tt`
-**Auth:** `token` query parameter (max 24 chars — enforced by their API)
 **Env var:** `ENSEMBLE_API_KEY`
 
-| Endpoint | Purpose | Params |
-|---|---|---|
-| `GET /hashtag/posts` | Paginated posts for a hashtag | `name`, `cursor`, `token` |
-| `GET /tt/post/comments` | Top comments for a post | `aweme_id`, `token` |
-| `GET /tt/keyword/search` | Keyword post search | `keyword`, `cursor`, `token` |
-
-**Rate limiting:** 2-second enforced delay between all requests (`RATE_LIMIT_MS = 2000` in `ensemble.client.ts`).
-
-### TeemDrop API (`openapi.teemdrop.com`)
-
-**Base URL:** `https://openapi.teemdrop.com`
-**Env vars:** `TEEMDROP_APP_KEY`, `TEEMDROP_APP_SECRET`, `TEEMDROP_BASE_URL`, `TEEMDROP_USER_AGENT`
-
-Auth flow used by `src/services/teemdrop.service.ts`:
-
-1. `POST /openapi/createToken/v1`
-2. Use the returned token to sign:
-   - `POST /openapi/product/list/v1`
-   - `POST /openapi/product/detail/v1`
-
-The service pages through the first few catalog pages, scores product titles against the extracted product name, and fetches `product/detail` only for the best confident match.
-
-**Live verification note:** On April 15, 2026, requests from this workspace were blocked by Cloudflare when using a plain default `curl` user agent. The same requests succeeded with `Accept: application/json` and `User-Agent: PostmanRuntime/7.43.0`.
-
-### Rainforest API (`rainforestapi.com`)
-
-**Endpoint:** `https://api.rainforestapi.com/request`
-**Env var:** `RAINFOREST_API_KEY`
-
-Hardcoded search params:
-
-| Param | Value |
+| Endpoint | Purpose |
 |---|---|
-| `type` | `search` |
-| `amazon_domain` | `amazon.com` |
-| `sort_by` | `bestseller_rankings` |
-| `page` | `1` |
-| `number_of_results` | `20` |
-| `include_products_count` | `5` |
-| `exclude_sponsored` | `false` |
+| `GET /keyword/full-search` | Find TikTok posts by product name (creator enrichment) |
+| `GET /hashtag/posts` | Paginated posts for a hashtag |
+| `GET /post/comments` | Top comments for a post |
 
-**Behavior in this repo:** Single attempt. Returns `null` (not a throw) if the call fails — the pipeline continues without Rainforest data and only uses it as a fallback when TeemDrop could not resolve a match.
+### SearchApi (`searchapi.io`)
 
----
+**Base URL:** `https://www.searchapi.io/api/v1/search`
+**Env var:** `SEARCHAPI_KEY`
 
-## AI Extraction
+| Engine | Purpose |
+|---|---|
+| `google_shopping` | Find product listing, extract `product_token` |
+| `google_product` | Fetch reviews and related products using `product_token` |
 
-### ProductExtractor (`src/services/product.extractor.ts`)
+### TeemDrop (`openapi.teemdrop.com`)
 
-Uses Gemini AI to analyse a TikTok post + its top comments and return structured product data.
+**Env vars:** `TEEMDROP_APP_KEY`, `TEEMDROP_APP_SECRET`, `TEEMDROP_BASE_URL`
 
-**Input:**
-```typescript
-extractFromPost(post: NormalizedPost, comments: NormalizedComment[]): Promise<ExtractedProduct | null>
-```
-
-**Returns `null` if:**
-- The post is not clearly promoting a product
-- AI confidence is below threshold
-
-**Output shape (`ExtractedProduct`):**
-```typescript
-{
-  productName: string;          // Used as Amazon search term
-  productNiche: string;         // Must match a PRODUCT_CATEGORIES entry
-  productDescription: string;
-  trendDirection: 'rising' | 'peaked' | 'saturating' | 'unknown';
-  trendScore: number;           // 0-100
-  trendReason: string;
-  extractionConfidence: number; // 0-1
-  sentimentSummary?: string;
-  buyingIntentScore?: number;   // 0-10
-}
-```
-
-### 3-Level TikTok Shop Taxonomy
-
-All products are assigned to a canonical 3-level TikTok Shop category path:
-**Primary Category / Sub Category / Category Leaf**
-
-Example: \`Beauty & Personal Care / Skincare / Skin Care Kits\`
-
-The extraction engine maps niches to these paths:
-- **Beauty & Personal Care** (Skincare, Makeup, Hair, etc.)
-- **Electronics & Gadgets**
-- **Home & Living**
-- **Fashion & Accessories**
-- **Sports & Outdoors**
-- **Pet Supplies**
-- **Toys & Games**
-- **Automotive**
-- **Tools & Home Improvement**
-- **Food & Beverages**
-- **Baby & Maternity**
-- **Health & Wellness**
-
-The AI generates a `productNiche`, which the `matchCategoryPath` utility maps into the full formal TikTok Shop hierarchy.
+Used for supplier catalog matching. Auth: `POST /openapi/createToken/v1`, then signed requests to `/openapi/product/list/v1` and `/openapi/product/detail/v1`.
 
 ---
 
-## Product Enrichment (`src/services/product.enricher.ts`)
+## Creative Ingestion
 
-`ProductEnricher.mergeAndUpsert()` combines AI + supplier data before writing to MongoDB:
+After products are ingested, `CreativeService.fetchAndIngestCreatives()` finds TikTok videos associated with each product and stores them as `Creative` documents linked via `productId`.
 
-| Field | Source | Logic |
-|---|---|---|
-| `title` | TeemDrop / Rainforest | Uses `productNameEn` from TeemDrop when available, otherwise the best Rainforest title, then falls back to AI `productName`. |
-| `price` | TeemDrop / Rainforest | Uses TeemDrop `productMaxPrice` when available. Otherwise uses Rainforest average price. `0` if no provider yields a price. |
-| `unitsSold` | **Verified** | Extracted from Rainforest `recent_sales` when available. Falls back to grounded web research. |
-| `suppliers` | Multiple | TeemDrop or Amazon source entry plus search links for AliExpress/Alibaba. Verified web research is inserted at the top when used. |
-| `categoryPath` | Utility | Resolved via \`matchCategoryPath(extraction.productNiche)\`. |
-| `imageUrls` | TeemDrop / Rainforest | Uses TeemDrop gallery images first, then Rainforest images, then web/TikTok fallbacks. |
-| `trendScore` | AI | Direct from `ExtractedProduct`. |
-| `sentimentSummary` | AI | Direct from `ExtractedProduct`. |
-| `totalViews` | TikTok post | `NormalizedPost.viewCount`. |
+The daily job runs creative ingestion after product ingestion, targeting **300 creative videos** total.
 
 ---
 
 ## Database Upsert
 
-Both pipelines are **idempotent** — running them twice doesn't create duplicates.
+Both pipelines are **idempotent** — re-running never creates duplicates.
 
 | Method | Key | Used by |
 |---|---|---|
-| `upsertFromExtraction()` | `videoId + source` | Creative Center pipeline |
-| `upsertEnrichedProduct()` | `videoId + source` | Hashtag pipeline |
+| `upsertEnrichedProduct()` | `externalId + source` | EchoTik pipeline |
 
 ---
 
 ## Job Schedule Summary
 
-| Job | Interval | First Run | Environments |
+| Job | Interval | Run Time | Environments |
 |---|---|---|---|
-| Discovery Job | Every 2 hours | 10s after boot | All |
-| Stale Cleanup | Every 30 minutes | Immediately | All |
-| Hashtag Pipeline | Every 4 hours | Only via cron | Staging + Prod only |
+| EchoTik + Creative ingestion | Every 24 hours | 15:00 Africa/Lagos | Staging + Prod |
+| Stale cleanup | Every 5 minutes | Immediately on boot | All |
+
+Manual triggers (require `X-API-Key` header):
+- `POST /api/v1/jobs/echotik-pipeline`
+- `POST /api/v1/jobs/product-refresh`
 
 ---
 
 ## Environment Variables
 
 ```bash
-# EnsembleData — max 24 chars (enforced by their API)
+# EchoTik — TikTok Shop product data
+ECHOTIK_USERNAME=your_email
+ECHOTIK_PASSWORD=your_password
+
+# EnsembleData — TikTok creator data
 ENSEMBLE_API_KEY=your_token
 
-# TeemDrop catalog enrichment
+# SearchApi — Google Shopping reviews
+SEARCHAPI_KEY=your_key
+
+# TeemDrop — supplier catalog enrichment
 TEEMDROP_APP_KEY=your_key
 TEEMDROP_APP_SECRET=your_secret
-
-# Rainforest Amazon fallback
-RAINFOREST_API_KEY=your_key
-
-# AI Providers (at least one required)
-DEEPSEEK_API_KEY=optional
-OPENAI_API_KEY=optional
-
-# Primary data collection
+TEEMDROP_BASE_URL=https://openapi.teemdrop.com
 ```
 
 ---
@@ -283,8 +216,9 @@ OPENAI_API_KEY=optional
 
 | Symptom | Likely Cause | Check |
 |---|---|---|
-| `422 Unprocessable Entity` from EnsembleData | `ENSEMBLE_API_KEY` > 24 chars | `grep ENSEMBLE_API_KEY .env` |
-| `0 posts fetched` from hashtag | Wrong response field path | Check `ensemble.client.ts` parser |
-| `0 AI extractions` | No AI key set, or all posts below 50k views | Check `DEEPSEEK_API_KEY`/`OPENAI_API_KEY` and view counts |
-| `TeemDrop and Rainforest returned no results` | No confident TeemDrop match and no usable Rainforest response | Check TeemDrop credentials first, then Rainforest quota |
-| Products not appearing in feed | Upsert keyed wrong or category invalid | Check `product.repository.ts` filter + `PRODUCT_CATEGORIES` |
+| `Usage Limit Exceeded` from EchoTik | EchoTik API quota hit | Contact EchoTik support to increase quota |
+| Images not loading | volces.com temp URL expired | Check Redis cache for `echotik:img:*` keys; run pre-warm script |
+| `0 reviews` on products | Product not on Google Shopping | Normal — SearchApi enrichment is best-effort |
+| Creators showing seller ID not @handle | EnsembleData returned no posts | Check `ENSEMBLE_API_KEY` and product name searchability |
+| `status: stale` immediately after ingest | Stale cleanup cutoff too short | Currently 1440 min (24h) — matches daily ingestion cycle |
+| Products not appearing in feed | upsert keyed wrong or category invalid | Check `product.repository.ts` filter + category taxonomy |

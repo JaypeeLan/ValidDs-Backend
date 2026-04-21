@@ -139,7 +139,7 @@ export async function runProductRefreshJob(): Promise<void> {
  */
 export async function runStaleCleanupJob(): Promise<void> {
   log.debug('Stale cleanup job started');
-  const count = await ProductRepository.markStaleProducts(10); // 10 minutes
+  const count = await ProductRepository.markStaleProducts(1440); // 24 hours — products re-ingested daily
   if (count > 0) {
     log.info(`Marked ${count} products as stale`);
   }

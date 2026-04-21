@@ -138,6 +138,101 @@ export interface ExtractedProduct {
   groundedImages: string[];
 }
 
+// ── EchoTik normalized product ──────────────────────────────────────────────
+
+/**
+ * A product record from EchoTik's TikTok Shop API.
+ * Unlike NormalizedPost (which is a TikTok video post), this is a
+ * fully structured product entity — no AI extraction needed for core fields.
+ */
+export interface NormalizedEchoTikProduct {
+  // Identity
+  productId:   string;             // TikTok Shop product_id
+  productName: string;
+  region:      string;
+  sellerId:    string;             // shop owner ID
+
+  // Category (resolved to human-readable names by echotik.category.ts)
+  categoryId:    string;
+  categoryL2Id:  string;
+  categoryL3Id:  string;
+  categoryL1:    string;
+  categoryL2?:   string;
+  categoryL3?:   string;
+  categoryPath:  string;
+
+  // Media
+  primaryImageUrl?: string;
+  imageUrls:        string[];      // full gallery from cover_url[]
+
+  // Pricing
+  minPrice:       number;
+  maxPrice:       number;
+  avgPrice:       number;          // spu_avg_price
+  commissionRate: number;          // decimal e.g. 0.13 = 13%
+  freeShipping:   boolean;
+  isManagedStore: boolean;         // is_s_shop
+  isOffMarket:    boolean;
+
+  // Quality signals (real verified data — not AI estimates)
+  rating:      number;             // 0–5 scale
+  reviewCount: number;
+
+  // Description (built from desc_detail blocks + specification)
+  description: string;
+
+  // Sales metrics — all time
+  totalSaleCnt:    number;
+  totalSaleGmvAmt: number;
+
+  // Sales metrics — windowed
+  totalSale1dCnt:     number;
+  totalSale7dCnt:     number;
+  totalSale15dCnt:    number;
+  totalSale30dCnt:    number;
+  totalSale60dCnt:    number;
+  totalSale90dCnt:    number;
+  totalSaleGmv7dAmt:  number;
+  totalSaleGmv30dAmt: number;
+  totalSaleGmv90dAmt: number;
+
+  // Creator & video engagement
+  totalIflCnt:      number;        // creator count (influencers selling this)
+  totalVideoCnt:    number;
+  totalLiveCnt:     number;
+  totalViewsCnt:    number;
+  totalViews30dCnt: number;
+
+  // Sales channel
+  salesChannel: 'video' | 'live' | 'none';
+
+  // Trend signals (derived from EchoTik data, no AI needed)
+  trendDirection: 'rising' | 'stable' | 'declining';
+  trendScore:     number;           // 0–100 composite
+  isTrending:     boolean;
+
+  // Timestamps
+  dataSourceUpdatedAt: Date;        // from last_crawl_dt
+  firstCrawledAt:      Date;        // from first_crawl_dt
+
+  // Source tracking
+  source:    'echotik';
+  sourceRaw?: unknown;              // original raw API record — debug only
+}
+
+/**
+ * A verified buyer review from EchoTik's /product/comment endpoint.
+ */
+export interface NormalizedEchoTikComment {
+  reviewId:         string;
+  productId:        string;
+  text:             string;
+  rating:           number;         // 1–5
+  sentiment:        'positive' | 'neutral' | 'negative';
+  skuSpecification: string;         // e.g. "Item: Halloween Mystery Bundle"
+  createdAt:        Date;
+}
+
 // ── Trending hashtags and keywords ───────────────────────────────────────────
 
 export interface NormalizedHashtag {
@@ -163,7 +258,8 @@ export interface NormalizedKeyword {
 // ── Source identifiers ────────────────────────────────────────────────────────
 
 export type IngestionSource =
-  | 'ensemble'            // EnsembleData API
+  | 'ensemble'            // EnsembleData API (legacy — TikTok posts via keyword/hashtag)
+  | 'echotik'             // EchoTik API — direct TikTok Shop product records
   | 'manual';             // manually added for testing
 
 // ── Job result ────────────────────────────────────────────────────────────────

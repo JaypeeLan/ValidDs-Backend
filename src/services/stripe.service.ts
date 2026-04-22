@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { env } from '../config/env.validation';
+import { UserPlan } from '../models/user.model';
 
 type StripeClient = InstanceType<typeof Stripe>;
 
@@ -34,6 +35,32 @@ export function getStripe(): StripeClient | null {
   if (!key) return null;
   if (stripeClient && stripeClientKey === key) return stripeClient;
   stripeClientKey = key;
-  stripeClient = new Stripe(key);
+  stripeClient = new Stripe(key, { apiVersion: '2024-06-20' });
   return stripeClient;
+}
+
+// ── Plan → Price ID mapping ───────────────────────────────────────────────────
+
+// Paid plans only — 'free' has no price ID
+const PRICE_MAP_TEST: Partial<Record<UserPlan, string | undefined>> = {
+  trial:    env.STRIPE_PRICE_ID_TRIAL_TEST,
+  explorer: env.STRIPE_PRICE_ID_EXPLORER_TEST,
+  pro:      env.STRIPE_PRICE_ID_PRO_TEST,
+  premium:  env.STRIPE_PRICE_ID_PREMIUM_TEST,
+};
+
+const PRICE_MAP_LIVE: Partial<Record<UserPlan, string | undefined>> = {
+  trial:    env.STRIPE_PRICE_ID_TRIAL_LIVE,
+  explorer: env.STRIPE_PRICE_ID_EXPLORER_LIVE,
+  pro:      env.STRIPE_PRICE_ID_PRO_LIVE,
+  premium:  env.STRIPE_PRICE_ID_PREMIUM_LIVE,
+};
+
+/**
+ * Returns the Stripe Price ID for a given plan, based on current mode (test/live).
+ * Returns undefined if the plan is not a paid plan or the env var is not set.
+ */
+export function getPriceIdForPlan(plan: UserPlan): string | undefined {
+  const map = isStripeLiveMode() ? PRICE_MAP_LIVE : PRICE_MAP_TEST;
+  return map[plan];
 }

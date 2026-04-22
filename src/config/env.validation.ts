@@ -105,6 +105,12 @@ const envSchema = z.object({
     z.string().min(1).optional().default('PostmanRuntime/7.43.0')
   ),
 
+  // Frontend URL — used for OAuth redirects and Stripe checkout redirect URLs
+  FRONTEND_URL: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional().default('http://localhost:3001')
+  ),
+
   // Stripe
   STRIPE_SECRET_KEY_TEST: z.preprocess(
     (val) => (val === '' ? undefined : val),
@@ -127,6 +133,42 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
   STRIPE_WEBHOOK_SECRET_LIVE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+
+  // Stripe Price IDs (test)
+  STRIPE_PRICE_ID_TRIAL_TEST: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_PRICE_ID_EXPLORER_TEST: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_PRICE_ID_PRO_TEST: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_PRICE_ID_PREMIUM_TEST: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+
+  // Stripe Price IDs (live)
+  STRIPE_PRICE_ID_TRIAL_LIVE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_PRICE_ID_EXPLORER_LIVE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_PRICE_ID_PRO_LIVE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  STRIPE_PRICE_ID_PREMIUM_LIVE: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
   ),

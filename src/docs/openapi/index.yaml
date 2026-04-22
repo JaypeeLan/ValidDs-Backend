@@ -34,7 +34,7 @@ tags:
   - name: Admin
     description: System health and analytics for users, products, and TikTok creatives.
   - name: Billing
-    description: Stripe billing and client configuration
+    description: Stripe billing — public plan catalog, Checkout session creation, subscription state, and publishable key
 
 paths:
   /health:
@@ -99,8 +99,14 @@ paths:
     $ref: './paths/creatives.yaml#/creatives'
   /api/v1/creatives/{id}:
     $ref: './paths/creatives.yaml#/creativeDetail'
+  /api/v1/billing/plans:
+    $ref: './paths/billing.yaml#/listPlans'
   /api/v1/billing/stripe-config:
     $ref: './paths/billing.yaml#/stripeConfig'
+  /api/v1/billing/checkout:
+    $ref: './paths/billing.yaml#/createCheckoutSession'
+  /api/v1/billing/subscription:
+    $ref: './paths/billing.yaml#/getSubscription'
   /api/v1/webhooks/stripe:
     $ref: './paths/billing.yaml#/stripeWebhook'
 

@@ -1,3 +1,172 @@
+listPlans:
+  get:
+    tags: [Billing]
+    summary: List purchasable plans (public)
+    description: |
+      Returns **trial**, **explorer**, **pro**, and **premium** with credit/limit metadata from the product model.
+      When the server Stripe secret is configured, each plan may include **price** amounts loaded from Stripe Price IDs in env.
+
+      **checkoutRedirects** matches the default `successUrl` / `cancelUrl` used by `POST /billing/checkout` when those fields are omitted:
+      - Success URL must keep the literal `{CHECKOUT_SESSION_ID}` placeholder; Stripe replaces it after payment.
+      - After success, have the SPA call `GET /billing/subscription` (or listen for websocket `planUpgraded`) — provisioning is finalized via Stripe webhooks.
+    responses:
+      '200':
+        description: Plan catalog and default redirect URLs
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [mode, plans, checkoutRedirects]
+                      properties:
+                        mode:
+                          type: string
+                          enum: [test, live]
+                        checkoutRedirects:
+                          type: object
+                          required: [defaultSuccessUrl, defaultCancelUrl]
+                          properties:
+                            defaultSuccessUrl:
+                              type: string
+                              format: uri
+                              description: Use as successUrl for Checkout; must include session_id={CHECKOUT_SESSION_ID} (placeholder preserved for Stripe).
+                            defaultCancelUrl:
+                              type: string
+                              format: uri
+                        plans:
+                          type: array
+                          items:
+                            type: object
+                            required: [id, limits, checkoutMode, stripePriceConfigured, price]
+                            properties:
+                              id:
+                                type: string
+                                enum: [trial, explorer, pro, premium]
+                              checkoutMode:
+                                type: string
+                                enum: [payment, subscription]
+                              stripePriceConfigured:
+                                type: boolean
+                              limits:
+                                type: object
+                                properties:
+                                  creditsPerMonth: { type: integer }
+                                  productsPerDay: { type: integer }
+                                  searchesPerDay: { type: integer }
+                                  savedProductsMax: { type: integer }
+                              price:
+                                nullable: true
+                                type: object
+                                properties:
+                                  amountCents:
+                                    nullable: true
+                                    type: integer
+                                  currency:
+                                    nullable: true
+                                    type: string
+                                  interval:
+                                    nullable: true
+                                    type: string
+                                    enum: [month, year]
+
+createCheckoutSession:
+  post:
+    tags: [Billing]
+    summary: Create Stripe Checkout session (authenticated)
+    description: |
+      Creates a hosted Checkout Session. Response **`data.url`** — redirect the signed-in user's browser there.
+
+      Optional **successUrl** / **cancelUrl** override defaults from `GET /billing/plans` (`checkoutRedirects`).
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [plan]
+            properties:
+              plan:
+                type: string
+                enum: [trial, explorer, pro, premium]
+              successUrl:
+                type: string
+                format: uri
+                description: Override; should include `session_id={CHECKOUT_SESSION_ID}` for session confirmation on return.
+              cancelUrl:
+                type: string
+                format: uri
+    responses:
+      '200':
+        description: Checkout session created
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [url, sessionId]
+                      properties:
+                        url:
+                          type: string
+                          format: uri
+                          description: Stripe Checkout URL — navigate the browser here.
+                        sessionId:
+                          type: string
+      '400':
+        $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '503':
+        description: Stripe price ID for plan not configured
+
+getSubscription:
+  get:
+    tags: [Billing]
+    summary: Current subscription and billing snapshot (authenticated)
+    description: Returns the user's plan, credit balance, Stripe IDs, recent transactions, and Stripe mode (test/live).
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Subscription state
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        plan:
+                          type: string
+                        creditBalance: { type: number }
+                        planExpiresAt:
+                          nullable: true
+                          type: string
+                          format: date-time
+                        stripeCustomerId: { nullable: true, type: string }
+                        stripeSubscriptionId: { nullable: true, type: string }
+                        mode:
+                          type: string
+                          enum: [test, live]
+                        transactions:
+                          type: array
+                          items:
+                            type: object
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
 stripeConfig:
   get:
     tags: [Billing]

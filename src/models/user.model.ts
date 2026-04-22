@@ -21,7 +21,7 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 export type AuthProvider = 'google' | 'local' | 'tiktok';
-export type UserPlan = 'free' | 'trial' | 'pro' | 'team' | 'starter' | 'validator' | 'scale';
+export type UserPlan = 'free' | 'trial' | 'explorer' | 'pro' | 'premium';
 export type UserRole = 'user' | 'admin';
 export type UserStatus = 'active' | 'suspended' | 'deleted';
 
@@ -153,13 +153,11 @@ export interface IUserModel extends Model<IUserDocument> {
 // ── Plan limits ───────────────────────────────────────────────────────────────
 
 export const PLAN_LIMITS: Record<UserPlan, { creditsPerMonth: number; productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
-  free: { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
-  trial: { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
-  pro: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
-  team: { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
-  starter: { creditsPerMonth: 15000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
-  validator: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
-  scale: { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
+  free:     { creditsPerMonth: 1000,   productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
+  trial:    { creditsPerMonth: 1000,   productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
+  explorer: { creditsPerMonth: 15000,  productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
+  pro:      { creditsPerMonth: 60000,  productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
+  premium:  { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
 };
 
 export const ALLOWED_CONTENT_REGIONS = ['US', 'CA', 'MX', 'UK', 'ES', 'DE', 'IT', 'FR', 'AU', 'NZ'] as const;
@@ -267,7 +265,7 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     },
     plan: {
       type: String,
-      enum: ['free', 'trial', 'pro', 'team', 'starter', 'validator', 'scale'] as UserPlan[],
+      enum: ['free', 'trial', 'explorer', 'pro', 'premium'] as UserPlan[],
       default: 'free',
       trim: true,
       set: (v: string) => v ? v.trim().toLowerCase() : v

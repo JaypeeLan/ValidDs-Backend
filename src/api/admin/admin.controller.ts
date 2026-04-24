@@ -16,8 +16,10 @@ import type {
   UpdateUserStatusInput,
   AdminProductIdParamInput,
   AdminProductsQueryInput,
+  AdminWaitlistQueryInput,
 } from './admin.validator';
 import { TransactionService } from '../../services/transaction.service';
+import { WaitlistService } from '../../services/waitlist.service';
 
 export const getSystemHealth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -400,6 +402,19 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
         { id: productId },
         'Product permanently deleted successfully.'
       )
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listWaitlist = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminWaitlistQueryInput;
+    const data = await WaitlistService.list(query);
+
+    res.json(
+      successResponse(data, 'Waitlist entries retrieved successfully.')
     );
   } catch (err) {
     next(err);

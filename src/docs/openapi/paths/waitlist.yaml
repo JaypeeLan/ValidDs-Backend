@@ -1,0 +1,68 @@
+join:
+  post:
+    tags: [Waitlist]
+    summary: Join the pre-launch waitlist
+    description: |
+      Adds an email to the waitlist. Public endpoint, no auth required.
+
+      The email is normalised (trimmed + lowercased) before storage. If the
+      email is already on the waitlist the endpoint responds **200** with
+      `alreadyOnWaitlist: true` (idempotent — safe to call from retries);
+      a brand-new entry returns **201**.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email]
+            properties:
+              email:
+                type: string
+                format: email
+                example: founder@example.com
+              source:
+                type: string
+                maxLength: 64
+                description: Optional attribution tag (e.g. `landing-hero`, `twitter-ad`).
+                example: landing-hero
+              referrer:
+                type: string
+                maxLength: 512
+                description: Optional referring URL. Defaults to the `Referer` header when omitted.
+                example: https://twitter.com/validds
+    responses:
+      '201':
+        description: Email successfully added to the waitlist.
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        joined:             { type: boolean, example: true }
+                        alreadyOnWaitlist:  { type: boolean, example: false }
+                        email:              { type: string, format: email }
+                        joinedAt:           { type: string, format: date-time }
+      '200':
+        description: Email was already on the waitlist (idempotent).
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        joined:             { type: boolean, example: true }
+                        alreadyOnWaitlist:  { type: boolean, example: true }
+                        email:              { type: string, format: email }
+                        joinedAt:           { type: string, format: date-time }
+      '400':
+        $ref: '../components/responses/Standard.yaml#/BadRequestResponse'

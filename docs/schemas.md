@@ -10,17 +10,17 @@ One document per product discovered from TikTok Shop (via EchoTik) or a TikTok p
 
 | Area | Fields (summary) |
 |------|-------------------|
-| Identity | `externalId`, `source` (`'echotik'` or `'ensemble'`), `status` |
-| Content | `title`, `normalizedTitle`, `description`, `hashtags` |
-| Taxonomy | `categoryL1`, `categoryL2`, `categoryL3`, `categoryPath` |
-| Media | `primaryImageUrl`, `imageUrls[]` — EchoTik products store original volces.com URLs; resolved to temp URLs at serve time via Redis cache |
+| Identity | `externalId` (EchoTik `product_id`), `source` (`'echotik'` or `'ensemble'`), `status` |
+| Content | `title`, `normalizedTitle`, `description`, `hashtags[]` — hashtags sourced from the top EchoTik `/product/video/list` video's `hash_tag` + `video_desc` |
+| Taxonomy | `categoryL1`, `categoryL2`, `categoryL3`, `categoryPath` — resolved from EchoTik `/category/l1|l2|l3` (2,600+ IDs, 7-day Redis cache). Raw IDs never leak to clients; the response formatter also runs `sanitiseCategoryFields()` on older docs |
+| Media | `primaryImageUrl`, `imageUrls[]` (resolved temp URLs) + `sourcePrimaryImageUrl`, `sourceImageUrls[]`, `imagesResolvedAt` (originals kept for refresh). Images are `probe()`-verified at ingest and fall back to SearchApi google_images when EchoTik's returned URL won't render |
 | Pricing | `price`, `currency`, `suppliers[]` (platform, productUrl, price, currency, shippingDays, moq, checkedAt) |
 | Market | `rating`, `reviewCount`, `salesEvidence` (unitsSold, store, **storeUrl** → direct product URL, timeframe, sourceBreakdown[], fetchedAt), `ratingSources[]` |
 | Reviews | `reviews[]` — Google Shopping review snippets from SearchApi (`source`, `text`, `collectedAt`) |
 | Social | `topComments[]` — verified TikTok Shop buyer comments from EchoTik (comment, text, likeCount, sentiment, source, collectedAt) |
-| Engagement | `viewCount`, `likeCount`, `commentCount`, `shareCount`, `engagementRate` — from top EnsembleData creator post when available |
-| Creator | `primaryCreator` — real TikTok creator (resolved via EnsembleData keyword search); falls back to EchoTik seller if no creator found |
-| AI | `aiIntelligence` (confidence, confidenceReason, brand, categoryKeywords, buyingSentimentScore, buyingSentimentReason, extractedAt) |
+| Engagement | `viewCount`, `likeCount`, `commentCount`, `shareCount`, `engagementRate` — taken from the **top video** of EchoTik `/product/video/list` (by `total_views_cnt`). `engagementRate = (likes + comments + shares) / views` |
+| Creator | `primaryCreator` — resolved via EnsembleData `/post/info` using the `video_id` from the top EchoTik video; falls back to the EchoTik seller when the post is deleted or private |
+| AI | `aiIntelligence` (confidence, confidenceReason, **brand**, categoryKeywords, buyingSentimentScore, buyingSentimentReason, extractedAt). `brand` is extracted at ingest from bracketed tokens in the title or `Brand:` keys in the description — never guessed |
 | Trend | `trend` (score, direction, reason, isTrending, calculatedAt) — derived from EchoTik 30-day sales velocity |
 | Discovery | `discoverySections[]` (e.g. `trending`, `top-ads`, `top-rated`, `viral`), `relatedProducts[]` — from SearchApi google_product |
 | Creatives rollup | `creativeCounts` { ads, organic, reviews, total } |
@@ -100,3 +100,19 @@ Product controller
 ## 5. Other collections
 
 User, auth, bookmarks, jobs, and admin analytics live in their respective models under `src/models/`. Extend this file when those contracts stabilize.
+
+### `WaitlistEntry` collection
+
+Captured from the public `POST /api/v1/waitlist` endpoint. Read-only for admins via `GET /api/v1/admin/waitlist`.
+
+| Field       | Type     | Notes                                                                |
+|-------------|----------|----------------------------------------------------------------------|
+| `email`     | string   | Trimmed + lowercased, **unique index**                              |
+| `source`    | string?  | Optional attribution tag from the request body (≤ 64 chars)         |
+| `referrer`  | string?  | From body, falls back to the `Referer` request header (≤ 512 chars) |
+| `ipAddress` | string?  | `req.ip` at the time of signup                                       |
+| `userAgent` | string?  | `User-Agent` header (≤ 512 chars)                                   |
+| `createdAt` | Date     | Auto-managed via `timestamps`                                        |
+| `updatedAt` | Date     | Auto-managed via `timestamps`                                        |
+
+Duplicate submissions are a no-op: the service layer does an explicit `findOne` before insert and responds with the existing entry and `alreadyOnWaitlist: true` (E11000 race conditions are also handled gracefully).

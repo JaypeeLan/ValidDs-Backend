@@ -35,6 +35,8 @@ tags:
     description: System health and analytics for users, products, and TikTok creatives.
   - name: Billing
     description: Stripe billing — public plan catalog, Checkout session creation, subscription state, and publishable key
+  - name: Waitlist
+    description: Pre-launch email waitlist — public `POST /api/v1/waitlist` to join, admin-only `GET /api/v1/admin/waitlist` to list
 
 paths:
   /health:
@@ -75,6 +77,14 @@ paths:
     $ref: './paths/jobs.yaml#/status'
   /api/v1/jobs/product-refresh:
     $ref: './paths/jobs.yaml#/productRefresh'
+  /api/v1/jobs/product-ingestion:
+    $ref: './paths/jobs.yaml#/productIngestion'
+  /api/v1/jobs/creative-ingestion:
+    $ref: './paths/jobs.yaml#/creativeIngestion'
+  /api/v1/jobs/echotik-pipeline:
+    $ref: './paths/jobs.yaml#/echotikPipeline'
+  /api/v1/jobs/stale-cleanup:
+    $ref: './paths/jobs.yaml#/staleCleanup'
   /api/v1/admin/health:
     $ref: './paths/admin.yaml#/health'
   /api/v1/admin/analytics/users:
@@ -95,6 +105,8 @@ paths:
     $ref: './paths/admin.yaml#/productDelete'
   /api/v1/admin/transactions:
     $ref: './paths/admin.yaml#/transactions'
+  /api/v1/admin/waitlist:
+    $ref: './paths/admin.yaml#/waitlist'
   /api/v1/creatives:
     $ref: './paths/creatives.yaml#/creatives'
   /api/v1/creatives/{id}:
@@ -109,6 +121,8 @@ paths:
     $ref: './paths/billing.yaml#/getSubscription'
   /api/v1/webhooks/stripe:
     $ref: './paths/billing.yaml#/stripeWebhook'
+  /api/v1/waitlist:
+    $ref: './paths/waitlist.yaml#/join'
 
 components:
   securitySchemes:

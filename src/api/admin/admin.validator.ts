@@ -37,6 +37,15 @@ export const AdminProductsQuerySchema = z.object({
   q: z.string().trim().min(1).optional(),
 });
 
+export const AdminWaitlistQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  q: z.string().trim().min(1).optional(),
+  source: z.string().trim().min(1).max(64).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+
 export const CreateTransactionSchema = z.object({
   userId: z.string().min(1, 'userId is required'),
   userEmail: z.string().email().optional(),
@@ -58,3 +67,4 @@ export type UpdateUserStatusInput = z.infer<typeof UpdateUserStatusSchema>;
 export type AdminUserIdParamInput = z.infer<typeof AdminUserIdParamSchema>;
 export type AdminProductIdParamInput = z.infer<typeof AdminProductIdParamSchema>;
 export type AdminProductsQueryInput = z.infer<typeof AdminProductsQuerySchema>;
+export type AdminWaitlistQueryInput = z.infer<typeof AdminWaitlistQuerySchema>;

@@ -105,17 +105,29 @@ Removes a product from the user's saved list.
 These endpoints are used for monitoring and triggering ingestion/cleanup jobs from external cron services.
 **Authentication:** Required. Requires `X-API-Key` header (matches `INTERNAL_API_KEY`).
 
+**Scheduled cadence** (all anchored to Africa/Lagos):
+- Product ingestion — daily at **00:00**
+- Creative ingestion — every 12h at **00:00 / 12:00**
+- Stale cleanup — every 5 minutes
+- EchoTik image refresh — every 30 minutes
+
 ### `GET /jobs/status`
-Returns the status of job timers and last-run timestamps.
+Returns the status of all job timers, last-run timestamps, per-job success/error outcomes, and the wall-clock schedule each job runs on.
+
+### `POST /jobs/product-ingestion`
+Runs the daily multi-region EchoTik ingestion pipeline followed by product cleanup. Same code path as the 00:00 Africa/Lagos cron.
+
+### `POST /jobs/creative-ingestion`
+Runs the creative ingestion job — adds up to 500 new creative videos in a single pass and refreshes TikTok CDN URLs on revisited creatives. Same code path as the 12-hour cron.
+
+### `POST /jobs/echotik-pipeline`
+Runs a single-region EchoTik pipeline cycle (useful for ad-hoc regional top-ups).
 
 ### `POST /jobs/product-refresh`
-Triggers the product refresh pipeline.
-
-### `POST /jobs/hashtag-pipeline`
-Triggers the hashtag ingestion pipeline.
+Triggers the legacy hashtag-based product refresh pipeline (manual only; not on a schedule).
 
 ### `POST /jobs/stale-cleanup`
-Triggers stale data cleanup.
+Forces an immediate stale-product cleanup pass.
 
 ---
 
@@ -163,9 +175,25 @@ Stores a transaction record.
 **Authentication:** Required (admin role).
 **Body:** `{ "userId": "...", "amount": 49, "currency": "USD", "status": "paid", "mode": "test", "provider": "stripe" }`
 
+### `GET /admin/waitlist`
+Paginated list of waitlist signups (newest first) plus summary stats.
+**Authentication:** Required (admin role).
+**Query params:** `page` (default 1), `limit` (default 50, max 200), `q` (substring match on email), `source` (exact match), `from` / `to` (ISO-8601 `createdAt` bounds).
+**Response shape:** `{ entries: [...], pagination: { page, limit, total, totalPages }, stats: { total, last7Days, last24Hours } }`
+
 ---
 
-## 7. System Health Endpoints
+## 7. Waitlist Endpoints (`/waitlist`)
+
+### `POST /waitlist`
+Public endpoint. Adds an email to the pre-launch waitlist. Idempotent — a duplicate email returns `200` with `alreadyOnWaitlist: true` instead of erroring.
+**Authentication:** None.
+**Body:** `{ "email": "founder@example.com", "source": "landing-hero", "referrer": "https://..." }`
+**Responses:** `201` for new entries, `200` for duplicates, `400` on invalid email.
+
+---
+
+## 8. System Health Endpoints
 
 ### `GET /health`
 Liveness probe. Indicates if the Express process is running.

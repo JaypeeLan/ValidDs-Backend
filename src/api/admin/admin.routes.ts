@@ -9,6 +9,7 @@ import {
   AdminUserIdParamSchema,
   AdminProductIdParamSchema,
   AdminProductsQuerySchema,
+  AdminWaitlistQuerySchema,
   UpdateUserStatusSchema,
 } from './admin.validator';
 
@@ -80,6 +81,14 @@ router.post(
   '/transactions',
   validate(CreateTransactionSchema, 'body'),
   adminController.createTransaction
+);
+
+// Route: GET /api/v1/admin/waitlist
+// Desc: List waitlist entries with pagination, search, and stats (admin only)
+router.get(
+  '/waitlist',
+  validate(AdminWaitlistQuerySchema, 'query'),
+  adminController.listWaitlist
 );
 
 export default router;

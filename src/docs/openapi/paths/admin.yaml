@@ -461,3 +461,75 @@ transactions:
                   properties:
                     transaction:
                       type: object
+
+waitlist:
+  get:
+    summary: List waitlist entries
+    description: |
+      Returns a paginated list of waitlist email signups, newest first, along
+      with high-level stats (total, last 7 days, last 24 hours). Admin only.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: page
+        schema: { type: integer, default: 1, minimum: 1 }
+      - in: query
+        name: limit
+        schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+      - in: query
+        name: q
+        description: Case-insensitive substring match on the email.
+        schema: { type: string }
+      - in: query
+        name: source
+        description: Filter by exact attribution source (e.g. `landing-hero`).
+        schema: { type: string, maxLength: 64 }
+      - in: query
+        name: from
+        description: Inclusive lower bound on `createdAt` (ISO-8601).
+        schema: { type: string, format: date-time }
+      - in: query
+        name: to
+        description: Inclusive upper bound on `createdAt` (ISO-8601).
+        schema: { type: string, format: date-time }
+    responses:
+      '200':
+        description: Waitlist page retrieved successfully.
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        entries:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              _id:       { type: string }
+                              email:     { type: string, format: email }
+                              source:    { type: string, nullable: true }
+                              referrer:  { type: string, nullable: true }
+                              ipAddress: { type: string, nullable: true }
+                              userAgent: { type: string, nullable: true }
+                              createdAt: { type: string, format: date-time }
+                              updatedAt: { type: string, format: date-time }
+                        pagination:
+                          $ref: '../components/schemas/Common.yaml#/Pagination'
+                        stats:
+                          type: object
+                          properties:
+                            total:       { type: integer, example: 1248 }
+                            last7Days:   { type: integer, example: 137 }
+                            last24Hours: { type: integer, example: 21 }
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '403':
+        $ref: '../components/responses/Standard.yaml#/ForbiddenResponse'

@@ -138,10 +138,6 @@ const envSchema = z.object({
   ),
 
   // Stripe Price IDs (test)
-  STRIPE_PRICE_ID_TRIAL_TEST: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
   STRIPE_PRICE_ID_EXPLORER_TEST: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
@@ -156,10 +152,6 @@ const envSchema = z.object({
   ),
 
   // Stripe Price IDs (live)
-  STRIPE_PRICE_ID_TRIAL_LIVE: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
   STRIPE_PRICE_ID_EXPLORER_LIVE: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()

@@ -5,7 +5,7 @@ export const AdminUsersQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   status: z.enum(['active', 'suspended', 'deleted']).optional(),
   role: z.enum(['user', 'admin']).optional(),
-  plan: z.enum(['free', 'trial', 'pro', 'team', 'starter', 'validator', 'scale']).optional(),
+  plan: z.enum(['free', 'explorer', 'pro', 'premium']).optional(),
   q: z.string().trim().min(1).optional(),
 });
 

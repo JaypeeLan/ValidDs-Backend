@@ -111,7 +111,8 @@ async function dispatchEvent(stripe: Stripe, event: Stripe.Event): Promise<void>
 
 /**
  * checkout.session.completed
- * Fired when a user completes checkout. Provision the plan.
+ * Fired when a user completes checkout (card entered, trial starts).
+ * All plans are subscriptions — amount_total is 0 when the trial is active.
  */
 async function handleCheckoutCompleted(
   stripe: Stripe,
@@ -129,47 +130,35 @@ async function handleCheckoutCompleted(
     return;
   }
 
-  // customer may be null for one-time payments if customer_creation was not set
   const customerId = (typeof session.customer === 'string'
     ? session.customer
     : session.customer?.id) ?? '';
 
+  const subId = typeof session.subscription === 'string'
+    ? session.subscription
+    : session.subscription?.id;
+
+  if (!subId) {
+    log.error('checkout.session.completed: missing subscription ID', { sessionId: session.id });
+    return;
+  }
+
+  const subscription = await stripe.subscriptions.retrieve(subId);
+  const priceId      = subscription.items.data[0]?.price?.id ?? '';
+
+  // During a trial the session total is $0 and there is no payment_intent yet
   const amount   = session.amount_total ?? 0;
   const currency = session.currency ?? 'usd';
-
-  // payment_intent present for one-time payments (trial); subscription for recurring plans
   const paymentIntentId = typeof session.payment_intent === 'string'
     ? session.payment_intent
     : (session.payment_intent?.id ?? null);
-
-  let subscriptionId = '';
-  let priceId        = '';
-
-  if (session.mode === 'subscription') {
-    const subId = typeof session.subscription === 'string'
-      ? session.subscription
-      : session.subscription?.id;
-
-    if (!subId) {
-      log.error('checkout.session.completed: missing subscription ID for subscription mode', { sessionId: session.id });
-      return;
-    }
-
-    const subscription = await stripe.subscriptions.retrieve(subId);
-    subscriptionId     = subId;
-    priceId            = subscription.items.data[0]?.price?.id ?? '';
-  } else {
-    // One-time payment (trial) — no subscription, get price from line items
-    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
-    priceId         = lineItems.data[0]?.price?.id ?? '';
-  }
 
   await BillingService.provisionPlan({
     userId,
     userEmail:             session.customer_details?.email ?? '',
     plan,
     stripeCustomerId:      customerId,
-    stripeSubscriptionId:  subscriptionId,
+    stripeSubscriptionId:  subId,
     stripePriceId:         priceId,
     amount,
     currency,

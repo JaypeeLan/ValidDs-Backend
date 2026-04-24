@@ -1,10 +1,23 @@
 # Jobs Path Documentation
+#
+# Schedule summary (anchored to Africa/Lagos):
+#   • Product ingestion   — daily at 00:00 (midnight)
+#   • Creative ingestion  — every 12h, at 00:00 and 12:00
+#   • Stale cleanup       — every 5 minutes
+#   • EchoTik image refresh — every 30 minutes
+#
+# All trigger endpoints require the X-API-Key header matching INTERNAL_API_KEY
+# and run the job asynchronously. The HTTP response returns immediately once
+# the job has been enqueued.
+
 status:
   get:
     tags:
       - Jobs
     summary: Check background job status
-    description: Returns the current state of background timers and last run timestamps.
+    description: |
+      Returns the current state of background timers, last run timestamps, and
+      the wall-clock schedule each job runs on.
     security:
       - ApiKeyAuth: []
     responses:
@@ -21,8 +34,11 @@ productRefresh:
   post:
     tags:
       - Jobs
-    summary: Trigger product refresh
-    description: Triggers the full product refresh pipeline (Ingestion -> AI -> Enrichment -> DB).
+    summary: Trigger legacy product refresh
+    description: |
+      Triggers the legacy hashtag-based product refresh pipeline
+      (Ingestion → AI → Enrichment → DB). Available for manual runs only;
+      there is no scheduled cron for this job.
     security:
       - ApiKeyAuth: []
     responses:
@@ -32,10 +48,152 @@ productRefresh:
           application/json:
             schema:
               $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '409':
+        description: Job already running
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
   get:
     tags:
       - Jobs
     summary: Method warning for product refresh
+    description: Returns a 405 error explaining that POST is required.
+    responses:
+      '405':
+        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+
+productIngestion:
+  post:
+    tags:
+      - Jobs
+    summary: Trigger daily product ingestion
+    description: |
+      Runs the daily multi-region EchoTik ingestion pipeline followed by
+      product cleanup. Same code path as the 00:00 Africa/Lagos cron.
+      Regional targets: US 300, BR/MX/GB/FR/DE/ES/IT/AU/NZ 50 each.
+    security:
+      - ApiKeyAuth: []
+    responses:
+      '200':
+        description: Job started
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '409':
+        description: Job already running
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+  get:
+    tags:
+      - Jobs
+    summary: Method warning for product ingestion
+    description: Returns a 405 error explaining that POST is required.
+    responses:
+      '405':
+        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+
+creativeIngestion:
+  post:
+    tags:
+      - Jobs
+    summary: Trigger creative ingestion
+    description: |
+      Runs the creative ingestion job — adds up to 500 new creative videos in
+      a single pass and refreshes TikTok CDN URLs on revisited creatives.
+      Same code path as the 12-hour cron at 00:00 / 12:00 Africa/Lagos.
+    security:
+      - ApiKeyAuth: []
+    responses:
+      '200':
+        description: Job started
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '409':
+        description: Job already running
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+  get:
+    tags:
+      - Jobs
+    summary: Method warning for creative ingestion
+    description: Returns a 405 error explaining that POST is required.
+    responses:
+      '405':
+        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+
+echotikPipeline:
+  post:
+    tags:
+      - Jobs
+    summary: Trigger single-region EchoTik pipeline
+    description: |
+      Runs one EchoTik pipeline cycle (product/list → persist → cleanup) for a
+      single region. Useful for ad-hoc regional top-ups outside the daily
+      product ingestion cron.
+    security:
+      - ApiKeyAuth: []
+    responses:
+      '200':
+        description: Job started
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '409':
+        description: Job already running
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+  get:
+    tags:
+      - Jobs
+    summary: Method warning for EchoTik pipeline
+    description: Returns a 405 error explaining that POST is required.
+    responses:
+      '405':
+        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+
+staleCleanup:
+  post:
+    tags:
+      - Jobs
+    summary: Trigger stale product cleanup
+    description: |
+      Flags products that have not been re-ingested within 24h as
+      `status: 'stale'`. Runs every 5 minutes on a cron; this endpoint forces
+      an immediate run.
+    security:
+      - ApiKeyAuth: []
+    responses:
+      '200':
+        description: Job completed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+  get:
+    tags:
+      - Jobs
+    summary: Method warning for stale cleanup
     description: Returns a 405 error explaining that POST is required.
     responses:
       '405':

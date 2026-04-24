@@ -32,6 +32,7 @@ import { initialiseMetrics } from './monitoring/metrics';
 import { logger } from './logger';
 import { startJobs, stopJobs } from './jobs/index';
 import { SocketService } from './config/socket';
+import { warmCategoryCache } from './ingestion/echotik/echotik.categories';
 
 const log = logger.child({ module: 'server' });
 
@@ -82,6 +83,9 @@ async function start(): Promise<void> {
 
     // Step 7: Background Jobs
     startJobs();
+
+    // Step 8: Warm the EchoTik category tree (non-blocking, recovers from Redis if API fails).
+    void warmCategoryCache();
   } catch (err) {
     log.error('Post-startup initialization failed', err);
     // We don't exit here because the HTTP server is already running and might recover

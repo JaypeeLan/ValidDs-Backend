@@ -6,44 +6,70 @@ import { EchoTikIngestionPipeline } from '../ingestion/echotik/echotik.pipeline'
 import { Product } from '../models/product.model';
 import { Creative } from '../models/creative.model';
 import { CreativeService } from '../services/creative.service';
+import { refreshStaleProductImages } from '../ingestion/echotik/echotik.image-refresh';
 
 const log = logger.child({ module: 'jobs' });
 
 /**
  * Job Scheduler
  *
- * Starts all background jobs on a fixed interval.
- * Uses setInterval rather than a cron library to keep dependencies minimal.
+ * Starts all background jobs on wall-clock schedules anchored to Africa/Lagos.
+ * Uses setTimeout + setInterval rather than a cron library to keep
+ * dependencies minimal.
  *
  * Schedule:
- *  Daily target ingestion — 15:00 Africa/Lagos, then every 24h (hashtag pipeline → products; then creatives toward caps)
- *  Stale cleanup         — every 5 minutes
+ *   Product ingestion   — daily at 00:00 Africa/Lagos
+ *                          multi-region EchoTik pipeline + product cleanup
+ *   Creative ingestion  — every 12h at 00:00 / 12:00 Africa/Lagos
+ *                          adds up to 500 new creative videos per run
+ *   Stale cleanup       — every 5 minutes
+ *   EchoTik image refresh — every 30 minutes
  *
- * The first run of the product refresh is delayed by 10 seconds
- * to give the server time to fully start before making external requests.
+ * No boot-time ingestion: jobs only fire at their next scheduled slot.
  */
 
 const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;               // 24 hours
-const STALE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;            // 5 minutes
+const HALF_DAY_INTERVAL_MS = 12 * 60 * 60 * 1000;            // 12 hours
+const STALE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;             // 5 minutes
+const ECHOTIK_IMAGE_REFRESH_INTERVAL_MS = 30 * 60 * 1000;    // 30 minutes
+const ECHOTIK_IMAGE_REFRESH_BATCH = 100;
+
+// Product ingestion — daily run, multi-region targets.
+const PRODUCT_INGESTION_HOUR_LAGOS = 0;   // 00:00 (midnight) Africa/Lagos
 const DAILY_TARGET_PRODUCTS = 300;
-const DAILY_TARGET_CREATIVES = 300;
+
+// Creative ingestion — 12-hour cadence, aligned to Lagos clock.
+const CREATIVE_INGESTION_HOURS_LAGOS = [0, 12] as const;   // 00:00 and 12:00
+const CREATIVES_PER_RUN = 500;
+
 const TARGET_BATCH_SIZE = 25;
 const MAX_DAILY_CYCLES = 200;
 
 let productRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let staleCleanupTimer: ReturnType<typeof setInterval> | null = null;
-let dailyTargetIngestionTimeout: ReturnType<typeof setTimeout> | null = null;
-let dailyTargetIngestionInterval: ReturnType<typeof setInterval> | null = null;
+let echotikImageRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let productIngestionTimeout: ReturnType<typeof setTimeout> | null = null;
+let productIngestionInterval: ReturnType<typeof setInterval> | null = null;
+let creativeIngestionTimeout: ReturnType<typeof setTimeout> | null = null;
+let creativeIngestionInterval: ReturnType<typeof setInterval> | null = null;
 
 let lastProductRefreshRun: Date | null = null;
 let lastStaleCleanupRun: Date | null = null;
-let lastDailyTargetRun: Date | null = null;
+let lastProductIngestionRun: Date | null = null;
+let lastCreativeIngestionRun: Date | null = null;
+let lastEchoTikPipelineRun: Date | null = null;
 let lastProductRefreshSuccessAt: Date | null = null;
 let lastEchoTikPipelineSuccessAt: Date | null = null;
+let lastProductIngestionSuccessAt: Date | null = null;
+let lastCreativeIngestionSuccessAt: Date | null = null;
 let lastProductRefreshError: string | null = null;
 let lastEchoTikPipelineError: string | null = null;
+let lastProductIngestionError: string | null = null;
+let lastCreativeIngestionError: string | null = null;
 let isProductRefreshRunning = false;
 let isEchoTikPipelineRunning = false;
+let isProductIngestionRunning = false;
+let isCreativeIngestionRunning = false;
 
 function toErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -81,7 +107,7 @@ export async function runEchoTikPipelineJob(region = 'US'): Promise<void> {
   }
 
   isEchoTikPipelineRunning = true;
-  lastDailyTargetRun = new Date();
+  lastEchoTikPipelineRun = new Date();
   lastEchoTikPipelineError = null;
 
   const pipeline = new EchoTikIngestionPipeline();
@@ -111,7 +137,7 @@ export function triggerEchoTikPipelineJob(): { started: boolean; reason?: string
   }
 
   isEchoTikPipelineRunning = true;
-  lastDailyTargetRun = new Date();
+  lastEchoTikPipelineRun = new Date();
   lastEchoTikPipelineError = null;
 
   const pipeline = new EchoTikIngestionPipeline();
@@ -142,12 +168,16 @@ export function getJobsStatus() {
     timers: {
       productRefresh: !!productRefreshTimer,
       staleCleanup: !!staleCleanupTimer,
-      dailyTargetIngestion: !!dailyTargetIngestionInterval || !!dailyTargetIngestionTimeout,
+      echotikImageRefresh: !!echotikImageRefreshTimer,
+      productIngestion: !!productIngestionInterval || !!productIngestionTimeout,
+      creativeIngestion: !!creativeIngestionInterval || !!creativeIngestionTimeout,
     },
     lastRuns: {
       productRefresh: lastProductRefreshRun,
       staleCleanup: lastStaleCleanupRun,
-      dailyTargetIngestion: lastDailyTargetRun,
+      productIngestion: lastProductIngestionRun,
+      creativeIngestion: lastCreativeIngestionRun,
+      echotikPipeline: lastEchoTikPipelineRun,
     },
     outcomes: {
       productRefresh: {
@@ -160,24 +190,58 @@ export function getJobsStatus() {
         lastSuccessAt: lastEchoTikPipelineSuccessAt,
         lastError: lastEchoTikPipelineError,
       },
+      productIngestion: {
+        running: isProductIngestionRunning,
+        lastSuccessAt: lastProductIngestionSuccessAt,
+        lastError: lastProductIngestionError,
+      },
+      creativeIngestion: {
+        running: isCreativeIngestionRunning,
+        lastSuccessAt: lastCreativeIngestionSuccessAt,
+        lastError: lastCreativeIngestionError,
+      },
     },
     intervals: {
       productRefreshMs: DAILY_INTERVAL_MS,
       staleCleanupMs: STALE_CLEANUP_INTERVAL_MS,
-      dailyTargetIngestionMs: DAILY_INTERVAL_MS,
+      echotikImageRefreshMs: ECHOTIK_IMAGE_REFRESH_INTERVAL_MS,
+      productIngestionMs: DAILY_INTERVAL_MS,
+      creativeIngestionMs: HALF_DAY_INTERVAL_MS,
+    },
+    schedules: {
+      productIngestion: `${String(PRODUCT_INGESTION_HOUR_LAGOS).padStart(2, '0')}:00 Africa/Lagos (daily)`,
+      creativeIngestion: `${CREATIVE_INGESTION_HOURS_LAGOS.map((h) => String(h).padStart(2, '0') + ':00').join(' / ')} Africa/Lagos (every 12h)`,
+    },
+    targets: {
+      productsPerRegion: DAILY_TARGET_PRODUCTS,
+      creativesPerRun: CREATIVES_PER_RUN,
     },
     env: env.NODE_ENV,
   };
 }
 
-function getDelayUntilNextLagos3PM(): number {
+/**
+ * Returns the ms delay from now until the next occurrence of the given hour
+ * (0–23) in Africa/Lagos local time.
+ */
+function getDelayUntilNextLagosHour(hour: number): number {
   const now = new Date();
   const lagosNowText = now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' });
   const lagosNow = new Date(lagosNowText);
   const nextRun = new Date(lagosNow);
-  nextRun.setHours(15, 0, 0, 0);
+  nextRun.setHours(hour, 0, 0, 0);
   if (nextRun <= lagosNow) nextRun.setDate(nextRun.getDate() + 1);
   return nextRun.getTime() - lagosNow.getTime();
+}
+
+/**
+ * Delay until the next of any given hours (Africa/Lagos). Used for the
+ * creative schedule which fires at 00:00 and 12:00.
+ */
+function getDelayUntilNextLagosHours(hours: readonly number[]): number {
+  if (hours.length === 0) return DAILY_INTERVAL_MS;
+  const delays = hours.map((h) => getDelayUntilNextLagosHour(h));
+  return Math.min(...delays);
 }
 
 async function getCreativeVideoTotal(): Promise<number> {
@@ -199,13 +263,17 @@ async function getCreativeVideoTotal(): Promise<number> {
   return rows[0]?.total || 0;
 }
 
-async function runDailyTargetIngestionJob(): Promise<void> {
-  log.info('Daily target ingestion job started', {
-    targetCreatives: DAILY_TARGET_CREATIVES,
+/**
+ * Daily product ingestion — runs the EchoTik pipeline for every configured
+ * region until each region's target is met (or we hit MAX_DAILY_CYCLES as a
+ * safety ceiling). Runs product cleanup at the end.
+ */
+export async function runProductIngestionJob(): Promise<void> {
+  log.info('Daily product ingestion started', {
+    targetPerUS: DAILY_TARGET_PRODUCTS,
     timezone: 'Africa/Lagos',
   });
 
-  // Phase 1: EchoTik product ingestion (multi-region priority)
   const regions = [
     { id: 'US', target: DAILY_TARGET_PRODUCTS },
     // South America
@@ -233,18 +301,55 @@ async function runDailyTargetIngestionJob(): Promise<void> {
     }
   }
 
+  const productCleanup = await ProductService.cleanupProducts().catch((err) => {
+    log.warn('Post-ingestion product cleanup failed', { err: String(err) });
+    return null;
+  });
+
+  const totalProducts = await Product.countDocuments({ status: 'active' });
+
+  log.info('Daily product ingestion complete', {
+    activeProducts: totalProducts,
+    cleanup: productCleanup,
+  });
+}
+
+/**
+ * Creative ingestion — runs every 12 hours and adds up to `CREATIVES_PER_RUN`
+ * new creative videos per run by walking products ordered by how long since
+ * their last creative re-ingest. Because `CreativeService.mapAndSave` now
+ * overwrites existing slots, this job also refreshes TikTok CDN signatures
+ * for creatives it revisits.
+ */
+export async function runCreativeIngestionJob(): Promise<void> {
+  const startedAtCount = await getCreativeVideoTotal();
+  const targetCount = startedAtCount + CREATIVES_PER_RUN;
+
+  log.info('Creative ingestion started', {
+    startCount: startedAtCount,
+    targetCount,
+    creativesPerRun: CREATIVES_PER_RUN,
+    timezone: 'Africa/Lagos',
+  });
+
   let cycles = 0;
   while (cycles < MAX_DAILY_CYCLES) {
-    const creativeTotal = await getCreativeVideoTotal();
-    if (creativeTotal >= DAILY_TARGET_CREATIVES) break;
+    const currentCount = await getCreativeVideoTotal();
+    if (currentCount >= targetCount) break;
 
     const products: any[] = await Product.find({ status: 'active' })
       .sort({ lastIngestedAt: 1, createdAt: 1 })
       .limit(TARGET_BATCH_SIZE);
 
-    if (products.length === 0) break;
+    if (products.length === 0) {
+      log.info('Creative ingestion: no active products to process');
+      break;
+    }
 
     for (const product of products) {
+      const totalSoFar = await getCreativeVideoTotal();
+      if (totalSoFar >= targetCount) break;
+
       await CreativeService.fetchAndIngestCreatives(product.title, product._id, {
         brand: product.aiIntelligence?.brand,
         categoryKeywords: product.aiIntelligence?.categoryKeywords || [],
@@ -258,17 +363,59 @@ async function runDailyTargetIngestionJob(): Promise<void> {
     cycles += 1;
   }
 
-  const [products, creatives, creativeVideos] = await Promise.all([
-    Product.countDocuments({ status: 'active' }),
-    Creative.countDocuments({}),
-    getCreativeVideoTotal(),
-  ]);
-
-  log.info('Daily target ingestion job complete', {
-    products,
-    creativeDocs: creatives,
-    creativeVideos,
+  const finishedAtCount = await getCreativeVideoTotal();
+  log.info('Creative ingestion complete', {
+    startCount: startedAtCount,
+    finishCount: finishedAtCount,
+    added: finishedAtCount - startedAtCount,
+    cycles,
   });
+}
+
+export function triggerProductIngestionJob(): { started: boolean; reason?: string } {
+  if (isProductIngestionRunning) {
+    return { started: false, reason: 'Product ingestion is already running' };
+  }
+  isProductIngestionRunning = true;
+  lastProductIngestionRun = new Date();
+  lastProductIngestionError = null;
+
+  void runProductIngestionJob()
+    .then(() => {
+      lastProductIngestionSuccessAt = new Date();
+    })
+    .catch((err) => {
+      lastProductIngestionError = toErrorMessage(err);
+      log.error('Daily product ingestion failed', err);
+    })
+    .finally(() => {
+      isProductIngestionRunning = false;
+    });
+
+  return { started: true };
+}
+
+export function triggerCreativeIngestionJob(): { started: boolean; reason?: string } {
+  if (isCreativeIngestionRunning) {
+    return { started: false, reason: 'Creative ingestion is already running' };
+  }
+  isCreativeIngestionRunning = true;
+  lastCreativeIngestionRun = new Date();
+  lastCreativeIngestionError = null;
+
+  void runCreativeIngestionJob()
+    .then(() => {
+      lastCreativeIngestionSuccessAt = new Date();
+    })
+    .catch((err) => {
+      lastCreativeIngestionError = toErrorMessage(err);
+      log.error('Creative ingestion failed', err);
+    })
+    .finally(() => {
+      isCreativeIngestionRunning = false;
+    });
+
+  return { started: true };
 }
 
 export function startJobs(): void {
@@ -293,42 +440,75 @@ export function startJobs(): void {
     );
   }, STALE_CLEANUP_INTERVAL_MS);
 
-  // Daily target ingestion at 3:00 PM Africa/Lagos. No boot-time ingestion.
-  const initialDelay = getDelayUntilNextLagos3PM();
-  dailyTargetIngestionTimeout = setTimeout(() => {
-    log.info('Scheduled daily target ingestion triggered');
-    lastDailyTargetRun = new Date();
-    runDailyTargetIngestionJob().catch((err) =>
-      log.error('Daily target ingestion failed', err)
+  // EchoTik image refresh — keeps resolved temp URLs ahead of their ~24h
+  // expiry so requests never have to round-trip to EchoTik. Runs every 30
+  // minutes, processes a small batch each time.
+  refreshStaleProductImages(ECHOTIK_IMAGE_REFRESH_BATCH).catch((err) =>
+    log.warn('Initial EchoTik image refresh failed', { err: String(err) })
+  );
+  echotikImageRefreshTimer = setInterval(() => {
+    refreshStaleProductImages(ECHOTIK_IMAGE_REFRESH_BATCH).catch((err) =>
+      log.warn('Scheduled EchoTik image refresh failed', { err: String(err) })
     );
+  }, ECHOTIK_IMAGE_REFRESH_INTERVAL_MS);
 
-    dailyTargetIngestionInterval = setInterval(() => {
-      log.info('Scheduled daily target ingestion triggered');
-      lastDailyTargetRun = new Date();
-      runDailyTargetIngestionJob().catch((err) =>
-        log.error('Daily target ingestion failed', err)
-      );
+  // ── Daily product ingestion — 00:00 Africa/Lagos, then every 24h ─────────
+  const productDelay = getDelayUntilNextLagosHour(PRODUCT_INGESTION_HOUR_LAGOS);
+  productIngestionTimeout = setTimeout(() => {
+    log.info('Scheduled daily product ingestion triggered');
+    triggerProductIngestionJob();
+
+    productIngestionInterval = setInterval(() => {
+      log.info('Scheduled daily product ingestion triggered');
+      triggerProductIngestionJob();
     }, DAILY_INTERVAL_MS);
-  }, initialDelay);
+  }, productDelay);
 
-  log.info('Daily target ingestion scheduled', {
+  log.info('Product ingestion scheduled', {
     timezone: 'Africa/Lagos',
-    runAt: '15:00',
+    runAt: `${String(PRODUCT_INGESTION_HOUR_LAGOS).padStart(2, '0')}:00`,
     interval: '24 hours',
-    targets: { products: DAILY_TARGET_PRODUCTS, creatives: DAILY_TARGET_CREATIVES },
+    firstRunInMinutes: Math.round(productDelay / 60000),
+    targetPerRegion: { US: DAILY_TARGET_PRODUCTS, other: 50 },
+  });
+
+  // ── Creative ingestion — every 12h at 00:00 / 12:00 Africa/Lagos ─────────
+  const creativeDelay = getDelayUntilNextLagosHours(CREATIVE_INGESTION_HOURS_LAGOS);
+  creativeIngestionTimeout = setTimeout(() => {
+    log.info('Scheduled creative ingestion triggered');
+    triggerCreativeIngestionJob();
+
+    creativeIngestionInterval = setInterval(() => {
+      log.info('Scheduled creative ingestion triggered');
+      triggerCreativeIngestionJob();
+    }, HALF_DAY_INTERVAL_MS);
+  }, creativeDelay);
+
+  log.info('Creative ingestion scheduled', {
+    timezone: 'Africa/Lagos',
+    runAt: CREATIVE_INGESTION_HOURS_LAGOS
+      .map((h) => `${String(h).padStart(2, '0')}:00`)
+      .join(' / '),
+    interval: '12 hours',
+    firstRunInMinutes: Math.round(creativeDelay / 60000),
+    creativesPerRun: CREATIVES_PER_RUN,
   });
 
   log.info('Background jobs scheduled', {
-    productRefreshInterval: `${DAILY_INTERVAL_MS / 60000} minutes`,
     staleCleanupInterval: `${STALE_CLEANUP_INTERVAL_MS / 60000} minutes`,
-    dailyTargetIngestion: '15:00 Africa/Lagos (daily)',
+    echotikImageRefreshInterval: `${ECHOTIK_IMAGE_REFRESH_INTERVAL_MS / 60000} minutes`,
+    productIngestion: `${String(PRODUCT_INGESTION_HOUR_LAGOS).padStart(2, '0')}:00 Africa/Lagos (daily)`,
+    creativeIngestion: `${CREATIVE_INGESTION_HOURS_LAGOS.map((h) => String(h).padStart(2, '0') + ':00').join(' / ')} Africa/Lagos (every 12h)`,
   });
 }
 
 export function stopJobs(): void {
   if (productRefreshTimer) clearInterval(productRefreshTimer);
   if (staleCleanupTimer) clearInterval(staleCleanupTimer);
-  if (dailyTargetIngestionTimeout) clearTimeout(dailyTargetIngestionTimeout);
-  if (dailyTargetIngestionInterval) clearInterval(dailyTargetIngestionInterval);
+  if (echotikImageRefreshTimer) clearInterval(echotikImageRefreshTimer);
+  if (productIngestionTimeout) clearTimeout(productIngestionTimeout);
+  if (productIngestionInterval) clearInterval(productIngestionInterval);
+  if (creativeIngestionTimeout) clearTimeout(creativeIngestionTimeout);
+  if (creativeIngestionInterval) clearInterval(creativeIngestionInterval);
   log.info('Background jobs stopped');
 }

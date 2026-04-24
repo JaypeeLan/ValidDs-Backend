@@ -148,6 +148,112 @@ export class EnsembleClient {
   }
 
   /**
+   * Fetch metadata for a single TikTok post by its public TikTok URL.
+   * EnsembleData's `/post/info` takes the post URL (not the aweme_id) as a
+   * query parameter, e.g.
+   *   GET /tt/post/info?url=https://www.tiktok.com/@handle/video/1234567890
+   *
+   * Used to refresh signed video / thumbnail / avatar URLs that have aged
+   * past the TikTok CDN signature expiry (~1–6h).
+   *
+   * Returns `null` when the post can't be fetched.
+   */
+  async getPostInfo(postUrl: string): Promise<EnsemblePost | null> {
+    if (!postUrl) return null;
+    await this.throttle();
+    try {
+      const res = await this.client.get('/post/info', {
+        params: { url: postUrl },
+      });
+      // EnsembleData wraps the post in `{ data: [post] }` (single-element array).
+      const raw = res.data?.data;
+      const candidate: any = Array.isArray(raw)
+        ? raw[0]
+        : (raw?.aweme_detail || raw?.aweme_info || raw?.post || raw?.detail || raw);
+      if (candidate && (candidate.aweme_id || candidate.id)) {
+        if (!candidate.aweme_id && candidate.id) candidate.aweme_id = candidate.id;
+        return candidate as EnsemblePost;
+      }
+      log.debug('EnsembleData getPostInfo returned no post', { postUrl });
+      return null;
+    } catch (err: any) {
+      const status = err.response?.status;
+      log.warn('EnsembleData getPostInfo failed', {
+        postUrl,
+        status,
+        err: err.response?.data || String(err),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Fetch full user profile (incl. stats: follower/following/heart counts)
+   * via `/tt/user/info?username=<handle>`.
+   *
+   * The `/post/info` response DOES NOT include real follower counts — the
+   * `author` block returned there is a trimmed post-level snapshot. This call
+   * is the only way we get authoritative follower/following/totalLikes/diggs
+   * for a primaryCreator.
+   *
+   * Response shape (observed):
+   *   {
+   *     data: {
+   *       user:  { unique_id, nickname, signature, avatar_*, custom_verify, … },
+   *       stats: { followerCount, followingCount, heartCount, diggCount, … }
+   *     }
+   *   }
+   */
+  async getUserInfo(username: string): Promise<{
+    handle?: string;
+    displayName?: string;
+    bio?: string;
+    avatarUrl?: string;
+    verified?: boolean;
+    region?: string;
+    tiktokUserId?: string;
+    followers?: number;
+    following?: number;
+    totalLikes?: number;
+    totalDiggs?: number;
+  } | null> {
+    if (!username) return null;
+    await this.throttle();
+    try {
+      const res = await this.client.get('/user/info', { params: { username } });
+      const payload = res.data?.data;
+      if (!payload) return null;
+
+      const user  = payload.user  ?? {};
+      const stats = payload.stats ?? {};
+
+      return {
+        handle:       user.unique_id,
+        displayName:  user.nickname,
+        bio:          user.signature,
+        avatarUrl:    user.avatar_thumb?.url_list?.[0] ?? user.avatar_medium?.url_list?.[0],
+        verified:     typeof user.verification_type === 'number'
+                        ? user.verification_type > 0
+                        : Boolean(user.custom_verify) || Boolean(user.verified),
+        region:       user.region,
+        tiktokUserId: user.uid ?? user.sec_uid,
+        followers:    stats.followerCount  ?? stats.follower_count,
+        following:    stats.followingCount ?? stats.following_count,
+        totalLikes:   stats.heartCount     ?? stats.heart_count,
+        totalDiggs:   stats.diggCount      ?? stats.digg_count,
+      };
+    } catch (err: any) {
+      const status = err.response?.status;
+      log.warn('EnsembleData getUserInfo failed', {
+        username,
+        status,
+        err: err.response?.data || String(err),
+      });
+      return null;
+    }
+  }
+
+  /**
    * Fetch top comments for a specific post (aweme_id)
    */
   async getPostComments(awemeId: string, cursor = 0): Promise<EnsembleComment[]> {

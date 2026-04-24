@@ -146,8 +146,13 @@ export interface IProduct {
   categoryPath: string;        // e.g. 'Beauty & Personal Care / Skin Care / Cleansers'
 
   // ── Media (SerpApi-first) ────────────────────────────────────────────────
-  primaryImageUrl?: string;    // best single image from SerpApi Immersive/Shopping
-  imageUrls: string[];         // full gallery from SerpApi Shopping results
+  primaryImageUrl?: string;    // best single image from SerpApi Immersive/Shopping (or resolved EchoTik temp URL)
+  imageUrls: string[];         // full gallery from SerpApi Shopping results (or resolved EchoTik temp URLs)
+  // Original EchoTik source URLs (volces.com) — kept so that the resolved temp
+  // URLs above can be refreshed when they expire (EchoTik temp URLs live ~24h).
+  sourcePrimaryImageUrl?: string;
+  sourceImageUrls?: string[];
+  imagesResolvedAt?: Date;     // when the resolved EchoTik temp URLs were last fetched
 
   // ── Pricing (from TeemDrop if matched, otherwise AI estimate) ────────────
   price?: number;
@@ -366,6 +371,9 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
     // Media
     primaryImageUrl: { type: String },
     imageUrls:       [{ type: String }],
+    sourcePrimaryImageUrl: { type: String },
+    sourceImageUrls:       [{ type: String }],
+    imagesResolvedAt:      { type: Date, index: true },
 
     // Pricing
     price:    { type: Number, min: 0 },

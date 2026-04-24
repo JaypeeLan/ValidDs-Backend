@@ -820,7 +820,7 @@
           }
         },
         {
-          "name": "Trigger Hashtag Pipeline",
+          "name": "Trigger Product Ingestion",
           "request": {
             "method": "POST",
             "header": [
@@ -830,13 +830,35 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/jobs/hashtag-pipeline",
+              "raw": "{{baseUrl}}/jobs/product-ingestion",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "jobs",
-                "hashtag-pipeline"
+                "product-ingestion"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Trigger Creative Ingestion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{internalApiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/creative-ingestion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "jobs",
+                "creative-ingestion"
               ]
             }
           }

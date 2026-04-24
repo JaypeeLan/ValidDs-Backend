@@ -4,6 +4,8 @@ import { Product } from '../models/product.model';
 import { ProductExtractor } from './product.extractor';
 import { AIOrchestrator } from './ai.orchestrator';
 import { transformEnsemblePosts } from '../ingestion/ensemble/ensemble.transformer';
+import { EnsembleClient, EnsemblePost } from '../ingestion/ensemble/ensemble.client';
+import { ensureCategoriesLoaded, sanitiseCategoryFields } from '../ingestion/echotik/echotik.categories';
 import { logger } from '../logger';
 import mongoose from 'mongoose';
 
@@ -86,6 +88,61 @@ function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Extracts the media-related fields we care about (signed video/thumb URL,
+ * avatar, engagement) from an EnsembleData post payload. Returns null when
+ * the post doesn't carry any useful signed URLs.
+ */
+function extractMediaFromPost(post: EnsemblePost): {
+  videoPlayUrl?: string;
+  thumbnailUrl?: string;
+  creator?: { avatarUrl?: string; followers?: number; following?: number; totalLikes?: number; verified?: boolean };
+  metrics?: { viewCount?: number; likeCount?: number; commentCount?: number; shareCount?: number; engagementRate?: number; source?: string; fetchedAt?: Date };
+} | null {
+  const video = (post as any)?.video || {};
+  const author = (post as any)?.author || {};
+  const stats = (post as any)?.statistics || {};
+
+  const videoPlayUrl =
+    video.play_addr?.url_list?.[0] ||
+    (video as any).play_url ||
+    undefined;
+  const thumbnailUrl = video.cover?.url_list?.[0] || undefined;
+  const avatarUrl = author.avatar_thumb?.url_list?.[0] || undefined;
+
+  if (!videoPlayUrl && !thumbnailUrl && !avatarUrl) return null;
+
+  const viewCount = stats.play_count ?? undefined;
+  const likeCount = stats.digg_count ?? undefined;
+  const commentCount = stats.comment_count ?? undefined;
+  const shareCount = stats.share_count ?? undefined;
+  const engagementRate =
+    typeof viewCount === 'number' && viewCount > 0
+      ? ((Number(likeCount || 0) + Number(commentCount || 0) + Number(shareCount || 0)) / viewCount) * 100
+      : undefined;
+
+  return {
+    videoPlayUrl,
+    thumbnailUrl,
+    creator: {
+      ...(avatarUrl !== undefined && { avatarUrl }),
+      ...(author.follower_count !== undefined && { followers: author.follower_count }),
+      ...(author.following_count !== undefined && { following: author.following_count }),
+      ...(author.total_favorited !== undefined && { totalLikes: author.total_favorited }),
+      ...(author.verification_type !== undefined && { verified: !!author.verification_type }),
+    },
+    metrics: {
+      ...(viewCount      !== undefined && { viewCount }),
+      ...(likeCount      !== undefined && { likeCount }),
+      ...(commentCount   !== undefined && { commentCount }),
+      ...(shareCount     !== undefined && { shareCount }),
+      ...(engagementRate !== undefined && { engagementRate: Number(engagementRate.toFixed(4)) }),
+      source: 'EnsembleData',
+      fetchedAt: new Date(),
+    },
+  };
+}
+
 type CreativeCommentInput = {
   comment: string;
   source: string;
@@ -125,34 +182,68 @@ export const CreativeService = {
     const creative = typeof input?.toObject === 'function' ? input.toObject() : input;
     if (!creative) return creative;
 
+    const apiVersion = process.env.API_VERSION || 'v1';
+    const creativeId = String(creative._id || '');
+    const baseUrl = creativeId ? `/api/${apiVersion}/creatives/${creativeId}` : undefined;
+    const videoProxy = (index: number) =>
+      baseUrl ? `${baseUrl}/video?index=${index}` : undefined;
+    const thumbProxy = (index: number, hasUrl?: unknown) =>
+      baseUrl && hasUrl ? `${baseUrl}/thumbnail?index=${index}&kind=thumbnail` : undefined;
+    const avatarProxy = (index: number, hasUrl?: unknown) =>
+      baseUrl && hasUrl ? `${baseUrl}/thumbnail?index=${index}&kind=avatar` : undefined;
+    const embedUrl = (videoId?: string) =>
+      videoId ? `https://www.tiktok.com/embed/v2/${videoId}` : undefined;
+
+    const decorateCreator = (creator: any, index: number) => {
+      if (!creator) return creator;
+      return {
+        ...creator,
+        avatarProxyUrl: avatarProxy(index, creator.avatarUrl),
+      };
+    };
+
     const primaryVideo = {
       isPrimary: true,
       externalVideoId: creative.externalVideoId,
       videoPlayUrl: creative.videoPlayUrl,
+      videoProxyUrl: videoProxy(0),
+      embedUrl: embedUrl(creative.externalVideoId),
       thumbnailUrl: creative.thumbnailUrl,
-      creator: creative.creator,
+      thumbnailProxyUrl: thumbProxy(0, creative.thumbnailUrl),
+      creator: decorateCreator(creative.creator, 0),
       metrics: creative.metrics,
       topComments: creative.topComments || [],
       publishedAt: creative.publishedAt,
     };
 
     const related = Array.isArray(creative.relatedVideos)
-      ? creative.relatedVideos.map((video: any) => ({
+      ? creative.relatedVideos.map((video: any, i: number) => ({
           isPrimary: false,
           externalVideoId: video.externalVideoId,
           videoPlayUrl: video.videoPlayUrl,
+          videoProxyUrl: videoProxy(i + 1),
+          embedUrl: embedUrl(video.externalVideoId),
           thumbnailUrl: video.thumbnailUrl,
-          creator: video.creator,
+          thumbnailProxyUrl: thumbProxy(i + 1, video.thumbnailUrl),
+          creator: decorateCreator(video.creator, i + 1),
           metrics: video.metrics,
           topComments: video.topComments || [],
           publishedAt: video.publishedAt,
         }))
       : [];
 
-    return {
+    const out = {
       ...creative,
+      videoProxyUrl: primaryVideo.videoProxyUrl,
+      embedUrl: primaryVideo.embedUrl,
+      thumbnailProxyUrl: primaryVideo.thumbnailProxyUrl,
+      creator: primaryVideo.creator,
       allVideos: [primaryVideo, ...related],
-    };
+      relatedVideos: related,
+    } as Record<string, unknown>;
+
+    sanitiseCategoryFields(out);
+    return out;
   },
 
   /**
@@ -318,16 +409,6 @@ export const CreativeService = {
       const existingProductCreative = await Creative.findOne({ productId });
 
       if (existingProductCreative) {
-        // Is this exact video already the root/primary video?
-        if (existingProductCreative.externalVideoId === videoId) {
-           return true; // Already processed
-        }
-        
-        // Is it already inside relatedVideos?
-        if (existingProductCreative.relatedVideos.some(v => v.externalVideoId === videoId)) {
-           return true; // Already processed
-        }
-
         if (productName && !existingProductCreative.productName) {
           existingProductCreative.productName = productName;
         }
@@ -337,7 +418,35 @@ export const CreativeService = {
           existingProductCreative.description = productDescription;
         }
 
-        // Add it to the relatedVideos array!
+        // If this exact video is already the root slot, overwrite its signed
+        // URLs so expired TikTok CDN signatures get refreshed (keeps the
+        // daily re-ingestion job useful for expiry handling).
+        if (existingProductCreative.externalVideoId === videoId) {
+          existingProductCreative.videoPlayUrl = secondaryVideo.videoPlayUrl;
+          existingProductCreative.thumbnailUrl = secondaryVideo.thumbnailUrl;
+          existingProductCreative.creator      = secondaryVideo.creator;
+          existingProductCreative.metrics      = secondaryVideo.metrics;
+          await existingProductCreative.save();
+          return true;
+        }
+
+        // Same for an existing related-video slot — overwrite its URLs in
+        // place instead of pushing a duplicate entry.
+        const relatedIdx = existingProductCreative.relatedVideos.findIndex(
+          (v) => v.externalVideoId === videoId
+        );
+        if (relatedIdx >= 0) {
+          const slot = existingProductCreative.relatedVideos[relatedIdx];
+          slot.videoPlayUrl = secondaryVideo.videoPlayUrl;
+          slot.thumbnailUrl = secondaryVideo.thumbnailUrl;
+          slot.creator      = secondaryVideo.creator;
+          slot.metrics      = secondaryVideo.metrics;
+          existingProductCreative.markModified('relatedVideos');
+          await existingProductCreative.save();
+          return true;
+        }
+
+        // New related video — append it.
         existingProductCreative.relatedVideos.push(secondaryVideo);
         await existingProductCreative.save();
         return true;
@@ -449,6 +558,7 @@ export const CreativeService = {
       Creative.find(query).sort(sort).skip(skip).limit(mLimit).populate('productId', 'title thumbnailUrl'),
       Creative.countDocuments(query),
     ]);
+    await ensureCategoriesLoaded();
     const data = rawData.map((doc) => this.formatWithAllVideos(doc));
 
     return {
@@ -467,7 +577,113 @@ export const CreativeService = {
    */
   async getCreativeById(id: string) {
     const doc = await Creative.findById(id).populate('productId', 'title thumbnailUrl');
-    return doc ? this.formatWithAllVideos(doc) : null;
+    if (!doc) return null;
+    await ensureCategoriesLoaded();
+    return this.formatWithAllVideos(doc);
+  },
+
+  /**
+   * Refreshes the signed TikTok CDN URLs on a single video slot of a creative
+   * using EnsembleData's /post/info endpoint.
+   *
+   * index = 0          → root creative
+   * index >= 1         → relatedVideos[index - 1]
+   *
+   * Returns true when at least one field was rewritten and the doc saved.
+   * Never throws — callers can fire-and-forget it on proxy misses.
+   */
+  async refreshCreativeMedia(
+    creativeId: string | mongoose.Types.ObjectId,
+    index: number = 0
+  ): Promise<boolean> {
+    try {
+      const doc = await Creative.findById(creativeId);
+      if (!doc) return false;
+
+      const isRoot = index <= 0;
+      const slotIndex = isRoot ? -1 : index - 1;
+      const slotDoc = isRoot ? doc : doc.relatedVideos?.[slotIndex];
+      const awemeId = slotDoc?.externalVideoId;
+      const handle = slotDoc?.creator?.handle;
+      // EnsembleData's /post/info expects the public TikTok post URL.
+      // Prefer the one we've stored; fall back to the canonical shape.
+      const postUrl =
+        slotDoc?.creator?.tiktokPostUrl ||
+        (handle && awemeId ? `https://www.tiktok.com/@${handle}/video/${awemeId}` : undefined);
+
+      if (!awemeId || !postUrl) {
+        log.debug('Creative refresh skipped: no post url at slot', {
+          creativeId: String(creativeId),
+          index,
+        });
+        return false;
+      }
+
+      const client = new EnsembleClient();
+      const post = await client.getPostInfo(postUrl);
+      if (!post) {
+        log.debug('Creative refresh: EnsembleData returned no post', { postUrl });
+        return false;
+      }
+
+      const media = extractMediaFromPost(post);
+      if (!media) return false;
+
+      if (isRoot) {
+        if (media.videoPlayUrl) doc.videoPlayUrl = media.videoPlayUrl;
+        if (media.thumbnailUrl) doc.thumbnailUrl = media.thumbnailUrl;
+        if (media.creator)      doc.creator      = { ...doc.creator, ...media.creator };
+        if (media.metrics)      doc.metrics      = { ...doc.metrics, ...media.metrics, fetchedAt: new Date() };
+      } else {
+        const slot = doc.relatedVideos?.[slotIndex];
+        if (!slot) return false;
+        if (media.videoPlayUrl) slot.videoPlayUrl = media.videoPlayUrl;
+        if (media.thumbnailUrl) slot.thumbnailUrl = media.thumbnailUrl;
+        if (media.creator)      slot.creator      = { ...slot.creator, ...media.creator };
+        if (media.metrics)      slot.metrics      = { ...slot.metrics, ...media.metrics, fetchedAt: new Date() };
+        doc.markModified('relatedVideos');
+      }
+
+      await doc.save();
+      log.info('Creative media refreshed', {
+        creativeId: String(creativeId),
+        index,
+        awemeId,
+      });
+      return true;
+    } catch (err) {
+      log.warn('Failed to refresh creative media', {
+        creativeId: String(creativeId),
+        index,
+        err: String(err),
+      });
+      return false;
+    }
+  },
+
+  /**
+   * Refreshes the signed URLs for EVERY video slot on a creative (root +
+   * all related videos). Used by the one-shot refresh script.
+   *
+   * Returns the number of slots successfully refreshed.
+   */
+  async refreshAllSlotsForCreative(
+    creativeId: string | mongoose.Types.ObjectId
+  ): Promise<{ scanned: number; refreshed: number; slots: number }> {
+    const doc = await Creative.findById(creativeId).lean();
+    if (!doc) return { scanned: 0, refreshed: 0, slots: 0 };
+
+    const slots = 1 + (Array.isArray(doc.relatedVideos) ? doc.relatedVideos.length : 0);
+    let refreshed = 0;
+    let scanned = 0;
+
+    for (let i = 0; i < slots; i += 1) {
+      scanned += 1;
+      const ok = await this.refreshCreativeMedia(creativeId, i);
+      if (ok) refreshed += 1;
+    }
+
+    return { scanned, refreshed, slots };
   },
 
   /**

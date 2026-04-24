@@ -20,6 +20,15 @@ export const CreativeIdParamSchema = z.object({
   id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid creative ID format'),
 });
 
+export const CreativeStreamQuerySchema = z.object({
+  index: z.coerce.number().int().min(0).max(50).default(0),
+});
+
+export const CreativeThumbnailQuerySchema = z.object({
+  index: z.coerce.number().int().min(0).max(50).default(0),
+  kind: z.enum(['thumbnail', 'avatar']).default('thumbnail'),
+});
+
 export type CreativeListQuery = z.infer<typeof CreativeListQuerySchema>;
 
 export const CreativeIngestBodySchema = z.object({

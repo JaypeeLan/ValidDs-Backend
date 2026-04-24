@@ -21,7 +21,7 @@ const log = logger.child({ module: 'product-refresh-job' });
  *  4. Product Repository      | upserts each extracted product into MongoDB
  *
  * Designed to run on a schedule (every 1 hour via setInterval or cron).
- * Also callable manually via: npm run test-ingestion
+ * Also callable manually via `POST /api/v1/jobs/product-refresh`.
  *
  * A single run typically takes 3–8 minutes depending on:
  * - Number of posts collected (usually 100–150)

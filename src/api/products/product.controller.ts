@@ -3,7 +3,8 @@ import { ProductService } from '../../services/product.service';
 import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
-import { resolveEchoTikImageUrls, applyResolvedImages } from '../../ingestion/echotik/echotik.image';
+import { imagesAreFresh, refreshProductImages } from '../../ingestion/echotik/echotik.image-refresh';
+import { ensureCategoriesLoaded, sanitiseCategoryFields } from '../../ingestion/echotik/echotik.categories';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: {
@@ -48,16 +49,19 @@ async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, 
     typeof p.toObject === 'function' ? p.toObject() : { ...p }
   ) as Record<string, unknown>[];
 
+  // EchoTik products carry resolved image URLs on the document (set at ingest
+  // time). When those URLs are still fresh we serve them as-is — no external
+  // calls. Stale or legacy-without-resolved-URLs documents are refreshed in
+  // batch and the new URLs are written back to the document for next time.
   const echotikProducts = plains.filter((p) => p.source === 'echotik');
-  if (echotikProducts.length > 0) {
-    const allUrls: string[] = [];
-    for (const p of echotikProducts) {
-      if (Array.isArray(p.imageUrls)) allUrls.push(...(p.imageUrls as string[]));
-      if (typeof p.primaryImageUrl === 'string') allUrls.push(p.primaryImageUrl);
-    }
-    const urlMap = await resolveEchoTikImageUrls(allUrls);
-    for (const p of echotikProducts) applyResolvedImages(p, urlMap);
+  const stale = echotikProducts.filter((p) => !imagesAreFresh(p as any));
+  if (stale.length > 0) {
+    await Promise.all(stale.map((p) => refreshProductImages(p)));
   }
+
+  // Ensure the EchoTik category tree is loaded so legacy `"Category 600028"`
+  // strings can be rewritten to human-readable names by formatProductResponse.
+  await ensureCategoriesLoaded();
 
   return plains;
 }
@@ -111,6 +115,8 @@ function formatProductResponse(input: ProductLike): Record<string, unknown> {
 
   delete response.aiIntelligence;
   delete response.aiExtraction; // Cleanup legacy field if present
+
+  sanitiseCategoryFields(response);
   return response;
 }
 

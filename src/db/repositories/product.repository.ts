@@ -73,9 +73,13 @@ export interface EnrichedProductInput {
   categoryL3?: string;
   categoryPath: string;
 
-  // Media (SerpApi-first)
+  // Media (SerpApi-first, or resolved EchoTik temp URLs)
   primaryImageUrl?: string;
   imageUrls: string[];
+  // Original EchoTik source URLs (volces.com) — preserved so resolved URLs can be refreshed
+  sourcePrimaryImageUrl?: string;
+  sourceImageUrls?: string[];
+  imagesResolvedAt?: Date;
 
   // Pricing
   price?: number;
@@ -263,6 +267,9 @@ export const ProductRepository = {
             // Media
             primaryImageUrl: input.primaryImageUrl,
             imageUrls:       input.imageUrls,
+            ...(input.sourcePrimaryImageUrl !== undefined && { sourcePrimaryImageUrl: input.sourcePrimaryImageUrl }),
+            ...(input.sourceImageUrls       !== undefined && { sourceImageUrls:       input.sourceImageUrls }),
+            ...(input.imagesResolvedAt      !== undefined && { imagesResolvedAt:      input.imagesResolvedAt }),
 
             // Pricing
             price:     input.price,

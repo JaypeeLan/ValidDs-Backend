@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import { runStaleCleanupJob } from '../../jobs/product-refresh.job';
 import {
   getJobsStatus,
+  triggerCreativeIngestionJob,
   triggerEchoTikPipelineJob,
+  triggerProductIngestionJob,
   triggerProductRefreshJob,
 } from '../../jobs/index';
 import { logger } from '../../logger';
@@ -67,7 +69,7 @@ export const JobsController = {
 
   /**
    * POST /jobs/echotik-pipeline
-   * Triggers the EchoTik ingestion pipeline.
+   * Triggers a single-region EchoTik ingestion pipeline run.
    */
   async triggerEchoTikPipeline(req: Request, res: Response): Promise<void> {
     log.info('Manual EchoTik pipeline triggered via API');
@@ -79,6 +81,40 @@ export const JobsController = {
     }
 
     res.json(successResponse({ triggered: true }, 'EchoTik pipeline started in background'));
+  },
+
+  /**
+   * POST /jobs/product-ingestion
+   * Runs the full daily product ingestion flow (multi-region EchoTik pipeline
+   * + post-ingest cleanup). Same code path as the 00:00 Africa/Lagos cron.
+   */
+  async triggerProductIngestion(req: Request, res: Response): Promise<void> {
+    log.info('Manual product ingestion triggered via API');
+
+    const trigger = triggerProductIngestionJob();
+    if (!trigger.started) {
+      res.status(409).json(successResponse({ triggered: false }, trigger.reason || 'Product ingestion already running'));
+      return;
+    }
+
+    res.json(successResponse({ triggered: true }, 'Product ingestion started in background'));
+  },
+
+  /**
+   * POST /jobs/creative-ingestion
+   * Runs the creative ingestion job — adds up to 500 new creative videos in a
+   * single pass. Same code path as the 12-hour (00:00 / 12:00 Africa/Lagos) cron.
+   */
+  async triggerCreativeIngestion(req: Request, res: Response): Promise<void> {
+    log.info('Manual creative ingestion triggered via API');
+
+    const trigger = triggerCreativeIngestionJob();
+    if (!trigger.started) {
+      res.status(409).json(successResponse({ triggered: false }, trigger.reason || 'Creative ingestion already running'));
+      return;
+    }
+
+    res.json(successResponse({ triggered: true }, 'Creative ingestion started in background'));
   },
 
   /**

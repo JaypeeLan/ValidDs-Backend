@@ -123,19 +123,46 @@ export interface EchoTikRawComment {
   sku_specification: string;
 }
 
+/**
+ * Raw video record from /product/video/list.
+ *
+ * Observed on live API (Apr 2026). Note:
+ *  - `play_addr` is a signed TikTok CDN URL that typically expires ~35 days
+ *    after EchoTik's last crawl. Do NOT persist this value directly — fetch a
+ *    fresh URL via EnsembleData `/post/info` at ingestion time.
+ *  - `reflow_cover` is an EchoTik volces.com URL (same refresh mechanism as
+ *    product cover images).
+ *  - `hash_tag` is a space-separated string of hashtags WITH the leading `#`.
+ *  - Numeric counters use `total_*_cnt` naming here, different from the aggregate
+ *    `/product/list` response.
+ *  - `unique_id` (TikTok @handle) is NOT returned by this endpoint; resolve it
+ *    via EnsembleData `/post/info` using the video_id.
+ */
 export interface EchoTikRawVideo {
   video_id: string;
-  video_title: string;
-  cover_url: string;
-  play_cnt: number;
-  like_cnt: number;
-  comment_cnt: number;
-  share_cnt: number;
-  sale_cnt: number;
-  sale_gmv_amt: number;
+  video_desc?: string;           // full TikTok caption
+  hash_tag?: string;             // e.g. "#Medicube #PDRN #Skincare"
+  play_addr?: string;            // signed CDN URL (expires!)
+  reflow_cover?: string;         // thumbnail on volces host
+  duration?: number;
+  height?: string | number;
+  width?: string | number;
+  ratio?: string;
+  region?: string;
+  create_time?: string | number; // epoch seconds, possibly as a string
   user_id: string;
-  unique_id: string;
-  create_time: number;
+  product_id?: string;
+
+  // Engagement metrics
+  total_views_cnt?: number;
+  total_digg_cnt?: number;        // likes
+  total_comments_cnt?: number;
+  total_shares_cnt?: number;
+  total_favorites_cnt?: number;
+
+  // Sales attribution from this video
+  total_video_sale_cnt?: number;
+  total_video_sale_gmv_amt?: number;
 }
 
 export interface EchoTikListParams {
@@ -163,6 +190,14 @@ export interface EchoTikRanklistParams {
   page_num?: number;
   page_size?: number;
   category_id?: string;
+}
+
+export interface EchoTikCategoryRow {
+  category_id: string;
+  category_level: string; // '1' | '2' | '3'
+  category_name: string;
+  language: string;
+  parent_id?: string;
 }
 
 // ── Client ────────────────────────────────────────────────────────────────────
@@ -318,6 +353,39 @@ export class EchoTikClient {
     return data ?? [];
   }
 
+  // ── Category endpoints ─────────────────────────────────────────────────────
+
+  /**
+   * GET /category/l1 — Top-level TikTok Shop categories for the given language.
+   * Response: { code, data: [{ category_id, category_level, category_name, language, parent_id }] }
+   */
+  async listCategoryL1(language = 'en-US'): Promise<EchoTikCategoryRow[]> {
+    const data = await this.request<EchoTikCategoryRow[]>('category/l1', { language });
+    return data ?? [];
+  }
+
+  /**
+   * GET /category/l2 — Sub-categories. Optionally scoped to a parent L1 id.
+   */
+  async listCategoryL2(language = 'en-US', parentId?: string): Promise<EchoTikCategoryRow[]> {
+    const data = await this.request<EchoTikCategoryRow[]>('category/l2', {
+      language,
+      ...(parentId && { parent_id: parentId }),
+    });
+    return data ?? [];
+  }
+
+  /**
+   * GET /category/l3 — Leaf categories. Optionally scoped to a parent L2 id.
+   */
+  async listCategoryL3(language = 'en-US', parentId?: string): Promise<EchoTikCategoryRow[]> {
+    const data = await this.request<EchoTikCategoryRow[]>('category/l3', {
+      language,
+      ...(parentId && { parent_id: parentId }),
+    });
+    return data ?? [];
+  }
+
   /**
    * Connectivity check — fetches 1 product with minimal params.
    */
@@ -331,29 +399,91 @@ export class EchoTikClient {
     }
   }
   /**
-   * Exchanges volces.com cover URLs for 24-hour temporary accessible URLs.
-   * Does NOT consume API credits.
+   * Exchanges volces.com cover URLs for 24-hour temporary accessible URLs via
+   * GET /api/v3/echotik/batch/cover/download (does NOT consume API credits).
+   *
+   * Per EchoTik's official spec:
+   *   - `cover_urls` is a SINGLE query param containing up to 10 URLs joined
+   *     by literal commas. Repeating `?cover_urls=...&cover_urls=...` yields
+   *     HTTP 500. URLSearchParams also can't be used directly because it
+   *     percent-encodes commas — we build the query string by hand so the
+   *     comma separators stay literal while each URL value is encoded.
+   *   - Only URLs whose host is `echosell-images.tos-ap-southeast-1.volces.com`
+   *     are accepted; everything else is filtered out up-front.
+   *   - Successful response shape: `{ code: 0, data: [{ source_cover_url,
+   *     dest_cover_url }] }` — an array, NOT a map. We collapse it into a
+   *     `source -> dest` lookup for the caller.
+   *
+   * We chunk into groups of 10 (the documented max), throttle between chunks,
+   * and let any individual chunk fail without aborting the rest.
    */
   async getTempCoverUrls(coverUrls: string[]): Promise<Record<string, string>> {
-    const eligibleUrls = coverUrls.filter(url => 
-      url.includes('echosell-images.tos-ap-southeast-1.volces.com')
-    );
+    const BATCH_SIZE = 10;
+
+    const eligibleUrls = [...new Set(
+      coverUrls.filter((url) =>
+        typeof url === 'string' && url.includes('echosell-images.tos-ap-southeast-1.volces.com')
+      )
+    )];
     if (eligibleUrls.length === 0) return {};
 
-    try {
-      await this.throttle();
-      const params = new URLSearchParams();
-      // Append each URL as a separate 'cover_urls' query param
-      eligibleUrls.forEach(url => params.append('cover_urls', url));
-      
-      const res = await this.client.get<{ code: number; data: Record<string, string> }>(
-        `batch/cover/download?${params.toString()}`
-      );
-      return res.data?.data || {};
-    } catch (err: any) {
-      log.error('Failed to exchange cover URLs', { message: err.message });
-      return {};
+    const merged: Record<string, string> = {};
+    const chunks: string[][] = [];
+    for (let i = 0; i < eligibleUrls.length; i += BATCH_SIZE) {
+      chunks.push(eligibleUrls.slice(i, i + BATCH_SIZE));
     }
+
+    type CoverDownloadResponse = {
+      code: number;
+      message?: string;
+      data?: Array<{ source_cover_url: string; dest_cover_url: string }>;
+    };
+
+    let failedChunks = 0;
+    for (const chunk of chunks) {
+      try {
+        await this.throttle();
+
+        // Encode each URL but keep commas literal so EchoTik can split them.
+        const joined = chunk.map(encodeURIComponent).join(',');
+        const path = `batch/cover/download?cover_urls=${joined}`;
+
+        const res = await this.client.get<CoverDownloadResponse>(path);
+        if (res.data?.code !== 0) {
+          failedChunks += 1;
+          log.warn('EchoTik cover/download non-zero code', {
+            code: res.data?.code,
+            message: res.data?.message,
+            chunkSize: chunk.length,
+          });
+          continue;
+        }
+
+        const rows = Array.isArray(res.data?.data) ? res.data!.data! : [];
+        for (const row of rows) {
+          if (row?.source_cover_url && row?.dest_cover_url) {
+            merged[row.source_cover_url] = row.dest_cover_url;
+          }
+        }
+      } catch (err: any) {
+        failedChunks += 1;
+        const status = err.response?.status;
+        log.error('Failed to exchange cover URLs', {
+          status,
+          message: err.message,
+          chunkSize: chunk.length,
+        });
+      }
+    }
+
+    log.debug('EchoTik cover/download finished', {
+      totalUrls: eligibleUrls.length,
+      chunks: chunks.length,
+      failedChunks,
+      resolved: Object.keys(merged).length,
+    });
+
+    return merged;
   }
 }
 

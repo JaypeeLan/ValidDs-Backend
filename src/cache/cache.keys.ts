@@ -51,6 +51,9 @@ export const CacheKeys = {
 
   // Ingestion state — tracks last successful run per source
   ingestionLastRun: (source: string) => `ingestion:last-run:${source}`,
+
+  // EchoTik category tree (id -> { name, level, parentId }) — keyed by language
+  echotikCategoryTree: (language: string) => `echotik:categories:${language}`,
 };
 
 /**
@@ -71,6 +74,7 @@ export const CACHE_TTL = {
   SUPPLIER: 1800,          // 30 minutes — supplier data is relatively stable
   HEALTH_CHECK: 10,        // 10 seconds — brief cache to protect the DB
   INGESTION_STATE: 3600,   // 1 hour — just metadata, not product data
+  ECHOTIK_CATEGORIES: 7 * 24 * 3600, // 7 days — taxonomy changes very rarely
 } as const;
 
 /**

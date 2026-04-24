@@ -33,22 +33,19 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc && mkdir -p dist/docs && cp -R src/docs/openapi dist/docs/openapi",
-    "seed-db": "node dist/scripts/run-hashtag-pipeline.js",
     "start": "node dist/server.js",
-    "start:no-seed": "node dist/server.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
-    "seed": "ts-node scripts/seed.ts",
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
-    "test-ingestion": "ts-node scripts/test-ingestion.ts",
-    "hashtag-pipeline": "npx ts-node scripts/run-hashtag-pipeline.ts",
-    "cleanup-products": "ts-node scripts/cleanup-products.ts",
     "clear-db": "ts-node scripts/clear-db.ts",
-    "batch-ingest": "ts-node scripts/batch-ingest.ts",
-    "ingest-600": "ts-node scripts/ingest-600-products-creatives.ts",
-    "remove-mock-data": "ts-node scripts/remove-mock-data.ts"
+    "ingest-products": "ts-node scripts/ingest-products.ts",
+    "ingest-creatives": "ts-node scripts/ingest-creatives.ts",
+    "prewarm-echotik-images": "ts-node scripts/prewarm-echotik-images.ts",
+    "make-admin": "ts-node src/scripts/make-admin.ts",
+    "tester:ui": "node tools/backend-tester/server.js",
+    "frontend:react": "node tools/full-frontend/server.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

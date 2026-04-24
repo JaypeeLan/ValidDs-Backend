@@ -44,7 +44,7 @@ export interface EchoTikJobOutput {
  * No AI extraction is needed — EchoTik returns structured product data directly.
  */
 export class EchoTikJob {
-  private readonly client: EchoTikClient;
+  readonly client: EchoTikClient;
   private readonly region: string;
 
   constructor(region = process.env.ECHOTIK_REGION ?? process.env.TIKTOK_REGION ?? 'US') {

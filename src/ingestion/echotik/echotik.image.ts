@@ -4,7 +4,7 @@ import { logger } from '../../logger';
 
 const log = logger.child({ module: 'echotik-image' });
 
-const ECHOTIK_IMAGE_HOST = 'echosell-images.tos-ap-southeast-1.volces.com';
+export const ECHOTIK_IMAGE_HOST = 'echosell-images.tos-ap-southeast-1.volces.com';
 // Cache 20 hours — 4h safety margin before the 24h expiry
 const TEMP_URL_TTL_SECONDS = 72_000;
 

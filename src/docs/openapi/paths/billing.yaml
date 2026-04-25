@@ -3,15 +3,20 @@ listPlans:
     tags: [Billing]
     summary: List purchasable plans (public)
     description: |
-      Returns **trial**, **explorer**, **pro**, and **premium** with credit/limit metadata from the product model.
-      When the server Stripe secret is configured, each plan may include **price** amounts loaded from Stripe Price IDs in env.
+      Returns **explorer**, **pro**, and **premium** plan metadata — credit limits, live Stripe price data,
+      free trial days, and the default redirect URLs Checkout will use.
 
-      **checkoutRedirects** matches the default `successUrl` / `cancelUrl` used by `POST /billing/checkout` when those fields are omitted:
-      - Success URL must keep the literal `{CHECKOUT_SESSION_ID}` placeholder; Stripe replaces it after payment.
-      - After success, have the SPA call `GET /billing/subscription` (or listen for websocket `planUpgraded`) — provisioning is finalized via Stripe webhooks.
+      **Free trial:** every plan includes `trialDays` days free. The user enters card details but is not
+      charged until the trial ends. Pass `withTrial: false` in `POST /billing/checkout` to skip the trial.
+
+      **checkoutRedirects** shows what `POST /billing/checkout` uses by default when `successUrl` / `cancelUrl`
+      are omitted. The `{CHECKOUT_SESSION_ID}` placeholder in `defaultSuccessUrl` is filled in by Stripe.
+
+      After the success redirect, call `GET /billing/subscription` (or listen for the `planUpgraded`
+      WebSocket event) — plan provisioning happens via webhook, not the redirect itself.
     responses:
       '200':
-        description: Plan catalog and default redirect URLs
+        description: Plan catalog, Stripe price data, and default redirect URLs
         content:
           application/json:
             schema:
@@ -21,11 +26,16 @@ listPlans:
                   properties:
                     data:
                       type: object
-                      required: [mode, plans, checkoutRedirects]
+                      required: [mode, trialDays, plans, checkoutRedirects]
                       properties:
                         mode:
                           type: string
                           enum: [test, live]
+                          description: Reflects NODE_ENV — test unless production.
+                        trialDays:
+                          type: integer
+                          example: 7
+                          description: Free trial days applied to every new subscription.
                         checkoutRedirects:
                           type: object
                           required: [defaultSuccessUrl, defaultCancelUrl]
@@ -33,7 +43,9 @@ listPlans:
                             defaultSuccessUrl:
                               type: string
                               format: uri
-                              description: Use as successUrl for Checkout; must include session_id={CHECKOUT_SESSION_ID} (placeholder preserved for Stripe).
+                              description: |
+                                Default success redirect. Contains `{CHECKOUT_SESSION_ID}` placeholder
+                                which Stripe replaces with the real session ID on redirect.
                             defaultCancelUrl:
                               type: string
                               format: uri
@@ -41,46 +53,94 @@ listPlans:
                           type: array
                           items:
                             type: object
-                            required: [id, limits, checkoutMode, stripePriceConfigured, price]
+                            required: [id, limits, trialDays, stripePriceConfigured, price]
                             properties:
                               id:
                                 type: string
-                                enum: [trial, explorer, pro, premium]
-                              checkoutMode:
-                                type: string
-                                enum: [payment, subscription]
+                                enum: [explorer, pro, premium]
+                              trialDays:
+                                type: integer
+                                example: 7
                               stripePriceConfigured:
                                 type: boolean
+                                description: False if the price ID env var is missing — checkout will return 503.
                               limits:
                                 type: object
                                 properties:
-                                  creditsPerMonth: { type: integer }
-                                  productsPerDay: { type: integer }
-                                  searchesPerDay: { type: integer }
-                                  savedProductsMax: { type: integer }
+                                  creditsPerMonth:
+                                    type: integer
+                                    example: 60000
+                                  productsPerDay:
+                                    type: integer
+                                    description: -1 means unlimited.
+                                  searchesPerDay:
+                                    type: integer
+                                    description: -1 means unlimited.
+                                  savedProductsMax:
+                                    type: integer
+                                    description: -1 means unlimited.
                               price:
+                                description: Loaded live from Stripe. Null if Stripe is not configured.
                                 nullable: true
                                 type: object
                                 properties:
                                   amountCents:
                                     nullable: true
                                     type: integer
+                                    example: 3999
                                   currency:
                                     nullable: true
                                     type: string
+                                    example: usd
                                   interval:
                                     nullable: true
                                     type: string
                                     enum: [month, year]
+            example:
+              success: true
+              message: "OK"
+              data:
+                mode: test
+                trialDays: 7
+                checkoutRedirects:
+                  defaultSuccessUrl: "https://app.validds.com/billing/success?session_id={CHECKOUT_SESSION_ID}"
+                  defaultCancelUrl: "https://app.validds.com/billing"
+                plans:
+                  - id: explorer
+                    trialDays: 7
+                    stripePriceConfigured: true
+                    limits: { creditsPerMonth: 15000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 }
+                    price: { amountCents: 1999, currency: usd, interval: month }
+                  - id: pro
+                    trialDays: 7
+                    stripePriceConfigured: true
+                    limits: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 }
+                    price: { amountCents: 3999, currency: usd, interval: month }
+                  - id: premium
+                    trialDays: 7
+                    stripePriceConfigured: true
+                    limits: { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 }
+                    price: { amountCents: 9999, currency: usd, interval: month }
 
 createCheckoutSession:
   post:
     tags: [Billing]
     summary: Create Stripe Checkout session (authenticated)
     description: |
-      Creates a hosted Checkout Session. Response **`data.url`** — redirect the signed-in user's browser there.
+      Creates a hosted Checkout Session for a paid plan.
 
-      Optional **successUrl** / **cancelUrl** override defaults from `GET /billing/plans` (`checkoutRedirects`).
+      Returns `data.url` — redirect the user's browser to this URL to complete checkout on Stripe's hosted page.
+
+      **Free trial (default):** Stripe collects the card but does not charge until the trial ends (`trialDays` days).
+
+      **Subscribe directly:** Pass `"withTrial": false` to skip the trial and charge on the first billing cycle immediately.
+
+      After checkout Stripe redirects to:
+      - **Success** → `FRONTEND_URL/billing/success?session_id=cs_...`
+      - **Cancel** → `FRONTEND_URL/billing`
+
+      The plan is provisioned via webhook (`checkout.session.completed`), not the redirect.
+      After the success redirect, call `GET /billing/subscription` or `GET /auth/me` to refresh the user's plan in your UI.
     security:
       - BearerAuth: []
     requestBody:
@@ -93,17 +153,37 @@ createCheckoutSession:
             properties:
               plan:
                 type: string
-                enum: [trial, explorer, pro, premium]
+                enum: [explorer, pro, premium]
+                description: The plan to subscribe to.
+              withTrial:
+                type: boolean
+                default: true
+                description: |
+                  `true` (default) — start with a free trial, card not charged until trial ends.
+                  `false` — skip the trial, charge on first billing cycle immediately.
               successUrl:
                 type: string
                 format: uri
-                description: Override; should include `session_id={CHECKOUT_SESSION_ID}` for session confirmation on return.
+                description: |
+                  Override the default success redirect. Must include `{CHECKOUT_SESSION_ID}` if you
+                  want to confirm the session on return (e.g. `https://yourapp.com/billing/success?session_id={CHECKOUT_SESSION_ID}`).
               cancelUrl:
                 type: string
                 format: uri
+                description: Override the default cancel redirect.
+          examples:
+            withTrial:
+              summary: Start free trial (default)
+              value:
+                plan: pro
+            directSubscribe:
+              summary: Subscribe immediately, no trial
+              value:
+                plan: pro
+                withTrial: false
     responses:
       '200':
-        description: Checkout session created
+        description: Checkout session created — redirect user to `data.url`
         content:
           application/json:
             schema:
@@ -118,21 +198,29 @@ createCheckoutSession:
                         url:
                           type: string
                           format: uri
-                          description: Stripe Checkout URL — navigate the browser here.
+                          description: Stripe hosted checkout URL — navigate the browser here.
+                          example: "https://checkout.stripe.com/pay/cs_test_..."
                         sessionId:
                           type: string
+                          description: Stripe Checkout Session ID.
+                          example: "cs_test_a1b2c3..."
       '400':
         $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
       '401':
         $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
       '503':
-        description: Stripe price ID for plan not configured
+        description: Stripe price ID for the requested plan is not configured in env.
 
 getSubscription:
   get:
     tags: [Billing]
     summary: Current subscription and billing snapshot (authenticated)
-    description: Returns the user's plan, credit balance, Stripe IDs, recent transactions, and Stripe mode (test/live).
+    description: |
+      Returns the authenticated user's live plan, credit balance, Stripe IDs, and last 10 transactions.
+
+      Call this after the Stripe success redirect to confirm the plan upgrade has been applied.
+      Because the auth middleware fetches the user live from the DB on every request, the plan will
+      always be up-to-date — no re-login or token refresh needed.
     security:
       - BearerAuth: []
     responses:
@@ -150,18 +238,26 @@ getSubscription:
                       properties:
                         plan:
                           type: string
-                        creditBalance: { type: number }
+                          enum: [free, explorer, pro, premium]
+                        creditBalance:
+                          type: number
+                          example: 60000
                         planExpiresAt:
                           nullable: true
                           type: string
                           format: date-time
-                        stripeCustomerId: { nullable: true, type: string }
-                        stripeSubscriptionId: { nullable: true, type: string }
+                        stripeCustomerId:
+                          nullable: true
+                          type: string
+                        stripeSubscriptionId:
+                          nullable: true
+                          type: string
                         mode:
                           type: string
                           enum: [test, live]
                         transactions:
                           type: array
+                          description: Last 10 transactions for this user.
                           items:
                             type: object
       '401':
@@ -172,8 +268,10 @@ stripeConfig:
     tags: [Billing]
     summary: Get Stripe publishable key (public)
     description: |
-      Returns the Stripe **publishable** key for the current environment (`test` unless `NODE_ENV=production`).
-      Use this with Stripe.js on the frontend. Secret keys never leave the server.
+      Returns the Stripe **publishable** key for the current environment.
+      `test` mode unless `NODE_ENV=production`, which switches to live keys.
+
+      Use this to initialise Stripe.js on the frontend. Secret keys never leave the server.
     responses:
       '200':
         description: Stripe client configuration
@@ -189,28 +287,39 @@ stripeConfig:
                       properties:
                         publishableKey:
                           type: string
+                          example: "pk_test_..."
                         mode:
                           type: string
                           enum: [test, live]
                         secretKeyConfigured:
                           type: boolean
       '503':
-        description: Publishable key not configured
+        description: Publishable key not configured in env.
 
 stripeWebhook:
   post:
     tags: [Billing]
-    summary: Stripe webhook endpoint
+    summary: Stripe webhook receiver
     description: |
-      Receives signed events from Stripe. Uses the raw JSON body — do not send through a client that re-serializes JSON.
-      Set `STRIPE_WEBHOOK_SECRET_TEST` from `stripe listen --forward-to http://localhost:3000/api/v1/webhooks/stripe`.
+      Receives signed events from Stripe. Must receive the **raw** request body — do not pass through
+      any middleware that re-serialises JSON.
+
+      **Local development:** `stripe listen --forward-to http://localhost:3000/api/v1/webhooks/stripe`
+
+      **Production (Render):** Register `https://<api-host>/api/v1/webhooks/stripe` in
+      Stripe Dashboard → Developers → Webhooks. Subscribe to:
+      - `checkout.session.completed` — provisions plan on trial start
+      - `customer.subscription.updated` — handles mid-cycle plan changes
+      - `customer.subscription.deleted` — downgrades user to free on cancellation
+      - `invoice.paid` — refreshes credits on renewal (after trial ends and on each billing cycle)
+      - `invoice.payment_failed` — logs payment failure
     requestBody:
       required: true
       content:
         application/json:
           schema:
             type: string
-            description: Raw Stripe event JSON (Buffer on server)
+            description: Raw Stripe event JSON (must be Buffer on server side for signature verification).
     responses:
       '200':
         description: Event acknowledged
@@ -221,7 +330,8 @@ stripeWebhook:
               properties:
                 received:
                   type: boolean
+                  example: true
       '400':
-        description: Invalid signature or payload
+        description: Missing or invalid Stripe signature, or malformed payload.
       '503':
-        description: Stripe or webhook secret not configured
+        description: Stripe or webhook secret not configured in env.

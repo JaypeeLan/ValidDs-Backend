@@ -41,16 +41,14 @@ export function getStripe(): StripeClient | null {
 
 // ── Plan → Price ID mapping ───────────────────────────────────────────────────
 
-// Paid plans only — 'free' has no price ID
+// Paid plans only — 'free' has no price ID. All are recurring subscriptions.
 const PRICE_MAP_TEST: Partial<Record<UserPlan, string | undefined>> = {
-  trial:    env.STRIPE_PRICE_ID_TRIAL_TEST,
   explorer: env.STRIPE_PRICE_ID_EXPLORER_TEST,
   pro:      env.STRIPE_PRICE_ID_PRO_TEST,
   premium:  env.STRIPE_PRICE_ID_PREMIUM_TEST,
 };
 
 const PRICE_MAP_LIVE: Partial<Record<UserPlan, string | undefined>> = {
-  trial:    env.STRIPE_PRICE_ID_TRIAL_LIVE,
   explorer: env.STRIPE_PRICE_ID_EXPLORER_LIVE,
   pro:      env.STRIPE_PRICE_ID_PRO_LIVE,
   premium:  env.STRIPE_PRICE_ID_PREMIUM_LIVE,
@@ -64,3 +62,9 @@ export function getPriceIdForPlan(plan: UserPlan): string | undefined {
   const map = isStripeLiveMode() ? PRICE_MAP_LIVE : PRICE_MAP_TEST;
   return map[plan];
 }
+
+/**
+ * Free trial duration applied to every new paid subscription.
+ * Users enter payment details at checkout but are not charged until the trial ends.
+ */
+export const STRIPE_TRIAL_DAYS = 7;

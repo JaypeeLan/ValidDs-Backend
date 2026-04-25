@@ -758,6 +758,175 @@
       ]
     },
     {
+      "name": "Billing",
+      "description": "Stripe subscription management — list plans, start checkout, view subscription, and receive webhooks.",
+      "item": [
+        {
+          "name": "Get Stripe Config (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/billing/stripe-config",
+              "host": ["{{baseUrl}}"],
+              "path": ["billing", "stripe-config"]
+            },
+            "description": "Returns the Stripe publishable key for the current environment (test/live). Use this to initialise Stripe.js on the frontend."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"publishableKey\": \"pk_test_...\",\n    \"mode\": \"test\",\n    \"secretKeyConfigured\": true\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Plans (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/billing/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["billing", "plans"]
+            },
+            "description": "Returns explorer, pro, and premium plans with live Stripe price data, credit limits, trial days, and default checkout redirect URLs. Use this to render the pricing page."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"mode\": \"test\",\n    \"trialDays\": 7,\n    \"checkoutRedirects\": {\n      \"defaultSuccessUrl\": \"http://localhost:3001/billing/success?session_id={CHECKOUT_SESSION_ID}\",\n      \"defaultCancelUrl\": \"http://localhost:3001/billing\"\n    },\n    \"plans\": [\n      {\n        \"id\": \"explorer\",\n        \"trialDays\": 7,\n        \"stripePriceConfigured\": true,\n        \"limits\": { \"creditsPerMonth\": 15000, \"productsPerDay\": -1, \"searchesPerDay\": -1, \"savedProductsMax\": 500 },\n        \"price\": { \"amountCents\": 1999, \"currency\": \"usd\", \"interval\": \"month\" }\n      },\n      {\n        \"id\": \"pro\",\n        \"trialDays\": 7,\n        \"stripePriceConfigured\": true,\n        \"limits\": { \"creditsPerMonth\": 60000, \"productsPerDay\": -1, \"searchesPerDay\": -1, \"savedProductsMax\": 2000 },\n        \"price\": { \"amountCents\": 3999, \"currency\": \"usd\", \"interval\": \"month\" }\n      },\n      {\n        \"id\": \"premium\",\n        \"trialDays\": 7,\n        \"stripePriceConfigured\": true,\n        \"limits\": { \"creditsPerMonth\": 200000, \"productsPerDay\": -1, \"searchesPerDay\": -1, \"savedProductsMax\": -1 },\n        \"price\": { \"amountCents\": 9999, \"currency\": \"usd\", \"interval\": \"month\" }\n      }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Start Checkout — With Free Trial",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/billing/checkout",
+              "host": ["{{baseUrl}}"],
+              "path": ["billing", "checkout"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"pro\",\n  \"withTrial\": true\n}"
+            },
+            "description": "Creates a Stripe Checkout Session for the pro plan with a 7-day free trial. The user enters card details but is not charged until the trial ends.\n\nRedirect the browser to `data.url`. After checkout, Stripe sends the user to FRONTEND_URL/billing/success?session_id=cs_...\n\nChange `plan` to `explorer` or `premium` as needed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res?.success && res?.data?.url) {",
+                  "  pm.environment.set('checkoutUrl', res.data.url);",
+                  "  pm.environment.set('checkoutSessionId', res.data.sessionId);",
+                  "  console.log('Open this URL in your browser to complete checkout:', res.data.url);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"url\": \"https://checkout.stripe.com/pay/cs_test_...\",\n    \"sessionId\": \"cs_test_a1b2c3...\"\n  }\n}"
+            },
+            {
+              "name": "400 Bad Request — invalid plan",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid enum value. Expected 'explorer' | 'pro' | 'premium', received 'trial'\",\n  \"statusCode\": 400\n}"
+            },
+            {
+              "name": "503 — price ID not configured",
+              "status": "Service Unavailable",
+              "code": 503,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Stripe price ID for plan \\\"pro\\\" is not configured.\",\n  \"statusCode\": 503\n}"
+            }
+          ]
+        },
+        {
+          "name": "Start Checkout — No Trial (Direct Subscribe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/billing/checkout",
+              "host": ["{{baseUrl}}"],
+              "path": ["billing", "checkout"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"pro\",\n  \"withTrial\": false\n}"
+            },
+            "description": "Creates a Stripe Checkout Session without a trial — the card is charged on the first billing cycle immediately after checkout."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"url\": \"https://checkout.stripe.com/pay/cs_test_...\",\n    \"sessionId\": \"cs_test_a1b2c3...\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Subscription",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/billing/subscription",
+              "host": ["{{baseUrl}}"],
+              "path": ["billing", "subscription"]
+            },
+            "description": "Returns the authenticated user's current plan, credit balance, Stripe IDs, and last 10 transactions.\n\nCall this after the Stripe success redirect to confirm the plan is active. The response is always live from the DB — no stale JWT data."
+          },
+          "response": [
+            {
+              "name": "200 OK — active subscription",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"plan\": \"pro\",\n    \"creditBalance\": 60000,\n    \"planExpiresAt\": null,\n    \"stripeCustomerId\": \"cus_abc123\",\n    \"stripeSubscriptionId\": \"sub_abc123\",\n    \"mode\": \"test\",\n    \"transactions\": [\n      {\n        \"_id\": \"<txn_id>\",\n        \"status\": \"paid\",\n        \"amount\": 0,\n        \"currency\": \"USD\",\n        \"metadata\": { \"plan\": \"pro\" },\n        \"createdAt\": \"2024-01-01T00:00:00.000Z\"\n      }\n    ]\n  }\n}"
+            },
+            {
+              "name": "200 OK — free plan (no subscription)",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"plan\": \"free\",\n    \"creditBalance\": 1000,\n    \"planExpiresAt\": null,\n    \"stripeCustomerId\": null,\n    \"stripeSubscriptionId\": null,\n    \"mode\": \"test\",\n    \"transactions\": []\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Jobs",
       "item": [
         {

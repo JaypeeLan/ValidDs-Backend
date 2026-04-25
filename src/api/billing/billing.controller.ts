@@ -9,7 +9,8 @@ import { Transaction } from '../../models/transaction.model';
 // ── Validation ────────────────────────────────────────────────────────────────
 
 const CheckoutBodySchema = z.object({
-  plan:       z.enum(['trial', 'explorer', 'pro', 'premium'] as const),
+  plan:       z.enum(['explorer', 'pro', 'premium'] as const),
+  withTrial:  z.boolean().optional().default(true),
   successUrl: z.string().url().optional(),
   cancelUrl:  z.string().url().optional(),
 });
@@ -17,19 +18,6 @@ const CheckoutBodySchema = z.object({
 // ── Controller ────────────────────────────────────────────────────────────────
 
 export const BillingController = {
-
-  /**
-   * GET /api/v1/billing/plans
-   * Public — paid plan catalog (limits), optional live prices from Stripe, and default Checkout redirect URLs.
-   */
-  async listPlans(_req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const payload = await BillingService.listPublicPlans();
-      res.json(successResponse(payload, ResponseMessage.SUCCESS, 200));
-    } catch (err) {
-      next(err);
-    }
-  },
 
   /**
    * GET /api/v1/billing/stripe-config
@@ -65,12 +53,34 @@ export const BillingController = {
   },
 
   /**
+   * GET /api/v1/billing/plans
+   * Public — returns all purchasable plans with live Stripe pricing, credit limits,
+   * trial days, and default success/cancel redirect URLs for checkout.
+   *
+   * Frontend uses this to render the pricing page and to know which plan ID to
+   * send to POST /checkout.
+   */
+  async listPlans(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await BillingService.listPublicPlans();
+      res.json(successResponse(data, ResponseMessage.SUCCESS, 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
    * POST /api/v1/billing/checkout
    * Auth required — creates a Stripe Checkout Session for the requested plan.
-   * Returns { url, sessionId }; open `url` in the browser to complete payment on Stripe.
    *
-   * Body: { plan: 'trial' | 'explorer' | 'pro' | 'premium', successUrl?, cancelUrl? }
-   * Omit URLs to use defaults from GET /billing/plans → checkoutRedirects (FRONTEND_URL-based).
+   * Body: { plan: 'explorer' | 'pro' | 'premium', successUrl?, cancelUrl? }
+   * Returns: { url }  — frontend redirects the browser to this URL.
+   *
+   * After payment Stripe redirects to:
+   *   Success → FRONTEND_URL/billing/success?session_id=cs_...
+   *   Cancel  → FRONTEND_URL/billing
+   *
+   * All plans include a 7-day free trial (card required, not charged until trial ends).
    */
   async createCheckoutSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -84,7 +94,7 @@ export const BillingController = {
         return;
       }
 
-      const { plan, successUrl, cancelUrl } = parsed.data;
+      const { plan, withTrial, successUrl, cancelUrl } = parsed.data;
       const user = req.user as IUserDocument;
 
       const priceId = getPriceIdForPlan(plan as UserPlan);
@@ -103,6 +113,7 @@ export const BillingController = {
         stripeCustomerId: user.stripeCustomerId,
         plan:             plan as UserPlan,
         priceId,
+        withTrial,
         successUrl,
         cancelUrl,
       });
@@ -117,7 +128,10 @@ export const BillingController = {
 
   /**
    * GET /api/v1/billing/subscription
-   * Auth required — returns the current user's plan, credit balance, and billing info.
+   * Auth required — returns the current user's active plan, credit balance, Stripe IDs,
+   * and the last 10 transactions.
+   *
+   * Frontend calls this after the Stripe success redirect to confirm the plan is active.
    */
   async getSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -131,12 +145,12 @@ export const BillingController = {
       res.json(
         successResponse(
           {
-            plan:                user.plan,
-            creditBalance:       user.creditBalance,
-            planExpiresAt:       user.planExpiresAt ?? null,
-            stripeCustomerId:    user.stripeCustomerId ?? null,
-            stripeSubscriptionId:user.stripeSubscriptionId ?? null,
-            mode:                isStripeLiveMode() ? 'live' : 'test',
+            plan:                 user.plan,
+            creditBalance:        user.creditBalance,
+            planExpiresAt:        user.planExpiresAt ?? null,
+            stripeCustomerId:     user.stripeCustomerId ?? null,
+            stripeSubscriptionId: user.stripeSubscriptionId ?? null,
+            mode:                 isStripeLiveMode() ? 'live' : 'test',
             transactions,
           },
           ResponseMessage.SUCCESS,

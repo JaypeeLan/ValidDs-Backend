@@ -21,7 +21,7 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 export type AuthProvider = 'google' | 'local' | 'tiktok';
-export type UserPlan = 'free' | 'trial' | 'explorer' | 'pro' | 'premium';
+export type UserPlan = 'free' | 'explorer' | 'pro' | 'premium';
 export type UserRole = 'user' | 'admin';
 export type UserStatus = 'active' | 'suspended' | 'deleted';
 
@@ -154,7 +154,6 @@ export interface IUserModel extends Model<IUserDocument> {
 
 export const PLAN_LIMITS: Record<UserPlan, { creditsPerMonth: number; productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
   free:     { creditsPerMonth: 1000,   productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
-  trial:    { creditsPerMonth: 1000,   productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
   explorer: { creditsPerMonth: 15000,  productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
   pro:      { creditsPerMonth: 60000,  productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
   premium:  { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
@@ -265,7 +264,7 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     },
     plan: {
       type: String,
-      enum: ['free', 'trial', 'explorer', 'pro', 'premium'] as UserPlan[],
+      enum: ['free', 'explorer', 'pro', 'premium'] as UserPlan[],
       default: 'free',
       trim: true,
       set: (v: string) => v ? v.trim().toLowerCase() : v

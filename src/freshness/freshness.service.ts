@@ -1,5 +1,4 @@
 import { logger } from '../logger';
-import { dataFreshnessGauge } from '../monitoring/metrics';
 import { Alerts } from '../monitoring/alerts';
 import { CacheService } from '../cache/cache.service';
 import { CacheKeys, CACHE_TTL } from '../cache/cache.keys';
@@ -42,8 +41,6 @@ export const FreshnessService = {
     const key = CacheKeys.ingestionLastRun(entity);
     await CacheService.set(key, now.toISOString(), CACHE_TTL.INGESTION_STATE);
 
-    // Update Prometheus gauge (seconds since last update = 0 right now)
-    dataFreshnessGauge.set({ entity }, 0);
     log.debug(`Freshness updated for ${entity}`);
   },
 
@@ -68,9 +65,6 @@ export const FreshnessService = {
     const lastUpdatedAt = new Date(stored);
     const ageMs = Date.now() - lastUpdatedAt.getTime();
     const isStale = ageMs > thresholdMs;
-
-    // Update Prometheus gauge
-    dataFreshnessGauge.set({ entity }, Math.floor(ageMs / 1000));
 
     return { entity, lastUpdatedAt, ageMs, isStale, thresholdMs };
   },

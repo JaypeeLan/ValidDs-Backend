@@ -28,7 +28,6 @@ You do not need to understand all of that to get started. If you are a developer
 | Cache & Queues | Redis                | Fast cache + background job queuing |
 | Deployment     | Render               | Simple free-tier cloud deployment   |
 | Error Tracking | Sentry               | Real-time error visibility          |
-| Metrics        | Prometheus + Grafana | System performance monitoring       |
 
 ---
 
@@ -170,7 +169,6 @@ Each service used by this project has a dedicated setup guide in the [docs/third
 | Redis                | Caching and job queues | [docs/third-party/redis.md](./docs/third-party/redis.md)                         |
 | TeemDrop             | Primary supplier data  | [docs/third-party/teemdrop.md](./docs/third-party/teemdrop.md)                   |
 | Sentry               | Error tracking         | [docs/third-party/sentry.md](./docs/third-party/sentry.md)                       |
-| Prometheus + Grafana | Performance metrics    | [docs/third-party/prometheus.md](./docs/third-party/prometheus.md)               |
 | Render               | Cloud deployment       | [docs/third-party/render-deployment.md](./docs/third-party/render-deployment.md) |
 | BullMQ               | Background job queues  | [docs/third-party/bullmq.md](./docs/third-party/bullmq.md)                       |
 

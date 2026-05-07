@@ -88,7 +88,6 @@ describe('Auth + Profile', () => {
     process.env.MONGODB_DB_NAME = 'validds_test';
     process.env.REDIS_URL = '';
     process.env.SENTRY_DSN = '';
-    process.env.METRICS_ENABLED = 'false';
     process.env.RESEND_API_KEY = 're_test';
     process.env.RESEND_FROM = 'ValidDs <noreply@validds.test>';
     process.env.GOOGLE_CLIENT_ID = 'google-client-id';

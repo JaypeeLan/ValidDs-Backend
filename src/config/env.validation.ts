@@ -171,17 +171,20 @@ const envSchema = z.object({
     z.string().max(24, 'EnsembleData token must be 24 characters or fewer').optional()
   ),
 
-  // Fallbacks
-  FALLBACK_A_API_KEY: z.string().optional(),
-  FALLBACK_A_BASE_URL: z.preprocess(
+  // Apify
+  APIFY_API_TOKEN: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().url().optional()
+    z.string().min(1).optional()
   ),
-  FALLBACK_B_API_KEY: z.string().optional(),
-  FALLBACK_B_BASE_URL: z.preprocess(
+  APIFY_SHOPIFY_MAX_ITEMS: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().url().optional()
+    z.coerce.number().int().positive().optional().default(20)
   ),
+  APIFY_ACTOR_TIMEOUT_MS: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.coerce.number().int().positive().optional().default(30000)
+  ),
+
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900000),
@@ -192,21 +195,6 @@ const envSchema = z.object({
   LOG_PRETTY: z.coerce.boolean().default(false),
   ENABLE_DEV_JOBS: z.coerce.boolean().default(false),
 
-  // Metrics
-  METRICS_ENABLED: z.coerce.boolean().default(true),
-  METRICS_PORT: z.coerce.number().default(9090),
-  PROMETHEUS_REMOTE_WRITE_URL: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().url().optional()
-  ),
-  PROMETHEUS_USERNAME: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  PROMETHEUS_API_KEY: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
 });
 
 export type Env = z.infer<typeof envSchema>;

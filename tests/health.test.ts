@@ -62,8 +62,6 @@ describe('Health Endpoints', () => {
     process.env.MONGODB_DB_NAME = 'validds_test';
     process.env.MONGODB_URI = 'mongodb://localhost:27017/test';
     process.env.REDIS_URL = 'redis://localhost:6379'; // Dummy URL for validation
-    process.env.METRICS_ENABLED = 'false';
-
     const { createApp } = await import('../src/app');
     const app = await createApp();
     server = app.listen(0);

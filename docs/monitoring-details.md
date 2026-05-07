@@ -37,8 +37,7 @@ ValidDs incorporates three primary observability layers.
 | Platform | Use Case | Responsibility |
 |----------|----------|----------------|
 | **Sentry** | Exceptions | Captures fatal Node.js crashes, unhandled Promises, and Express routing timeouts. Traces request variables immediately upon 500 errors. |
-| **Prometheus / Grafana** | Metrics | Exports system load, runtime CPU graphs, API route counts (`/api/v1/products`), and ingestion failure spikes. Used predominantly to see if throughput is dying incrementally over hours. |
 | **Pino / Console** | Audit Trails | Real-time debugging via structured JSON formatting. Logs pipeline progression (e.g. `[INFO] Successfully extracted 15 videos...`). |
 
 ### Who Gets Alerted?
-For V1, Prometheus and Sentry are configured to email the engineering/operations team explicitly when crash volumes surpass normal hourly thresholds. Automated Rollbacks are not configured; issues must be triaged directly via the render dashboard or server console logs.
+For V1, Sentry is configured to notify the engineering/operations team when crash volumes surpass normal hourly thresholds. Automated Rollbacks are not configured; issues must be triaged directly via the render dashboard or server console logs.

@@ -21,7 +21,7 @@ ValidDs backend is an Express + TypeScript API server that powers TikTok Shop pr
 │  Rate Limiter → Sanitizer → Routes → Error Handler            │
 │                                                                │
 │  Routes: /api/v1/auth  /profile  /products  /creatives        │
-│          /admin  /billing  /jobs  /health  /metrics           │
+│          /admin  /billing  /jobs  /health                     │
 └───────┬───────────────────────┬───────────────────────────────┘
         │                       │
 ┌───────▼──────┐     ┌──────────▼──────────────────────────────┐
@@ -61,8 +61,6 @@ ValidDs backend is an Express + TypeScript API server that powers TikTok Shop pr
 │                   Observability                              │
 │                                                             │
 │  Sentry         — error tracking                            │
-│  Prometheus     — metrics collector and Remote Write        │
-│  Grafana Cloud  — persistent metrics, dashboards, alerting  │
 │  Custom logger  — structured JSON logs (stdout → Render)    │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -159,7 +157,6 @@ See `docs/decision-log.md` for full reasoning. Summary:
 | Image serving | Serve-time resolution | volces.com URLs expire 24h; store originals, resolve at request time |
 | Deployment | Render | Simplest free-tier deployment path |
 | Error tracking | Sentry | Best-in-class free tier |
-| Metrics | Prometheus + Grafana Cloud | Standard observability stack |
 
 ---
 

@@ -23,7 +23,7 @@ Week 3 focused on finalizing and optimizing the core product ingestion pipeline.
 
 ### 3. Stability & Infrastructure
 *   **Test Suite Hardening**: Fixed recurring Jest timeouts connected to the in-memory MongoDB server startup, improving local development velocity.
-*   **Dependency Resolution**: Swapped out outdated metrics libraries (`express-prometheus-middleware`) for custom implementations to resolve `ERESOLVE` npm conflicts that broke upstream deployments.
+*   **Dependency Resolution**: Reworked observability dependencies to resolve `ERESOLVE` npm conflicts that broke upstream deployments.
 *   **Backfill Scripts**: Wrote and executed data migration scripts (`backfill-rainforest.ts`) to back-populate Amazon data for products ingested before the Rainforest API was subscribed to.
 
 ---

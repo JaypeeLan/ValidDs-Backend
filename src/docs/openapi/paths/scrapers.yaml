@@ -1,0 +1,43 @@
+getProductName:
+  post:
+    tags: [Scrapers]
+    summary: Run Shopify scraper by product name
+    security: [{ ApiKeyAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [productName]
+            properties:
+              productName:
+                type: string
+                minLength: 1
+                example: wireless earbuds
+    responses:
+      '200':
+        description: Shopify scrape completed successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        count:
+                          type: integer
+                        data:
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties: true
+      '400':
+        $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '504':
+        description: Scraper timed out without results

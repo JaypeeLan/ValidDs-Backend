@@ -37,6 +37,8 @@ tags:
     description: Stripe billing — public plan catalog, Checkout session creation, subscription state, and publishable key
   - name: Waitlist
     description: Pre-launch email waitlist — public `POST /api/v1/waitlist` to join, admin-only `GET /api/v1/admin/waitlist` to list
+  - name: Scrapers
+    description: Internal scraper endpoints protected by API key
 
 paths:
   /health:
@@ -49,6 +51,8 @@ paths:
     $ref: './paths/auth.yaml#/sendCode'
   /api/v1/auth/email/verify-code:
     $ref: './paths/auth.yaml#/verifyCode'
+  /api/v1/auth/register/complete:
+    $ref: './paths/auth.yaml#/completeRegistration'
   /api/v1/auth/forgot-password:
     $ref: './paths/auth.yaml#/forgotPassword'
   /api/v1/auth/reset-password:
@@ -123,6 +127,8 @@ paths:
     $ref: './paths/billing.yaml#/stripeWebhook'
   /api/v1/waitlist:
     $ref: './paths/waitlist.yaml#/join'
+  /api/v1/scrapers/get-product-name:
+    $ref: './paths/scrapers.yaml#/getProductName'
 
 components:
   securitySchemes:

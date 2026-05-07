@@ -1,7 +1,7 @@
 # Week 2 Status Report — ValidDs Backend
 
 ## Summary
-Week 2 focused on finalizing the TikTok data ingestion pipeline, improving system reliability through comprehensive testing, and enhancing observability with Prometheus Remote Write to Grafana Cloud.
+Week 2 focused on finalizing the TikTok data ingestion pipeline, improving system reliability through comprehensive testing, and enhancing backend observability.
 
 ---
 
@@ -14,7 +14,6 @@ Week 2 focused on finalizing the TikTok data ingestion pipeline, improving syste
 
 ### 2. Infrastructure & Observability
 *   **Redis Generalization**: Replaced Upstash-specific logic with a generic `ioredis` implementation. The backend now supports any managed Redis provider via standard `REDIS_URL`.
-*   **Prometheus Remote Write**: Configured Prometheus to export metrics in real-time to Grafana Cloud, ensuring persistent metrics storage across service restarts.
 *   **Modular API Documentation**: Reorganized OpenAPI 3.0 specifications into a directory-based structure, improving documentation maintainability.
 
 ### 3. Reliability & Testing
@@ -25,8 +24,7 @@ Week 2 focused on finalizing the TikTok data ingestion pipeline, improving syste
 ---
 
 ## Technical Updates
-*   **Decision Log**: Added DL-012 (Redis generalization), DL-013 (Remote Write), and DL-014 (Modular Docs).
-*   **Architecture**: Updated the system diagram to include the Grafana Cloud path.
+*   **Decision Log**: Added DL-012 (Redis generalization) and DL-014 (Modular Docs).
 *   **Security**: Standardized hashed password management for bcrypt-secured users.
 
 ---

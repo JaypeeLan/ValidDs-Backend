@@ -18,7 +18,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   ENCRYPTION_KEY: z.string().length(64, 'Encryption key must be 32 bytes (64 hex chars)'),
-  CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3001,https://valid-ds-frontend.vercel.app'),
+  CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3001'),
 
   // MongoDB
   MONGODB_URI: z.string().url('MONGODB_URI must be a valid URI'),
@@ -171,18 +171,6 @@ const envSchema = z.object({
     z.string().max(24, 'EnsembleData token must be 24 characters or fewer').optional()
   ),
 
-  // Fallbacks
-  FALLBACK_A_API_KEY: z.string().optional(),
-  FALLBACK_A_BASE_URL: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().url().optional()
-  ),
-  FALLBACK_B_API_KEY: z.string().optional(),
-  FALLBACK_B_BASE_URL: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().url().optional()
-  ),
-
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(100),
@@ -192,21 +180,6 @@ const envSchema = z.object({
   LOG_PRETTY: z.coerce.boolean().default(false),
   ENABLE_DEV_JOBS: z.coerce.boolean().default(false),
 
-  // Metrics
-  METRICS_ENABLED: z.coerce.boolean().default(true),
-  METRICS_PORT: z.coerce.number().default(9090),
-  PROMETHEUS_REMOTE_WRITE_URL: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().url().optional()
-  ),
-  PROMETHEUS_USERNAME: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  PROMETHEUS_API_KEY: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
 });
 
 export type Env = z.infer<typeof envSchema>;

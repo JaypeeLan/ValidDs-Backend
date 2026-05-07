@@ -3,7 +3,6 @@ import { ENSEMBLE_CATEGORY_KEYWORDS } from './hashtag.constants';
 import { transformEnsemblePosts, transformEnsembleComments } from './ensemble.transformer';
 import { NormalizedPost, NormalizedComment, NormalizedHashtag, NormalizedKeyword, IngestionJobResult } from '../ingestion.types';
 import { logger } from '../../logger';
-import { ingestionJobsTotal, ingestionRecordsIngested } from '../../monitoring/metrics';
 import { FreshnessService } from '../../freshness/freshness.service';
 
 const log = logger.child({ module: 'ensemble-job' });
@@ -46,7 +45,6 @@ export class EnsembleJob {
     if (!isAlive) {
       const msg = 'EnsembleData not reachable or missing API key';
       log.error(msg);
-      ingestionJobsTotal.inc({ source: 'ensemble', status: 'failure' });
 
       return {
         output,
@@ -77,11 +75,6 @@ export class EnsembleJob {
         // Filter out posts with less than 50k views before adding to output
         const filtered = normalized.filter(post => post.viewCount >= 50_000);
         output.posts.push(...filtered);
-        
-        ingestionRecordsIngested.inc(
-          { source: 'ensemble', entity: 'product' },
-          filtered.length
-        );
         log.info(`Collected ${filtered.length} trending posts from EnsembleData (filtered from ${normalized.length} raw posts)`);
       }
     } catch (err) {
@@ -95,9 +88,6 @@ export class EnsembleJob {
 
     if (success) {
       await FreshnessService.markUpdated('product');
-      ingestionJobsTotal.inc({ source: 'ensemble', status: 'success' });
-    } else {
-      ingestionJobsTotal.inc({ source: 'ensemble', status: 'failure' });
     }
 
     const result: IngestionJobResult = {

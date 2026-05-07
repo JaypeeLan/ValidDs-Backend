@@ -39,7 +39,9 @@ Thumbs.db
 *.tsbuildinfo
 
 INSTRUCTIONS.md
-EnsembleData – TikTok API.postman_collection.json
 pricing-model.txt
-/tools
+
+EnsembleData – TikTok API.postman_collection.json
 EchoTik_ValidDs_postman_collection.json
+
+tools

@@ -6,11 +6,9 @@
  *  2. Initialise Sentry                         (must be before any other imports that throw)
  *  3. Connect MongoDB
  *  4. Connect Redis
- *  5. Initialise Prometheus metrics
- *  6. Start metrics server (separate port)
- *  7. Create Express app
- *  8. Start HTTP server
- *  9. Register graceful shutdown handlers
+ *  5. Create Express app
+ *  6. Start HTTP server
+ *  7. Register graceful shutdown handlers
  */
 
 import 'dotenv/config';
@@ -26,9 +24,6 @@ import * as http from 'http';
 import { createApp } from './app';
 import { connectMongo, disconnectMongo } from './db/client';
 import { getRedisClient, disconnectRedis } from './cache/redis.client';
-import { startMetricsServer, stopMetricsServer } from './monitoring/metrics.routes';
-import { startRemoteWrite, stopRemoteWrite } from './monitoring/remote-write';
-import { initialiseMetrics } from './monitoring/metrics';
 import { logger } from './logger';
 import { startJobs, stopJobs } from './jobs/index';
 import { SocketService } from './config/socket';
@@ -76,15 +71,10 @@ async function start(): Promise<void> {
     await redis.ping();
     log.info('Redis ping OK');
 
-    // Step 5 & 6: Monitoring & Metrics
-    initialiseMetrics();
-    await startMetricsServer();
-    startRemoteWrite();
-
-    // Step 7: Background Jobs
+    // Step 5: Background Jobs
     startJobs();
 
-    // Step 8: Warm the EchoTik category tree (non-blocking, recovers from Redis if API fails).
+    // Step 6: Warm the EchoTik category tree (non-blocking, recovers from Redis if API fails).
     void warmCategoryCache();
   } catch (err) {
     log.error('Post-startup initialization failed', err);
@@ -104,11 +94,9 @@ async function shutdown(signal: string): Promise<void> {
     log.info('HTTP server closed');
 
     try {
-      stopRemoteWrite();
       await Promise.all([
         disconnectMongo(),
         disconnectRedis(),
-        stopMetricsServer(),
       ]);
       stopJobs(),
 

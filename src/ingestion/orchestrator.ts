@@ -1,6 +1,5 @@
 import { IngestionJobResult, OrchestratorConfig, NormalizedPost } from './ingestion.types';
 import { logger } from '../logger';
-import { Alerts } from '../monitoring/alerts';
 
 const log = logger.child({ module: 'ingestion-orchestrator' });
 
@@ -8,12 +7,12 @@ const log = logger.child({ module: 'ingestion-orchestrator' });
  * Ingestion Orchestrator
  *
  * Manages the full data acquisition cycle:
- *  1. Uses the primary source (EnsembleData)
+ *  1. Uses the primary source
  *  2. Fires alerts if the source fails
  *  3. Returns unified output for the AI extraction layer
  *
  * Current source map:
- *  Primary:    EnsembleData (API — requires ENSEMBLE_API_KEY)
+ *  Primary:    Manual source
  *
  * Adding a new source:
  *  1. Create src/ingestion/<name>/<name>.job.ts
@@ -22,7 +21,7 @@ const log = logger.child({ module: 'ingestion-orchestrator' });
  */
 
 const DEFAULT_CONFIG: OrchestratorConfig = {
-  primarySource: 'ensemble',
+  primarySource: 'manual',
   fallbackSources: [],
   maxRetries: 2,
   retryDelayMs: 3000,
@@ -58,65 +57,13 @@ export class IngestionOrchestrator {
     const allPosts: NormalizedPost[] = [];
     const activeSources: string[] = [];
 
-    log.info('Ingestion cycle started', {
-      primary: this.config.primarySource,
-      fallbacks: this.config.fallbackSources,
-    });
-
-    // ── Try primary source ────────────────────────────────────────────────────
-    const primaryResult = await this.runSource(this.config.primarySource);
-    results.push(primaryResult.result);
-
-    if (primaryResult.result.success && primaryResult.posts.length > 0) {
-      allPosts.push(...primaryResult.posts);
-      activeSources.push(this.config.primarySource);
-      log.info(`Primary source (${this.config.primarySource}) succeeded`, {
-        posts: primaryResult.posts.length,
-      });
-    } else {
-      log.warn(`Primary source (${this.config.primarySource}) failed or returned 0 posts`);
-
-      // ── Try fallbacks ───────────────────────────────────────────────────────
-      for (const fallback of this.config.fallbackSources) {
-        log.info(`Activating fallback source: ${fallback}`);
-
-        await Alerts.fallbackActivated(this.config.primarySource, fallback);
-
-        const fallbackResult = await this.runSource(fallback);
-        results.push(fallbackResult.result);
-
-        if (fallbackResult.result.success && fallbackResult.posts.length > 0) {
-          allPosts.push(...fallbackResult.posts);
-          activeSources.push(fallback);
-          log.info(`Fallback source (${fallback}) succeeded`, {
-            posts: fallbackResult.posts.length,
-          });
-          break; // Stop at first successful fallback
-        }
-
-        log.warn(`Fallback source (${fallback}) also failed`);
-      }
-    }
-
-    // ── All sources failed ────────────────────────────────────────────────────
-    if (allPosts.length === 0) {
-      log.error('All ingestion sources failed — no posts collected');
-      await Alerts.ingestionFailed('all-sources', 'All sources returned 0 posts');
-    }
-
-    const overallSuccess = allPosts.length > 0;
-
-    log.info('Ingestion cycle completed', {
-      overallSuccess,
-      totalPosts: allPosts.length,
-      activeSources,
-    });
+    log.info('Ingestion cycle is disabled');
 
     return {
       posts: deduplicatePosts(allPosts),
       results,
       activeSources,
-      overallSuccess,
+      overallSuccess: false,
     };
   }
 
@@ -128,17 +75,19 @@ export class IngestionOrchestrator {
     source: string
   ): Promise<{ posts: NormalizedPost[]; result: IngestionJobResult }> {
     try {
-      switch (source) {
-        case 'ensemble': {
-          const { EnsembleJob } = await import('./ensemble/ensemble.job');
-          const job = new EnsembleJob(this.region);
-          const { output, result } = await job.run();
-          return { posts: output.posts, result };
-        }
-
-        default:
-          throw new Error(`Unknown source: ${source}`);
-      }
+      return {
+        posts: [],
+        result: {
+          source: source as never,
+          success: false,
+          postsCollected: 0,
+          productsExtracted: 0,
+          hashtagsCollected: 0,
+          errors: ['Ingestion source is disabled'],
+          durationMs: 0,
+          ranAt: new Date(),
+        },
+      };
     } catch (err) {
       log.error(`Source ${source} threw an unexpected error`, err);
       return {

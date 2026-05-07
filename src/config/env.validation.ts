@@ -165,10 +165,18 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
 
-  // EnsembleData API — token must be ≤ 24 chars (enforced by their API)
-  ENSEMBLE_API_KEY: z.preprocess(
+  // Apify
+  APIFY_API_TOKEN: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().max(24, 'EnsembleData token must be 24 characters or fewer').optional()
+    z.string().min(1).optional()
+  ),
+  APIFY_SHOPIFY_MAX_ITEMS: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.coerce.number().int().positive().optional().default(20)
+  ),
+  APIFY_ACTOR_TIMEOUT_MS: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.coerce.number().int().positive().optional().default(30000)
   ),
 
   // Rate limiting

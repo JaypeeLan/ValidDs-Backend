@@ -109,19 +109,15 @@ These endpoints are used for monitoring and triggering ingestion/cleanup jobs fr
 - Product ingestion — daily at **00:00**
 - Creative ingestion — every 12h at **00:00 / 12:00**
 - Stale cleanup — every 5 minutes
-- EchoTik image refresh — every 30 minutes
 
 ### `GET /jobs/status`
 Returns the status of all job timers, last-run timestamps, per-job success/error outcomes, and the wall-clock schedule each job runs on.
 
 ### `POST /jobs/product-ingestion`
-Runs the daily multi-region EchoTik ingestion pipeline followed by product cleanup. Same code path as the 00:00 Africa/Lagos cron.
+Runs the daily product ingestion pipeline followed by product cleanup. Same code path as the 00:00 Africa/Lagos cron.
 
 ### `POST /jobs/creative-ingestion`
 Runs the creative ingestion job — adds up to 500 new creative videos in a single pass and refreshes TikTok CDN URLs on revisited creatives. Same code path as the 12-hour cron.
-
-### `POST /jobs/echotik-pipeline`
-Runs a single-region EchoTik pipeline cycle (useful for ad-hoc regional top-ups).
 
 ### `POST /jobs/product-refresh`
 Triggers the legacy hashtag-based product refresh pipeline (manual only; not on a schedule).

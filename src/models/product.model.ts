@@ -10,7 +10,7 @@ export type AdStatus       = 'active' | 'inactive' | 'unknown';
 
 /**
  * The original TikTok creator who posted the video that triggered discovery.
- * Sourced from EnsembleData. This is NOT an influencer list — it is a
+ * Sourced from provider data. This is NOT an influencer list — it is a
  * single author record for the post we found the product in.
  */
 export interface IPrimaryCreator {
@@ -55,7 +55,7 @@ export interface IRatingSource {
 
 /**
  * A representative comment from TikTok users about this product.
- * Sourced from TikTok comments (via EnsembleData API). Used as social proof on the product card.
+ * Sourced from TikTok comments. Used as social proof on the product card.
  */
 export interface IProductComment {
   comment: string;                 // normalized comment body
@@ -130,7 +130,7 @@ export interface IRelatedProduct {
 export interface IProduct {
   // ── Identity ─────────────────────────────────────────────────────────────
   externalId: string;          // TikTok aweme_id of the discovery post
-  source: string;              // ingestion source e.g. 'ensemble'
+  source: string;              // ingestion source
   status: ProductStatus;
 
   // ── Content ──────────────────────────────────────────────────────────────
@@ -146,13 +146,11 @@ export interface IProduct {
   categoryPath: string;        // e.g. 'Beauty & Personal Care / Skin Care / Cleansers'
 
   // ── Media (SerpApi-first) ────────────────────────────────────────────────
-  primaryImageUrl?: string;    // best single image from SerpApi Immersive/Shopping (or resolved EchoTik temp URL)
-  imageUrls: string[];         // full gallery from SerpApi Shopping results (or resolved EchoTik temp URLs)
-  // Original EchoTik source URLs (volces.com) — kept so that the resolved temp
-  // URLs above can be refreshed when they expire (EchoTik temp URLs live ~24h).
+  primaryImageUrl?: string;    // best single image from SerpApi Immersive/Shopping
+  imageUrls: string[];         // full gallery from SerpApi Shopping results
   sourcePrimaryImageUrl?: string;
   sourceImageUrls?: string[];
-  imagesResolvedAt?: Date;     // when the resolved EchoTik temp URLs were last fetched
+  imagesResolvedAt?: Date;
 
   // ── Pricing (from TeemDrop if matched, otherwise AI estimate) ────────────
   price?: number;
@@ -197,8 +195,7 @@ export interface IProduct {
     total: number;
   };
 
-  // ── EchoTik Shop Metrics (populated when source = 'echotik') ──────────────────
-  echotikProductId?: string;       // TikTok Shop product_id
+  // ── Supplemental market metrics ───────────────────────────────────────────
   region?: string;                 // e.g. 'US', 'GB'
   commissionRate?: number;          // decimal e.g. 0.13 = 13%
   totalSale30d?: number;            // total_sale_30d_cnt
@@ -418,8 +415,7 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
       total:   { type: Number, default: 0, min: 0 },
     },
 
-    // EchoTik Shop Metrics
-    echotikProductId: { type: String },
+    // Supplemental market metrics
     region:           { type: String, index: true },
     commissionRate:   { type: Number, min: 0, max: 1 },
     totalSale30d:     { type: Number, min: 0 },
@@ -441,7 +437,6 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
 // ── Indexes ───────────────────────────────────────────────────────────────────
 
 ProductSchema.index({ externalId: 1, source: 1 }, { unique: true });
-ProductSchema.index({ echotikProductId: 1 }, { sparse: true });
 ProductSchema.index({ 'trend.score': -1 });
 ProductSchema.index({ 'trend.direction': 1 });
 ProductSchema.index({ discoverySections: 1 });

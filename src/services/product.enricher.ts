@@ -17,7 +17,7 @@ const log = logger.child({ module: 'product-enricher' });
  * 1. SerpApi  → image gallery & market ratings
  * 2. TeemDrop → supplier pricing & verified product URL
  * 3. AI       → 3-level taxonomy, confidence reasons, sentiment
- * 4. EnsembleData → creator-attributed TikTok videos (Creatives)
+ * 4. Creatives ingestion pipeline
  * 5. Discovery → section tagging (trending, top-ads, viral...)
  */
 export const ProductEnricher = {

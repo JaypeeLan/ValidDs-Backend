@@ -17,7 +17,7 @@ function pickVideoUrl(creative: any, index: number): string | undefined {
 
 // ── Lazy refresh dedupe ──────────────────────────────────────────────────────
 // When a stored TikTok CDN URL rejects our proxy request (signature expired),
-// we kick off a background refresh of that single slot via EnsembleData.
+// we kick off a background refresh of that single slot.
 // A short-lived in-memory dedupe map prevents us from firing the same refresh
 // repeatedly if many requests hit the expired URL concurrently.
 const REFRESH_DEDUPE_TTL_MS = 2 * 60 * 1000; // 2 min

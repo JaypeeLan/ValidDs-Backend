@@ -30,7 +30,7 @@ tags:
   - name: Profile
     description: User settings and account management
   - name: Ingestion
-    description: Background jobs using DeepSeek and EnsembleData.
+    description: Background ingestion controls.
   - name: Admin
     description: System health and analytics for users, products, and TikTok creatives.
   - name: Billing
@@ -83,8 +83,6 @@ paths:
     $ref: './paths/jobs.yaml#/productIngestion'
   /api/v1/jobs/creative-ingestion:
     $ref: './paths/jobs.yaml#/creativeIngestion'
-  /api/v1/jobs/echotik-pipeline:
-    $ref: './paths/jobs.yaml#/echotikPipeline'
   /api/v1/jobs/stale-cleanup:
     $ref: './paths/jobs.yaml#/staleCleanup'
   /api/v1/admin/health:

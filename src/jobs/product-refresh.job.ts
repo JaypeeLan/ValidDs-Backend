@@ -1,10 +1,5 @@
-import { IngestionOrchestrator } from '../ingestion/orchestrator';
-import { ProductExtractor } from '../services/product.extractor';
-import { ProductEnricher } from '../services/product.enricher';
 import { ProductRepository } from '../db/repositories/product.repository';
-import { ProductService } from '../services/product.service';
 import { logger } from '../logger';
-import { Alerts } from '../monitoring/alerts';
 
 const log = logger.child({ module: 'product-refresh-job' });
 
@@ -13,7 +8,7 @@ const log = logger.child({ module: 'product-refresh-job' });
  *
  * The main scheduled job that runs the full pipeline:
  *
- *  1. Ingestion Orchestrator  — collects trending posts via EnsembleData
+ *  1. Ingestion Orchestrator  — collects source posts
  *  2. AI Extractor            — runs each post through the AI to extract
  *                               product name, niche, trend score, sentiment
  *  3. Image Service           | finds a product image by searching the product name
@@ -29,106 +24,7 @@ const log = logger.child({ module: 'product-refresh-job' });
  */
 
 export async function runProductRefreshJob(): Promise<void> {
-  const startTime = Date.now();
-  log.info('Product refresh job started');
-
-  try {
-    // ── Step 1: Collect posts ─────────────────────────────────────────────────
-    const orchestrator = new IngestionOrchestrator();
-    const { posts, activeSources, overallSuccess } = await orchestrator.run();
-
-    if (!overallSuccess || posts.length === 0) {
-      log.error('Product refresh job failed — no posts collected');
-      await Alerts.ingestionFailed('product-refresh', 'No posts collected from any source');
-      return;
-    }
-
-    log.info(`Ingestion complete`, {
-      posts: posts.length,
-      sources: activeSources,
-    });
-
-    // ── Step 2: Fetch Comments for Authenticity Analysis ──────────────────────
-    const { EnsembleClient } = await import('../ingestion/ensemble/ensemble.client');
-    const { transformEnsembleComments } = await import('../ingestion/ensemble/ensemble.transformer');
-    
-    const ensembleClient = new EnsembleClient(); // Default region OK for comments
-    const commentMap = new Map();
-    
-    if (process.env.ENSEMBLE_API_KEY) {
-      log.info(`Fetching comments for ${posts.length} posts via EnsembleData...`);
-      // Only fetch comments for the top posts to avoid huge API usage
-      // We'll limit to top 20 posts with highest views for authenticity scoring
-      const topPosts = [...posts].sort((a, b) => b.viewCount - a.viewCount).slice(0, 20);
-      
-      for (const post of topPosts) {
-        try {
-          // Note: aweme_id is typically post.videoId for TikTok
-          const rawComments = await ensembleClient.getPostComments(post.videoId);
-          if (rawComments.length > 0) {
-            commentMap.set(post.videoId, transformEnsembleComments(rawComments, post.videoId));
-          }
-        } catch (err) {
-          log.warn(`Failed to fetch comments for ${post.videoId}`, { err: String(err) });
-        }
-      }
-      log.info(`Fetched comments for ${commentMap.size} posts`);
-    } else {
-      log.warn('ENSEMBLE_API_KEY not set - skipping comment authenticity phase');
-    }
-
-    // ── Step 3: AI extraction ─────────────────────────────────────────────────
-    const extractions = await ProductExtractor.extractBatch(posts, commentMap);
-
-    log.info(`AI extraction complete`, {
-      input: posts.length,
-      extracted: extractions.length,
-    });
-
-    if (extractions.length === 0) {
-      log.warn('AI extraction returned 0 products — check API key or post quality');
-      return;
-    }
-
-    // ── Step 4: Image search + DB upsert ─────────────────────────────────
-    let saved = 0;
-    let failed = 0;
-
-    for (const extraction of extractions) {
-      try {
-        // Find the source post for this extraction
-        const sourcePost = posts.find((p) => p.videoId === extraction.sourceVideoId);
-        if (!sourcePost) continue;
-
-        // Use the full enrichment pipeline (Serp + TeemDrop + Creatives)
-        const product = await ProductEnricher.mergeAndUpsert(extraction, sourcePost);
-        if (product) {
-          saved++;
-        }
-      } catch (err) {
-        failed++;
-        log.warn('Failed to save product', { err: String(err), videoId: extraction.sourceVideoId });
-      }
-    }
-
-    const durationMs = Date.now() - startTime;
-
-    log.info('Product refresh job complete', {
-      postsCollected: posts.length,
-      extracted: extractions.length,
-      saved,
-      failed,
-      durationMs,
-      sources: activeSources,
-    });
-
-    const cleanupResult = await ProductService.cleanupProducts();
-    log.info('Post-ingestion cleanup complete', cleanupResult);
-
-  } catch (err) {
-    log.error('Product refresh job threw an unexpected error', err);
-    await Alerts.ingestionFailed('product-refresh', err);
-  }
+  log.info('Product refresh job is disabled');
 }
 
 /**

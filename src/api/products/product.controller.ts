@@ -3,8 +3,6 @@ import { ProductService } from '../../services/product.service';
 import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
-import { imagesAreFresh, refreshProductImages } from '../../ingestion/echotik/echotik.image-refresh';
-import { ensureCategoriesLoaded, sanitiseCategoryFields } from '../../ingestion/echotik/echotik.categories';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: {
@@ -40,30 +38,10 @@ type ProductLike = Record<string, unknown> & {
   toObject?: () => Record<string, unknown>;
 };
 
-/**
- * Converts Mongoose docs to plain objects and resolves EchoTik image URLs in-place.
- * Returns plain objects ready for formatProductResponse.
- */
 async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, unknown>[]> {
-  const plains = inputs.map((p) =>
+  return inputs.map((p) =>
     typeof p.toObject === 'function' ? p.toObject() : { ...p }
   ) as Record<string, unknown>[];
-
-  // EchoTik products carry resolved image URLs on the document (set at ingest
-  // time). When those URLs are still fresh we serve them as-is — no external
-  // calls. Stale or legacy-without-resolved-URLs documents are refreshed in
-  // batch and the new URLs are written back to the document for next time.
-  const echotikProducts = plains.filter((p) => p.source === 'echotik');
-  const stale = echotikProducts.filter((p) => !imagesAreFresh(p as any));
-  if (stale.length > 0) {
-    await Promise.all(stale.map((p) => refreshProductImages(p)));
-  }
-
-  // Ensure the EchoTik category tree is loaded so legacy `"Category 600028"`
-  // strings can be rewritten to human-readable names by formatProductResponse.
-  await ensureCategoriesLoaded();
-
-  return plains;
 }
 
 function getProfileCountryCode(req: Request): string {
@@ -116,7 +94,6 @@ function formatProductResponse(input: ProductLike): Record<string, unknown> {
   delete response.aiIntelligence;
   delete response.aiExtraction; // Cleanup legacy field if present
 
-  sanitiseCategoryFields(response);
   return response;
 }
 

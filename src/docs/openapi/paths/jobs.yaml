@@ -4,8 +4,6 @@
 #   • Product ingestion   — daily at 00:00 (midnight)
 #   • Creative ingestion  — every 12h, at 00:00 and 12:00
 #   • Stale cleanup       — every 5 minutes
-#   • EchoTik image refresh — every 30 minutes
-#
 # All trigger endpoints require the X-API-Key header matching INTERNAL_API_KEY
 # and run the job asynchronously. The HTTP response returns immediately once
 # the job has been enqueued.
@@ -71,8 +69,8 @@ productIngestion:
       - Jobs
     summary: Trigger daily product ingestion
     description: |
-      Runs the daily multi-region EchoTik ingestion pipeline followed by
-      product cleanup. Same code path as the 00:00 Africa/Lagos cron.
+      Runs the daily product ingestion pipeline. Same code path as the
+      00:00 Africa/Lagos cron.
       Regional targets: US 300, BR/MX/GB/FR/DE/ES/IT/AU/NZ 50 each.
     security:
       - ApiKeyAuth: []
@@ -130,41 +128,6 @@ creativeIngestion:
     tags:
       - Jobs
     summary: Method warning for creative ingestion
-    description: Returns a 405 error explaining that POST is required.
-    responses:
-      '405':
-        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
-
-echotikPipeline:
-  post:
-    tags:
-      - Jobs
-    summary: Trigger single-region EchoTik pipeline
-    description: |
-      Runs one EchoTik pipeline cycle (product/list → persist → cleanup) for a
-      single region. Useful for ad-hoc regional top-ups outside the daily
-      product ingestion cron.
-    security:
-      - ApiKeyAuth: []
-    responses:
-      '200':
-        description: Job started
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
-      '409':
-        description: Job already running
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
-      '401':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
-  get:
-    tags:
-      - Jobs
-    summary: Method warning for EchoTik pipeline
     description: Returns a 405 error explaining that POST is required.
     responses:
       '405':

@@ -73,10 +73,9 @@ export interface EnrichedProductInput {
   categoryL3?: string;
   categoryPath: string;
 
-  // Media (SerpApi-first, or resolved EchoTik temp URLs)
+  // Media
   primaryImageUrl?: string;
   imageUrls: string[];
-  // Original EchoTik source URLs (volces.com) — preserved so resolved URLs can be refreshed
   sourcePrimaryImageUrl?: string;
   sourceImageUrls?: string[];
   imagesResolvedAt?: Date;
@@ -182,8 +181,7 @@ export interface EnrichedProductInput {
     total: number;
   };
 
-  // EchoTik-specific shop metrics (optional — only populated when source = 'echotik')
-  echotikProductId?: string;
+  // Supplemental market metrics
   region?: string;
   commissionRate?: number;
   totalSale30d?: number;
@@ -307,8 +305,7 @@ export const ProductRepository = {
             relatedProducts:   input.relatedProducts ?? [],
             creativeCounts:    input.creativeCounts ?? { ads: 0, organic: 0, reviews: 0, total: 0 },
 
-            // EchoTik shop metrics (conditionally included)
-            ...(input.echotikProductId !== undefined && { echotikProductId: input.echotikProductId }),
+            // Supplemental market metrics (conditionally included)
             ...(input.region           !== undefined && { region:           input.region }),
             ...(input.commissionRate   !== undefined && { commissionRate:   input.commissionRate }),
             ...(input.totalSale30d     !== undefined && { totalSale30d:     input.totalSale30d }),
@@ -349,19 +346,28 @@ export const ProductRepository = {
     // Include stale rows so the catalog does not go empty between refreshes; exclude only archived.
     const query: Record<string, unknown> = { status: { $ne: 'archived' } };
 
-    // ── Multi-Region Fallback Logic ──────────────────────────────────────────
-    let regionFilterApplied = false;
+    // ── Multi-Region fallback (graceful when imported data has no region) ───
     if (filters.userRegion) {
-      // Check if we have *any* products for this region before filtering by it
       const regionCount = await Product.countDocuments({ region: filters.userRegion, status: 'active' });
       if (regionCount > 0) {
         query['region'] = filters.userRegion;
-        regionFilterApplied = true;
+      } else {
+        const usCount = await Product.countDocuments({ region: 'US', status: 'active' });
+        if (usCount > 0) {
+          query['region'] = 'US';
+        }
+        // If neither requested region nor US exists, do not apply region filter.
       }
-    }
-    // If the user's region isn't supported or they didn't provide one, default to 'US' if available
-    if (!regionFilterApplied) {
-      query['region'] = 'US';
+    } else {
+      const hasRegionedData = await Product.countDocuments({
+        region: { $exists: true, $nin: [null, ''] },
+        status: 'active',
+      });
+      if (hasRegionedData > 0) {
+        const usCount = await Product.countDocuments({ region: 'US', status: 'active' });
+        if (usCount > 0) query['region'] = 'US';
+      }
+      // If data has no region values at all, return full active catalog.
     }
 
     if (filters.category?.length)       query['categoryL1'] = { $in: filters.category };

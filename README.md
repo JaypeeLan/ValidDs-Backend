@@ -134,7 +134,6 @@ For deeper technical detail, see the [docs/](./docs/) folder.
 | `npm run generate-api-key`        | Generate a new internal API key                                                        |
 | `npm run ingest-products`         | Manually run the product ingestion pipeline (mirrors the 00:00 Lagos daily cron)       |
 | `npm run ingest-creatives`        | Manually run creative ingestion (500 new / 12 h). Pass `-- --refresh` to refresh URLs  |
-| `npm run prewarm-echotik-images`  | Pre-warm the Redis cache with 20 h EchoTik image URLs for every active product         |
 | `npm run make-admin -- <email>`   | Promote an existing user to admin                                                      |
 | `npm run clear-db`                | Wipe the products + creatives collections (destructive — dev only)                     |
 

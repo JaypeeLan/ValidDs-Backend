@@ -78,7 +78,7 @@ feed:
 keywordContext:
   get:
     tags: [Products]
-    summary: Search TikTok keyword context from EnsembleData
+    summary: Search TikTok keyword context
     parameters:
       - name: name
         in: query

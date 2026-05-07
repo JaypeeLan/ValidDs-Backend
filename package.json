@@ -42,7 +42,6 @@
     "clear-db": "ts-node scripts/clear-db.ts",
     "ingest-products": "ts-node scripts/ingest-products.ts",
     "ingest-creatives": "ts-node scripts/ingest-creatives.ts",
-    "prewarm-echotik-images": "ts-node scripts/prewarm-echotik-images.ts",
     "make-admin": "ts-node src/scripts/make-admin.ts",
     "tester:ui": "node tools/backend-tester/server.js",
     "frontend:react": "node tools/full-frontend/server.js"
@@ -50,6 +49,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@sentry/node": "^7.99.0",
+    "apify-client": "^2.23.2",
     "axios": "^1.6.7",
     "bullmq": "^5.1.6",
     "cors": "^2.8.5",

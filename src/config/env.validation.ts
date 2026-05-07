@@ -18,7 +18,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   ENCRYPTION_KEY: z.string().length(64, 'Encryption key must be 32 bytes (64 hex chars)'),
-  CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3001'),
+  CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3001,https://valid-ds-frontend.vercel.app'),
 
   // MongoDB
   MONGODB_URI: z.string().url('MONGODB_URI must be a valid URI'),

@@ -158,6 +158,22 @@ All API endpoints are prefixed with `/api/v1`.
 
 Full endpoint documentation with request/response shapes is in [docs/endpoints.md](./docs/endpoints.md).
 
+### Registration Flow (Email)
+
+Local registration uses a 3-step flow:
+
+1. `POST /api/v1/auth/register`
+   - Body: `{ "email": "user@example.com" }`
+   - Sends a 6-digit verification code to email.
+
+2. `POST /api/v1/auth/email/verify-code`
+   - Body: `{ "email": "user@example.com", "code": "123456" }`
+   - Verifies code and marks email as verified.
+
+3. `POST /api/v1/auth/register/complete`
+   - Body: `{ "email": "user@example.com", "name": "Jane Doe", "password": "Password1" }`
+   - Completes account setup and returns JWT + user payload.
+
 ---
 
 ## Third-Party Service Setup

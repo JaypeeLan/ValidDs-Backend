@@ -3,7 +3,6 @@ import { runStaleCleanupJob } from '../../jobs/product-refresh.job';
 import {
   getJobsStatus,
   triggerCreativeIngestionJob,
-  triggerEchoTikPipelineJob,
   triggerProductIngestionJob,
   triggerProductRefreshJob,
 } from '../../jobs/index';
@@ -68,25 +67,9 @@ export const JobsController = {
 
 
   /**
-   * POST /jobs/echotik-pipeline
-   * Triggers a single-region EchoTik ingestion pipeline run.
-   */
-  async triggerEchoTikPipeline(req: Request, res: Response): Promise<void> {
-    log.info('Manual EchoTik pipeline triggered via API');
-
-    const trigger = triggerEchoTikPipelineJob();
-    if (!trigger.started) {
-      res.status(409).json(successResponse({ triggered: false }, 'EchoTik pipeline already running'));
-      return;
-    }
-
-    res.json(successResponse({ triggered: true }, 'EchoTik pipeline started in background'));
-  },
-
-  /**
    * POST /jobs/product-ingestion
-   * Runs the full daily product ingestion flow (multi-region EchoTik pipeline
-   * + post-ingest cleanup). Same code path as the 00:00 Africa/Lagos cron.
+   * Runs the daily product ingestion flow. Same code path as the
+   * 00:00 Africa/Lagos cron.
    */
   async triggerProductIngestion(req: Request, res: Response): Promise<void> {
     log.info('Manual product ingestion triggered via API');

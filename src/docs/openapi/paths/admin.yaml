@@ -99,7 +99,7 @@ analyticsProducts:
                     totalProducts: 1205
                     freshProducts24h: 305
                     productsBySource:
-                      ensemble: 1000
+                      scarper: 1000
                     topCategories:
                       "Home & Kitchen": 400
                       "Beauty & Personal Care": 350

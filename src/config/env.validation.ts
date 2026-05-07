@@ -165,12 +165,6 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
 
-  // EnsembleData API — token must be ≤ 24 chars (enforced by their API)
-  ENSEMBLE_API_KEY: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().max(24, 'EnsembleData token must be 24 characters or fewer').optional()
-  ),
-
   // Apify
   APIFY_API_TOKEN: z.preprocess(
     (val) => (val === '' ? undefined : val),

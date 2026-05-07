@@ -10,8 +10,7 @@ trigger:
       This runs in the background.
 
       ### Tools Triggered:
-      - **EnsembleData**: Primary source for trending data and hashtag details.
-      - **DeepSeek**: Product extraction AI pipeline.
+      - Ingestion is currently disabled.
     security:
       - BearerAuth: []
     responses:

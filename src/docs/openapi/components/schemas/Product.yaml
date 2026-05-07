@@ -16,11 +16,11 @@ properties:
     type: string
   externalId:
     type: string
-    description: "TikTok Shop product_id (EchoTik) or TikTok aweme_id (Ensemble)"
+    description: "Source external identifier"
   source:
     type: string
-    enum: [echotik, ensemble]
-    description: "Ingestion source — 'echotik' for TikTok Shop products"
+    enum: [scarper, manual]
+    description: "Ingestion source"
   status:
     type: string
     enum: [active, archived, stale]
@@ -45,13 +45,13 @@ properties:
   primaryImageUrl:
     type: string
     format: uri
-    description: "Resolved temp URL at serve time for EchoTik products (original volces.com URLs stored in DB)"
+    description: "Primary product image URL"
   imageUrls:
     type: array
     items:
       type: string
       format: uri
-    description: "Full product image gallery — resolved to temp URLs at serve time for EchoTik products"
+    description: "Full product image gallery"
   price:
     type: number
   currency:
@@ -87,7 +87,7 @@ properties:
       storeUrl:
         type: string
         format: uri
-        description: "Direct TikTok product page URL for EchoTik products"
+        description: "Direct listing URL"
       timeframe:
         type: string
       sourceBreakdown:
@@ -134,7 +134,7 @@ properties:
           format: date-time
   topComments:
     type: array
-    description: "Verified TikTok Shop buyer comments from EchoTik"
+    description: "Verified TikTok comments"
     items:
       type: object
       properties:
@@ -154,7 +154,7 @@ properties:
           format: date-time
   viewCount:
     type: integer
-    description: "From highest-view EnsembleData creator post when available; otherwise EchoTik total product views"
+    description: "Product discovery post views"
   likeCount:
     type: integer
   commentCount:
@@ -171,13 +171,13 @@ properties:
     description: "Total number of reviews across all sources"
   primaryCreator:
     type: object
-    description: "Real TikTok creator promoting this product (resolved via EnsembleData); falls back to EchoTik seller"
+    description: "TikTok creator promoting this product"
     properties:
       tiktokUserId:
         type: string
       handle:
         type: string
-        description: "TikTok @username of the creator, or seller ID if no creator found"
+        description: "TikTok @username of the creator"
       displayName:
         type: string
       bio:
@@ -274,10 +274,6 @@ properties:
       total:
         type: integer
 
-  # EchoTik-specific fields (present when source = 'echotik')
-  echotikProductId:
-    type: string
-    description: "TikTok Shop product_id from EchoTik"
   region:
     type: string
     description: "Market region e.g. US, GB, BR"
@@ -286,16 +282,16 @@ properties:
     description: "Affiliate commission rate as decimal e.g. 0.13 = 13%"
   totalSale30d:
     type: integer
-    description: "Units sold in last 30 days (EchoTik)"
+    description: "Units sold in last 30 days"
   totalSale7d:
     type: integer
-    description: "Units sold in last 7 days (EchoTik)"
+    description: "Units sold in last 7 days"
   totalGmv:
     type: number
-    description: "Total gross merchandise value (EchoTik)"
+    description: "Total gross merchandise value"
   totalGmv30d:
     type: number
-    description: "GMV in last 30 days (EchoTik)"
+    description: "GMV in last 30 days"
   totalCreators:
     type: integer
     description: "Number of TikTok influencers selling this product"
@@ -307,7 +303,7 @@ properties:
     type: boolean
   isManagedStore:
     type: boolean
-    description: "Whether the seller is a TikTok-managed store"
+    description: "Whether the seller is managed"
 
   lastIngestedAt:
     type: string

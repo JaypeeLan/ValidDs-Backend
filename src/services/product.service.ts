@@ -6,8 +6,6 @@ import { CacheService } from '../cache/cache.service';
 import { CacheKeys, CACHE_TTL } from '../cache/cache.keys';
 import { PaginatedResponse } from '../utils/pagination.util';
 import { NotFoundError } from '../middleware/error.middleware';
-import { EnsembleClient } from '../ingestion/ensemble/ensemble.client';
-import { transformEnsemblePosts } from '../ingestion/ensemble/ensemble.transformer';
 
 /**
  * Product Service
@@ -113,31 +111,8 @@ export const ProductService = {
       nextCursor: number | null;
     };
     suggestedHashtags: string[];
-    posts: ReturnType<typeof transformEnsemblePosts>;
+    posts: Array<Record<string, unknown>>;
   }> {
-    const client = new EnsembleClient(params.country.toUpperCase());
-    const { posts: rawPosts, nextCursor } = await client.searchKeywordFull({
-      name: params.name,
-      days: params.timeFilter,
-      period: params.timeFilter,
-      sorting: params.sortOrder,
-      cursor: params.cursor,
-      country: params.country,
-      matchExactly: params.matchExactly,
-    });
-
-    const posts = transformEnsemblePosts(rawPosts);
-    const hashtagCounts = new Map<string, number>();
-    for (const post of posts) {
-      for (const hashtag of post.hashtags) {
-        hashtagCounts.set(hashtag, (hashtagCounts.get(hashtag) ?? 0) + 1);
-      }
-    }
-    const suggestedHashtags = [...hashtagCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 25)
-      .map(([name]) => name);
-
     return {
       keyword: params.name,
       filters: {
@@ -148,10 +123,10 @@ export const ProductService = {
       },
       pagination: {
         cursor: params.cursor,
-        nextCursor,
+        nextCursor: null,
       },
-      suggestedHashtags,
-      posts,
+      suggestedHashtags: [],
+      posts: [],
     };
   },
 };

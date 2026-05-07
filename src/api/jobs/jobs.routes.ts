@@ -16,14 +16,12 @@ router.get('/status', requireApiKey, JobsController.getStatus);
 
 // Ingestion triggers - use these to run jobs externally via cron-job.org
 router.post('/product-refresh', requireApiKey, JobsController.triggerProductRefresh);
-router.post('/echotik-pipeline', requireApiKey, JobsController.triggerEchoTikPipeline);
 router.post('/product-ingestion', requireApiKey, JobsController.triggerProductIngestion);
 router.post('/creative-ingestion', requireApiKey, JobsController.triggerCreativeIngestion);
 router.post('/stale-cleanup', requireApiKey, JobsController.triggerStaleCleanup);
 
 // GET warnings — helps users diagnose misconfigured cron jobs (which default to GET)
 router.get('/product-refresh', JobsController.getMethodWarning);
-router.get('/echotik-pipeline', JobsController.getMethodWarning);
 router.get('/product-ingestion', JobsController.getMethodWarning);
 router.get('/creative-ingestion', JobsController.getMethodWarning);
 router.get('/stale-cleanup', JobsController.getMethodWarning);

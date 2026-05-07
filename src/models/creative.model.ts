@@ -13,11 +13,11 @@ export type CreativeSection =
 
 /**
  * Full creator profile for the influencer who posted this specific creative.
- * All fields sourced from EnsembleData API at time of ingestion.
+ * All fields sourced from TikTok data at time of ingestion.
  * The tiktokPostUrl is the canonical verified link to the video.
  */
 export interface ICreatorProfile {
-  tiktokUserId: string;      // EnsembleData author uid — stable identifier
+  tiktokUserId: string;      // TikTok author uid — stable identifier
   handle: string;            // @username
   displayName?: string;      // nickname shown on TikTok
   bio?: string;              // creator bio/signature
@@ -40,7 +40,7 @@ export interface IVideoMetrics {
   commentCount: number;
   shareCount: number;
   engagementRate?: number;   // (likes + comments + shares) / views * 100
-  source: string;            // where metrics came from (e.g. 'EnsembleData')
+  source: string;            // where metrics came from
   fetchedAt: Date;           // snapshot timestamp for metric freshness
 }
 
@@ -141,7 +141,7 @@ const VideoMetricsSchema = new Schema<IVideoMetrics>(
     commentCount:  { type: Number, required: true, default: 0, min: 0 },
     shareCount:    { type: Number, required: true, default: 0, min: 0 },
     engagementRate:{ type: Number, min: 0 },
-    source:        { type: String, required: true, default: 'EnsembleData' },
+    source:        { type: String, required: true, default: 'TikTok' },
     fetchedAt:     { type: Date, required: true, default: Date.now },
   },
   { _id: false }

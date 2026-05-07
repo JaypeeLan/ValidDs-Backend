@@ -1,0 +1,323 @@
+type: object
+required:
+  - id
+  - externalId
+  - source
+  - status
+  - title
+  - normalizedTitle
+  - categoryL1
+  - categoryPath
+  - primaryCreator
+  - aiIntelligence
+  - trend
+properties:
+  id:
+    type: string
+  externalId:
+    type: string
+    description: "TikTok Shop product_id (EchoTik) or TikTok aweme_id (Ensemble)"
+  source:
+    type: string
+    enum: [echotik, ensemble]
+    description: "Ingestion source — 'echotik' for TikTok Shop products"
+  status:
+    type: string
+    enum: [active, archived, stale]
+  title:
+    type: string
+  normalizedTitle:
+    type: string
+  description:
+    type: string
+  hashtags:
+    type: array
+    items:
+      type: string
+  categoryL1:
+    type: string
+  categoryL2:
+    type: string
+  categoryL3:
+    type: string
+  categoryPath:
+    type: string
+  primaryImageUrl:
+    type: string
+    format: uri
+    description: "Resolved temp URL at serve time for EchoTik products (original volces.com URLs stored in DB)"
+  imageUrls:
+    type: array
+    items:
+      type: string
+      format: uri
+    description: "Full product image gallery — resolved to temp URLs at serve time for EchoTik products"
+  price:
+    type: number
+  currency:
+    type: string
+  suppliers:
+    type: array
+    items:
+      type: object
+      properties:
+        platform:
+          type: string
+        productUrl:
+          type: string
+          format: uri
+        price:
+          type: number
+        currency:
+          type: string
+        shippingDays:
+          type: integer
+        moq:
+          type: integer
+        checkedAt:
+          type: string
+          format: date-time
+  salesEvidence:
+    type: object
+    properties:
+      unitsSold:
+        type: integer
+      store:
+        type: string
+      storeUrl:
+        type: string
+        format: uri
+        description: "Direct TikTok product page URL for EchoTik products"
+      timeframe:
+        type: string
+      sourceBreakdown:
+        type: array
+        items:
+          type: object
+          properties:
+            source:
+              type: string
+            unitsSold:
+              type: integer
+      fetchedAt:
+        type: string
+        format: date-time
+  ratingSources:
+    type: array
+    items:
+      type: object
+      properties:
+        platform:
+          type: string
+        rating:
+          type: number
+        reviewCount:
+          type: integer
+        sourceUrl:
+          type: string
+          format: uri
+        fetchedAt:
+          type: string
+          format: date-time
+  reviews:
+    type: array
+    description: "Google Shopping review snippets from SearchApi"
+    items:
+      type: object
+      properties:
+        source:
+          type: string
+        text:
+          type: string
+        collectedAt:
+          type: string
+          format: date-time
+  topComments:
+    type: array
+    description: "Verified TikTok Shop buyer comments from EchoTik"
+    items:
+      type: object
+      properties:
+        text:
+          type: string
+        likeCount:
+          type: integer
+        authorHandle:
+          type: string
+        sentiment:
+          type: string
+          enum: [positive, negative, neutral]
+        source:
+          type: string
+        collectedAt:
+          type: string
+          format: date-time
+  viewCount:
+    type: integer
+    description: "From highest-view EnsembleData creator post when available; otherwise EchoTik total product views"
+  likeCount:
+    type: integer
+  commentCount:
+    type: integer
+  shareCount:
+    type: integer
+  engagementRate:
+    type: number
+  rating:
+    type: number
+    description: "Weighted average rating from all sources (1-5)"
+  reviewCount:
+    type: integer
+    description: "Total number of reviews across all sources"
+  primaryCreator:
+    type: object
+    description: "Real TikTok creator promoting this product (resolved via EnsembleData); falls back to EchoTik seller"
+    properties:
+      tiktokUserId:
+        type: string
+      handle:
+        type: string
+        description: "TikTok @username of the creator, or seller ID if no creator found"
+      displayName:
+        type: string
+      bio:
+        type: string
+      followers:
+        type: integer
+      following:
+        type: integer
+      totalLikes:
+        type: integer
+      region:
+        type: string
+      verified:
+        type: boolean
+      avatarUrl:
+        type: string
+        format: uri
+      tiktokPostUrl:
+        type: string
+        format: uri
+        description: "Direct link to the creator's TikTok video or product page"
+  aiIntelligence:
+    type: object
+    properties:
+      confidence:
+        type: number
+      confidenceReason:
+        type: string
+      brand:
+        type: string
+      categoryKeywords:
+        type: array
+        items:
+          type: string
+      buyingSentimentScore:
+        type: number
+      buyingSentimentReason:
+        type: string
+      extractedAt:
+        type: string
+        format: date-time
+  trend:
+    type: object
+    properties:
+      score:
+        type: number
+      direction:
+        type: string
+        enum: [rising, peaked, saturating, stable, declining, emerging, viral, unknown]
+      reason:
+        type: string
+      isTrending:
+        type: boolean
+      calculatedAt:
+        type: string
+        format: date-time
+  discoverySections:
+    type: array
+    items:
+      type: string
+      enum: [top-ads, trending, top-rated, viral]
+  isTopAd:
+    type: boolean
+    description: |
+      Present on API list/detail responses: `true` when `discoverySections` contains `top-ads`.
+      Use query `section=top-ads` or `isAd=true` to list only these products.
+  relatedProducts:
+    type: array
+    description: "Related products from Google Shopping (SearchApi)"
+    items:
+      type: object
+      properties:
+        title:
+          type: string
+        price:
+          type: string
+        thumbnail:
+          type: string
+          format: uri
+        link:
+          type: string
+          format: uri
+        store:
+          type: string
+  creativeCounts:
+    type: object
+    properties:
+      ads:
+        type: integer
+      organic:
+        type: integer
+      reviews:
+        type: integer
+      total:
+        type: integer
+
+  # EchoTik-specific fields (present when source = 'echotik')
+  echotikProductId:
+    type: string
+    description: "TikTok Shop product_id from EchoTik"
+  region:
+    type: string
+    description: "Market region e.g. US, GB, BR"
+  commissionRate:
+    type: number
+    description: "Affiliate commission rate as decimal e.g. 0.13 = 13%"
+  totalSale30d:
+    type: integer
+    description: "Units sold in last 30 days (EchoTik)"
+  totalSale7d:
+    type: integer
+    description: "Units sold in last 7 days (EchoTik)"
+  totalGmv:
+    type: number
+    description: "Total gross merchandise value (EchoTik)"
+  totalGmv30d:
+    type: number
+    description: "GMV in last 30 days (EchoTik)"
+  totalCreators:
+    type: integer
+    description: "Number of TikTok influencers selling this product"
+  salesChannel:
+    type: string
+    enum: [video, live, none]
+    description: "Primary sales driver on TikTok"
+  freeShipping:
+    type: boolean
+  isManagedStore:
+    type: boolean
+    description: "Whether the seller is a TikTok-managed store"
+
+  lastIngestedAt:
+    type: string
+    format: date-time
+  dataSourceUpdatedAt:
+    type: string
+    format: date-time
+  createdAt:
+    type: string
+    format: date-time
+  updatedAt:
+    type: string
+    format: date-time

@@ -1,6 +1,6 @@
 # Known Risks and Open Issues
 
-Last updated: 2026-03-23
+Last updated: 2026-03-27
 
 ---
 
@@ -8,13 +8,14 @@ Last updated: 2026-03-23
 
 ### R-001 — TikTok Data Access Risk
 **Severity:** Critical
-**Status:** Open — being resolved in Week 1
+**Status:** In Progress — Mitigated via EnsembleData and Creative Center integrators
 
 **Description:**
 TikTok's official API has strict access controls and is not publicly available for product/creator data at the level ValidDs needs. The primary data acquisition path is not yet confirmed.
 
 **Mitigation:**
-- Week 1 deliverable is to confirm primary path and document 2 fallbacks
+- Week 1: Confirmed EnsembleData and Creative Center (session) as primary data acquisition paths
+- Week 2: Implemented resilient orchestrator to handle source-specific failures and fallbacks
 - Ingestion layer is designed with a 3-source orchestrator precisely for this risk
 - If all API/data paths are blocked, a scraping-based fallback is possible but slower to implement
 
@@ -51,16 +52,16 @@ Render free tier has no static outbound IP. This forces MongoDB Atlas network ac
 
 ---
 
-### R-004 — Upstash Free Tier Command Limit
+### R-004 — Redis Command Limits
 **Severity:** Low
-**Status:** Monitored
+**Status:** Mitigated (via generalisation)
 
 **Description:**
-Upstash free tier allows 10,000 Redis commands per day. Heavy testing or large ingestion jobs could exhaust this.
+Cloud-hosted Redis free tiers often have command limits (e.g. 10,000 commands/day). Heavy testing or large ingestion jobs could exhaust this.
 
 **Mitigation:**
-- Monitor via Upstash dashboard
-- If hit: temporarily disable caching in dev, or upgrade to pay-as-you-go
+- Monitor via provider dashboard
+- Week 2: Generalized Redis infrastructure; switching providers no longer requires code changes if limits are hit
 - Cache TTLs are set conservatively to reduce command volume
 
 ---
@@ -114,7 +115,6 @@ The following items are known gaps that are deferred to post-V1:
 
 | Item | Reason deferred |
 |---|---|
-| User authentication / accounts | Not needed for V1 data API |
 | Multi-region deployment | V1 is single-region only |
 | Automated database backups | Requires paid Atlas tier |
 | Static outbound IP | Requires paid Render tier |

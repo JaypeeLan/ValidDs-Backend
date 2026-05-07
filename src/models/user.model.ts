@@ -21,7 +21,7 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 export type AuthProvider = 'google' | 'local' | 'tiktok';
-export type UserPlan = 'free' | 'pro' | 'team';
+export type UserPlan = 'free' | 'explorer' | 'pro' | 'premium';
 export type UserRole = 'user' | 'admin';
 export type UserStatus = 'active' | 'suspended' | 'deleted';
 
@@ -99,6 +99,14 @@ export interface IUser {
   plan: UserPlan;
   planExpiresAt?: Date;        // null = no expiry (lifetime / free)
 
+  // Credits
+  creditBalance: number;
+
+  // Stripe Billing
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripePriceId?: string;
+
   // Usage (for quota enforcement per plan)
   usage: IUsageStats;
 
@@ -110,6 +118,7 @@ export interface IUser {
   notifications: INotificationPrefs;
   timezone?: string;
   locale?: string;
+  contentRegion: string;
 
   // Account status
   status: UserStatus;
@@ -130,6 +139,7 @@ export interface IUserDocument extends IUser, Document {
   incrementProductView(): Promise<void>;
   resetDailyUsage(): Promise<void>;
   softDelete(): Promise<void>;
+  deductCredits(amount: number): Promise<boolean>;
 }
 
 export interface IUserModel extends Model<IUserDocument> {
@@ -142,18 +152,21 @@ export interface IUserModel extends Model<IUserDocument> {
 
 // ── Plan limits ───────────────────────────────────────────────────────────────
 
-export const PLAN_LIMITS: Record<UserPlan, { productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
-  free: { productsPerDay: 10, searchesPerDay: 5, savedProductsMax: 10 },
-  pro: { productsPerDay: 500, searchesPerDay: 200, savedProductsMax: 500 },
-  team: { productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 }, // -1 = unlimited
+export const PLAN_LIMITS: Record<UserPlan, { creditsPerMonth: number; productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
+  free:     { creditsPerMonth: 1000,   productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
+  explorer: { creditsPerMonth: 15000,  productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
+  pro:      { creditsPerMonth: 60000,  productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
+  premium:  { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
 };
+
+export const ALLOWED_CONTENT_REGIONS = ['US', 'CA', 'MX', 'UK', 'ES', 'DE', 'IT', 'FR', 'AU', 'NZ'] as const;
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
 const GoogleAuthSchema = new Schema<IGoogleAuth>(
   {
     googleId: { type: String, required: true },
-    refreshToken: { type: String, select: false },  // Never returned by default
+    refreshToken: { type: String },
     tokenExpiresAt: { type: Date },
   },
   { _id: false }
@@ -169,13 +182,13 @@ const TikTokAuthSchema = new Schema<ITikTokAuth>(
 
 const LocalAuthSchema = new Schema<ILocalAuth>(
   {
-    passwordHash: { type: String, select: false },
-    passwordResetToken: { type: String, select: false },
+    passwordHash: { type: String },
+    passwordResetToken: { type: String },
     passwordResetExpiresAt: { type: Date },
     emailVerified: { type: Boolean, default: false },
-    emailVerificationToken: { type: String, select: false },
-    emailVerificationCodeHash: { type: String, select: false },
-    emailVerificationExpiresAt: { type: Date, select: false },
+    emailVerificationToken: { type: String },
+    emailVerificationCodeHash: { type: String },
+    emailVerificationExpiresAt: { type: Date },
   },
   { _id: false }
 );
@@ -224,7 +237,7 @@ const NotificationPrefsSchema = new Schema<INotificationPrefs>(
 const UserSchema = new Schema<IUserDocument, IUserModel>(
   {
     // Identity
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: { type: String, required: true, lowercase: true, trim: true },
     name: { type: String, required: true, trim: true, maxlength: 100 },
     firstName: { type: String, trim: true, maxlength: 50 },
     lastName: { type: String, trim: true, maxlength: 50 },
@@ -235,23 +248,34 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
       type: String,
       enum: ['google', 'local', 'tiktok'] as AuthProvider[],
       required: true,
+      default: 'local',
     },
-    googleAuth: { type: GoogleAuthSchema },
-    tiktokAuth: { type: TikTokAuthSchema },
-    localAuth: { type: LocalAuthSchema },
+    googleAuth: { type: GoogleAuthSchema, select: false },
+    tiktokAuth: { type: TikTokAuthSchema, select: false },
+    localAuth: { type: LocalAuthSchema, select: false },
 
     // Role & plan
     role: {
       type: String,
       enum: ['user', 'admin'] as UserRole[],
       default: 'user',
+      trim: true,
+      set: (v: string) => v ? v.trim().toLowerCase() : v
     },
     plan: {
       type: String,
-      enum: ['free', 'pro', 'team'] as UserPlan[],
+      enum: ['free', 'explorer', 'pro', 'premium'] as UserPlan[],
       default: 'free',
+      trim: true,
+      set: (v: string) => v ? v.trim().toLowerCase() : v
     },
     planExpiresAt: { type: Date },
+
+    creditBalance: { type: Number, default: 1000 }, // Defaults to trial credits
+
+    stripeCustomerId: { type: String, sparse: true },
+    stripeSubscriptionId: { type: String, sparse: true },
+    stripePriceId: { type: String, sparse: true },
 
     // Usage
     usage: { type: UsageStatsSchema, default: () => ({}) },
@@ -277,9 +301,20 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     notifications: { type: NotificationPrefsSchema, default: () => ({}) },
     timezone: { type: String, default: 'UTC' },
     locale: { type: String, default: 'en' },
+    contentRegion: {
+      type: String,
+      enum: ALLOWED_CONTENT_REGIONS,
+      default: 'US'
+    },
 
     // Account status
-    status: { type: String, enum: ['active', 'suspended', 'deleted'] as UserStatus[], default: 'active' },
+    status: {
+      type: String,
+      enum: ['active', 'suspended', 'deleted'] as UserStatus[],
+      default: 'active',
+      trim: true,
+      set: (v: string) => v ? v.trim().toLowerCase() : v
+    },
     lastLoginAt: { type: Date },
     lastLoginIp: { type: String },
     loginCount: { type: Number, default: 0 },
@@ -341,6 +376,15 @@ UserSchema.methods.softDelete = async function (): Promise<void> {
   this.deletedAt = new Date();
   this.email = `deleted_${Date.now()}_${this.email}`; // Free the email for re-registration
   await this.save();
+};
+
+UserSchema.methods.deductCredits = async function (amount: number): Promise<boolean> {
+  if (this.creditBalance < amount) {
+    return false; // Insufficient credits
+  }
+  this.creditBalance -= amount;
+  await this.save();
+  return true;
 };
 
 // ── Static methods ────────────────────────────────────────────────────────────

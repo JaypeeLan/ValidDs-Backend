@@ -13,13 +13,19 @@
  * - No key collision bugs from typos
  */
 
+/** Bump when feed query semantics change so Redis does not serve stale empty/wrong slices. */
+const PRODUCT_FEED_CACHE_REVISION = 'v2';
+
 export const CacheKeys = {
   // Product feed — varies by page + limit + filters
   productFeed: (page: number, limit: number, filters?: string) =>
-    `product:feed:${page}:${limit}${filters ? `:${filters}` : ''}`,
+    `product:feed:${PRODUCT_FEED_CACHE_REVISION}:${page}:${limit}${filters ? `:${filters}` : ''}`,
 
   // Individual product detail
   productDetail: (id: string) => `product:detail:${id}`,
+
+  // Product categories
+  productCategories: () => `product:categories`,
 
   // Product trend signals
   productTrend: (id: string) => `product:trend:${id}`,
@@ -45,6 +51,9 @@ export const CacheKeys = {
 
   // Ingestion state — tracks last successful run per source
   ingestionLastRun: (source: string) => `ingestion:last-run:${source}`,
+
+  // EchoTik category tree (id -> { name, level, parentId }) — keyed by language
+  echotikCategoryTree: (language: string) => `echotik:categories:${language}`,
 };
 
 /**
@@ -57,6 +66,7 @@ export const CACHE_TTL = {
   PRODUCT_FEED: 300,       // 5 minutes — feeds refresh relatively often
   PRODUCT_DETAIL: 600,     // 10 minutes — detail pages can be slightly staler
   PRODUCT_TREND: 180,      // 3 minutes — trend data changes quickly
+  CATEGORIES: 3600,        // 1 hour — DB scans for distinct take time
   VIDEO_FEED: 300,         // 5 minutes
   VIDEO_DETAIL: 600,       // 10 minutes
   TRENDS: 300,             // 5 minutes
@@ -64,6 +74,7 @@ export const CACHE_TTL = {
   SUPPLIER: 1800,          // 30 minutes — supplier data is relatively stable
   HEALTH_CHECK: 10,        // 10 seconds — brief cache to protect the DB
   INGESTION_STATE: 3600,   // 1 hour — just metadata, not product data
+  ECHOTIK_CATEGORIES: 7 * 24 * 3600, // 7 days — taxonomy changes very rarely
 } as const;
 
 /**

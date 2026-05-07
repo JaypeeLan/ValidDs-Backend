@@ -82,5 +82,7 @@ export function verifyApiKey(rawKey: string, storedHash: string): boolean {
  * Parsed from comma-separated CORS_ALLOWED_ORIGINS env var.
  */
 export function getAllowedOrigins(): string[] {
-  return env.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
+  const envOrigins = env.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
+  const localOrigins = ['http://localhost:3000', 'http://localhost:3001'];
+  return Array.from(new Set([...envOrigins, ...localOrigins]));
 }

@@ -1,0 +1,61 @@
+get:
+  tags: [Profile]
+  summary: Get current user profile
+  security: [{ BearerAuth: [] }]
+  responses:
+    '200':
+      description: Profile retrieved
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user: { $ref: '../components/schemas/User.yaml' }
+
+patch:
+  tags: [Profile]
+  summary: Update user profile
+  security: [{ BearerAuth: [] }]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            name: { type: string, minLength: 2, maxLength: 100 }
+            firstName: { type: string, minLength: 1, maxLength: 50 }
+            lastName: { type: string, minLength: 1, maxLength: 50 }
+            avatarUrl: { type: string, format: uri }
+            timezone: { type: string }
+            locale: { type: string }
+            contentRegion: 
+              type: string
+              enum: [US, CA, MX, UK, ES, DE, IT, FR, AU, NZ]
+            notifications:
+              type: object
+              properties:
+                emailOnNewTrend: { type: boolean }
+                emailOnSavedProductUpdate: { type: boolean }
+                emailMarketing: { type: boolean }
+  responses:
+    '200':
+      description: Profile updated
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user: { $ref: '../components/schemas/User.yaml' }
+    '400':
+      $ref: '../components/responses/Standard.yaml#/BadRequestResponse'

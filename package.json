@@ -3,19 +3,52 @@
   "version": "1.0.0",
   "description": "ValidDs backend — TikTok product research and validation platform for dropshippers",
   "main": "dist/server.js",
+  "author": "Supreme Ecom",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Valid-Ds/ValidDs-Backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Valid-Ds/ValidDs-Backend/issues"
+  },
+  "homepage": "https://github.com/Valid-Ds/ValidDs-Backend#readme",
+  "keywords": [
+    "tiktok",
+    "product-research",
+    "dropshipping",
+    "ecommerce",
+    "scraper",
+    "backend",
+    "api",
+    "express",
+    "mongodb",
+    "redis"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/docs && cp -R src/docs/openapi dist/docs/openapi",
     "start": "node dist/server.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
-    "seed": "ts-node scripts/seed.ts",
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
-    "test-ingestion": "ts-node scripts/test-ingestion.ts"
+    "clear-db": "ts-node scripts/clear-db.ts",
+    "ingest-products": "ts-node scripts/ingest-products.ts",
+    "ingest-creatives": "ts-node scripts/ingest-creatives.ts",
+    "prewarm-echotik-images": "ts-node scripts/prewarm-echotik-images.ts",
+    "make-admin": "ts-node src/scripts/make-admin.ts",
+    "tester:ui": "node tools/backend-tester/server.js",
+    "frontend:react": "node tools/full-frontend/server.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@sentry/node": "^7.99.0",
     "axios": "^1.6.7",
     "bullmq": "^5.1.6",
@@ -27,8 +60,15 @@
     "ioredis": "^5.3.2",
     "mongo-sanitize": "^1.1.0",
     "mongoose": "^8.1.1",
+    "node-fetch": "^2.7.0",
     "prom-client": "^15.1.0",
+    "prometheus-remote-write": "^0.5.1",
+    "socket.io": "^4.8.3",
+    "stripe": "^16.12.0",
+    "swagger-parser": "^10.0.3",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.0",
+    "yamljs": "^0.3.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
@@ -37,9 +77,13 @@
     "@types/jest": "^29.5.11",
     "@types/mongo-sanitize": "^1.0.3",
     "@types/node": "^20.11.5",
+    "@types/socket.io": "^3.0.1",
+    "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^9.0.7",
+    "@types/yamljs": "^0.2.34",
     "@typescript-eslint/eslint-plugin": "^6.19.1",
     "@typescript-eslint/parser": "^6.19.1",
+    "docx": "^9.6.1",
     "eslint": "^8.56.0",
     "jest": "^29.7.0",
     "mongodb-memory-server": "^10.1.4",

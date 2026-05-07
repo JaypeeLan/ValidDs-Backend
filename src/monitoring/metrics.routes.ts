@@ -24,6 +24,10 @@ const log = logger.child({ module: 'metrics-server' });
 let metricsServer: http.Server | null = null;
 
 export async function startMetricsServer(): Promise<void> {
+  if (env.NODE_ENV === 'development') {
+    return; // No metrics server in dev
+  }
+
   if (!env.METRICS_ENABLED) return;
 
   const app = express();

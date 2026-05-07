@@ -114,17 +114,68 @@ export class Logger {
 function serializeError(err: unknown): Record<string, unknown> | undefined {
   if (!err) return undefined;
   if (err instanceof Error) {
+    const anyErr = err as any;
+    const isAxiosError = anyErr?.isAxiosError === true;
+
     return {
       type: err.name,
       message: err.message,
       stack: err.stack,
-      // Include any extra fields attached to the error
-      ...Object.fromEntries(
-        Object.entries(err as unknown as Record<string, unknown>).filter(
-          ([k]) => !['name', 'message', 'stack'].includes(k)
-        )
-      ),
+      ...(isAxiosError
+        ? {
+            axios: true,
+            code: typeof anyErr.code === 'string' ? anyErr.code : undefined,
+            status: typeof anyErr.response?.status === 'number' ? anyErr.response.status : undefined,
+            method: typeof anyErr.config?.method === 'string' ? anyErr.config.method : undefined,
+            url: typeof anyErr.config?.url === 'string' ? anyErr.config.url : undefined,
+          }
+        : {}),
+      ...safeErrorExtras(anyErr),
     };
   }
+
+  if (typeof err === 'object') {
+    return {
+      type: 'NonError',
+      ...safeObject(err as Record<string, unknown>),
+    };
+  }
+
   return { raw: String(err) };
+}
+
+function safeErrorExtras(err: Record<string, unknown>): Record<string, unknown> {
+  const extras: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(err)) {
+    if (['name', 'message', 'stack'].includes(key)) continue;
+    if (value === null) {
+      extras[key] = null;
+      continue;
+    }
+    const t = typeof value;
+    if (t === 'string' || t === 'number' || t === 'boolean') {
+      extras[key] = value;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      extras[key] = value
+        .slice(0, 20)
+        .map((v) => (v === null || ['string', 'number', 'boolean'].includes(typeof v) ? v : String(v)));
+      continue;
+    }
+  }
+
+  return extras;
+}
+
+function safeObject(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === null) out[key] = null;
+    else if (['string', 'number', 'boolean'].includes(typeof value)) out[key] = value;
+    else if (Array.isArray(value)) out[key] = value.slice(0, 20).map((v) => String(v));
+    else out[key] = String(value);
+  }
+  return out;
 }

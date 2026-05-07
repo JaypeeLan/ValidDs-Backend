@@ -1,0 +1,535 @@
+health:
+  get:
+    summary: Server Health
+    description: Returns server metrics such as memory, CPU, DB connectivity, and job statuses.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  example:
+                    system:
+                      uptimeSeconds: 1515
+                      osUptimeSeconds: 147585
+                      memory:
+                        rssMb: 110
+                        heapTotalMb: 60
+                        heapUsedMb: 50
+                      cpuLoadAvg: [1.2, 1.0, 0.9]
+                    database:
+                      mongoStatus: 'connected'
+                      redisStatus: 'connected'
+                      redisLatencyMs: 2
+                    jobs:
+                      timers:
+                        productRefresh: true
+                        staleCleanup: true
+                        hashtagPipeline: true
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+      '403':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+
+analyticsUsers:
+  get:
+    summary: User Analytics
+    description: Returns breakdown of users by plan and status, plus daily acquisition counts.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  example:
+                    totalUsers: 154
+                    newUsersToday: 12
+                    usersByPlan:
+                      free: 100
+                      pro: 30
+                      validator: 24
+                    usersByStatus:
+                      active: 140
+                      suspended: 14
+
+analyticsProducts:
+  get:
+    summary: Product Analytics
+    description: Returns overview of the product ingestion pipeline and category breakdown.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  example:
+                    totalProducts: 1205
+                    freshProducts24h: 305
+                    productsBySource:
+                      ensemble: 1000
+                    topCategories:
+                      "Home & Kitchen": 400
+                      "Beauty & Personal Care": 350
+
+analyticsCreatives:
+  get:
+    summary: Creative Analytics
+    description: |
+      Returns TikTok creative (video) inventory: document counts, total video slots (primary + related),
+      ingestion in the last 24h, breakdown by feed section, ads vs organic, and top L1 categories.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    totalCreatives:
+                      type: integer
+                      description: Number of creative documents in MongoDB
+                    totalVideos:
+                      type: integer
+                      description: Sum of primary videos plus all relatedVideos per document
+                    freshCreatives24h:
+                      type: integer
+                      description: Creative documents ingested in the last 24 hours (ingestedAt)
+                    creativesBySection:
+                      type: object
+                      additionalProperties:
+                        type: integer
+                      example:
+                        trending: 120
+                        top-ads: 45
+                    creativesByAdType:
+                      type: object
+                      properties:
+                        ads:
+                          type: integer
+                        organic:
+                          type: integer
+                    topCategories:
+                      type: object
+                      additionalProperties:
+                        type: integer
+                      description: Top 10 by categoryL1 (mirrors product taxonomy when set)
+                  example:
+                    totalCreatives: 800
+                    totalVideos: 2100
+                    freshCreatives24h: 40
+                    creativesBySection:
+                      trending: 300
+                      top-ads: 100
+                      influencer-reviews: 150
+                      tutorials: 120
+                      viral-unboxings: 130
+                    creativesByAdType:
+                      ads: 200
+                      organic: 600
+                    topCategories:
+                      "Home & Kitchen": 250
+                      "Beauty & Personal Care": 180
+
+users:
+  get:
+    summary: List Users
+    description: Returns a paginated list of users with filtering options.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 20
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum: [active, suspended, deleted]
+      - in: query
+        name: plan
+        schema:
+          type: string
+          enum: [free, trial, pro, team, starter, validator, scale]
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Search by name or email
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    users:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/User.yaml'
+                    pagination:
+                      $ref: '../components/schemas/Common.yaml#/Pagination'
+
+products:
+  get:
+    summary: List Products
+    description: Returns a paginated list of products with filtering options.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 20
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum: [active, archived, stale]
+      - in: query
+        name: source
+        schema:
+          type: string
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Search by title or description
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    products:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/Product.yaml'
+                    pagination:
+                      $ref: '../components/schemas/Common.yaml#/Pagination'
+
+userDelete:
+  delete:
+    summary: Delete User
+    description: Permanently delete a user account.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+
+userStatusUpdate:
+  patch:
+    summary: Update User Status
+    description: Update user account status (active | suspended).
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - status
+            properties:
+              status:
+                type: string
+                enum: [active, suspended]
+    responses:
+      '200':
+        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+
+productDelete:
+  delete:
+    summary: Delete Product
+    description: Permanently delete a product.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: path
+        name: productId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+
+transactions:
+  get:
+    summary: List Transactions
+    description: List all transaction records.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 20
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum: [pending, paid, failed, refunded]
+      - in: query
+        name: mode
+        schema:
+          type: string
+          enum: [test, live]
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    transactions:
+                      type: array
+                      items:
+                        type: object
+                    pagination:
+                      $ref: '../components/schemas/Common.yaml#/Pagination'
+
+  post:
+    summary: Create Transaction
+    description: Store a newly created transaction record.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - userId
+              - amount
+            properties:
+              userId:
+                type: string
+              userEmail:
+                type: string
+              amount:
+                type: number
+              currency:
+                type: string
+                default: 'USD'
+              status:
+                type: string
+                enum: [pending, paid, failed, refunded]
+                default: 'pending'
+              mode:
+                type: string
+                enum: [test, live]
+                default: 'test'
+              provider:
+                type: string
+                default: 'stripe'
+              reference:
+                type: string
+              stripePaymentIntentId:
+                type: string
+              stripeCustomerId:
+                type: string
+              metadata:
+                type: object
+                additionalProperties:
+                  type: string
+    responses:
+      '201':
+        description: Transaction created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    transaction:
+                      type: object
+
+waitlist:
+  get:
+    summary: List waitlist entries
+    description: |
+      Returns a paginated list of waitlist email signups, newest first, along
+      with high-level stats (total, last 7 days, last 24 hours). Admin only.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: page
+        schema: { type: integer, default: 1, minimum: 1 }
+      - in: query
+        name: limit
+        schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+      - in: query
+        name: q
+        description: Case-insensitive substring match on the email.
+        schema: { type: string }
+      - in: query
+        name: source
+        description: Filter by exact attribution source (e.g. `landing-hero`).
+        schema: { type: string, maxLength: 64 }
+      - in: query
+        name: from
+        description: Inclusive lower bound on `createdAt` (ISO-8601).
+        schema: { type: string, format: date-time }
+      - in: query
+        name: to
+        description: Inclusive upper bound on `createdAt` (ISO-8601).
+        schema: { type: string, format: date-time }
+    responses:
+      '200':
+        description: Waitlist page retrieved successfully.
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        entries:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              _id:       { type: string }
+                              email:     { type: string, format: email }
+                              source:    { type: string, nullable: true }
+                              referrer:  { type: string, nullable: true }
+                              ipAddress: { type: string, nullable: true }
+                              userAgent: { type: string, nullable: true }
+                              createdAt: { type: string, format: date-time }
+                              updatedAt: { type: string, format: date-time }
+                        pagination:
+                          $ref: '../components/schemas/Common.yaml#/Pagination'
+                        stats:
+                          type: object
+                          properties:
+                            total:       { type: integer, example: 1248 }
+                            last7Days:   { type: integer, example: 137 }
+                            last24Hours: { type: integer, example: 21 }
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '403':
+        $ref: '../components/responses/Standard.yaml#/ForbiddenResponse'

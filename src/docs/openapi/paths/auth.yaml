@@ -1,0 +1,145 @@
+register:
+  post:
+    tags: [Auth]
+    summary: Initial registration step
+    description: Sends a verification code to the provided email address.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email]
+            properties:
+              email: { type: string, format: email }
+    responses:
+      '200':
+        $ref: '../components/responses/Standard.yaml#/OkResponse'
+      '400':
+        $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+
+login:
+  post:
+    tags: [Auth]
+    summary: Login with email and password
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email, password]
+            properties:
+              email: { type: string, format: email }
+              password: { type: string, format: password }
+    responses:
+      '200':
+        description: Login successful
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        user: { $ref: '../components/schemas/User.yaml' }
+                        token: { type: string }
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
+sendCode:
+  post:
+    tags: [Auth]
+    summary: Resend verification code
+    security: [{ BearerAuth: [] }]
+    responses:
+      '200':
+        $ref: '../components/responses/Standard.yaml#/OkResponse'
+
+verifyCode:
+  post:
+    tags: [Auth]
+    summary: Verify email and complete registration
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email, code, password]
+            properties:
+              email: { type: string, format: email }
+              code: { type: string, pattern: '^\d{6}$' }
+              password: { type: string, minLength: 8 }
+              name: { type: string }
+    responses:
+      '200':
+        $ref: '../components/responses/Standard.yaml#/OkResponse'
+
+forgotPassword:
+  post:
+    tags: [Auth]
+    summary: Request password reset
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email]
+            properties:
+              email: { type: string, format: email }
+    responses:
+      '200':
+        $ref: '../components/responses/Standard.yaml#/OkResponse'
+
+resetPassword:
+  post:
+    tags: [Auth]
+    summary: Reset password with token
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email, token, newPassword]
+            properties:
+              email: { type: string, format: email }
+              token: { type: string }
+              newPassword: { type: string, minLength: 8 }
+    responses:
+      '200':
+        $ref: '../components/responses/Standard.yaml#/OkResponse'
+
+me:
+  get:
+    tags: [Auth]
+    summary: Get current authenticated user
+    security: [{ BearerAuth: [] }]
+    responses:
+      '200':
+        description: User profile retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        user: { $ref: '../components/schemas/User.yaml' }
+
+logout:
+  post:
+    tags: [Auth]
+    summary: Logout current user
+    security: [{ BearerAuth: [] }]
+    responses:
+      '200':
+        $ref: '../components/responses/Standard.yaml#/OkResponse'

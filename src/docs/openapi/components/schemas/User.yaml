@@ -1,0 +1,64 @@
+type: object
+properties:
+  id:
+    type: string
+    example: 659e1234ac123b7890def123
+  email:
+    type: string
+    format: email
+    example: user@example.com
+  name:
+    type: string
+    example: John Doe
+  firstName:
+    type: string
+    example: John
+  lastName:
+    type: string
+    example: Doe
+  avatarUrl:
+    type: string
+    format: uri
+  authProvider:
+    type: string
+    enum: [google, local, tiktok]
+    example: local
+  plan:
+    type: string
+    enum: [free, trial, pro, team, starter, validator, scale]
+    example: free
+  planExpiresAt:
+    type: string
+    format: date-time
+    nullable: true
+  role:
+    type: string
+    enum: [user, admin]
+    example: user
+  status:
+    type: string
+    enum: [active, suspended, deleted]
+    example: active
+  usage:
+    type: object
+    properties:
+      productsViewedToday:
+        type: integer
+      searchesToday:
+        type: integer
+      lastActivityAt:
+        type: string
+        format: date-time
+  lastLoginAt:
+    type: string
+    format: date-time
+  createdAt:
+    type: string
+    format: date-time
+  updatedAt:
+    type: string
+    format: date-time
+  contentRegion:
+    type: string
+    enum: [US, CA, MX, UK, ES, DE, IT, FR, AU, NZ]
+    example: US

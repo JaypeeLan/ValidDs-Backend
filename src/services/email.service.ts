@@ -11,7 +11,26 @@ export const EmailService = {
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.RESEND_FROM;
 
-    if (!apiKey || !from) {
+    if (!apiKey || !from || process.env.NODE_ENV === 'development') {
+      console.log('\n' + '='.repeat(40));
+      console.log('📬  EMAIL SENT (DEVELOPMENT)');
+      console.log('='.repeat(40));
+      console.log(`To:      ${input.to}`);
+      console.log(`Subject: ${input.subject}`);
+      
+      // Extract numeric codes for easier viewing
+      const codeMatch = input.html.match(/>(\d{6})</);
+      if (codeMatch) {
+        console.log('\n🔑  VERIFICATION CODE:');
+        console.log('    ' + codeMatch[1]);
+        console.log('');
+      }
+
+      console.log('--- HTML CONTENT ---');
+      console.log(input.html);
+      console.log('='.repeat(40) + '\n');
+      
+      if (process.env.NODE_ENV === 'development') return;
       throw new AppError(500, 'Email service not configured', 'EMAIL_NOT_CONFIGURED');
     }
 

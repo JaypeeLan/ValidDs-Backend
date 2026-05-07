@@ -2,9 +2,7 @@
 
 ## Overview
 
-ValidDs backend is an Express + TypeScript API server that ingests TikTok product data, stores it in MongoDB, and serves it through a REST API to the ValidDs frontend.
-
-The system is designed for V1 speed of delivery while remaining structurally clean enough to scale through the full 5–6 month build.
+ValidDs backend is an Express + TypeScript API server that powers TikTok Shop product discovery. It ingests structured product data from EchoTik, enriches it with real TikTok creator data (EnsembleData) and Google Shopping reviews (SearchApi), stores results in MongoDB, and serves them via a REST API to the ValidDs frontend.
 
 ---
 
@@ -22,38 +20,49 @@ The system is designed for V1 speed of delivery while remaining structurally cle
 │  Helmet → CORS → Body Parser → Request Logger →               │
 │  Rate Limiter → Sanitizer → Routes → Error Handler            │
 │                                                                │
-│  Routes: /api/v1/products  /videos  /trends  /stores          │
-│          /suppliers  /health  /ready                           │
-└───────┬───────────────────────┬────────────────────────────────┘
+│  Routes: /api/v1/auth  /profile  /products  /creatives        │
+│          /admin  /billing  /jobs  /health  /metrics           │
+└───────┬───────────────────────┬───────────────────────────────┘
         │                       │
-┌───────▼──────┐     ┌──────────▼─────────────────────────────┐
-│  Redis       │     │  MongoDB Atlas                          │
-│  (Upstash)   │     │                                         │
-│              │     │  Collections:                           │
-│  - Cache     │     │  products / videos / trends             │
-│  - Queues    │     │  stores / suppliers                     │
-│  - Rate      │     │                                         │
-│    limiting  │     └──────────────────────────────────────────┘
-└──────────────┘
+┌───────▼──────┐     ┌──────────▼──────────────────────────────┐
+│  Redis       │     │  MongoDB Atlas                           │
+│              │     │                                          │
+│  - API cache │     │  Collections:                            │
+│  - Image URL │     │  products  creatives  users              │
+│    resolution│     │  transactions                            │
+│  - Freshness │     │                                          │
+└──────────────┘     └─────────────────────────────────────────┘
         │
-┌───────▼─────────────────────────────────────────────────────┐
-│                   Ingestion Layer                            │
-│                                                             │
-│  Orchestrator                                               │
-│    ├── Primary: TikTok API / Creative Center data           │
-│    ├── Fallback A: Third-party TikTok data provider         │
-│    └── Fallback B: Scraping / alternative source            │
-│                                                             │
-│  BullMQ job queues (backed by Redis)                        │
-│  Scheduled refresh jobs (product, trend, store)             │
-└─────────────────────────────────────────────────────────────┘
+┌───────▼────────────────────────────────────────────────────────┐
+│                   Data Ingestion Pipeline                      │
+│                                                                │
+│  EchoTik API (Primary — TikTok Shop structured data):         │
+│    ├─ /product/list   — paginated, sorted by 30d sales        │
+│    ├─ /product/comment — verified buyer reviews               │
+│    └─ /batch/cover/download — image temp URL exchange         │
+│                                                                │
+│  EnsembleData (Creator Enrichment):                           │
+│    └─ /keyword/full-search — find real TikTok creator         │
+│         promoting the product → overwrites primaryCreator     │
+│                                                                │
+│  SearchApi (Review Enrichment):                               │
+│    ├─ google_shopping → product_token                         │
+│    └─ google_product  → reviews + relatedProducts             │
+│                                                                │
+│  CreativeService — TikTok video ingestion per product         │
+│                                                                │
+│  Image Resolution (serve-time, not ingest-time):             │
+│    └─ echotik.image.ts → Redis cache → /batch/cover/download  │
+│                                                                │
+│  Freshness Tracking → MongoDB → Cache invalidation            │
+└────────────────────────────────────────────────────────────────┘
         │
 ┌───────▼─────────────────────────────────────────────────────┐
 │                   Observability                              │
 │                                                             │
 │  Sentry         — error tracking                            │
-│  Prometheus     — metrics (/metrics endpoint)               │
-│  Grafana Cloud  — dashboards and alerting                   │
+│  Prometheus     — metrics collector and Remote Write        │
+│  Grafana Cloud  — persistent metrics, dashboards, alerting  │
 │  Custom logger  — structured JSON logs (stdout → Render)    │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -63,22 +72,57 @@ The system is designed for V1 speed of delivery while remaining structurally cle
 ## Layer Responsibilities
 
 ### API Layer (`src/api/`)
-Handles HTTP only. Controllers parse requests, call services, and format responses. They never touch the database directly.
+Handles HTTP only. Controllers parse requests, call services, and format responses. They never touch the database directly. Product controllers resolve EchoTik image URLs at serve time via `toPlainWithImages()`.
 
 ### Service Layer (`src/services/`)
-All business logic lives here. Services call repositories and apply any rules, transformations, or cross-cutting logic before returning data to controllers.
+All business logic lives here. Key services:
+- `SearchApiService` — Google Shopping review and related product fetching
+- `DiscoveryService` — categorizes products into discovery sections
+- `CreativeService` — fetches and ingests TikTok creative videos
+- `ProductService` — product feed, search, and cleanup logic
 
-### Repository Layer (`src/db/repositories/`)
-All database queries. One repository file per entity. Services call repositories — never raw Mongoose models.
-
-### Ingestion Layer (`src/ingestion/`)
-Responsible for pulling data from external sources (TikTok and fallbacks), transforming raw data into the normalised internal shape, and writing it to MongoDB. Runs via BullMQ background jobs on a schedule.
+### Model Layer (`src/models/`)
+Mongoose schemas and documents. All database access goes through `src/db/repositories/`.
 
 ### Cache Layer (`src/cache/`)
-Redis-backed cache sitting between the service layer and the database. All cache keys and TTLs are centralised in `cache.keys.ts`. Cache failures are non-fatal — a miss falls through to the database.
+Redis-backed cache. Used for:
+- API response caching (generic TTL)
+- EchoTik image URL resolution (`echotik:img:<url>`, 20h TTL)
+- Freshness tracking (`ingestion:last-run:<entity>`)
+
+Cache failures are non-fatal — a miss falls through to the database or external API.
 
 ### Freshness Layer (`src/freshness/`)
-Tracks when each entity type was last successfully updated. Adds freshness metadata to API responses so the frontend can show "last updated X minutes ago". Triggers alerts if data exceeds its staleness threshold.
+System-level (Redis-backed) tracking of when each entity type was last successfully ingested. Separate from document-level `status` field (`active` | `stale` | `archived`).
+
+### Data Ingestion Pipeline (`src/ingestion/`)
+
+**EchoTik pipeline** (`src/ingestion/echotik/`) — primary source:
+- Fetches structured TikTok Shop product data
+- No AI extraction required — data is already structured
+- Real pricing, ratings, sales figures, image gallery, commission rates
+
+**EnsembleData** (`src/ingestion/ensemble/`) — creator enrichment:
+- Used post-ingest to resolve real TikTok creators promoting each product
+- `primaryCreator` is overwritten with the creator of the highest-view post found
+
+**SearchApi** (`src/services/search.service.ts`) — review enrichment:
+- Three-step: google_shopping → product_token → google_product → reviews
+
+---
+
+## API Response Format
+
+All success responses follow a standardized format:
+
+```json
+{
+  "success": true,
+  "message": "Product retrieved",
+  "statusCode": 200,
+  "data": { }
+}
+```
 
 ---
 
@@ -93,23 +137,8 @@ Request → Middleware stack
             └── Miss → Repository (MongoDB)
                      → Cache the result
                      → return response
-        → Freshness metadata appended
+        → (EchoTik products) resolve image URLs via echotik.image.ts
         → Response
-```
-
-## Data Flow (Ingestion Path)
-
-```
-Scheduler / BullMQ job trigger
-  → Orchestrator checks primary source availability
-  → Ingestion client fetches raw data
-      └── Failure → switch to Fallback A
-      └── Failure → switch to Fallback B
-      └── All fail → alert + skip run
-  → Transformer normalises raw data to internal schema
-  → Repository upserts records in MongoDB
-  → FreshnessService.markUpdated() called
-  → Cache invalidated for affected entity type
 ```
 
 ---
@@ -123,11 +152,14 @@ See `docs/decision-log.md` for full reasoning. Summary:
 | Runtime | TypeScript / Node.js | Team familiarity, strong ecosystem |
 | Framework | Express | Simple, well-understood, minimal magic |
 | Database | MongoDB (Mongoose) | Flexible schema for evolving product data |
-| Cache | Redis (Upstash) | Serverless, free tier, BullMQ compatible |
+| Cache | Redis | Fast cache; also used for image URL resolution |
+| Product source | EchoTik | Structured TikTok Shop data — no AI extraction cost |
+| Creator data | EnsembleData | Real TikTok @handles and engagement metrics |
+| Reviews | SearchApi | Google Shopping reviews + related products |
+| Image serving | Serve-time resolution | volces.com URLs expire 24h; store originals, resolve at request time |
 | Deployment | Render | Simplest free-tier deployment path |
 | Error tracking | Sentry | Best-in-class free tier |
-| Metrics | Prometheus + Grafana Cloud | Standard observability stack, free tier |
-| Logger | Custom (no Pino) | Zero dependency, full control over output format |
+| Metrics | Prometheus + Grafana Cloud | Standard observability stack |
 
 ---
 
@@ -138,9 +170,9 @@ See `docs/decision-log.md` for full reasoning. Summary:
 - **CORS**: Explicit origin allowlist — no wildcard in production
 - **Input**: MongoDB operator injection + XSS stripped on every request
 - **Rate limiting**: Global 100 req/15min + strict 10 req/15min on sensitive routes
-- **Authentication**: API key (internal) + JWT (user-facing, for future use)
+- **Authentication**: JWT (user-facing) + internal API key (service-to-service)
 - **Key storage**: API keys stored as SHA-256 hashes. Raw keys never persisted.
-- **Field encryption**: AES-256-GCM for sensitive fields (credentials, tokens) in MongoDB
+- **Field encryption**: AES-256-GCM for sensitive fields in MongoDB
 - **Secrets**: All credentials in environment variables. Never in code or logs.
 
 ---
@@ -148,7 +180,7 @@ See `docs/decision-log.md` for full reasoning. Summary:
 ## Deployment Architecture (V1)
 
 ```
-GitHub → push to main
+GitHub → push to staging branch
        → Render auto-deploy
        → npm install + npm run build
        → node dist/server.js
@@ -157,12 +189,10 @@ GitHub → push to main
 
 External services:
   MongoDB Atlas M0 (free) — US East
-  Upstash Redis (free)    — US East
+  Redis (Upstash free)    — US East
   Sentry (free)           — cloud
   Grafana Cloud (free)    — cloud
 ```
-
-All external services on free tiers. No infrastructure to manage.
 
 ---
 
@@ -170,8 +200,9 @@ All external services on free tiers. No infrastructure to manage.
 
 - Render free tier sleeps after 15 minutes of inactivity (~30s cold start)
 - MongoDB Atlas M0 has no automated backups
-- Upstash Redis free tier limited to 10,000 commands/day
-- No static outbound IP on Render free → MongoDB Atlas uses `0.0.0.0/0` allowlist
+- EchoTik image URLs expire after 24 hours (mitigated by serve-time resolution + Redis cache)
+- EchoTik API has usage quotas — contact support to increase if ingestion fails mid-run
+- EnsembleData rate-limited to 1 request per 2 seconds — adds latency per product during ingestion
 - Single-instance deployment only (no horizontal scaling on free tier)
 
 See `docs/risks.md` for full risk register.

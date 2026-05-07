@@ -9,8 +9,6 @@ const log = logger.child({ module: 'metrics' });
  * Default Node.js metrics (CPU, memory, event loop) are collected automatically.
  *
  * Custom metrics defined here:
- *   - http_requests_total          — request count by method, route, status
- *   - http_request_duration_ms     — response time histogram
  *   - ingestion_jobs_total         — ingestion job runs by source and status
  *   - ingestion_records_ingested   — number of records ingested per run
  *   - cache_hits_total / misses    — Redis cache efficiency

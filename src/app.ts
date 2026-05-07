@@ -5,13 +5,15 @@ import cors from 'cors';
 import { env } from './config/env.validation';
 import { requestLoggerMiddleware } from './middleware/request-logger.middleware';
 import { sanitizeMiddleware } from './middleware/sanitize.middleware';
-import { globalLimiter } from './middleware/rate-limit.middleware';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware';
 import { getAllowedOrigins } from './security/encryption';
 import { healthRouter } from './api/index';
 import apiRouter from './api/index';
 import { Sentry } from './monitoring/sentry';
-import { httpRequestsTotal, httpRequestDurationMs } from './monitoring/metrics';
+import { metricsMiddleware } from './middleware/metrics.middleware';
+import swaggerUi from 'swagger-ui-express';
+import { getSwaggerSpec } from './docs/swagger.provider';
+import { handleStripeWebhook } from './api/webhooks/stripe.webhook.controller';
 
 /**
  * Creates and configures the Express application.
@@ -20,21 +22,27 @@ import { httpRequestsTotal, httpRequestDurationMs } from './monitoring/metrics';
  *  1. Sentry request handler          — must be first
  *  2. Helmet                          — security headers
  *  3. CORS                            — origin whitelist
- *  4. Body parsers                    — JSON + URL-encoded
- *  5. Request logger + context seed   — assigns requestId, starts AsyncLocalStorage
- *  6. Rate limiter                    — global throttle
+ *  4. Stripe webhook (raw JSON body) — must run before express.json
+ *  5. Body parsers                    — JSON + URL-encoded
+ *  6. Request logger + context seed   — assigns requestId, starts AsyncLocalStorage
  *  7. Sanitizer                       — strips MongoDB operators + XSS from inputs
  *  8. Routes                          — health + API
- *  9. Prometheus request metrics      — tracks after routing
- * 10. 404 handler                     — catches unmatched routes
- * 11. Sentry error handler            — forwards errors to Sentry
- * 12. Global error handler            — formats error responses (must be last)
+ *  9. 404 handler                     — catches unmatched routes
+ * 10. Sentry error handler            — forwards errors to Sentry
+ * 11. Global error handler            — formats error responses (must be last)
  */
-export function createApp(): Application {
+export async function createApp(): Promise<Application> {
   const app = express();
 
   // ── 1. Sentry request handler ─────────────────────────────────────────────
-  app.use(Sentry.Handlers.requestHandler());
+  if (env.NODE_ENV !== 'development') {
+    app.use(Sentry.Handlers.requestHandler());
+  }
+
+  // ── 1.5 Prometheus Metrics Middleware ─────────────────────────────────────
+  if (env.METRICS_ENABLED && env.NODE_ENV !== 'development') {
+    app.use(metricsMiddleware);
+  }
 
   // ── 2. Helmet — security headers ─────────────────────────────────────────
   app.use(
@@ -42,9 +50,9 @@ export function createApp(): Application {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
-          styleSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:'],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https://validator.swagger.io'],
           connectSrc: ["'self'"],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
@@ -88,18 +96,33 @@ export function createApp(): Application {
     })
   );
 
-  // ── 4. Body parsers ───────────────────────────────────────────────────────
+  // ── 4. Stripe webhook (raw body required for signature verification) ──────
+  app.post(
+    `/api/${env.API_VERSION}/webhooks/stripe`,
+    express.raw({ type: 'application/json' }),
+    handleStripeWebhook
+  );
+
+  // ── 5. Body parsers ───────────────────────────────────────────────────────
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-  // ── 5. Request logger + context ───────────────────────────────────────────
+  // ── 6. Request logger + context ───────────────────────────────────────────
   app.use(requestLoggerMiddleware);
-
-  // ── 6. Rate limiter ───────────────────────────────────────────────────────
-  app.use(globalLimiter);
 
   // ── 7. Sanitizer ──────────────────────────────────────────────────────────
   app.use(sanitizeMiddleware);
+
+  // ── 7.5 Swagger Documentation ─────────────────────────────────────────────
+  const swaggerSpec = await getSwaggerSpec();
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'ValidDs API Documentation',
+    swaggerOptions: {
+      persistAuthorization: true,
+      filter: true,
+      displayRequestDuration: true,
+    },
+  }));
 
   // ── 8. Routes ─────────────────────────────────────────────────────────────
   // Health checks at root level (not versioned — required by Render health check config)
@@ -108,31 +131,17 @@ export function createApp(): Application {
   // All API routes under /api/v1
   app.use(`/api/${env.API_VERSION}`, apiRouter);
 
-  // ── 9. Prometheus metrics hook ────────────────────────────────────────────
-  if (env.METRICS_ENABLED) {
-    app.use((_req, res, next) => {
-      const start = Date.now();
-      res.on('finish', () => {
-        const route = (_req.route?.path as string) ?? _req.path;
-        const labels = {
-          method: _req.method,
-          route,
-          status_code: String(res.statusCode),
-        };
-        httpRequestsTotal.inc(labels);
-        httpRequestDurationMs.observe(labels, Date.now() - start);
-      });
-      next();
-    });
-  }
+  // ── 9. [Removed manual Prometheus hook] ──────────────────────────────────
 
-  // ── 10. 404 ───────────────────────────────────────────────────────────────
+  // ── 9. 404 ───────────────────────────────────────────────────────────────
   app.use(notFoundMiddleware);
 
-  // ── 11. Sentry error handler ──────────────────────────────────────────────
-  app.use(Sentry.Handlers.errorHandler());
+  // ── 10. Sentry error handler ──────────────────────────────────────────────
+  if (env.NODE_ENV !== 'development') {
+    app.use(Sentry.Handlers.errorHandler());
+  }
 
-  // ── 12. Global error handler (must be last) ───────────────────────────────
+  // ── 11. Global error handler (must be last) ───────────────────────────────
   app.use(errorMiddleware);
 
   return app;

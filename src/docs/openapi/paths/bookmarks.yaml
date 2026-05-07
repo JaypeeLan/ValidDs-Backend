@@ -1,0 +1,80 @@
+collection:
+  get:
+    tags: [Profile]
+    summary: Fetch user bookmarks
+    description: Retrieves a list of saved products (bookmarks) for the current user.
+    security: [{ BearerAuth: [] }]
+    responses:
+      '200':
+        description: Bookmarks retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        bookmarks:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              productId: { $ref: '../components/schemas/Product.yaml' }
+                              savedAt: { type: string, format: date-time }
+                              notes: { type: string }
+                              tags: 
+                                type: array
+                                items: { type: string }
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
+  post:
+    tags: [Profile]
+    summary: Save a product to bookmarks
+    security: [{ BearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [productId]
+            properties:
+              productId: { type: string, description: "24-character hex ID" }
+              notes: { type: string, maxLength: 500 }
+              tags: 
+                type: array
+                items: { type: string, maxLength: 50 }
+                maxItems: 10
+    responses:
+      '200':
+        $ref: '../components/responses/Standard.yaml#/OkResponse'
+      '201':
+        $ref: '../components/responses/Standard.yaml#/OkResponse'
+      '400':
+        $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '403':
+        description: Plan limit reached
+
+resource:
+  delete:
+    tags: [Profile]
+    summary: Remove a product from bookmarks
+    security: [{ BearerAuth: [] }]
+    parameters:
+      - in: path
+        name: productId
+        required: true
+        schema:
+          type: string
+        description: The ID of the product to remove
+    responses:
+      '200':
+        $ref: '../components/responses/Standard.yaml#/OkResponse'
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'

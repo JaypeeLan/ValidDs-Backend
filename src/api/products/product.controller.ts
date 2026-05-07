@@ -1,0 +1,343 @@
+import { Request, Response, NextFunction } from 'express';
+import { ProductService } from '../../services/product.service';
+import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
+import { FreshnessService } from '../../freshness/freshness.service';
+import { ResponseMessage, successResponse } from '../../utils/response.util';
+import { imagesAreFresh, refreshProductImages } from '../../ingestion/echotik/echotik.image-refresh';
+import { ensureCategoriesLoaded, sanitiseCategoryFields } from '../../ingestion/echotik/echotik.categories';
+
+type ProductLike = Record<string, unknown> & {
+  aiIntelligence?: {
+    confidence?: number;
+    confidenceReason?: string;
+    buyingSentimentScore?: number;
+    buyingSentimentReason?: string;
+  };
+  trend?: {
+    direction?: string;
+    score?: number;
+    reason?: string;
+    isTrending?: boolean;
+  };
+  topVideos?: Array<{
+    videoId?: string;
+    url?: string;
+    playUrl?: string;
+    thumbnailUrl?: string;
+    viewCount?: number;
+    likeCount?: number;
+    commentCount?: number;
+    shareCount?: number;
+    creatorHandle?: string;
+    creatorDisplayName?: string;
+    creatorFollowers?: number;
+    creatorRegion?: string;
+    creatorVerified?: boolean;
+    creatorAvatarUrl?: string;
+    publishedAt?: string | Date;
+    isAd?: boolean;
+  }>;
+  toObject?: () => Record<string, unknown>;
+};
+
+/**
+ * Converts Mongoose docs to plain objects and resolves EchoTik image URLs in-place.
+ * Returns plain objects ready for formatProductResponse.
+ */
+async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, unknown>[]> {
+  const plains = inputs.map((p) =>
+    typeof p.toObject === 'function' ? p.toObject() : { ...p }
+  ) as Record<string, unknown>[];
+
+  // EchoTik products carry resolved image URLs on the document (set at ingest
+  // time). When those URLs are still fresh we serve them as-is — no external
+  // calls. Stale or legacy-without-resolved-URLs documents are refreshed in
+  // batch and the new URLs are written back to the document for next time.
+  const echotikProducts = plains.filter((p) => p.source === 'echotik');
+  const stale = echotikProducts.filter((p) => !imagesAreFresh(p as any));
+  if (stale.length > 0) {
+    await Promise.all(stale.map((p) => refreshProductImages(p)));
+  }
+
+  // Ensure the EchoTik category tree is loaded so legacy `"Category 600028"`
+  // strings can be rewritten to human-readable names by formatProductResponse.
+  await ensureCategoriesLoaded();
+
+  return plains;
+}
+
+function getProfileCountryCode(req: Request): string {
+  if (!req.user) return 'us';
+  if (req.user.contentRegion) return req.user.contentRegion.toLowerCase();
+  const locale = req.user.locale;
+  if (locale && locale.includes('-')) {
+    return locale.split('-')[1].toLowerCase();
+  }
+  return 'us';
+}
+
+// Removed buildCreatorsVideos as 'topVideos' is deleted. It is now handled via the /creatives endpoint.
+
+function formatProductResponse(input: ProductLike): Record<string, unknown> {
+  const product = typeof input.toObject === 'function' ? input.toObject() : input;
+  const aiIntelligence = (product.aiIntelligence ?? {}) as NonNullable<ProductLike['aiIntelligence']>;
+  const trend = (product.trend ?? {}) as NonNullable<ProductLike['trend']>;
+  const ratingSources = Array.isArray((product as any).ratingSources) ? (product as any).ratingSources : [];
+  const derivedRating = deriveAverageRatingFromSources(ratingSources);
+  const finalRating = typeof (product as any).rating === 'number' && (product as any).rating > 0
+    ? (product as any).rating
+    : derivedRating;
+  const discoverySections = Array.isArray((product as any).discoverySections)
+    ? ((product as any).discoverySections as string[])
+    : [];
+
+  const response = {
+    ...product,
+    rating: finalRating,
+    ratings: finalRating,
+    isTopAd: discoverySections.includes('top-ads'),
+    trend: {
+      ...trend,
+      isTrending: Boolean(trend.isTrending),
+      reason: trend.reason,
+    },
+    aiInsight: {
+      confidence: {
+        score: aiIntelligence.confidence,
+        reason: aiIntelligence.confidenceReason,
+      },
+      buyingSentiment: {
+        score: aiIntelligence.buyingSentimentScore,
+        reason: aiIntelligence.buyingSentimentReason,
+      },
+    },
+  } as Record<string, unknown>;
+
+  delete response.aiIntelligence;
+  delete response.aiExtraction; // Cleanup legacy field if present
+
+  sanitiseCategoryFields(response);
+  return response;
+}
+
+function deriveAverageRatingFromSources(sources: any[]): number | undefined {
+  if (!Array.isArray(sources) || sources.length === 0) return undefined;
+  let weighted = 0;
+  let reviews = 0;
+  for (const source of sources) {
+    const rating = Number(source?.rating);
+    const reviewCount = Number(source?.reviewCount);
+    if (Number.isFinite(rating) && Number.isFinite(reviewCount) && rating > 0 && reviewCount > 0) {
+      weighted += rating * reviewCount;
+      reviews += reviewCount;
+    }
+  }
+  if (reviews <= 0) return undefined;
+  return Math.round((weighted / reviews) * 10) / 10;
+}
+
+/**
+ * Product Controller
+ *
+ * GET /api/v1/products — paginated list or full-text search (`q`); optional filters
+ * GET /api/v1/products/:id — product detail
+ */
+
+export const ProductController = {
+
+  async feed(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const query = req.query as unknown as ProductFeedQuery;
+
+      if (!query.region) {
+        query.region = getProfileCountryCode(req).toUpperCase();
+      }
+
+      if (query.q) {
+        const results = await ProductService.search(query.q, query.category, query.page, query.limit, {
+          section: query.section,
+          isAd: query.isAd,
+        });
+        const freshness = await FreshnessService.getResponseMetadata('product');
+
+        const searchPlains = await toPlainWithImages(results.data as unknown as ProductLike[]);
+        res.json(
+          successResponse(
+            {
+              products: searchPlains.map(formatProductResponse),
+              pagination: results.pagination,
+              freshness,
+              region: query.region,
+            },
+            ResponseMessage.PRODUCTS_RETRIEVED,
+            200
+          )
+        );
+        return;
+      }
+
+      const { feed, freshness } = await ProductService.getFeed({
+        category: query.category,
+        trendDirection: query.trendDirection,
+        minTrendScore: query.minTrendScore,
+        minViews: query.minViews,
+        isAd: query.isAd,
+        section: query.section,
+        page: query.page,
+        limit: query.limit,
+        sortBy: query.sortBy,
+      });
+
+      const feedPlains = await toPlainWithImages(feed.data as unknown as ProductLike[]);
+      res.json(
+        successResponse(
+          {
+            products: feedPlains.map(formatProductResponse),
+            pagination: feed.pagination,
+            freshness,
+            region: query.region,
+          },
+          ResponseMessage.PRODUCTS_RETRIEVED,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async detail(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { product, freshness } = await ProductService.getById(id);
+      const [plain] = await toPlainWithImages([product as unknown as ProductLike]);
+
+      res.json(
+        successResponse(
+          { product: formatProductResponse(plain as ProductLike), freshness },
+          ResponseMessage.PRODUCT_RETRIEVED,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async creatives(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { Creative } = await import('../../models/creative.model');
+      
+      const creatives = await Creative.find({ productId: id })
+        .sort({ 'metrics.viewCount': -1 })
+        .limit(100);
+
+      const creatorsMap = new Map<string, any>();
+      
+      for (const doc of creatives) {
+        const creative = doc.toObject();
+        const handle = creative.creator?.handle || 'unknown';
+        
+        if (!creatorsMap.has(handle)) {
+          creatorsMap.set(handle, {
+            ...creative.creator, // Now correctly spreads plain object fields
+            totalViews: 0,
+            videos: [],
+          });
+        }
+        
+        const existing = creatorsMap.get(handle);
+        existing.totalViews += (creative.metrics?.viewCount || 0);
+        
+        existing.videos.push({
+          id: creative._id,
+          externalVideoId: creative.externalVideoId,
+          videoPlayUrl: creative.videoPlayUrl,
+          thumbnailUrl: creative.thumbnailUrl,
+          metrics: creative.metrics,
+          section: creative.section,
+          isAd: creative.isAd,
+        });
+      }
+      
+      const groupedCreators = [...creatorsMap.values()].sort((a, b) => b.totalViews - a.totalViews);
+
+      res.json(
+        successResponse(
+          { creators: groupedCreators },
+          'Creatives retrieved successfully',
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async saved(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.json(successResponse({ products: [], pagination: { total: 0, pages: 0, page: 1, limit: 20 } }, ResponseMessage.PRODUCTS_RETRIEVED, 200));
+        return;
+      }
+
+      // Populate savedProducts to get full product data
+      const user = await req.user.populate('savedProducts.productId');
+      const savedDocs = user.savedProducts
+        .filter(p => p.productId)
+        .map(p => p.productId as unknown as ProductLike);
+      const savedPlains = await toPlainWithImages(savedDocs);
+      const products = savedPlains.map(formatProductResponse);
+
+      res.json(
+        successResponse(
+          { 
+            products,
+            pagination: { total: products.length, pages: 1, page: 1, limit: products.length || 20 }
+          },
+          ResponseMessage.PRODUCTS_RETRIEVED,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async categories(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const categories = await ProductService.getCategories();
+      res.json(
+        successResponse(
+          { categories },
+          ResponseMessage.SUCCESS,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async keywordContext(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const query = req.query as unknown as ProductKeywordContextQuery;
+      const country = (query.country ?? getProfileCountryCode(req)).toLowerCase();
+      const result = await ProductService.keywordContext({
+        ...query,
+        country,
+      });
+
+      res.json(
+        successResponse(
+          result,
+          ResponseMessage.SUCCESS,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+};

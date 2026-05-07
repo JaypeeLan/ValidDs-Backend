@@ -20,6 +20,11 @@ const log = logger.child({ module: 'sentry' });
 let initialised = false;
 
 export function initialiseSentry(): void {
+  if (env.NODE_ENV === 'development') {
+    log.info('Sentry tracking disabled in development mode');
+    return;
+  }
+
   if (!env.SENTRY_DSN) {
     log.warn('SENTRY_DSN not set — error tracking disabled');
     return;

@@ -27,40 +27,38 @@ import { createApp } from './app';
 import { connectMongo, disconnectMongo } from './db/client';
 import { getRedisClient, disconnectRedis } from './cache/redis.client';
 import { startMetricsServer, stopMetricsServer } from './monitoring/metrics.routes';
+import { startRemoteWrite, stopRemoteWrite } from './monitoring/remote-write';
 import { initialiseMetrics } from './monitoring/metrics';
 import { logger } from './logger';
+import { startJobs, stopJobs } from './jobs/index';
+import { SocketService } from './config/socket';
+import { warmCategoryCache } from './ingestion/echotik/echotik.categories';
 
 const log = logger.child({ module: 'server' });
 
 let server: http.Server;
 
 async function start(): Promise<void> {
+  const startTime = Date.now();
   log.info(`Starting ${env.APP_NAME}`, {
     env: env.NODE_ENV,
     version: process.env.npm_package_version ?? '1.0.0',
   });
 
-  // Step 3: MongoDB
-  await connectMongo();
-
-  // Step 4: Redis (eager connect to catch config issues at startup)
-  const redis = getRedisClient();
-  await redis.ping();
-  log.info('Redis ping OK');
-
-  // Step 5 & 6: Metrics
-  initialiseMetrics();
-  await startMetricsServer();
-
-  // Step 7 & 8: Express
-  const app = createApp();
+  // Step 3: Initialise Express App earliest
+  // This ensures we can start listening on the port ASAP to satisfy Render's health checks
+  const app = await createApp();
   server = http.createServer(app);
+
+  // Bind Socket.IO immediately to the underlying raw Node server
+  SocketService.initialize(server);
 
   server.listen(env.PORT, () => {
     log.info(`HTTP server listening on port ${env.PORT}`, {
       apiBase: `/api/${env.API_VERSION}`,
       health: '/health',
       ready: '/ready',
+      startupTimeMs: Date.now() - startTime,
     });
   });
 
@@ -68,7 +66,33 @@ async function start(): Promise<void> {
     log.fatal('HTTP server error', err);
     process.exit(1);
   });
+
+  // Step 4: Database & Cache (Non-blocking for the HTTP port, but required for /ready)
+  // We trigger these but don't strictly block the listen call
+  try {
+    await connectMongo();
+
+    const redis = getRedisClient();
+    await redis.ping();
+    log.info('Redis ping OK');
+
+    // Step 5 & 6: Monitoring & Metrics
+    initialiseMetrics();
+    await startMetricsServer();
+    startRemoteWrite();
+
+    // Step 7: Background Jobs
+    startJobs();
+
+    // Step 8: Warm the EchoTik category tree (non-blocking, recovers from Redis if API fails).
+    void warmCategoryCache();
+  } catch (err) {
+    log.error('Post-startup initialization failed', err);
+    // We don't exit here because the HTTP server is already running and might recover
+    // or provide helpful error responses via health checks.
+  }
 }
+
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
 
@@ -80,11 +104,14 @@ async function shutdown(signal: string): Promise<void> {
     log.info('HTTP server closed');
 
     try {
+      stopRemoteWrite();
       await Promise.all([
         disconnectMongo(),
         disconnectRedis(),
         stopMetricsServer(),
       ]);
+      stopJobs(),
+
       log.info('All connections closed. Goodbye.');
       process.exit(0);
     } catch (err) {

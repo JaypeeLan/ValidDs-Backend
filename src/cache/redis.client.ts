@@ -5,10 +5,10 @@ import { logger } from '../logger';
 const log = logger.child({ module: 'redis' });
 
 /**
- * Redis client singleton backed by Upstash (free tier).
+ * Redis client singleton for caching and job queuing.
  *
- * Upstash provides a serverless Redis instance accessible over TLS.
- * The REDIS_URL is in the format: rediss://:password@endpoint.upstash.io:6379
+ * Supports both plain redis and rediss (TLS) protocols.
+ * The REDIS_URL should be in the format: redis[s]://[:password]@hostname:port
  *
  * This client is shared by:
  *   - Cache layer    (src/cache/)

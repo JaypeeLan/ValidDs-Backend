@@ -1,9 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
-import { UpdateProfileInput } from './profile.validator';
+import { UpdateProfileInput, AddBookmarkInput } from './profile.validator';
+import { ResponseMessage, successResponse } from '../../utils/response.util';
+import { AppError } from '../../middleware/error.middleware';
+import { PLAN_LIMITS } from '../../models/user.model';
 
 export const ProfileController = {
   me(req: Request, res: Response): void {
-    res.json({ success: true, data: { user: req.user!.toJSON() } });
+    res.json(successResponse({ user: req.user!.toJSON() }, ResponseMessage.PROFILE_RETRIEVED, 200));
   },
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -17,6 +20,7 @@ export const ProfileController = {
       if (input.avatarUrl !== undefined) user.avatarUrl = input.avatarUrl;
       if (input.timezone !== undefined) user.timezone = input.timezone;
       if (input.locale !== undefined) user.locale = input.locale;
+      if (input.contentRegion !== undefined) user.contentRegion = input.contentRegion;
 
       if (input.notifications) {
         user.notifications = {
@@ -27,7 +31,64 @@ export const ProfileController = {
 
       await user.save();
 
-      res.json({ success: true, data: { user: user.toJSON() } });
+      res.json(successResponse({ user: user.toJSON() }, ResponseMessage.UPDATED, 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getBookmarks(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      // Return populated savedProducts
+      const user = await req.user!.populate('savedProducts.productId');
+      res.json(successResponse({ bookmarks: user.savedProducts }, ResponseMessage.SUCCESS, 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async addBookmark(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const input = req.body as AddBookmarkInput;
+      const user = req.user!;
+
+      const maxBookmarks = PLAN_LIMITS[user.plan].savedProductsMax;
+      if (maxBookmarks !== -1 && user.savedProducts.length >= maxBookmarks) {
+        throw new AppError(403, `Plan limit reached: maximum ${maxBookmarks} saved products`, 'PLAN_LIMIT_REACHED');
+      }
+
+      // Check if already saved
+      if (user.savedProducts.some(p => p.productId.toString() === input.productId)) {
+        res.json(successResponse({ bookmarks: user.savedProducts }, 'Product already saved', 200));
+        return;
+      }
+
+      user.savedProducts.push({
+        productId: input.productId as any,
+        savedAt: new Date(),
+        notes: input.notes,
+        tags: input.tags,
+      });
+
+      await user.save();
+      res.json(successResponse({ bookmarks: user.savedProducts }, 'Product saved successfully', 201));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async removeBookmark(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { productId } = req.params;
+      const user = req.user!;
+
+      const index = user.savedProducts.findIndex(p => p.productId.toString() === productId);
+      if (index > -1) {
+        user.savedProducts.splice(index, 1);
+        await user.save();
+      }
+
+      res.json(successResponse({ bookmarks: user.savedProducts }, 'Product removed from bookmarks', 200));
     } catch (err) {
       next(err);
     }

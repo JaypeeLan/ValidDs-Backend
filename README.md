@@ -25,7 +25,7 @@ You do not need to understand all of that to get started. If you are a developer
 | Language       | TypeScript (Node.js) | Type safety, strong ecosystem       |
 | Framework      | Express              | Lightweight, well-understood        |
 | Database       | MongoDB Atlas        | Flexible schema, generous free tier |
-| Cache & Queues | Redis (Upstash)      | Fast cache + background job queuing |
+| Cache & Queues | Redis                | Fast cache + background job queuing |
 | Deployment     | Render               | Simple free-tier cloud deployment   |
 | Error Tracking | Sentry               | Real-time error visibility          |
 | Metrics        | Prometheus + Grafana | System performance monitoring       |
@@ -69,7 +69,7 @@ Open `.env` and fill in the required values. See the [Third-Party Setup Guides](
 At minimum you need:
 
 - `MONGODB_URI` — your MongoDB Atlas connection string
-- `REDIS_URL` — your Upstash Redis URL
+- `REDIS_URL` — your Redis connection string (e.g. redis://...)
 - `INTERNAL_API_KEY` — generate one by running `npm run generate-api-key`
 - `JWT_SECRET` — any random string of 32+ characters
 - `ENCRYPTION_KEY` — 64 hex characters (32 bytes). Generate with:
@@ -125,16 +125,19 @@ For deeper technical detail, see the [docs/](./docs/) folder.
 
 ## Available Scripts
 
-| Command                    | What it does                                         |
-| -------------------------- | ---------------------------------------------------- |
-| `npm run dev`              | Start the server in development mode with hot reload |
-| `npm run build`            | Compile TypeScript to JavaScript                     |
-| `npm start`                | Run the compiled production build                    |
-| `npm test`                 | Run the test suite                                   |
-| `npm run test:coverage`    | Run tests with coverage report                       |
-| `npm run generate-api-key` | Generate a new internal API key                      |
-| `npm run seed`             | Seed the database with sample data                   |
-| `npm run test-ingestion`   | Manually trigger a data ingestion run                |
+| Command                           | What it does                                                                           |
+| --------------------------------- | -------------------------------------------------------------------------------------- |
+| `npm run dev`                     | Start the server in development mode with hot reload                                   |
+| `npm run build`                   | Compile TypeScript to JavaScript                                                       |
+| `npm start`                       | Run the compiled production build                                                      |
+| `npm test`                        | Run the test suite                                                                     |
+| `npm run test:coverage`           | Run tests with coverage report                                                         |
+| `npm run generate-api-key`        | Generate a new internal API key                                                        |
+| `npm run ingest-products`         | Manually run the product ingestion pipeline (mirrors the 00:00 Lagos daily cron)       |
+| `npm run ingest-creatives`        | Manually run creative ingestion (500 new / 12 h). Pass `-- --refresh` to refresh URLs  |
+| `npm run prewarm-echotik-images`  | Pre-warm the Redis cache with 20 h EchoTik image URLs for every active product         |
+| `npm run make-admin -- <email>`   | Promote an existing user to admin                                                      |
+| `npm run clear-db`                | Wipe the products + creatives collections (destructive — dev only)                     |
 
 ---
 
@@ -180,7 +183,8 @@ Each service used by this project has a dedicated setup guide in the [docs/third
 | Service              | Purpose                | Guide                                                                            |
 | -------------------- | ---------------------- | -------------------------------------------------------------------------------- |
 | MongoDB Atlas        | Primary database       | [docs/third-party/mongodb-atlas.md](./docs/third-party/mongodb-atlas.md)         |
-| Upstash Redis        | Caching and job queues | [docs/third-party/upstash-redis.md](./docs/third-party/upstash-redis.md)         |
+| Redis                | Caching and job queues | [docs/third-party/redis.md](./docs/third-party/redis.md)                         |
+| TeemDrop             | Primary supplier data  | [docs/third-party/teemdrop.md](./docs/third-party/teemdrop.md)                   |
 | Sentry               | Error tracking         | [docs/third-party/sentry.md](./docs/third-party/sentry.md)                       |
 | Prometheus + Grafana | Performance metrics    | [docs/third-party/prometheus.md](./docs/third-party/prometheus.md)               |
 | Render               | Cloud deployment       | [docs/third-party/render-deployment.md](./docs/third-party/render-deployment.md) |

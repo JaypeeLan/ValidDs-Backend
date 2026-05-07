@@ -27,7 +27,7 @@ export const globalLimiter = rateLimit({
       message: 'Too many requests. Please try again later.',
     },
   },
-  skip: (req) => req.path === '/health' || req.path === '/ready',
+  skip: (req) => env.NODE_ENV === 'development' || env.NODE_ENV === 'test' || req.path === '/health' || req.path === '/ready',
 });
 
 export const strictLimiter = rateLimit({
@@ -42,4 +42,5 @@ export const strictLimiter = rateLimit({
       message: 'Too many attempts. Please try again later.',
     },
   },
+  skip: () => env.NODE_ENV === 'development' || env.NODE_ENV === 'test',
 });

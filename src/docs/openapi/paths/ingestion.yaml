@@ -1,0 +1,35 @@
+openapi: 3.0.3
+
+trigger:
+  post:
+    tags:
+      - Ingestion
+    summary: Trigger Data Ingestion
+    description: |
+      Triggers the ingestion orchestrator to fetch trending data from TikTok. 
+      This runs in the background.
+
+      ### Tools Triggered:
+      - **EnsembleData**: Primary source for trending data and hashtag details.
+      - **DeepSeek**: Product extraction AI pipeline.
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Pipeline triggered successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                data:
+                  type: object
+                  properties:
+                    toolsTriggered:
+                      type: array
+                      items:
+                        type: string

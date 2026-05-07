@@ -4,7 +4,6 @@ import { ProductEnricher } from '../services/product.enricher';
 import { ProductRepository } from '../db/repositories/product.repository';
 import { ProductService } from '../services/product.service';
 import { logger } from '../logger';
-import { ingestionRecordsIngested } from '../monitoring/metrics';
 import { Alerts } from '../monitoring/alerts';
 
 const log = logger.child({ module: 'product-refresh-job' });
@@ -105,7 +104,6 @@ export async function runProductRefreshJob(): Promise<void> {
         const product = await ProductEnricher.mergeAndUpsert(extraction, sourcePost);
         if (product) {
           saved++;
-          ingestionRecordsIngested.inc({ source: sourcePost.source, entity: 'product' }, 1);
         }
       } catch (err) {
         failed++;

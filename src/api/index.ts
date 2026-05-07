@@ -10,7 +10,6 @@ import jobsRouter from './jobs/jobs.routes';
 import adminRouter from './admin/admin.routes';
 import billingRouter from './billing/billing.routes';
 import waitlistRouter from './waitlist/waitlist.routes';
-import scraperRouter from './scrapers/scraper.routes';
 
 const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
@@ -22,7 +21,6 @@ apiRouter.use('/jobs', jobsRouter);
 apiRouter.use('/admin', adminRouter);
 apiRouter.use('/billing', billingRouter);
 apiRouter.use('/waitlist', waitlistRouter);
-apiRouter.use('/scrapers', scraperRouter);
 
 // Sentry test endpoint
 apiRouter.get('/debug-sentry', (_req, _res) => {

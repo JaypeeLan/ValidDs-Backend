@@ -203,5 +203,3 @@ Liveness probe. Indicates if the Express process is running.
 Readiness probe. Verifies that core dependencies (MongoDB, Redis) are cleanly connected and responding to queries.
 **Response:** HTTP 200 array of connection status checks.
 
-### `GET /metrics`
-(Configured if Prometheus remote write is active). Standard HTTP export endpoint for Prometheus scrapers to parse ingestion volumes, latencies, and system health.

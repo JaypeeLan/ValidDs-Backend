@@ -105,7 +105,6 @@ If ingestion jobs fail silently, the frontend continues serving stale data witho
 - FreshnessService tracks last-updated timestamps per entity
 - Stale data thresholds trigger Slack/webhook alerts
 - `/ready` endpoint reflects data health (can be extended)
-- Prometheus `data_freshness_seconds` metric is dashboarded
 
 ---
 

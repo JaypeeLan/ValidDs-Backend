@@ -1,6 +1,5 @@
 import { getRedisClient } from './redis.client';
 import { logger } from '../logger';
-import { cacheHitsTotal, cacheMissesTotal } from '../monitoring/metrics';
 
 const log = logger.child({ module: 'cache' });
 
@@ -12,7 +11,6 @@ const log = logger.child({ module: 'cache' });
  *
  * Features:
  * - Type-safe get/set with automatic JSON serialization
- * - Prometheus cache hit/miss tracking
  * - Safe fallback — cache errors never crash the request (just log + miss)
  * - Prefix-based invalidation (clear all keys for an entity type)
  */
@@ -24,21 +22,17 @@ export const CacheService = {
    * Returns null on miss or error.
    */
   async get<T>(key: string): Promise<T | null> {
-    const prefix = keyPrefix(key);
     try {
       const redis = getRedisClient();
       const raw = await redis.get(key);
 
       if (raw === null) {
-        cacheMissesTotal.inc({ key_prefix: prefix });
         return null;
       }
 
-      cacheHitsTotal.inc({ key_prefix: prefix });
       return JSON.parse(raw) as T;
     } catch (err) {
       log.warn('Cache get failed — treating as miss', { key, err: String(err) });
-      cacheMissesTotal.inc({ key_prefix: prefix });
       return null;
     }
   },
@@ -121,7 +115,3 @@ export const CacheService = {
     return value;
   },
 };
-
-function keyPrefix(key: string): string {
-  return key.split(':')[0] ?? key;
-}

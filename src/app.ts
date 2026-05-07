@@ -10,7 +10,6 @@ import { getAllowedOrigins } from './security/encryption';
 import { healthRouter } from './api/index';
 import apiRouter from './api/index';
 import { Sentry } from './monitoring/sentry';
-import { metricsMiddleware } from './middleware/metrics.middleware';
 import swaggerUi from 'swagger-ui-express';
 import { getSwaggerSpec } from './docs/swagger.provider';
 import { handleStripeWebhook } from './api/webhooks/stripe.webhook.controller';
@@ -37,11 +36,6 @@ export async function createApp(): Promise<Application> {
   // ── 1. Sentry request handler ─────────────────────────────────────────────
   if (env.NODE_ENV !== 'development') {
     app.use(Sentry.Handlers.requestHandler());
-  }
-
-  // ── 1.5 Prometheus Metrics Middleware ─────────────────────────────────────
-  if (env.METRICS_ENABLED && env.NODE_ENV !== 'development') {
-    app.use(metricsMiddleware);
   }
 
   // ── 2. Helmet — security headers ─────────────────────────────────────────
@@ -130,8 +124,6 @@ export async function createApp(): Promise<Application> {
 
   // All API routes under /api/v1
   app.use(`/api/${env.API_VERSION}`, apiRouter);
-
-  // ── 9. [Removed manual Prometheus hook] ──────────────────────────────────
 
   // ── 9. 404 ───────────────────────────────────────────────────────────────
   app.use(notFoundMiddleware);

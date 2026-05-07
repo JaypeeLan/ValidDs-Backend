@@ -172,16 +172,6 @@ Relying solely on Upstash or any specific provider introduces vendor lock-in. By
 
 ---
 
-## DL-013 — Observability: Prometheus Remote Write to Grafana Cloud
-
-**Date:** 2026-04-03
-**Decision:** Implement Prometheus Remote Write to export metrics directly to Grafana Cloud.
-
-**Reasoning:**
-Render services can be restarted or moved, which would lead to loss of local Prometheus metrics if only the `/metrics` endpoint is used. Remote Write ensures that metrics are pushed to a persistent cloud store (Grafana Cloud) in real-time, providing reliable long-term observability and dashboarding.
-
----
-
 ## DL-014 — Documentation: Modular OpenAPI 3.0 Structure
 
 **Date:** 2026-04-01

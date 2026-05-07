@@ -23,7 +23,6 @@ Each guide covers:
 | **SearchApi** | Google Shopping reviews + related products | `SEARCHAPI_KEY` | — |
 | **TeemDrop** | Supplier catalog enrichment | `TEEMDROP_APP_KEY`, `TEEMDROP_APP_SECRET` | [teemdrop.md](./teemdrop.md) |
 | **Sentry** | Error tracking | `SENTRY_DSN` | [sentry.md](./sentry.md) |
-| **Prometheus + Grafana Cloud** | Metrics + dashboards | `METRICS_ENABLED`, `METRICS_PORT` | [prometheus.md](./prometheus.md) |
 | **Render** | Cloud deployment | — | [render-deployment.md](./render-deployment.md) |
 | **Stripe** | Billing + subscriptions | `STRIPE_SECRET_KEY_*`, `STRIPE_WEBHOOK_SECRET_*` | [stripe.md](./stripe.md) |
 | **Google OAuth** | Social login | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | [google-oauth.md](./google-oauth.md) |
@@ -36,7 +35,7 @@ Each guide covers:
 2. **Redis** — caching and image URL resolution (local or hosted)
 3. **EchoTik** — product data ingestion
 
-Sentry, Prometheus, and Render are optional for local development.
+Sentry and Render are optional for local development.
 
 ---
 
@@ -66,8 +65,6 @@ Sentry, Prometheus, and Render are optional for local development.
 | `TEEMDROP_APP_KEY` | TeemDrop | No |
 | `TEEMDROP_APP_SECRET` | TeemDrop | No |
 | `SENTRY_DSN` | Sentry | No (but recommended) |
-| `METRICS_ENABLED` | Prometheus | No |
-| `METRICS_PORT` | Prometheus | No |
 | `STRIPE_SECRET_KEY_TEST` | Stripe | No (billing only) |
 | `GOOGLE_CLIENT_ID` | Google OAuth | No (social login only) |
 

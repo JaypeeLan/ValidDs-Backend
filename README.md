@@ -28,7 +28,6 @@ You do not need to understand all of that to get started. If you are a developer
 | Cache & Queues | Redis                | Fast cache + background job queuing |
 | Deployment     | Render               | Simple free-tier cloud deployment   |
 | Error Tracking | Sentry               | Real-time error visibility          |
-| Metrics        | Prometheus + Grafana | System performance monitoring       |
 
 ---
 
@@ -158,22 +157,6 @@ All API endpoints are prefixed with `/api/v1`.
 
 Full endpoint documentation with request/response shapes is in [docs/endpoints.md](./docs/endpoints.md).
 
-### Registration Flow (Email)
-
-Local registration uses a 3-step flow:
-
-1. `POST /api/v1/auth/register`
-   - Body: `{ "email": "user@example.com" }`
-   - Sends a 6-digit verification code to email.
-
-2. `POST /api/v1/auth/email/verify-code`
-   - Body: `{ "email": "user@example.com", "code": "123456" }`
-   - Verifies code and marks email as verified.
-
-3. `POST /api/v1/auth/register/complete`
-   - Body: `{ "email": "user@example.com", "name": "Jane Doe", "password": "Password1" }`
-   - Completes account setup and returns JWT + user payload.
-
 ---
 
 ## Third-Party Service Setup
@@ -186,7 +169,6 @@ Each service used by this project has a dedicated setup guide in the [docs/third
 | Redis                | Caching and job queues | [docs/third-party/redis.md](./docs/third-party/redis.md)                         |
 | TeemDrop             | Primary supplier data  | [docs/third-party/teemdrop.md](./docs/third-party/teemdrop.md)                   |
 | Sentry               | Error tracking         | [docs/third-party/sentry.md](./docs/third-party/sentry.md)                       |
-| Prometheus + Grafana | Performance metrics    | [docs/third-party/prometheus.md](./docs/third-party/prometheus.md)               |
 | Render               | Cloud deployment       | [docs/third-party/render-deployment.md](./docs/third-party/render-deployment.md) |
 | BullMQ               | Background job queues  | [docs/third-party/bullmq.md](./docs/third-party/bullmq.md)                       |
 

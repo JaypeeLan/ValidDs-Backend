@@ -2,7 +2,6 @@ import { EchoTikClient, EchoTikListParams } from './echotik.client';
 import { transformEchoTikProducts, transformEchoTikComments } from './echotik.transformer';
 import { NormalizedEchoTikProduct, NormalizedEchoTikComment, IngestionJobResult } from '../ingestion.types';
 import { logger } from '../../logger';
-import { ingestionJobsTotal, ingestionRecordsIngested } from '../../monitoring/metrics';
 import { FreshnessService } from '../../freshness/freshness.service';
 
 const log = logger.child({ module: 'echotik-job' });
@@ -70,7 +69,6 @@ export class EchoTikJob {
     if (!isAlive) {
       const msg = 'EchoTik not reachable — check ECHOTIK_USERNAME / ECHOTIK_PASSWORD';
       log.error(msg);
-      ingestionJobsTotal.inc({ source: 'echotik', status: 'failure' });
       return {
         output,
         result: {
@@ -115,11 +113,6 @@ export class EchoTikJob {
         log.debug(`Page ${page}: ${normalized.length} products after transform`);
         output.products.push(...normalized);
 
-        ingestionRecordsIngested.inc(
-          { source: 'echotik', entity: 'product' },
-          normalized.length
-        );
-
         // Fetch reviews for products with meaningful review counts
         for (const product of normalized) {
           if (product.reviewCount >= 10) {
@@ -156,9 +149,6 @@ export class EchoTikJob {
 
     if (success) {
       await FreshnessService.markUpdated('product');
-      ingestionJobsTotal.inc({ source: 'echotik', status: 'success' });
-    } else {
-      ingestionJobsTotal.inc({ source: 'echotik', status: 'failure' });
     }
 
     log.info('EchoTik job complete', {

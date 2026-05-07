@@ -15,45 +15,42 @@ HTTP Request
 [1] Sentry requestHandler         ← captures request context for error reporting (prod/staging only)
     │
     ▼
-[2] Prometheus metricsMiddleware   ← records request count/duration (prod/staging only)
+[2] Helmet                        ← sets security headers (CSP, HSTS, X-Frame-Options, etc.)
     │
     ▼
-[3] Helmet                        ← sets security headers (CSP, HSTS, X-Frame-Options, etc.)
+[3] CORS                          ← validates Origin header against CORS_ALLOWED_ORIGINS
     │
     ▼
-[4] CORS                          ← validates Origin header against CORS_ALLOWED_ORIGINS
+[4] express.json()                ← parses request body (1mb limit)
     │
     ▼
-[5] express.json()                ← parses request body (1mb limit)
-    │
-    ▼
-[6] requestLoggerMiddleware        ← assigns requestId (UUID), starts AsyncLocalStorage context,
+[5] requestLoggerMiddleware        ← assigns requestId (UUID), starts AsyncLocalStorage context,
     │                                logs "Request received" with method/path/ip
     ▼
-[7] globalLimiter (rate-limit)    ← blocks if client exceeds request quota
+[6] globalLimiter (rate-limit)    ← blocks if client exceeds request quota
     │
     ▼
-[8] sanitizeMiddleware            ← strips MongoDB operators ($where, $gt) and XSS from inputs
+[7] sanitizeMiddleware            ← strips MongoDB operators ($where, $gt) and XSS from inputs
     │
     ▼
-[9] Routes
+[8] Routes
     ├── /health, /ready           ← healthRouter (no auth)
     ├── /docs                     ← Swagger UI
     └── /api/v1/*                 ← apiRouter → feature routers
     │
     ▼
-[10] notFoundMiddleware           ← returns 404 if no route matched
+[9] notFoundMiddleware           ← returns 404 if no route matched
     │
     ▼
-[11] Sentry errorHandler          ← forwards errors to Sentry (prod/staging only)
+[10] Sentry errorHandler          ← forwards errors to Sentry (prod/staging only)
     │
     ▼
-[12] errorMiddleware              ← formats all errors into { success: false, error: ... } JSON
+[11] errorMiddleware              ← formats all errors into { success: false, error: ... } JSON
 ```
 
 **Files:**
 - `src/app.ts` — wires up middleware and mounts routers (steps 1–12)
-- `src/server.ts` — bootstraps DB, Redis, metrics, then calls `createApp()`
+- `src/server.ts` — bootstraps DB and Redis, then calls `createApp()`
 
 ---
 
@@ -252,7 +249,7 @@ src/models/<feature>.model.ts               ← Mongoose schema
 
 | File | Responsibility |
 |---|---|
-| `src/server.ts` | Boot sequence: MongoDB → Redis → metrics → jobs → HTTP |
+| `src/server.ts` | Boot sequence: MongoDB → Redis → jobs → HTTP |
 | `src/app.ts` | Middleware order and router mounting |
 | `src/api/index.ts` | Feature router registry |
 | `src/middleware/request-logger.middleware.ts` | `requestId` assignment and request/response logging |
@@ -267,5 +264,4 @@ src/models/<feature>.model.ts               ← Mongoose schema
 | `src/ingestion/ensemble/ensemble.client.ts` | EnsembleData client — used for creator enrichment |
 | `src/services/search.service.ts` | SearchApi client — Google Shopping reviews + related products |
 | `src/freshness/freshness.service.ts` | Tracks when data was last updated |
-| `src/monitoring/metrics.ts` | Prometheus counters/gauges |
 | `src/monitoring/alerts.ts` | Webhook/Sentry alert triggers |

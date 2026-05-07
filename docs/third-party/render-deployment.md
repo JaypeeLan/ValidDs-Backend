@@ -64,7 +64,6 @@ SENTRY_DSN=<your Sentry DSN>
 SENTRY_ENVIRONMENT=staging
 LOG_LEVEL=info
 LOG_PRETTY=false
-METRICS_ENABLED=true
 ```
 
 Set `LOG_PRETTY=false` in production — JSON output is easier to parse in Render's log viewer.

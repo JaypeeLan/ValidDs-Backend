@@ -11,7 +11,9 @@ const log = logger.child({ module: 'auth-controller' });
  * Handles:
  *  GET  /auth/google              → redirect to Google consent screen
  *  GET  /auth/google/callback     → handle Google OAuth callback
- *  POST /auth/register            → start email registration (sends verification code)
+ *  POST /auth/register            → start email registration (send 6-digit code)
+ *  POST /auth/email/verify-code   → verify the 6-digit email code
+ *  POST /auth/register/complete   → complete registration with full name + password
  *  POST /auth/login               → local email + password sign-in
  *  GET  /auth/me                  → return current authenticated user
  *  POST /auth/logout              → client-side token invalidation (stateless)
@@ -184,12 +186,21 @@ export const AuthController = {
 
   async verifyEmailCode(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { email, code, password, name } = req.body as Record<string, string>;
+      const { email, code } = req.body as Record<string, string>;
+      await AuthService.verifyEmailCode(email, code);
+      res.json({ success: true, data: { verified: true } });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async completeRegistration(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { email, password, name } = req.body as Record<string, string>;
       const { user, token, isNewUser } = await AuthService.completeEmailRegistration(
         email,
-        code,
         password,
-        name,
+        name.trim(),
         req.ip
       );
       res.json({ success: true, data: { token, user: user.toJSON(), isNewUser } });

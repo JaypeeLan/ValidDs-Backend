@@ -220,12 +220,21 @@ describe('Auth + Profile', () => {
       baseUrl,
       method: 'POST',
       path: '/api/v1/auth/email/verify-code',
-      body: { email, code: verificationCode, password, name: 'Local User' },
+      body: { email, code: verificationCode },
     });
     expect(verifyRes.status).toBe(200);
     expect((verifyRes.json as any).success).toBe(true);
-    expect((verifyRes.json as any).data.user.email).toBe(email);
-    const token = (verifyRes.json as any).data.token as string;
+
+    const completeRes = await httpJson({
+      baseUrl,
+      method: 'POST',
+      path: '/api/v1/auth/register/complete',
+      body: { email, password, name: 'Local User' },
+    });
+    expect(completeRes.status).toBe(200);
+    expect((completeRes.json as any).success).toBe(true);
+    expect((completeRes.json as any).data.user.email).toBe(email);
+    const token = (completeRes.json as any).data.token as string;
     expect(typeof token).toBe('string');
 
     const sendCodeRes = await httpJson({
@@ -282,9 +291,17 @@ describe('Auth + Profile', () => {
       baseUrl,
       method: 'POST',
       path: '/api/v1/auth/email/verify-code',
-      body: { email, code: verificationCode, password: originalPassword, name: 'Reset User' },
+      body: { email, code: verificationCode },
     });
     expect(verifyRes.status).toBe(200);
+
+    const completeRes = await httpJson({
+      baseUrl,
+      method: 'POST',
+      path: '/api/v1/auth/register/complete',
+      body: { email, password: originalPassword, name: 'Reset User' },
+    });
+    expect(completeRes.status).toBe(200);
 
     const forgotRes = await httpJson({
       baseUrl,

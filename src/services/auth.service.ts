@@ -388,13 +388,10 @@ export const AuthService = {
     return { isNewUser };
   },
 
-  async completeEmailRegistration(
+  async verifyEmailCode(
     email: string,
     code: string,
-    password: string,
-    name?: string,
-    ip?: string
-  ): Promise<AuthResult> {
+  ): Promise<void> {
     const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
       '+localAuth.emailVerificationCodeHash +localAuth.emailVerificationExpiresAt'
     );
@@ -415,15 +412,36 @@ export const AuthService = {
       throw new AppError(400, 'Invalid verification code', 'INVALID_CODE');
     }
 
-    AuthService.validatePassword(password);
-    user.localAuth.passwordHash = await hashPassword(password);
     user.localAuth.emailVerified = true;
     user.localAuth.emailVerificationCodeHash = undefined;
     user.localAuth.emailVerificationExpiresAt = undefined;
+    await user.save();
+  },
 
-    if (name) {
-      user.name = name;
+  async completeEmailRegistration(
+    email: string,
+    password: string,
+    name: string,
+    ip?: string
+  ): Promise<AuthResult> {
+    const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
+      '+localAuth.passwordHash +localAuth.emailVerified'
+    );
+
+    if (!user || user.authProvider !== 'local' || !user.localAuth) {
+      throw new AppError(400, 'Registration cannot be completed for this account', 'REGISTRATION_NOT_ALLOWED');
     }
+    if (!user.localAuth.emailVerified) {
+      throw new AppError(400, 'Email must be verified before completing registration', 'EMAIL_NOT_VERIFIED');
+    }
+    if (user.localAuth.passwordHash) {
+      throw new AppError(409, 'Registration already completed for this account', 'REGISTRATION_ALREADY_COMPLETED');
+    }
+
+    AuthService.validatePassword(password);
+    user.localAuth.passwordHash = await hashPassword(password);
+
+    user.name = name.trim();
 
     const isNewUser = (user.loginCount ?? 0) === 0;
     user.lastLoginAt = new Date();

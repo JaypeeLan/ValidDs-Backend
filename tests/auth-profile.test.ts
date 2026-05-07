@@ -88,7 +88,6 @@ describe('Auth + Profile', () => {
     process.env.MONGODB_DB_NAME = 'validds_test';
     process.env.REDIS_URL = '';
     process.env.SENTRY_DSN = '';
-    process.env.METRICS_ENABLED = 'false';
     process.env.RESEND_API_KEY = 're_test';
     process.env.RESEND_FROM = 'ValidDs <noreply@validds.test>';
     process.env.GOOGLE_CLIENT_ID = 'google-client-id';
@@ -230,7 +229,7 @@ describe('Auth + Profile', () => {
       baseUrl,
       method: 'POST',
       path: '/api/v1/auth/register/complete',
-      body: { email, password, name: 'Local User' },
+      body: { email, password, name: 'John Doe' },
     });
 
     expect(completeRes.status).toBe(200);
@@ -264,37 +263,10 @@ describe('Auth + Profile', () => {
   }, 30000);
 
   it('handles forgot password + reset password', async () => {
-    const email = 'reset.user@example.com';
-    const originalPassword = 'Password1';
-    const newPassword = 'NewPassword1';
+    const email = 'local.user@example.com';
+    const newPassword = 'NewPassword123';
 
-    const registerRes = await httpJson({
-      baseUrl,
-      method: 'POST',
-      path: '/api/v1/auth/register',
-      body: { email },
-    });
-    expect(registerRes.status).toBe(200);
-
-    const lastEmail = sentEmails[sentEmails.length - 1];
-    const verificationCode = lastEmail ? extractSixDigitCode(lastEmail.html) : null;
-    expect(verificationCode).not.toBeNull();
-
-    const verifyRes = await httpJson({
-      baseUrl,
-      method: 'POST',
-      path: '/api/v1/auth/email/verify-code',
-      body: { email, code: verificationCode },
-    });
-    expect(verifyRes.status).toBe(200);
-
-    const completeRes = await httpJson({
-      baseUrl,
-      method: 'POST',
-      path: '/api/v1/auth/register/complete',
-      body: { email, password: originalPassword, name: 'Reset User' },
-    });
-    expect(completeRes.status).toBe(200);
+    // 1. Forgot password
     const forgotRes = await httpJson({
       baseUrl,
       method: 'POST',

@@ -21,9 +21,7 @@ const router = Router();
  * Public:
  *  GET  /auth/google              → Start Google OAuth flow (browser redirect)
  *  GET  /auth/google/callback     → Google OAuth callback (browser redirect)
- *  POST /auth/register            → Start local registration (email only, sends 6-digit code)
- *  POST /auth/email/verify-code   → Verify email code (email + code)
- *  POST /auth/register/complete   → Complete local registration (email + full name + password)
+ *  POST /auth/register            → Local registration
  *  POST /auth/login               → Local login
  *
  * Protected:

@@ -179,7 +179,6 @@ const envSchema = z.object({
     z.coerce.number().int().positive().optional().default(30000)
   ),
 
-
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(100),

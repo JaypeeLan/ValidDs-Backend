@@ -72,7 +72,6 @@ async function start(): Promise<void> {
 
     // Step 5: Background Jobs
     startJobs();
-
   } catch (err) {
     log.error('Post-startup initialization failed', err);
     // We don't exit here because the HTTP server is already running and might recover

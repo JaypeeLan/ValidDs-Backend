@@ -21,14 +21,16 @@ export const TikTokCodeSchema = z.object({
 export const VerifyEmailCodeSchema = z.object({
   email: z.string().email('Invalid email address').toLowerCase(),
   code: z.string().regex(/^\d{6}$/, 'code must be a 6-digit number'),
+});
+
+export const CompleteRegistrationSchema = z.object({
+  email: z.string().email('Invalid email address').toLowerCase(),
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[0-9]/, 'Password must contain at least one number'),
-  name: z.string().min(2).max(100).trim().optional(),
-  firstName: z.string().min(1).max(50).trim().optional(),
-  lastName: z.string().min(1).max(50).trim().optional(),
+  name: z.string().trim().min(2, 'Full name must be at least 2 characters').max(100, 'Full name must be at most 100 characters'),
 });
 
 export const ForgotPasswordSchema = z.object({
@@ -50,5 +52,6 @@ export type LoginInput = z.infer<typeof LoginSchema>;
 export type GoogleIdTokenInput = z.infer<typeof GoogleIdTokenSchema>;
 export type TikTokCodeInput = z.infer<typeof TikTokCodeSchema>;
 export type VerifyEmailCodeInput = z.infer<typeof VerifyEmailCodeSchema>;
+export type CompleteRegistrationInput = z.infer<typeof CompleteRegistrationSchema>;
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;

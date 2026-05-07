@@ -8,6 +8,7 @@ import {
   GoogleIdTokenSchema,
   TikTokCodeSchema,
   VerifyEmailCodeSchema,
+  CompleteRegistrationSchema,
   ForgotPasswordSchema,
   ResetPasswordSchema,
 } from './auth.validator';
@@ -49,6 +50,7 @@ router.post(
 
 router.post('/email/send-code', requireAuth, AuthController.sendVerificationCode);
 router.post('/email/verify-code', validate(VerifyEmailCodeSchema, 'body'), AuthController.verifyEmailCode);
+router.post('/register/complete', validate(CompleteRegistrationSchema, 'body'), AuthController.completeRegistration);
 
 router.post('/forgot-password', validate(ForgotPasswordSchema, 'body'), AuthController.forgotPassword);
 router.post('/reset-password', validate(ResetPasswordSchema, 'body'), AuthController.resetPassword);

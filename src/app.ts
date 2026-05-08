@@ -1,6 +1,8 @@
 import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import fs from 'fs/promises';
+import path from 'path';
 
 import { env } from './config/env.validation';
 import { requestLoggerMiddleware } from './middleware/request-logger.middleware';
@@ -119,6 +121,17 @@ export async function createApp(): Promise<Application> {
   }));
 
   // ── 8. Routes ─────────────────────────────────────────────────────────────
+  // Serve local products export used by internal frontend tooling.
+  app.get('/products.json', async (_req, res, next) => {
+    try {
+      const filePath = path.resolve(process.cwd(), 'products.json');
+      const body = await fs.readFile(filePath, 'utf8');
+      res.type('application/json').send(body);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // Health checks at root level (not versioned — required by Render health check config)
   app.use('/', healthRouter);
 

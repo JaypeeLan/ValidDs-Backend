@@ -13,7 +13,7 @@ export const DiscoveryService = {
    * Categorizes a product into various discovery sections.
    */
   async categorizeProduct(product: IProductDocument, serpData?: SearchApiRichData | null): Promise<string[]> {
-    const sections: Set<string> = new Set(product.discoverySections || []);
+    const sections: Set<string> = new Set();
 
     try {
       // 1. Top Ads Logic
@@ -38,7 +38,7 @@ export const DiscoveryService = {
       }
 
       // 3. Top Rated Logic
-      const topRated = product.ratingSources?.find(r => r.rating >= 4.5 && r.reviewCount > 100);
+      const topRated = (Number(product.rating || 0) >= 4.5) && (Number(product.reviewCount || 0) > 100);
       if (topRated) {
         sections.add('top-rated');
       }

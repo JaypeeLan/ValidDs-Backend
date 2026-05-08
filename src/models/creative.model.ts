@@ -1,119 +1,21 @@
-import mongoose, { Document, Schema, Model } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
+import type {
+  ICreativeComment,
+  ICreativeDocument,
+  ICreatorProfile,
+  ISecondaryVideo,
+  IVideoMetrics,
+} from '../types/creative.types';
 
-// ── Enums ─────────────────────────────────────────────────────────────────────
-
-export type CreativeSection =
-  | 'top-ads'             // paid/sponsored TikTok ads
-  | 'trending'            // organic, high-engagement viral videos
-  | 'influencer-reviews'  // creator review or unboxing
-  | 'tutorials'           // how-to / demo content
-  | 'viral-unboxings';    // purely unboxing format
-
-// ── Sub-document Interfaces ───────────────────────────────────────────────────
-
-/**
- * Full creator profile for the influencer who posted this specific creative.
- * All fields sourced from TikTok data at time of ingestion.
- * The tiktokPostUrl is the canonical verified link to the video.
- */
-export interface ICreatorProfile {
-  tiktokUserId: string;      // TikTok author uid — stable identifier
-  handle: string;            // @username
-  displayName?: string;      // nickname shown on TikTok
-  bio?: string;              // creator bio/signature
-  avatarUrl?: string;
-  followers: number;
-  following?: number;
-  totalLikes?: number;       // lifetime likes on their profile
-  region?: string;           // country code e.g. 'US'
-  verified: boolean;
-  tiktokPostUrl: string;     // verified direct URL to this specific video
-}
-
-/**
- * Video performance metrics captured at time of ingestion.
- * These are point-in-time snapshots — not live.
- */
-export interface IVideoMetrics {
-  viewCount: number;
-  likeCount: number;
-  commentCount: number;
-  shareCount: number;
-  engagementRate?: number;   // (likes + comments + shares) / views * 100
-  source: string;            // where metrics came from
-  fetchedAt: Date;           // snapshot timestamp for metric freshness
-}
-
-/**
- * Structured comments for a creative/video.
- */
-export interface ICreativeComment {
-  comment: string;
-  source: string;            // e.g. 'TikTok', 'SerpApi'
-  likeCount?: number;
-  authorHandle?: string;
-  collectedAt: Date;
-}
-
-/**
- * Secondary videos for the same product.
- */
-export interface ISecondaryVideo {
-  externalVideoId: string;
-  videoPlayUrl?: string;
-  thumbnailUrl?: string;
-  creator: ICreatorProfile;
-  metrics: IVideoMetrics;
-  topComments: ICreativeComment[];
-  publishedAt: Date;
-}
-
-// ── Main Creative Interface ───────────────────────────────────────────────────
-
-export interface ICreative {
-  // ── Identity ───────────────────────────────────────────────────────────
-  productId: mongoose.Types.ObjectId;  // parent product
-  externalVideoId: string;             // TikTok aweme_id
-
-  // ── Video Content ──────────────────────────────────────────────────────
-  videoPlayUrl?: string;               // direct .mp4 / CDN play URL (may expire)
-  thumbnailUrl?: string;               // video cover image
-
-  // ── Creator (Full Profile) ─────────────────────────────────────────────
-  creator: ICreatorProfile;
-
-  // ── Performance Snapshot ──────────────────────────────────────────────
-  metrics: IVideoMetrics;
-
-  // ── Classification ────────────────────────────────────────────────────
-  section: CreativeSection;    // how this video is categorized in the feed
-  isAd: boolean;               // true = detected as a paid TikTok ad
-  productName?: string;        // explicitly extracted product name shown in video
-  productDescription?: string; // normalized product description (not video caption)
-
-  // ── Taxonomy (mirrors parent product) ────────────────────────────────
-  categoryL1?: string;
-  categoryL2?: string;
-  categoryL3?: string;
-
-  // ── Content Metadata ──────────────────────────────────────────────────
-  description?: string;        // legacy description field (kept for backward compatibility)
-  hashtags: string[];
-  topComments: ICreativeComment[];
-
-  // ── Variations/Related Videos ─────────────────────────────────────────
-  relatedVideos: ISecondaryVideo[];
-
-  // ── Timing ────────────────────────────────────────────────────────────
-  publishedAt: Date;
-  ingestedAt: Date;
-
-  // ── Timestamps (auto by Mongoose) ────────────────────────────────────
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface ICreativeDocument extends ICreative, Document {}
+export type {
+  CreativeSection,
+  ICreative,
+  ICreativeComment,
+  ICreativeDocument,
+  ICreatorProfile,
+  ISecondaryVideo,
+  IVideoMetrics,
+} from '../types/creative.types';
 
 // ── Mongoose Schemas ──────────────────────────────────────────────────────────
 

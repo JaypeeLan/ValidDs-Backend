@@ -27,6 +27,29 @@ export interface ISpecification {
   value: string;
 }
 
+export interface IProductSupplier {
+  source?: string;
+  platform?: string;
+  externalId?: string;
+  title?: string;
+  productUrl?: string;
+  shareUrl?: string;
+  price?: number | null;
+  originalPrice?: number | null;
+  onSale?: boolean;
+  currency?: string;
+  rating?: number | null;
+  totalRatings?: number | null;
+  totalReviews?: number | null;
+  soldLast30Days?: number | null;
+  availableForSale?: boolean;
+  shippingDays?: number;
+  moq?: number;
+  shop?: string | null;
+  checkedAt?: Date;
+  fetchedAt?: Date;
+}
+
 export interface IAIIntelligence {
   confidence: number;
   confidenceReason: string;
@@ -70,6 +93,7 @@ export interface IProduct {
   originalPrice?: number;
   discountPercent?: number;
   shippingFee?: number;
+  suppliers: IProductSupplier[];
   rating?: number;
   reviewCount?: number;
   reviews: IProductReview[];

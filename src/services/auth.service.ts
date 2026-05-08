@@ -366,6 +366,9 @@ export const AuthService = {
       if (user.authProvider !== 'local') {
         throw new AppError(409, 'An account with this email already exists', 'EMAIL_IN_USE');
       }
+      if (user.localAuth?.passwordHash) {
+        throw new AppError(409, 'An account with this email already exists', 'EMAIL_IN_USE');
+      }
       if (!user.localAuth) {
         user.localAuth = { emailVerified: false };
         await user.save();
@@ -425,7 +428,7 @@ export const AuthService = {
     ip?: string
   ): Promise<AuthResult> {
     const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
-      '+localAuth.passwordHash +localAuth.emailVerified'
+      '+localAuth'
     );
 
     if (!user || user.authProvider !== 'local' || !user.localAuth) {

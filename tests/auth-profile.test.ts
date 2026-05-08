@@ -262,6 +262,21 @@ describe('Auth + Profile', () => {
     expect(updateRes.json.data.user.firstName).toBe('Johnny');
   }, 30000);
 
+  it('rejects registration start for an already completed local account', async () => {
+    const email = 'local.user@example.com';
+
+    const registerRes = await httpJson({
+      baseUrl,
+      method: 'POST',
+      path: '/api/v1/auth/register',
+      body: { email },
+    });
+
+    expect(registerRes.status).toBe(409);
+    expect(registerRes.json.success).toBe(false);
+    expect(registerRes.json.error?.code).toBe('EMAIL_IN_USE');
+  });
+
   it('handles forgot password + reset password', async () => {
     const email = 'local.user@example.com';
     const newPassword = 'NewPassword123';

@@ -235,7 +235,6 @@ export const ProductEnricher = {
     ]);
 
     // 13. Final update
-    product.discoverySections = sections;
     product.creativeCounts = {
       ads:     adsCount,
       organic: totalCount - adsCount,

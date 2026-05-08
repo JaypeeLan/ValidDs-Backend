@@ -3,8 +3,8 @@ export { Product } from './product.model';
 export { Transaction } from './transaction.model';
 export { WaitlistEntry } from './waitlist.model';
 
-export type { IUser, IUserDocument, IUserModel, AuthProvider, UserPlan, UserRole, UserStatus, PLAN_LIMITS } from './user.model';
-export type { IProduct, IProductDocument, IProductModel, ITrend, TrendDirection, IPrimaryCreator, IRatingSource, ISupplier, ISalesEvidence, IAIIntelligence } from './product.model';
+export type { IUser, IUserDocument, IUserModel, AuthProvider, UserPlan, UserRole, UserStatus } from '../types/user.types';
+export type { IProduct, IProductDocument, IProductModel, ITrend, TrendDirection, IPrimaryCreator, IAIIntelligence } from '../types/product.types';
 export type {
   ITransaction,
   ITransactionDocument,
@@ -12,5 +12,5 @@ export type {
   TransactionProvider,
   TransactionMode,
   TransactionStatus,
-} from './transaction.model';
-export type { IWaitlistEntry, IWaitlistEntryDocument, IWaitlistEntryModel } from './waitlist.model';
+} from '../types/transaction.types';
+export type { IWaitlistEntry, IWaitlistEntryDocument, IWaitlistEntryModel } from '../types/waitlist.types';

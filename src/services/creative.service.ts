@@ -75,7 +75,7 @@ export const CreativeService = {
     _options?: Record<string, unknown>
   ): Promise<number> {
     log.info('Creative ingestion via external providers is disabled');
-    return 0;
+      return 0;
   },
 
   async mapAndSave(
@@ -88,7 +88,7 @@ export const CreativeService = {
     _productDescription?: string
   ): Promise<boolean> {
     log.info('Creative map-and-save via external providers is disabled');
-    return false;
+      return false;
   },
 
   async findCreatives(filters: any) {
@@ -135,7 +135,7 @@ export const CreativeService = {
   },
 
   async refreshCreativeMedia(_creativeId?: string | mongoose.Types.ObjectId, _index = 0): Promise<boolean> {
-    return false;
+      return false;
   },
 
   async refreshAllSlotsForCreative(_creativeId: string | mongoose.Types.ObjectId): Promise<{ scanned: number; refreshed: number; slots: number }> {

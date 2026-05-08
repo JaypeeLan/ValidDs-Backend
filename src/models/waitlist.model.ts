@@ -1,4 +1,5 @@
-import mongoose, { Document, Schema, Model } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
+import type { IWaitlistEntryDocument, IWaitlistEntryModel } from '../types/waitlist.types';
 
 /**
  * Waitlist Model
@@ -11,18 +12,7 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
  * clean 409-style response instead of a Mongo duplicate-key error.
  */
 
-export interface IWaitlistEntry {
-  email: string;
-  source?: string;
-  ipAddress?: string;
-  userAgent?: string;
-  referrer?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface IWaitlistEntryDocument extends IWaitlistEntry, Document {}
-export type IWaitlistEntryModel = Model<IWaitlistEntryDocument>;
+export type { IWaitlistEntry, IWaitlistEntryDocument, IWaitlistEntryModel } from '../types/waitlist.types';
 
 const WaitlistEntrySchema = new Schema<IWaitlistEntryDocument>(
   {

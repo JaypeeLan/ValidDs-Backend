@@ -104,18 +104,6 @@ const envSchema = z.object({
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional().default('PostmanRuntime/7.43.0')
   ),
-  ECHOTIK_USERNAME: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  ECHOTIK_PASSWORD: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  ECHOTIK_BASE_URL: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().url().optional().default('https://open.echotik.live')
-  ),
 
   // Frontend URL — used for OAuth redirects and Stripe checkout redirect URLs
   FRONTEND_URL: z.preprocess(

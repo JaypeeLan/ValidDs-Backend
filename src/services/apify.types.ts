@@ -110,3 +110,35 @@ export interface ShopifyScraperResponseData {
   count: number;
   data: ShopifyScraperItem[];
 }
+
+export interface TikTokLiveOwner {
+  id?: number | string;
+  nickname?: string;
+  unique_id?: string;
+  avatar_thumb?: { url_list?: string[] };
+  follow_info?: { follower_count?: number };
+}
+
+export interface TikTokLiveStats {
+  total_user?: number;
+}
+
+export interface TikTokLiveStreamUrl {
+  rtmp_pull_url?: string;
+  flv_pull_url?: Record<string, string>;
+}
+
+export interface TikTokLiveScraperItem {
+  id?: number | string;
+  id_str?: string;
+  title?: string;
+  status?: number;
+  user_count?: number;
+  room_id?: number | string;
+  owner_user_id?: number | string;
+  cover?: { url_list?: string[] };
+  stream_url?: TikTokLiveStreamUrl;
+  stats?: TikTokLiveStats;
+  owner?: TikTokLiveOwner;
+  create_time?: number;
+}

@@ -11,6 +11,7 @@ import adminRouter from './admin/admin.routes';
 import billingRouter from './billing/billing.routes';
 import waitlistRouter from './waitlist/waitlist.routes';
 import scraperRouter from './scrapers/scraper.routes';
+import echotikRouter from './echotik/echotik.routes';
 
 const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
@@ -23,6 +24,7 @@ apiRouter.use('/admin', adminRouter);
 apiRouter.use('/billing', billingRouter);
 apiRouter.use('/waitlist', waitlistRouter);
 apiRouter.use('/scrapers', scraperRouter);
+apiRouter.use('/echotik', echotikRouter);
 
 // Sentry test endpoint
 apiRouter.get('/debug-sentry', (_req, _res) => {

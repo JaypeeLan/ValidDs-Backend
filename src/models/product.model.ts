@@ -5,6 +5,7 @@ import type {
   IProductDocument,
   IProductModel,
   IProductReview,
+  IProductSupplier,
   ISpecification,
   ITrend,
 } from '../types/product.types';
@@ -16,6 +17,7 @@ export type {
   IProductDocument,
   IProductModel,
   IProductReview,
+  IProductSupplier,
   ISpecification,
   ITrend,
   PriceBand,
@@ -53,6 +55,32 @@ const SpecificationSchema = new Schema<ISpecification>(
   {
     title: { type: String, required: true },
     value: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const ProductSupplierSchema = new Schema<IProductSupplier>(
+  {
+    source:           { type: String },
+    platform:         { type: String },
+    externalId:       { type: String },
+    title:            { type: String },
+    productUrl:       { type: String },
+    shareUrl:         { type: String },
+    price:            { type: Number, min: 0, default: null },
+    originalPrice:    { type: Number, min: 0, default: null },
+    onSale:           { type: Boolean, default: false },
+    currency:         { type: String, default: 'USD' },
+    rating:           { type: Number, min: 0, max: 5, default: null },
+    totalRatings:     { type: Number, min: 0, default: null },
+    totalReviews:     { type: Number, min: 0, default: null },
+    soldLast30Days:   { type: Number, min: 0, default: null },
+    availableForSale: { type: Boolean, default: true },
+    shippingDays:     { type: Number, min: 0 },
+    moq:              { type: Number, min: 0 },
+    shop:             { type: String, default: null },
+    checkedAt:        { type: Date },
+    fetchedAt:        { type: Date },
   },
   { _id: false }
 );
@@ -123,6 +151,7 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
     originalPrice:  { type: Number, min: 0 },
     discountPercent:{ type: Number, min: 0, max: 100 },
     shippingFee:    { type: Number, min: 0 },
+    suppliers:      { type: [ProductSupplierSchema], default: [] },
 
     // Market Evidence
     rating:     { type: Number, min: 0, max: 5 },

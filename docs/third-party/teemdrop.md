@@ -1,6 +1,6 @@
 # TeemDrop API Setup
 
-TeemDrop is now the primary supplier catalog used by the hashtag ingestion pipeline. The backend tries TeemDrop first for product details and only falls back to Rainforest when TeemDrop cannot find a confident match.
+TeemDrop is the supplier catalog used by the hashtag ingestion pipeline when TeemDrop credentials are configured. If no confident catalog match is found, supplier enrichment is skipped for that product.
 
 ---
 
@@ -74,4 +74,4 @@ TeemDrop does not currently expose a direct catalog keyword search in the attach
 3. Scores English and native titles against the extracted product name
 4. Fetches `product/detail` only for the best confident match
 
-If no confident match is found, Rainforest remains the fallback supplier source.
+If no confident match is found, no TeemDrop supplier block is attached.

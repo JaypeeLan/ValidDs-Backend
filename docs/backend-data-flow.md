@@ -96,7 +96,7 @@ Controller (controller.ts)
 Service (service.ts)
     │  applies business logic
     │  calls repository for DB access
-    │  may call external services (AI, Rainforest, etc.)
+    │  may call external services (AI, TeemDrop, etc.)
     ▼
 Repository (db/repositories/*.ts)
     │  runs MongoDB queries via Mongoose
@@ -177,7 +177,7 @@ The `stack` field in the error log shows the exact file and line number where th
 | `ValidationError` | Mongoose schema mismatch | model schema or repository update shape |
 | `ZodError` | Request body/query failed validation | controller Zod schema |
 | `MongoServerError / 11000` | Duplicate key on upsert | repository — check unique index field |
-| `AxiosError` | External API call failed (Rainforest, EnsembleData) | service layer |
+| `AxiosError` | External API call failed (EnsembleData, TeemDrop, etc.) | service layer |
 | `JsonWebTokenError` | Bad or expired JWT | `auth.middleware.ts` |
 
 ---
@@ -260,6 +260,5 @@ src/models/<feature>.model.ts               ← Mongoose schema
 | `src/config/env.validation.ts` | Zod schema for all env vars — crashes on startup if invalid |
 | `src/jobs/index.ts` | Background job scheduler (product ingestion, creative ingestion, stale cleanup) |
 | `src/ingestion/ensemble/ensemble.client.ts` | EnsembleData client — used for creator enrichment |
-| `src/services/search.service.ts` | SearchApi client — Google Shopping reviews + related products |
 | `src/freshness/freshness.service.ts` | Tracks when data was last updated |
 | `src/monitoring/alerts.ts` | Webhook/Sentry alert triggers |

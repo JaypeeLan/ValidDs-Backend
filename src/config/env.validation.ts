@@ -104,18 +104,6 @@ const envSchema = z.object({
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional().default('PostmanRuntime/7.43.0')
   ),
-  ECHOTIK_USERNAME: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  ECHOTIK_PASSWORD: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-  ECHOTIK_BASE_URL: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().url().optional().default('https://open.echotik.live')
-  ),
 
   // Frontend URL — used for OAuth redirects and Stripe checkout redirect URLs
   FRONTEND_URL: z.preprocess(
@@ -173,6 +161,36 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
   STRIPE_PRICE_ID_PREMIUM_LIVE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+
+  // Shopify (OAuth — for "Connect Shopify store")
+  SHOPIFY_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  SHOPIFY_API_SECRET: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  SHOPIFY_API_SCOPES: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional().default('write_products,read_products')
+  ),
+  SHOPIFY_API_VERSION: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional().default('2024-10')
+  ),
+  SHOPIFY_REDIRECT_URI: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional()
+  ),
+  SHOPIFY_SIGNUP_URL: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional().default('https://www.shopify.com/signup')
+  ),
+  SHOPIFY_PARTNER_REFERRAL_CODE: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
   ),

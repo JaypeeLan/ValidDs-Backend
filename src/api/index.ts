@@ -11,7 +11,7 @@ import adminRouter from './admin/admin.routes';
 import billingRouter from './billing/billing.routes';
 import waitlistRouter from './waitlist/waitlist.routes';
 import scraperRouter from './scrapers/scraper.routes';
-import echotikRouter from './echotik/echotik.routes';
+import storeRouter from './stores/store.routes';
 
 const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
@@ -24,7 +24,7 @@ apiRouter.use('/admin', adminRouter);
 apiRouter.use('/billing', billingRouter);
 apiRouter.use('/waitlist', waitlistRouter);
 apiRouter.use('/scrapers', scraperRouter);
-apiRouter.use('/echotik', echotikRouter);
+apiRouter.use('/stores', storeRouter);
 
 // Sentry test endpoint
 apiRouter.get('/debug-sentry', (_req, _res) => {
@@ -34,11 +34,9 @@ apiRouter.get('/debug-sentry', (_req, _res) => {
 // Uncomment as each module is implemented:
 // import videoRouter from './videos/video.routes';
 // import trendRouter from './trends/trend.routes';
-// import storeRouter from './stores/store.routes';
 // import supplierRouter from './suppliers/supplier.routes';
 // apiRouter.use('/videos', videoRouter);
 // apiRouter.use('/trends', trendRouter);
-// apiRouter.use('/stores', storeRouter);
 // apiRouter.use('/suppliers', supplierRouter);
 
 export { healthRouter };

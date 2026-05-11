@@ -1,6 +1,5 @@
 import { IProductDocument } from '../models/product.model';
 import { Creative } from '../models/creative.model';
-import { SearchApiRichData } from './search.service';
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'discovery-service' });
@@ -12,12 +11,11 @@ export const DiscoveryService = {
   /**
    * Categorizes a product into various discovery sections.
    */
-  async categorizeProduct(product: IProductDocument, serpData?: SearchApiRichData | null): Promise<string[]> {
+  async categorizeProduct(product: IProductDocument): Promise<string[]> {
     const sections: Set<string> = new Set();
 
     try {
-      // 1. Top Ads Logic
-      const hasSerpAds = serpData?.shopping_results?.some(r => r.is_ad) || false;
+      // 1. Top Ads Logic (creatives + high view counts; no external shopping SERP)
       const creativeAdsCount = await Creative.countDocuments({ 
         productId: product._id, 
         isAd: true 
@@ -25,7 +23,6 @@ export const DiscoveryService = {
       const viewCount = Math.max(0, Number(product.viewCount) || 0);
 
       if (
-        hasSerpAds ||
         creativeAdsCount >= 1 ||
         viewCount >= TOP_AD_ABSOLUTE_VIEW_FLOOR
       ) {

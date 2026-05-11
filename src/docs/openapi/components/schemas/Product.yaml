@@ -121,7 +121,7 @@ properties:
           format: date-time
   reviews:
     type: array
-    description: "Google Shopping review snippets from SearchApi"
+    description: "Review snippets from ingestion sources (e.g. AI extraction, TikTok comments)"
     items:
       type: object
       properties:
@@ -246,7 +246,7 @@ properties:
       Use query `section=top-ads` or `isAd=true` to list only these products.
   relatedProducts:
     type: array
-    description: "Related products from Google Shopping (SearchApi)"
+    description: "Related marketplace items when available from enrichment"
     items:
       type: object
       properties:

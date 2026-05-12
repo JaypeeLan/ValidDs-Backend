@@ -189,7 +189,9 @@ export const ScrapeCreatorsService = {
   async getUserInfo(handle: string): Promise<SCUserInfo | null> {
     this.assertConfigured();
     const cleanHandle = handle.replace(/^@/, '').trim().toLowerCase();
-    const url = `${env.SCRAPECREATORS_BASE_URL}/v1/tiktok/user/info?handle=${encodeURIComponent(cleanHandle)}`;
+
+    // ScrapeCreators exposes /v1/tiktok/profile (not /user/info)
+    const url = `${env.SCRAPECREATORS_BASE_URL}/v1/tiktok/profile?handle=${encodeURIComponent(cleanHandle)}`;
     try {
       const res = await fetch(url, {
         headers: { 'x-api-key': env.SCRAPECREATORS_API_KEY!, 'Accept': 'application/json' },
@@ -198,33 +200,39 @@ export const ScrapeCreatorsService = {
       if (!res.ok) return null;
       const raw = await res.json() as any;
 
-      // ScrapeCreators nests: raw.userInfo.user + raw.userInfo.stats
-      // or flat: raw.user + raw.stats
-      const u     = raw?.userInfo?.user || raw?.user || raw;
-      if (!u?.uniqueId && !u?.id) return null;
-      const stats = raw?.userInfo?.stats || raw?.stats || {};
+      // Profile endpoint: raw.user + raw.stats / raw.statsV2
+      const u = raw?.user;
+      if (!u?.uniqueId) return null;
 
-      // Avatar — TikTok returns { urlList: [...] } objects
+      // Prefer statsV2 (string values) → parse to number; fall back to stats
+      const sv2   = raw?.statsV2 || {};
+      const stats = raw?.stats   || {};
+      const fc    = (s: any, k: string) => pos(Number(sv2[k] ?? stats[k]));
+
       const avatarThumb  = firstUrl(u.avatarThumb)  || undefined;
       const avatarMedium = firstUrl(u.avatarMedium) || undefined;
       const avatarLarger = firstUrl(u.avatarLarger) || undefined;
 
-      const followerCount  = pos(stats.followerCount  ?? u.followerCount);
-      const heartCount     = pos(stats.heart ?? stats.heartCount ?? u.heartCount);
+      const followerCount = fc(stats, 'followerCount');
+      const heartCount    = fc(stats, 'heart') || fc(stats, 'heartCount');
       const engagementRate = followerCount && heartCount
-        ? Math.round((heartCount / followerCount) * 10) / 10  // 1 decimal
+        ? Math.round((heartCount / followerCount) * 10) / 10
         : undefined;
 
-      // Commerce — commerceUserInfo.commerceUser or shopUserInfo
-      const commerce = u.commerceUserInfo || u.shopUserInfo || {};
-      const hasShop  = commerce.commerceUser === true || undefined;
+      // Commerce — ttSeller flag is the most reliable indicator
+      const commerce = u.commerceUserInfo || {};
+      const hasShop  = (u.ttSeller === true || commerce.commerceUser === true) || undefined;
       const shopId   = str(commerce.shopId || commerce.sellerId) || undefined;
       const shopRegion = str(commerce.mcnRegion || commerce.region) || undefined;
+
+      // Nickname must differ from handle — if they're the same, it's not useful as a display name
+      const nickname = str(u.nickname);
+      const displayNickname = nickname?.toLowerCase() !== cleanHandle ? nickname : undefined;
 
       return strip<SCUserInfo>({
         id:             str(u.id),
         uniqueId:       str(u.uniqueId),
-        nickname:       str(u.nickname),
+        nickname:       displayNickname,
         avatarThumb,
         avatarMedium,
         avatarLarger,
@@ -234,10 +242,10 @@ export const ScrapeCreatorsService = {
         language:       str(u.language) || undefined,
         privateAccount: u.privateAccount === true || undefined,
         followerCount,
-        followingCount: pos(stats.followingCount ?? u.followingCount),
-        videoCount:     pos(stats.videoCount     ?? u.videoCount),
+        followingCount: fc(stats, 'followingCount'),
+        videoCount:     fc(stats, 'videoCount'),
         heartCount,
-        diggCount:      pos(stats.diggCount ?? u.diggCount),
+        diggCount:      fc(stats, 'diggCount'),
         hasShop,
         shopId,
         shopRegion,

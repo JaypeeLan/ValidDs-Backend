@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../../middleware/auth.middleware';
+import { requireAuth, requireRole } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
@@ -57,7 +57,7 @@ const UpdateStoreSchema = z.object({
 });
 
 /** GET /tiktok/stores */
-router.get('/stores', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/stores', requireAuth, requireRole('admin'), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const stores = await TrackedStore.find().sort({ lastLiveAt: -1, createdAt: -1 }).lean();
     res.json(successResponse(stores, `${stores.length} tracked stores`, 200));
@@ -68,6 +68,7 @@ router.get('/stores', requireAuth, async (req: Request, res: Response, next: Nex
 router.post(
   '/stores',
   requireAuth,
+  requireRole('admin'),
   validate(AddStoreSchema, 'body'),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -85,17 +86,19 @@ router.post(
       if (ScrapeCreatorsService.isConfigured()) {
         const info = await ScrapeCreatorsService.getUserInfo(handle).catch(() => null);
         if (info) {
-          if (info.id)             profileData.tiktokUserId  = info.id;
-          if (info.nickname)       profileData.displayName   = displayName || info.nickname;
-          if (info.bio)            profileData.bio           = info.bio;
-          if (info.avatarThumb)    profileData.avatarThumb   = info.avatarThumb;
-          if (info.avatarMedium)   profileData.avatarMedium  = info.avatarMedium;
-          if (info.avatarLarger)   profileData.avatarLarger  = info.avatarLarger;
-          if (info.verified)       profileData.verified      = info.verified;
+          if (info.id)             profileData.tiktokUserId   = info.id;
+          // nickname is already guaranteed ≠ handle by getUserInfo; manual displayName always wins
+          const resolvedName = displayName || info.nickname;
+          if (resolvedName)        profileData.displayName    = resolvedName;
+          if (info.bio)            profileData.bio            = info.bio;
+          if (info.avatarThumb)    profileData.avatarThumb    = info.avatarThumb;
+          if (info.avatarMedium)   profileData.avatarMedium   = info.avatarMedium;
+          if (info.avatarLarger)   profileData.avatarLarger   = info.avatarLarger;
+          if (info.verified)       profileData.verified       = info.verified;
           if (info.privateAccount) profileData.privateAccount = info.privateAccount;
-          if (info.hasShop)        profileData.hasShop       = info.hasShop;
-          if (info.region)         profileData.region        = info.region;
-          if (info.language)       profileData.language      = info.language;
+          if (info.hasShop)        profileData.hasShop        = info.hasShop;
+          if (info.region)         profileData.region         = info.region;
+          if (info.language)       profileData.language       = info.language;
           if (info.followerCount)  profileData.followerCount  = info.followerCount;
           if (info.followingCount) profileData.followingCount = info.followingCount;
           if (info.videoCount)     profileData.videoCount     = info.videoCount;
@@ -111,13 +114,11 @@ router.post(
       const store = await TrackedStore.create({
         handle,
         ...profileData,
-        // Manual overrides always win over SC data
-        ...(displayName                             ? { displayName }                          : {}),
-        ...(notes                                   ? { notes }                                : {}),
-        ...(tags?.length                            ? { tags }                                 : {}),
-        ...(shopUrl                                 ? { shopUrl }                              : {}),
-        // Default shop URL if SC didn't give us one
-        shopUrl: shopUrl || profileData.shopUrl || `https://www.tiktok.com/@${handle}/shop`,
+        // Manual overrides always win
+        ...(displayName ? { displayName } : {}),
+        ...(notes       ? { notes }       : {}),
+        ...(tags?.length ? { tags }       : {}),
+        shopUrl: shopUrl || `https://www.tiktok.com/@${handle}/shop`,
         addedBy: (req as any).user?._id,
       });
 
@@ -128,7 +129,7 @@ router.post(
 );
 
 /** GET /tiktok/stores/:handle */
-router.get('/stores/:handle', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/stores/:handle', requireAuth, requireRole('admin'), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const handle = req.params.handle.replace(/^@/, '').toLowerCase();
     const store  = await TrackedStore.findOne({ handle }).lean();
@@ -147,6 +148,7 @@ router.get('/stores/:handle', requireAuth, async (req: Request, res: Response, n
 router.patch(
   '/stores/:handle',
   requireAuth,
+  requireRole('admin'),
   validate(UpdateStoreSchema, 'body'),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -160,7 +162,7 @@ router.patch(
 );
 
 /** POST /tiktok/stores/:handle/refresh — re-fetch profile from ScrapeCreators */
-router.post('/stores/:handle/refresh', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/stores/:handle/refresh', requireAuth, requireRole('admin'), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const handle = req.params.handle.replace(/^@/, '').toLowerCase();
     const store  = await TrackedStore.findOne({ handle });
@@ -204,7 +206,7 @@ router.post('/stores/:handle/refresh', requireAuth, async (req: Request, res: Re
 });
 
 /** DELETE /tiktok/stores/:handle */
-router.delete('/stores/:handle', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.delete('/stores/:handle', requireAuth, requireRole('admin'), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const handle = req.params.handle.replace(/^@/, '').toLowerCase();
     const store  = await TrackedStore.findOneAndDelete({ handle });
@@ -249,6 +251,7 @@ const LiveQuerySchema = z.object({
 router.get(
   '/live',
   requireAuth,
+  requireRole('admin'),
   validate(LiveQuerySchema, 'query'),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -266,6 +269,7 @@ const BatchQuerySchema = z.object({
 router.get(
   '/live/batch',
   requireAuth,
+  requireRole('admin'),
   validate(BatchQuerySchema, 'query'),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -299,6 +303,7 @@ router.get(
 router.get(
   '/live/products',
   requireAuth,
+  requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const roomId = String(req.query.roomId || '').trim();
@@ -343,7 +348,7 @@ router.get(
 // ────────────────────────────────────────────────────────────────────────────────
 
 /** GET /tiktok/sessions */
-router.get('/sessions', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/sessions', requireAuth, requireRole('admin'), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const handle  = req.query.handle  ? String(req.query.handle).replace(/^@/, '').toLowerCase() : undefined;
     const status  = req.query.status  ? String(req.query.status)  : undefined;
@@ -372,7 +377,7 @@ router.get('/sessions', requireAuth, async (req: Request, res: Response, next: N
 });
 
 /** GET /tiktok/sessions/:id */
-router.get('/sessions/:id', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/sessions/:id', requireAuth, requireRole('admin'), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const session = await LiveSession.findById(req.params.id).lean();
     if (!session) throw new AppError(404, 'Session not found', 'NOT_FOUND');

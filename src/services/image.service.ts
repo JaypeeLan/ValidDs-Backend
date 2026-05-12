@@ -5,46 +5,29 @@ const log = logger.child({ module: 'image-service' });
 /**
  * Product Image Service
  *
- * Fetches product image URLs by searching for the product name via
- * SearchApi's `google_images` engine (https://www.searchapi.io/).
- *
- * For V1, images are best-effort. If no image is found, the product
- * record is still created with primaryImageUrl = null. The frontend
- * handles this gracefully (placeholder image).
- *
- * Setup required in .env:
- *   SEARCHAPI_KEY=   (SearchApi key — https://www.searchapi.io/)
+ * Image URL probing for CDNs that return HTML error bodies on expired signed URLs.
+ * External image search backends have been removed; callers use extraction/post media.
  */
 export const ImageService = {
   /**
-   * Search for product images by name.
-   * Returns a list of relevant image URLs, prioritizing high quality
-   * and clean backgrounds (studio white / lifestyle / 4k).
+   * Reserved for future image discovery. Currently returns no third-party search results.
    */
-  async findProductImages(productName: string): Promise<string[]> {
-    const results = await searchSearchApi(productName);
-    if (results.length > 0) {
-      log.debug(`Found ${results.length} images via SearchApi`, { product: productName });
-      return results;
-    }
-    log.debug(`No images found for product: ${productName}`);
+  async findProductImages(_productName: string): Promise<string[]> {
+    log.debug('findProductImages: no external image search configured');
     return [];
   },
 
   /**
-   * Returns the best single thumbnail URL, preferring an already-provided
-   * SearchApi thumbnail if we have one.
+   * Returns a preferred thumbnail when the caller already has one; otherwise no lookup.
    */
-  async findPrimaryThumbnail(productName: string, searchApiThumbnail?: string): Promise<string | null> {
-    if (searchApiThumbnail) return searchApiThumbnail;
-    const results = await this.findProductImages(productName);
-    return results[0] || null;
+  async findPrimaryThumbnail(_productName: string, preferredThumbnail?: string): Promise<string | null> {
+    return preferredThumbnail || null;
   },
 
   /**
    * Checks whether an image URL is actually serving an image — i.e. returns
    * a 2xx status AND a `Content-Type` that starts with `image/`. Some CDNs
-   * (notably TikTok / volces) return 200 with an HTML error page or plain
+   * (notably some TikTok / CDN hosts) return 200 with an HTML error page or plain
    * text when a signed URL is expired, which is why we can't trust HTTP
    * status alone.
    *
@@ -89,88 +72,4 @@ async function attempt(url: string, method: 'HEAD' | 'GET', timeoutMs: number): 
   } catch {
     return null;
   }
-}
-
-// ── SearchApi ─────────────────────────────────────────────────────────────────
-
-async function searchSearchApi(query: string): Promise<string[]> {
-  const apiKey = process.env.SEARCHAPI_KEY ?? process.env.SERPAPI_KEY;
-  if (!apiKey) {
-    log.debug('SEARCHAPI_KEY missing — skipping image search');
-    return [];
-  }
-
-  try {
-    const q = buildImageQuery(query);
-    const params = new URLSearchParams({
-      api_key: apiKey,
-      engine:  'google_images',
-      q,
-      num:     '15',
-      safe:    'active',
-    });
-
-    const res = await fetch(
-      `https://www.searchapi.io/api/v1/search?${params.toString()}`,
-      { signal: AbortSignal.timeout(12000) }
-    );
-
-    if (!res.ok) {
-      log.debug('SearchApi image request failed', { status: res.status });
-      return [];
-    }
-
-    type ImageItem = {
-      original?:  string | { link?: string; width?: number; height?: number };
-      thumbnail?: string;
-      source?:    string;
-    };
-    const data = (await res.json()) as {
-      images?:         ImageItem[];
-      images_results?: ImageItem[];
-    };
-
-    const items = data.images ?? data.images_results ?? [];
-    const results: string[] = [];
-    for (const item of items) {
-      const original =
-        typeof item.original === 'string'
-          ? item.original
-          : item.original?.link;
-      const url = original || item.thumbnail;
-      if (url && isAcceptableImageUrl(url)) results.push(url);
-    }
-
-    return results.slice(0, 10);
-  } catch (err) {
-    log.debug('SearchApi image search failed', { err: String(err) });
-    return [];
-  }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Builds a concise image-search query. TikTok Shop titles are often long,
- * multilingual, and stuffed with tags/brackets — feeding the whole thing to
- * Google Images typically returns zero hits. We trim to the first handful of
- * meaningful tokens and append a light "product" hint.
- */
-function buildImageQuery(raw: string): string {
-  const cleaned = raw
-    .replace(/[\[\](){}|]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const words = cleaned.split(' ').filter(Boolean).slice(0, 10);
-  const short = words.join(' ').slice(0, 120);
-  return `${short} product`;
-}
-
-function isAcceptableImageUrl(url: string): boolean {
-  const blocklist = ['pinterest', 'instagram', 'facebook', 'twitter', 'tiktok', 'p16-', 'p19-'];
-  const lower = url.toLowerCase();
-  if (blocklist.some((b) => lower.includes(b))) return false;
-  if (!url.startsWith('http')) return false;
-  return true;
 }

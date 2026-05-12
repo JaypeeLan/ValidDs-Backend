@@ -6,6 +6,7 @@ import type {
   INotificationPrefs,
   ISavedProduct,
   ISearchHistoryEntry,
+  IShopifyConnection,
   ITikTokAuth,
   IUserDocument,
   IUserModel,
@@ -40,6 +41,7 @@ export type {
   INotificationPrefs,
   ISavedProduct,
   ISearchHistoryEntry,
+  IShopifyConnection,
   ITikTokAuth,
   IUser,
   IUserDocument,
@@ -76,6 +78,24 @@ const TikTokAuthSchema = new Schema<ITikTokAuth>(
   {
     openId: { type: String, required: true },
     unionId: { type: String },
+  },
+  { _id: false }
+);
+
+const ShopifyConnectionSchema = new Schema<IShopifyConnection>(
+  {
+    shop:                  { type: String, required: true, trim: true, lowercase: true },
+    accessTokenCiphertext: { type: String, required: true },
+    accessTokenIv:         { type: String, required: true },
+    accessTokenAuthTag:    { type: String, required: true },
+    scope:                 { type: String },
+    shopName:              { type: String },
+    shopEmail:             { type: String },
+    shopOwner:             { type: String },
+    shopCountry:           { type: String },
+    shopCurrency:          { type: String },
+    installedAt:           { type: Date, required: true, default: Date.now },
+    lastSyncedAt:          { type: Date },
   },
   { _id: false }
 );
@@ -153,6 +173,7 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     googleAuth: { type: GoogleAuthSchema, select: false },
     tiktokAuth: { type: TikTokAuthSchema, select: false },
     localAuth: { type: LocalAuthSchema, select: false },
+    shopifyConnection: { type: ShopifyConnectionSchema, select: false },
 
     // Role & plan
     role: {
@@ -229,6 +250,7 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
         delete ret.localAuth;
         delete ret.googleAuth;
         delete ret.tiktokAuth;
+        delete ret.shopifyConnection;
         delete (ret as any).__v;
         return ret;
       },

@@ -1,0 +1,13 @@
+# Local / dev-only — never copy into images
+tools/
+.claude/
+.trae/
+
+node_modules
+dist
+.git
+.env
+.env.*
+backend.env
+*.log
+coverage

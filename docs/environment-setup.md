@@ -18,8 +18,7 @@ To run the backend locally or in production, you need the following active servi
 
 3. **External API Providers**
    - **EnsembleData**: For scraping TikTok data and orchestrating keyword/hashtag lookups.
-   - **TeemDrop API**: Primary supplier catalog used for product title, price, description, and media enrichment.
-   - **Rainforest API**: Backup supplier source when TeemDrop does not return a confident product match.
+   - **TeemDrop API**: Optional supplier catalog used for product title, price, description, and media enrichment when a match is found.
    - **DeepSeek API (or OpenAI)**: For performing LLM extraction and intent validation asynchronously.
 
 ---
@@ -35,7 +34,7 @@ Copy `.env.example` to `.env` in the root directory.
 | **Core API** | `PORT`, `NODE_ENV` | Define environment bounds and host port bindings. |
 | **Security** | `INTERNAL_API_KEY`, `JWT_SECRET`, `ENCRYPTION_KEY` | Handle request validations and encrypt sensitive stored DB tokens. |
 | **Infrastructure** | `MONGODB_URI`, `REDIS_URL` | Map to your active managed databases. |
-| **Data Scraping** | `ENSEMBLE_API_KEY`, `TEEMDROP_APP_KEY`, `TEEMDROP_APP_SECRET`, `RAINFOREST_API_KEY` | Power the ingestion pipeline's extraction and supplier enrichment capabilities. |
+| **Data Scraping** | `ENSEMBLE_API_KEY`, `TEEMDROP_APP_KEY`, `TEEMDROP_APP_SECRET` | Power the ingestion pipeline's extraction and supplier enrichment capabilities. |
 | **AI Extraction** | `DEEPSEEK_API_KEY`, `OPENAI_API_KEY` | Handle psychology abstraction and scoring inside the pipeline. |
 
 ---

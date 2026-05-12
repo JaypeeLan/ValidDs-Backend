@@ -27,6 +27,25 @@ export interface ILocalAuth {
   emailVerificationExpiresAt?: Date;
 }
 
+/**
+ * Shopify store connection stored on the user document.
+ * The `accessToken` is encrypted at rest using AES-256-GCM (see security/encryption.ts).
+ */
+export interface IShopifyConnection {
+  shop: string;                     // e.g. "my-store.myshopify.com"
+  accessTokenCiphertext: string;    // hex
+  accessTokenIv: string;            // hex
+  accessTokenAuthTag: string;       // hex
+  scope?: string;
+  shopName?: string;
+  shopEmail?: string;
+  shopOwner?: string;
+  shopCountry?: string;
+  shopCurrency?: string;
+  installedAt: Date;
+  lastSyncedAt?: Date;
+}
+
 export interface IUsageStats {
   productsViewedToday: number;
   productsViewedTotal: number;
@@ -66,6 +85,7 @@ export interface IUser {
   googleAuth?: IGoogleAuth;
   tiktokAuth?: ITikTokAuth;
   localAuth?: ILocalAuth;
+  shopifyConnection?: IShopifyConnection;
   role: UserRole;
   plan: UserPlan;
   planExpiresAt?: Date;

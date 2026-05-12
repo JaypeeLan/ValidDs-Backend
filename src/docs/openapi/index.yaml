@@ -37,6 +37,10 @@ tags:
     description: Stripe billing — public plan catalog, Checkout session creation, subscription state, and publishable key
   - name: Waitlist
     description: Pre-launch email waitlist — public `POST /api/v1/waitlist` to join, admin-only `GET /api/v1/admin/waitlist` to list
+  - name: TikTok Live
+    description: Live store discovery — checks the admin-managed watchlist and returns stores currently live on TikTok
+  - name: TikTok Live (Admin)
+    description: Admin-only — manage the tracked store watchlist, run ad-hoc live checks, view session GMV history
 
 paths:
   /health:
@@ -123,6 +127,24 @@ paths:
     $ref: './paths/billing.yaml#/stripeWebhook'
   /api/v1/waitlist:
     $ref: './paths/waitlist.yaml#/join'
+  /api/v1/tiktok/live/discover:
+    $ref: './paths/tiktok.yaml#/liveDiscover'
+  /api/v1/tiktok/live:
+    $ref: './paths/tiktok.yaml#/liveSingle'
+  /api/v1/tiktok/live/batch:
+    $ref: './paths/tiktok.yaml#/liveBatch'
+  /api/v1/tiktok/live/products:
+    $ref: './paths/tiktok.yaml#/liveProducts'
+  /api/v1/tiktok/stores:
+    $ref: './paths/tiktok.yaml#/stores'
+  /api/v1/tiktok/stores/{handle}:
+    $ref: './paths/tiktok.yaml#/storeItem'
+  /api/v1/tiktok/stores/{handle}/refresh:
+    $ref: './paths/tiktok.yaml#/storeRefresh'
+  /api/v1/tiktok/sessions:
+    $ref: './paths/tiktok.yaml#/sessions'
+  /api/v1/tiktok/sessions/{id}:
+    $ref: './paths/tiktok.yaml#/sessionItem'
 components:
   securitySchemes:
     ApiKeyAuth:

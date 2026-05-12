@@ -222,36 +222,6 @@ AI-hallucinated sales figures undermined platform trust. To restore data integri
 
 ---
 
-## DL-019 — Ingestion: EchoTik as Primary Product Source
-
-**Date:** 2026-04-21
-**Decision:** Replace the EnsembleData hashtag pipeline as the primary product ingestion source with EchoTik (TikTok Shop structured data API).
-
-**Options considered:**
-- EnsembleData hashtag pipeline — scrapes TikTok posts, requires AI extraction (Gemini/DeepSeek) to identify products. High AI cost, unstructured data.
-- EchoTik — direct TikTok Shop API with structured product data: real prices, verified sales, ratings, commission rates, image galleries. No AI extraction needed.
-
-**Reasoning:**
-EchoTik provides ground-truth TikTok Shop data — real 30-day sales counts, verified buyer reviews, actual commission rates, and structured category taxonomy. This eliminates the AI extraction cost (~$0.10–$3 per post) and removes the hallucination risk entirely. Data quality is significantly higher. The EnsembleData client is retained but used only for creator enrichment (finding real TikTok creators promoting each product).
-
-**What might change:** EchoTik has API quotas. If quota becomes a constraint, the EnsembleData hashtag pipeline can be reactivated as a supplemental source.
-
----
-
-## DL-020 — Images: Serve-Time URL Resolution for EchoTik
-
-**Date:** 2026-04-21
-**Decision:** Store original volces.com image URLs in MongoDB and resolve them to temp URLs at serve time via Redis cache, rather than exchanging URLs at ingestion time.
-
-**Options considered:**
-- Exchange at ingest time — store temp URLs in DB. Problem: temp URLs expire after 24h, staling all stored images daily.
-- Exchange at serve time — store originals in DB, resolve on demand via Redis cache (20h TTL).
-
-**Reasoning:**
-Storing temp URLs in MongoDB creates a time bomb — every product image becomes invalid within 24 hours. The serve-time approach means originals are stored indefinitely and temp URLs are obtained on demand and cached in Redis for 20 hours. Cache misses trigger a single batch API call to EchoTik's `/batch/cover/download`. This also allows a pre-warm script to front-load the cache on deployment.
-
----
-
 ## DL-021 — Reviews: SearchApi over SerpApi
 
 **Date:** 2026-04-21
@@ -266,8 +236,17 @@ SearchApi provides the same Google Shopping and Google Product engines at compet
 
 ## DL-022 — Creator Enrichment: EnsembleData Keyword Search
 
-**Date:** 2026-04-21
-**Decision:** After ingesting each EchoTik product, search EnsembleData for TikTok posts mentioning the product name and use the top creator as `primaryCreator`.
+**Date:** 2026-04-21  
+**Decision:** Use EnsembleData (e.g. keyword / post / hashtag flows) to resolve a real TikTok creator and engagement for a product when the primary post metadata is insufficient.
 
 **Reasoning:**
-EchoTik products have a seller (shop owner) as their creator, not a real TikTok content creator. Using EnsembleData's `keyword/full-search` endpoint lets us find the actual TikTok creator with the most views promoting that product — giving users meaningful creator intelligence (handle, followers, bio, post URL) and real engagement metrics. Non-blocking: seller record is kept as fallback if no creator post is found.
+Shop/catalog-oriented rows often point at a seller, not the creator of the viral TikTok. EnsembleData can supply the creator block (`primaryCreator`), working video URLs, and follower stats when those endpoints are enabled in the ingestion path.
+
+---
+
+## DL-023 — Legacy TikTok Shop structured-ingestion removed
+
+**Date:** 2026-05  
+**Decision:** Remove the prior third-party TikTok Shop structured-data integration (API clients, types, routes, env vars, and docs that described it as the primary feed).
+
+**Reasoning:** Narrow the stack to the orchestrator + enricher pattern and avoid maintaining that integration. A future structured TikTok Shop source should be added as a new ingestion module behind `IngestionOrchestrator`.

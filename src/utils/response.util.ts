@@ -24,6 +24,11 @@ export enum ResponseMessage {
   // Health
   HEALTH_OK = 'Service is healthy and running.',
 
+  // Stores (Shopify)
+  SHOPIFY_CONNECTED = 'Shopify store connected successfully.',
+  SHOPIFY_DISCONNECTED = 'Shopify store disconnected successfully.',
+  SHOPIFY_PRODUCT_PUSHED = 'Product pushed to your Shopify store successfully.',
+
   // Generic
   SUCCESS = 'Operation completed successfully.',
   CREATED = 'Resource created successfully.',

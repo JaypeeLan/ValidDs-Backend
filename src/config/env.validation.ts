@@ -165,6 +165,46 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
 
+  // Shopify (OAuth — for "Connect Shopify store")
+  SHOPIFY_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  SHOPIFY_API_SECRET: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  SHOPIFY_API_SCOPES: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional().default('read_products,write_products')
+  ),
+  SHOPIFY_API_VERSION: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional().default('2025-01')
+  ),
+  SHOPIFY_REDIRECT_URI: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional()
+  ),
+  SHOPIFY_SIGNUP_URL: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional().default('https://www.shopify.com/signup')
+  ),
+  SHOPIFY_PARTNER_REFERRAL_CODE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+
+  // ScrapeCreators
+  SCRAPECREATORS_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  SCRAPECREATORS_BASE_URL: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional().default('https://api.scrapecreators.com')
+  ),
+
   // Apify
   APIFY_API_TOKEN: z.preprocess(
     (val) => (val === '' ? undefined : val),

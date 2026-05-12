@@ -2,7 +2,6 @@ import { ProductRepository, EnrichedProductInput } from '../db/repositories/prod
 import { IProductDocument } from '../models/product.model';
 import { ExtractedProduct, NormalizedPost } from '../ingestion/ingestion.types';
 import { TeemDropService } from './teemdrop.service';
-import { SearchApiService } from './search.service';
 import { CreativeService } from './creative.service';
 import { DiscoveryService } from './discovery.service';
 import { Creative } from '../models/creative.model';
@@ -14,11 +13,10 @@ const log = logger.child({ module: 'product-enricher' });
  * Product Enricher (Discovery 2.0)
  *
  * Orchestrates multi-source enrichment:
- * 1. SerpApi  → image gallery & market ratings
- * 2. TeemDrop → supplier pricing & verified product URL
- * 3. AI       → 3-level taxonomy, confidence reasons, sentiment
- * 4. Creatives ingestion pipeline
- * 5. Discovery → section tagging (trending, top-ads, viral...)
+ * 1. TeemDrop → supplier pricing when a catalog match exists
+ * 2. AI / extraction → images, taxonomy, sentiment, grounded evidence
+ * 3. Creatives ingestion pipeline
+ * 4. Discovery → section tagging (trending, top-ads, viral...)
  */
 export const ProductEnricher = {
 
@@ -29,12 +27,7 @@ export const ProductEnricher = {
   ): Promise<IProductDocument | null> {
     log.info('Running Discovery 2.0 Enrichment', { product: extraction.productName });
 
-    // 1. SerpApi — gallery images & multi-source ratings
-    const serpData    = await SearchApiService.getRichProductData(extraction.productName);
-    const serpGallery = serpData ? SearchApiService.extractGalleryImages(serpData) : [];
-    const serpRatings = serpData ? SearchApiService.extractRatingSources(serpData) : [];
-
-    // 2. TeemDrop — supplier match
+    // 1. TeemDrop — supplier match
     let supplier: { platform: string; productUrl?: string; price?: number; currency?: string; shippingDays?: number; moq?: number; checkedAt: Date } | null = null;
     let supplierPrice: number | undefined;
     try {
@@ -55,13 +48,14 @@ export const ProductEnricher = {
       log.warn('TeemDrop matching failed', { err: String(err) });
     }
 
-    // 3. Image sourcing (SerpApi first, fallback to grounded AI images)
-    const primaryImageUrl = SearchApiService.extractBestThumbnail(serpData || {}) || extraction.groundedImages[0];
-    const gallery = serpGallery.length >= 3
-      ? serpGallery
-      : [...new Set([...serpGallery, ...extraction.groundedImages])];
+    // 2. Image sourcing — grounded AI images + post thumbnail
+    const primaryImageUrl = extraction.groundedImages[0];
+    const gallery =
+      extraction.groundedImages.length >= 3
+        ? extraction.groundedImages
+        : [...new Set([...extraction.groundedImages, post.thumbnailUrl].filter(Boolean))] as string[];
 
-    // 4. Sales evidence — only include if AI found a concrete source
+    // 3. Sales evidence — only include if AI found a concrete source
     const sourceBreakdown = normalizeUnitsSoldBreakdown(extraction.unitsSoldBreakdown);
     if (sourceBreakdown.length === 0) {
       sourceBreakdown.push(buildFallbackUnitsSoldSource(extraction, post));
@@ -79,17 +73,11 @@ export const ProductEnricher = {
       fetchedAt: new Date(),
     };
 
-    // 5. Rating sources (from SerpApi, or AI-estimated fallback from TikTok engagement)
-    let ratingSources: NonNullable<EnrichedProductInput['ratingSources']> = serpRatings.map(r => ({
-      platform:    r.source,
-      rating:      r.rating,
-      reviewCount: r.reviewsCount,
-      sourceUrl:   r.url,
-      fetchedAt:   new Date(),
-    }));
+    // 4. Rating sources (AI-estimated fallback from TikTok engagement when needed)
+    let ratingSources: NonNullable<EnrichedProductInput['ratingSources']> = [];
     ratingSources = normalizeRatingSources(ratingSources);
 
-    // FALLBACK ALGORTIHM: If Serp returns no ratings, we estimate from TikTok intent + engagement
+    // If no prior ratings, estimate from TikTok intent + engagement
     if (ratingSources.length === 0) {
       ratingSources.push(buildFallbackRatingSource(extraction, post));
       ratingSources = normalizeRatingSources(ratingSources);
@@ -105,24 +93,15 @@ export const ProductEnricher = {
       source: 'TikTok',
       collectedAt: new Date()
     }));
-    const reviews = buildProductReviews(extraction, serpData, topComments);
+    const reviews = buildProductReviews(extraction, topComments);
 
-    // 6. Related products from SerpApi
-    const relatedProducts = (serpData?.immersive_products || serpData?.shopping_results || [])
-      .slice(0, 6)
-      .map((item: any) => ({
-        title:     item.title,
-        price:     item.price,
-        thumbnail: item.thumbnail,
-        link:      item.link,
-        store:     item.source,
-      }));
+    const relatedProducts: EnrichedProductInput['relatedProducts'] = [];
 
-    // 7. Build tiktokPostUrl for primary creator
+    // 5. Build tiktokPostUrl for primary creator
     const tiktokPostUrl = post.videoUrl
       || `https://www.tiktok.com/@${post.creatorHandle}/video/${post.videoId}`;
 
-    // 8. Assemble the input
+    // 6. Assemble the input
     const input: EnrichedProductInput = {
       // Identity
       videoId:     post.videoId,
@@ -207,11 +186,11 @@ export const ProductEnricher = {
       creativeCounts: { ads: 0, organic: 0, reviews: 0, total: 0 },
     };
 
-    // 9. Persist initial product record
+    // 7. Persist initial product record
     const product = await ProductRepository.upsertEnrichedProduct(input);
     if (!product) return null;
 
-    // 10. Ingest creatives (pass taxonomy + relevance keywords)
+    // 8. Ingest creatives (pass taxonomy + relevance keywords)
     await CreativeService.fetchAndIngestCreatives(
       extraction.productName,
       product._id,
@@ -224,17 +203,17 @@ export const ProductEnricher = {
       }
     );
 
-    // 11. Discovery section tagging
-    const sections = await DiscoveryService.categorizeProduct(product, serpData);
+    // 9. Discovery section tagging
+    const sections = await DiscoveryService.categorizeProduct(product);
 
-    // 12. Creative counts
+    // 10. Creative counts
     const [adsCount, totalCount, reviewsCount] = await Promise.all([
       Creative.countDocuments({ productId: product._id, isAd: true }),
       Creative.countDocuments({ productId: product._id }),
       Creative.countDocuments({ productId: product._id, section: 'influencer-reviews' }),
     ]);
 
-    // 13. Final update
+    // 11. Final update
     product.creativeCounts = {
       ads:     adsCount,
       organic: totalCount - adsCount,
@@ -375,7 +354,6 @@ function buildFallbackUnitsSoldSource(
 
 function buildProductReviews(
   extraction: ExtractedProduct,
-  serpData: any,
   topComments: Array<{ comment: string; source: string; collectedAt: Date }>
 ): Array<{ source: string; text: string; collectedAt: Date }> {
   const fromAi = (extraction.reviews || [])
@@ -386,15 +364,6 @@ function buildProductReviews(
     }))
     .filter((review) => review.source && review.text);
 
-  const fromSerp = (serpData?.organic_results || [])
-    .slice(0, 5)
-    .map((row: any) => ({
-      source: String(row?.source || row?.domain || 'Web'),
-      text: String(row?.snippet || '').trim(),
-      collectedAt: new Date(),
-    }))
-    .filter((review: any) => review.text.length > 0);
-
   const fromTikTok = topComments.slice(0, 5).map((comment) => ({
     source: comment.source,
     text: comment.comment,
@@ -402,7 +371,7 @@ function buildProductReviews(
   }));
 
   const dedup = new Set<string>();
-  const combined = [...fromAi, ...fromSerp, ...fromTikTok].filter((review) => {
+  const combined = [...fromAi, ...fromTikTok].filter((review) => {
     const key = `${review.source}|${review.text}`.toLowerCase();
     if (dedup.has(key)) return false;
     dedup.add(key);

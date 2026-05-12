@@ -1,0 +1,346 @@
+# ── TikTok Live ───────────────────────────────────────────────────────────────
+#
+# Access levels:
+#   User (JWT)  → GET /tiktok/live/discover
+#   Admin only  → all /tiktok/stores/*, /tiktok/sessions/*, /tiktok/live,
+#                 /tiktok/live/batch, /tiktok/live/products
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+liveDiscover:
+  get:
+    tags: [TikTok Live]
+    summary: Discover live stores
+    description: |
+      Checks all active tracked stores for live status in batches of 10.
+
+      For each store that is newly live a `LiveSession` is created and a
+      product sold-count baseline is captured (via ScrapeCreators showcase or
+      Apify). For stores that were live but have gone offline, the session is
+      ended, a final snapshot is taken, and estimated GMV is computed as:
+
+      ```
+      soldDelta          = soldAtEnd − soldAtStart   (per product)
+      estimatedRevenue   = soldDelta × price
+      estimatedGMV       = Σ estimatedRevenue
+      ```
+
+      Returns the list of stores currently live, each with user profile,
+      room stats (viewers, join count), optional stream URLs, and a direct
+      TikTok watch link.
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Live discovery result
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        live:
+                          type: array
+                          items:
+                            $ref: '#/LiveResult'
+                        ended:
+                          type: array
+                          description: Handles whose sessions just ended this cycle
+                          items: { type: string, example: fashionnova }
+                        liveCount:
+                          type: integer
+                          example: 3
+                        totalChecked:
+                          type: integer
+                          example: 104
+      '503':
+        description: SCRAPECREATORS_API_KEY is not configured
+
+# ── Admin-only: Tracked stores (collection) ───────────────────────────────────
+
+stores:
+  get:
+    tags: [TikTok Live (Admin)]
+    summary: List tracked stores
+    description: Returns all stores in the watchlist sorted by last live date.
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Array of TrackedStore documents
+  post:
+    tags: [TikTok Live (Admin)]
+    summary: Add a store to the watchlist
+    description: |
+      Adds a TikTok handle to the tracked stores watchlist.
+      If `SCRAPECREATORS_API_KEY` is configured the store is automatically
+      enriched with profile data (avatar, bio, follower count, shop flags, etc.)
+      from `/v1/tiktok/profile`. If the handle already exists, returns the
+      existing document.
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [handle]
+            properties:
+              handle:
+                type: string
+                description: TikTok handle — @ prefix stripped automatically
+                example: gymshark
+              displayName: { type: string, example: Gymshark }
+              notes:       { type: string }
+              tags:
+                type: array
+                items: { type: string }
+              shopUrl:
+                type: string
+                format: uri
+    responses:
+      '201':
+        description: Store added
+      '200':
+        description: Handle already in watchlist — existing document returned
+
+# ── Admin-only: Tracked stores (single item) ─────────────────────────────────
+
+storeItem:
+  get:
+    tags: [TikTok Live (Admin)]
+    summary: Store detail + recent sessions
+    security:
+      - BearerAuth: []
+    parameters:
+      - { name: handle, in: path, required: true, schema: { type: string, example: gymshark } }
+    responses:
+      '200':
+        description: Store document and up to 20 recent live sessions
+      '404':
+        description: Store not in watchlist
+  patch:
+    tags: [TikTok Live (Admin)]
+    summary: Update store metadata
+    description: Update notes, tags, shopUrl, or pause/resume monitoring via `isActive`.
+    security:
+      - BearerAuth: []
+    parameters:
+      - { name: handle, in: path, required: true, schema: { type: string } }
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              displayName: { type: string }
+              notes:       { type: string }
+              tags:
+                type: array
+                items: { type: string }
+              shopUrl:
+                type: string
+                format: uri
+                nullable: true
+              isActive:
+                type: boolean
+                description: false = paused (excluded from the discover cycle)
+    responses:
+      '200':
+        description: Updated store
+      '404':
+        description: Store not in watchlist
+  delete:
+    tags: [TikTok Live (Admin)]
+    summary: Remove a store from the watchlist
+    security:
+      - BearerAuth: []
+    parameters:
+      - { name: handle, in: path, required: true, schema: { type: string } }
+    responses:
+      '200':
+        description: Store removed
+      '404':
+        description: Store not in watchlist
+
+# ── Admin-only: Refresh store profile ────────────────────────────────────────
+
+storeRefresh:
+  post:
+    tags: [TikTok Live (Admin)]
+    summary: Re-fetch store profile from ScrapeCreators
+    description: |
+      Pulls fresh profile data (avatar, bio, follower count, shop flags, etc.)
+      from `/v1/tiktok/profile` and updates the store document.
+      Requires `SCRAPECREATORS_API_KEY`.
+    security:
+      - BearerAuth: []
+    parameters:
+      - { name: handle, in: path, required: true, schema: { type: string } }
+    responses:
+      '200':
+        description: Updated store (unchanged if profile returned no data)
+      '404':
+        description: Store not in watchlist
+      '503':
+        description: SCRAPECREATORS_API_KEY is not configured
+
+# ── Admin-only: One-off live checks ──────────────────────────────────────────
+
+liveSingle:
+  get:
+    tags: [TikTok Live (Admin)]
+    summary: Check a single handle (ad-hoc, not tied to watchlist)
+    security:
+      - BearerAuth: []
+    parameters:
+      - { name: handle, in: query, required: true, schema: { type: string, example: gymshark } }
+    responses:
+      '200':
+        description: Live status for the handle
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/LiveResult'
+
+liveBatch:
+  get:
+    tags: [TikTok Live (Admin)]
+    summary: Check up to 10 handles at once
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: handles
+        in: query
+        required: true
+        description: Comma-separated list of handles (max 10)
+        schema: { type: string, example: "gymshark,fashionnova,skims" }
+    responses:
+      '200':
+        description: Batch live status
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        live:
+                          type: array
+                          items:
+                            $ref: '#/LiveResult'
+                        liveCount:  { type: integer }
+                        totalChecked: { type: integer }
+      '400':
+        description: No handles provided or more than 10 supplied
+
+liveProducts:
+  get:
+    tags: [TikTok Live (Admin)]
+    summary: Fetch products pinned to a live room
+    description: |
+      Fetches the product shelf for an active live room via TikTok's internal
+      webcast API. Provide `roomId` directly, or `handle` to resolve it via a
+      live check first.
+
+      **Note:** TikTok's webcast API requires an `X-Bogus` request signature —
+      without it responses return `status_code: 10013`. Results may be limited
+      or unavailable depending on region.
+    security:
+      - BearerAuth: []
+    parameters:
+      - { name: roomId, in: query, schema: { type: string, example: "7412345678901234567" } }
+      - { name: handle, in: query, schema: { type: string, example: gymshark } }
+    responses:
+      '200':
+        description: Products in the live room (may be empty if unavailable)
+      '400':
+        description: Neither roomId nor handle provided
+
+# ── Admin-only: Sessions ──────────────────────────────────────────────────────
+
+sessions:
+  get:
+    tags: [TikTok Live (Admin)]
+    summary: List live sessions (GMV history)
+    description: |
+      Paginated list of all recorded live sessions.
+      Each session includes product snapshots with `soldDelta` and
+      `estimatedRevenue` per product, plus the session-level `estimatedGMV`.
+    security:
+      - BearerAuth: []
+    parameters:
+      - { name: handle, in: query, schema: { type: string } }
+      - { name: status, in: query, schema: { type: string, enum: [live, ended] } }
+      - { name: page, in: query, schema: { type: integer, default: 1 } }
+      - { name: limit, in: query, schema: { type: integer, default: 20, maximum: 50 } }
+    responses:
+      '200':
+        description: Paginated session list with pagination metadata
+
+sessionItem:
+  get:
+    tags: [TikTok Live (Admin)]
+    summary: Single session detail
+    security:
+      - BearerAuth: []
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    responses:
+      '200':
+        description: Full session document including product snapshot breakdown
+      '404':
+        description: Session not found
+
+# ── Shared schema ─────────────────────────────────────────────────────────────
+
+LiveResult:
+  type: object
+  properties:
+    handle:   { type: string, example: gymshark }
+    isLive:   { type: boolean }
+    roomId:   { type: string, example: "7412345678901234567" }
+    watchUrl: { type: string, format: uri, example: "https://www.tiktok.com/@gymshark/live" }
+    user:
+      type: object
+      properties:
+        uniqueId:       { type: string }
+        nickname:       { type: string }
+        avatarThumb:    { type: string, format: uri }
+        avatarMedium:   { type: string, format: uri }
+        verified:       { type: boolean }
+        followerCount:  { type: integer }
+        followingCount: { type: integer }
+        signature:      { type: string }
+    room:
+      type: object
+      properties:
+        id:       { type: string }
+        title:    { type: string }
+        coverUrl: { type: string, format: uri }
+        startTime: { type: integer }
+        status:   { type: integer }
+        liveRoomStats:
+          type: object
+          properties:
+            userCount:  { type: integer, description: Current viewer count }
+            enterCount: { type: integer, description: Total unique joins }
+    streams:
+      type: object
+      properties:
+        flv:  { type: string, format: uri }
+        hls:  { type: string, format: uri }
+        cmaf: { type: string, format: uri }

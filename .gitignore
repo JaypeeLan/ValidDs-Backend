@@ -1,5 +1,6 @@
 # Environment
 .env
+backend.env
 .env.local
 .env.staging
 .env.production
@@ -32,17 +33,16 @@ Thumbs.db
 *.swp
 *.swo
 
-# Docker
-.dockerignore
-
 # TypeScript
 *.tsbuildinfo
 
 INSTRUCTIONS.md
 pricing-model.txt
 
-tools
-
 .claude
 
 products.json
+
+# Local dev harness — not versioned or deployed
+tools/
+

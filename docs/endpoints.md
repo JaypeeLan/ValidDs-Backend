@@ -189,7 +189,66 @@ Public endpoint. Adds an email to the pre-launch waitlist. Idempotent — a dupl
 
 ---
 
-## 8. System Health Endpoints
+## 8. Shopify store integration (`/stores/shopify`)
+
+Connect a merchant’s Shopify store (OAuth) and push ValidDs products into their catalog. Routes are mounted under **`/api/v1/stores`**. Responses use the standard envelope in `docs/api-responses.md`. **OpenAPI:** `src/docs/openapi/paths/stores.yaml` (tag **Stores** in `src/docs/openapi/index.yaml`).
+
+### `GET /stores/shopify/install`
+
+**Authentication:** Required (JWT).
+
+**Query parameters**
+
+| Param | Required | Description |
+|-------|----------|-------------|
+| `shop` | No | Shopify shop domain, e.g. `my-store` or `my-store.myshopify.com`. If omitted, the API assumes the user has no store yet. |
+| `returnTo` | No | Optional absolute URL for frontend return flows (validated as URL when present). |
+
+**Behaviour**
+
+- **No `shop`:** `200` — `{ action: 'signup', signupUrl, message }`. Frontend should send the user to `signupUrl` (Shopify signup / marketing funnel).
+- **With `shop`:** `200` — `{ action: 'connect', authorizeUrl, state }` when `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, and `SHOPIFY_REDIRECT_URI` are set. Frontend should redirect the browser to `authorizeUrl` (Shopify OAuth).
+- **Missing Shopify env:** `503` — `SHOPIFY_NOT_CONFIGURED` when `shop` is provided but the server is not configured.
+
+### `GET /stores/shopify/callback`
+
+**Authentication:** None (Shopify redirects the user’s browser here).
+
+**Query parameters (from Shopify)** — validated by the backend: `code`, `hmac`, `shop`, `state` (required); `timestamp`, `host` optional; unknown keys allowed (`passthrough`).
+
+**Behaviour:** Verifies HMAC and signed `state`, exchanges `code` for an Admin API access token, loads shop metadata, encrypts and stores the connection on the user, then **HTTP redirects** the browser to:
+
+- Success: `{FRONTEND_URL}/stores/shopify/callback?status=success&shop=<shop>`
+- Error: `{FRONTEND_URL}/stores/shopify/callback?status=error&code=<code>&message=<message>`
+
+(`FRONTEND_URL` comes from env.)
+
+### `GET /stores/shopify/status`
+
+**Authentication:** Required (JWT).
+
+**Response `data`:** `{ connected: boolean, shopifyConfigured: boolean, connection: … }`  
+`shopifyConfigured` is true only when all three Shopify env vars are present. `connection` is a safe, public view of the linked shop (no access token).
+
+### `POST /stores/shopify/disconnect`
+
+**Authentication:** Required (JWT).
+
+**Body:** none.
+
+**Response:** `200` — `{ disconnected: true }`. Removes the encrypted token from ValidDs only; the user should uninstall the app in Shopify Admin for full revocation.
+
+### `POST /stores/shopify/products`
+
+**Authentication:** Required (JWT).
+
+**Body:** `{ "productId": "<MongoDB ObjectId>", "price"?: number, "status"?: "active" | "draft" | "archived" }`
+
+**Response:** `201` — created Shopify product summary (e.g. `id`, `handle`, `status`, `adminUrl`, `storefrontUrl`) under `data.product`. Uses Shopify Admin REST **`POST /admin/api/{version}/products.json`** (`SHOPIFY_API_VERSION`, default `2024-10`).
+
+---
+
+## 9. System Health Endpoints
 
 ### `GET /health`
 Liveness probe. Indicates if the Express process is running.

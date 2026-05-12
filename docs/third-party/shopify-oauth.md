@@ -19,6 +19,34 @@ The flow works like this:
 
 ---
 
+## REST API reference (ValidDs backend)
+
+All paths below are prefixed with **`/api/v1/stores`**. Source: `src/api/stores/store.routes.ts`, `src/api/stores/store.controller.ts`.
+
+| Method | Path | Auth | Summary |
+|--------|------|------|---------|
+| `GET` | `/shopify/install` | JWT | `?shop=` → OAuth `authorizeUrl` + `state`; no `shop` → `signupUrl` for users without a store. |
+| `GET` | `/shopify/callback` | None | Shopify OAuth return; validates `code`, `hmac`, `shop`, `state`; redirects to `{FRONTEND_URL}/stores/shopify/callback?…`. |
+| `GET` | `/shopify/status` | JWT | `connected`, `shopifyConfigured`, public `connection` object. |
+| `POST` | `/shopify/disconnect` | JWT | Clears stored connection (token) on the user. |
+| `POST` | `/shopify/products` | JWT | Body `{ productId, price?, status? }` — creates a product in the merchant’s store via Admin REST `products.json`. |
+
+**Full URLs (examples)** — replace host with your API base:
+
+- `GET https://<api-host>/api/v1/stores/shopify/install?shop=my-store.myshopify.com`
+- `GET https://<api-host>/api/v1/stores/shopify/callback` (query string from Shopify)
+- `GET https://<api-host>/api/v1/stores/shopify/status`
+- `POST https://<api-host>/api/v1/stores/shopify/disconnect`
+- `POST https://<api-host>/api/v1/stores/shopify/products`
+
+Canonical catalog of all V1 routes (including these) lives in **`docs/endpoints.md`**.
+
+**OpenAPI (Swagger)** — the same five routes are described under tag **Stores** in `src/docs/openapi/index.yaml` (path specs in `src/docs/openapi/paths/stores.yaml`, shared schemas in `src/docs/openapi/components/schemas/Shopify.yaml`).
+
+**Shopify Admin API (outbound)** — after OAuth, the server calls Shopify directly, e.g. `https://{shop}/admin/oauth/access_token` (token exchange), `https://{shop}/admin/api/{SHOPIFY_API_VERSION}/shop.json` (shop info), and `…/products.json` (product create). No Shopify npm SDK; see `src/services/shopify.service.ts`.
+
+---
+
 ## Step 1: Create a Shopify Partner Account
 
 A "Partner" account is what gives you the ability to create apps that other Shopify stores can install. It is free.
@@ -135,21 +163,11 @@ Start the dev server:
 npm run dev
 ```
 
-Then either use the bundled frontend tester or hit the endpoints directly.
+Then either use your product frontend (My Shopify / connect / push flows) or hit the endpoints manually.
 
-### Option A — via the bundled frontend (`tools/full-frontend`)
+### Option A — via your frontend
 
-```bash
-npm run frontend:react
-# → http://localhost:4180
-```
-
-1. Sign in to ValidDs
-2. Open the **My Shopify** tab
-3. Paste your dev store domain (e.g. `validds-test.myshopify.com`) → click **Connect store**
-4. You'll be redirected to Shopify → click **Install app** → Shopify redirects back to your backend → backend redirects browser to `${FRONTEND_URL}/stores/shopify/callback?status=success&shop=...`
-5. The "My Shopify" page now shows the connected store card
-6. Open any DB product modal → click **Push to Shopify** → the product appears as a draft in the dev store admin
+Wire the UI to the endpoints in **REST API reference** above (install → browser redirect to `authorizeUrl`, callback page on `FRONTEND_URL`, status, push, disconnect).
 
 ### Option B — manual curl
 
@@ -189,7 +207,7 @@ The frontend should:
 4. **Push button** on each product detail page that calls `POST /api/v1/stores/shopify/products` with `{ productId, status?, price? }`. After success, link to the returned `adminUrl`.
 5. **Disconnect button** that calls `POST /api/v1/stores/shopify/disconnect`.
 
-A complete reference implementation lives in `tools/full-frontend/app.jsx` — search for `ShopifyPage`, `PushToShopifyButton`, and `connectShopify`.
+See **`docs/endpoints.md`** § Shopify for full request/response detail.
 
 ---
 

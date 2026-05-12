@@ -505,7 +505,6 @@ function mapProductToShopify(
   if (product.aiIntelligence?.niche) tags.push(product.aiIntelligence.niche);
   for (const t of product.hashtags ?? []) tags.push(t);
 
-  // Build options/variants from sizes/colors if present.
 
   const options: ShopifyProductPayload['options'] = [];
 

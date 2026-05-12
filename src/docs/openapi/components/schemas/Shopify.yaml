@@ -1,0 +1,34 @@
+# Shopify integration — response fragments (no secrets)
+
+ShopifyPublicConnection:
+  type: object
+  description: Safe view of a linked store (no access token).
+  properties:
+    shop:
+      type: string
+      example: my-store.myshopify.com
+    shopName: { type: string, nullable: true }
+    shopEmail: { type: string, format: email, nullable: true }
+    shopOwner: { type: string, nullable: true }
+    shopCountry: { type: string, nullable: true }
+    shopCurrency: { type: string, nullable: true }
+    scope: { type: string, nullable: true }
+    installedAt: { type: string, format: date-time }
+    lastSyncedAt: { type: string, format: date-time, nullable: true }
+    adminUrl:
+      type: string
+      format: uri
+      example: https://my-store.myshopify.com/admin
+
+ShopifyCreatedProduct:
+  type: object
+  properties:
+    id: { type: integer, example: 9876543210 }
+    handle: { type: string, example: summer-widget }
+    status: { type: string, example: draft }
+    adminUrl:
+      type: string
+      format: uri
+    storefrontUrl:
+      type: string
+      format: uri

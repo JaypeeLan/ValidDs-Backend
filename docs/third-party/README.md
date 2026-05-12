@@ -24,7 +24,11 @@ Each guide covers:
 | **Render** | Cloud deployment | — | [render-deployment.md](./render-deployment.md) |
 | **Stripe** | Billing + subscriptions | `STRIPE_SECRET_KEY_*`, `STRIPE_WEBHOOK_SECRET_*` | [stripe.md](./stripe.md) |
 | **Google OAuth** | Social login | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | [google-oauth.md](./google-oauth.md) |
-| **Shopify OAuth** | Connect user Shopify store + push products | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_REDIRECT_URI` | [shopify-oauth.md](./shopify-oauth.md) |
+| **Shopify OAuth** | Connect user Shopify store + push products | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_REDIRECT_URI` | [shopify-oauth.md](./shopify-oauth.md) · [HTTP routes in endpoints.md](../endpoints.md) |
+
+---
+
+Shopify integration **REST paths** (install, callback, status, disconnect, push) are documented under **§8** in [`docs/endpoints.md`](../endpoints.md).
 
 ---
 

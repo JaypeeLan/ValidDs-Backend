@@ -1,0 +1,229 @@
+# ValidDs → Shopify (OAuth + Admin REST product push)
+# Mounted at /api/v1/stores — see src/api/stores/store.routes.ts
+
+shopifyInstall:
+  get:
+    tags: [Stores]
+    summary: Start Shopify OAuth or return signup URL
+    description: |
+      **With `shop` query:** returns `action: connect`, a signed `state`, and `authorizeUrl`
+      (redirect the user's browser there). Requires `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`,
+      and `SHOPIFY_REDIRECT_URI` on the server.
+
+      **Without `shop`:** returns `action: signup` and `signupUrl` for users who need to
+      create a Shopify store first.
+    security: [{ BearerAuth: [] }]
+    parameters:
+      - name: shop
+        in: query
+        required: false
+        description: Shopify domain (`name` or `name.myshopify.com`).
+        schema:
+          type: string
+          example: my-store.myshopify.com
+      - name: returnTo
+        in: query
+        required: false
+        description: Optional absolute URL for client-side return flows.
+        schema:
+          type: string
+          format: uri
+    responses:
+      '200':
+        description: |
+          JSON envelope. Inspect `data.action`: `connect` vs `signup`.
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [action]
+                      properties:
+                        action:
+                          type: string
+                          enum: [connect, signup]
+                        authorizeUrl:
+                          type: string
+                          format: uri
+                          description: Present when `action` is `connect`.
+                        state:
+                          type: string
+                          description: Signed JWT; pass through to Shopify as `state` query (already on `authorizeUrl`).
+                        signupUrl:
+                          type: string
+                          format: uri
+                          description: Present when `action` is `signup`.
+                        message:
+                          type: string
+                          description: Present when `action` is `signup`.
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '503':
+        description: Shopify env not configured (`SHOPIFY_NOT_CONFIGURED`) when `shop` was provided.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+
+shopifyCallback:
+  get:
+    tags: [Stores]
+    summary: Shopify OAuth callback (browser)
+    description: |
+      Called by **Shopify** after the merchant approves the app. Validates `hmac`,
+      verifies `state`, exchanges `code` for an Admin API access token, then **HTTP
+      redirects** the browser to `{FRONTEND_URL}/stores/shopify/callback` with success
+      or error query params. This operation does **not** return JSON.
+    security: []
+    parameters:
+      - name: code
+        in: query
+        required: true
+        schema: { type: string }
+      - name: hmac
+        in: query
+        required: true
+        schema: { type: string }
+      - name: shop
+        in: query
+        required: true
+        schema: { type: string, example: my-store.myshopify.com }
+      - name: state
+        in: query
+        required: true
+        schema: { type: string }
+      - name: timestamp
+        in: query
+        required: false
+        schema: { type: string }
+      - name: host
+        in: query
+        required: false
+        schema: { type: string }
+    responses:
+      '302':
+        description: |
+          Redirect to frontend. Success example:
+          `{FRONTEND_URL}/stores/shopify/callback?status=success&shop=my-store.myshopify.com`.
+          Error example: `?status=error&code=SHOPIFY_INVALID_HMAC&message=...`.
+        headers:
+          Location:
+            schema:
+              type: string
+              format: uri
+            description: Frontend callback URL with `status`, `shop`, and optional `code` / `message`.
+
+shopifyStatus:
+  get:
+    tags: [Stores]
+    summary: Shopify connection status
+    description: |
+      Returns whether the current user has a store linked, whether the server has
+      Shopify credentials configured (`shopifyConfigured`), and a public `connection`
+      object (no token).
+    security: [{ BearerAuth: [] }]
+    responses:
+      '200':
+        description: Status retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [connected, shopifyConfigured, connection]
+                      properties:
+                        connected: { type: boolean }
+                        shopifyConfigured: { type: boolean }
+                        connection:
+                          description: Present when `connected` is true; otherwise null.
+                          nullable: true
+                          allOf:
+                            - $ref: '../components/schemas/Shopify.yaml#/ShopifyPublicConnection'
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
+shopifyDisconnect:
+  post:
+    tags: [Stores]
+    summary: Disconnect Shopify store (ValidDs only)
+    description: |
+      Clears the encrypted token and connection metadata on the user document.
+      Does **not** uninstall the app in Shopify Admin.
+    security: [{ BearerAuth: [] }]
+    responses:
+      '200':
+        description: Disconnected
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        disconnected: { type: boolean, example: true }
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
+shopifyPushProduct:
+  post:
+    tags: [Stores]
+    summary: Push a ValidDs product to Shopify
+    description: |
+      Creates a product in the merchant's store via Shopify Admin REST
+      `POST /admin/api/{version}/products.json`. The user must have completed OAuth.
+    security: [{ BearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [productId]
+            properties:
+              productId:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+                description: MongoDB ObjectId of a ValidDs product
+              price:
+                type: number
+                format: double
+                minimum: 0
+                exclusiveMinimum: true
+                description: Optional variant price override
+              status:
+                type: string
+                enum: [active, draft, archived]
+                default: draft
+    responses:
+      '201':
+        description: Product created in Shopify
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [product]
+                      properties:
+                        product:
+                          $ref: '../components/schemas/Shopify.yaml#/ShopifyCreatedProduct'
+      '400':
+        $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'

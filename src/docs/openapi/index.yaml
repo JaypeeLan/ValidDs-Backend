@@ -8,7 +8,7 @@ info:
     
     ### Authentication
     - **API Key**: Required for internal/service-to-service communication.
-    - **JWT**: Required for account-specific routes (auth, profile, saved products, ingestion, admin). Product and creative **list/detail/search** are public unless noted on the operation.
+    - **JWT**: Required for account-specific routes (auth, profile, saved products, **stores/Shopify**, ingestion, admin). Product and creative **list/detail/search** are public unless noted on the operation.
   version: 1.0.0
   contact:
     name: ValidDs Support
@@ -37,6 +37,8 @@ tags:
     description: Stripe billing — public plan catalog, Checkout session creation, subscription state, and publishable key
   - name: Waitlist
     description: Pre-launch email waitlist — public `POST /api/v1/waitlist` to join, admin-only `GET /api/v1/admin/waitlist` to list
+  - name: Stores
+    description: Shopify OAuth — connect a merchant store and push ValidDs products via Admin REST
   - name: TikTok Live
     description: Live store discovery — checks the admin-managed watchlist and returns stores currently live on TikTok
   - name: TikTok Live (Admin)
@@ -127,6 +129,16 @@ paths:
     $ref: './paths/billing.yaml#/stripeWebhook'
   /api/v1/waitlist:
     $ref: './paths/waitlist.yaml#/join'
+  /api/v1/stores/shopify/install:
+    $ref: './paths/stores.yaml#/shopifyInstall'
+  /api/v1/stores/shopify/callback:
+    $ref: './paths/stores.yaml#/shopifyCallback'
+  /api/v1/stores/shopify/status:
+    $ref: './paths/stores.yaml#/shopifyStatus'
+  /api/v1/stores/shopify/disconnect:
+    $ref: './paths/stores.yaml#/shopifyDisconnect'
+  /api/v1/stores/shopify/products:
+    $ref: './paths/stores.yaml#/shopifyPushProduct'
   /api/v1/tiktok/live/discover:
     $ref: './paths/tiktok.yaml#/liveDiscover'
   /api/v1/tiktok/live:
@@ -167,3 +179,7 @@ components:
       $ref: './components/schemas/Product.yaml'
     Creative:
       $ref: './components/schemas/Creative.yaml'
+    ShopifyPublicConnection:
+      $ref: './components/schemas/Shopify.yaml#/ShopifyPublicConnection'
+    ShopifyCreatedProduct:
+      $ref: './components/schemas/Shopify.yaml#/ShopifyCreatedProduct'

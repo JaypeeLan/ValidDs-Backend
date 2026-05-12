@@ -7,20 +7,37 @@ const log = logger.child({ module: 'scrapecreators-service' });
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface SCUserInfo {
+  // Identity
   id?: string;
   uniqueId?: string;
   nickname?: string;
+
+  // Avatar
   avatarThumb?: string;
   avatarMedium?: string;
+  avatarLarger?: string;
+
+  // Profile
+  bio?: string;           // signature
   verified?: boolean;
+  region?: string;        // e.g. "US"
+  language?: string;      // e.g. "en"
+  privateAccount?: boolean;
+
+  // Stats
   followerCount?: number;
   followingCount?: number;
   videoCount?: number;
-  heartCount?: number;
-  signature?: string;
-  commerceUserInfo?: {
-    commerceUser?: boolean;
-  };
+  heartCount?: number;    // total likes received
+  diggCount?: number;     // total likes given
+
+  // Commerce
+  hasShop?: boolean;      // true if TikTok Shop is enabled
+  shopId?: string;
+  shopRegion?: string;
+
+  // Engagement rate (computed if stats available)
+  engagementRate?: number; // heartCount / followerCount * 100
 }
 
 export interface SCShopProduct {
@@ -179,25 +196,53 @@ export const ScrapeCreatorsService = {
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) return null;
-      const data = await res.json() as any;
-      // ScrapeCreators nests user info under userInfo or directly
-      const u = data?.userInfo?.user || data?.user || data;
-      if (!u?.uniqueId) return null;
-      const stats = data?.userInfo?.stats || data?.stats || {};
-      return {
-        id:             u.id,
-        uniqueId:       u.uniqueId,
-        nickname:       u.nickname,
-        avatarThumb:    u.avatarThumb?.urlList?.[0] || u.avatarThumb,
-        avatarMedium:   u.avatarMedium?.urlList?.[0] || u.avatarMedium,
-        verified:       u.verified,
-        followerCount:  stats.followerCount ?? u.followerCount,
-        followingCount: stats.followingCount ?? u.followingCount,
-        videoCount:     stats.videoCount ?? u.videoCount,
-        heartCount:     stats.heartCount ?? u.heartCount,
-        signature:      u.signature,
-        commerceUserInfo: u.commerceUserInfo,
-      };
+      const raw = await res.json() as any;
+
+      // ScrapeCreators nests: raw.userInfo.user + raw.userInfo.stats
+      // or flat: raw.user + raw.stats
+      const u     = raw?.userInfo?.user || raw?.user || raw;
+      if (!u?.uniqueId && !u?.id) return null;
+      const stats = raw?.userInfo?.stats || raw?.stats || {};
+
+      // Avatar — TikTok returns { urlList: [...] } objects
+      const avatarThumb  = firstUrl(u.avatarThumb)  || undefined;
+      const avatarMedium = firstUrl(u.avatarMedium) || undefined;
+      const avatarLarger = firstUrl(u.avatarLarger) || undefined;
+
+      const followerCount  = pos(stats.followerCount  ?? u.followerCount);
+      const heartCount     = pos(stats.heart ?? stats.heartCount ?? u.heartCount);
+      const engagementRate = followerCount && heartCount
+        ? Math.round((heartCount / followerCount) * 10) / 10  // 1 decimal
+        : undefined;
+
+      // Commerce — commerceUserInfo.commerceUser or shopUserInfo
+      const commerce = u.commerceUserInfo || u.shopUserInfo || {};
+      const hasShop  = commerce.commerceUser === true || undefined;
+      const shopId   = str(commerce.shopId || commerce.sellerId) || undefined;
+      const shopRegion = str(commerce.mcnRegion || commerce.region) || undefined;
+
+      return strip<SCUserInfo>({
+        id:             str(u.id),
+        uniqueId:       str(u.uniqueId),
+        nickname:       str(u.nickname),
+        avatarThumb,
+        avatarMedium,
+        avatarLarger,
+        bio:            str(u.signature) || undefined,
+        verified:       u.verified === true || undefined,
+        region:         str(u.region) || undefined,
+        language:       str(u.language) || undefined,
+        privateAccount: u.privateAccount === true || undefined,
+        followerCount,
+        followingCount: pos(stats.followingCount ?? u.followingCount),
+        videoCount:     pos(stats.videoCount     ?? u.videoCount),
+        heartCount,
+        diggCount:      pos(stats.diggCount ?? u.diggCount),
+        hasShop,
+        shopId,
+        shopRegion,
+        engagementRate,
+      });
     } catch {
       return null;
     }
@@ -262,6 +307,34 @@ export const ScrapeCreatorsService = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Extract first URL from TikTok's { urlList: [...] } or plain string */
+function firstUrl(val: any): string | undefined {
+  if (!val) return undefined;
+  if (typeof val === 'string') return val || undefined;
+  if (Array.isArray(val?.urlList) && val.urlList.length > 0) return val.urlList[0];
+  if (Array.isArray(val) && val.length > 0) return val[0];
+  return undefined;
+}
+
+/** Return value only if it's a positive number */
+function pos(val: any): number | undefined {
+  const n = Number(val);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/** Return trimmed string or undefined */
+function str(val: any): string | undefined {
+  const s = String(val ?? '').trim();
+  return s && s !== 'undefined' && s !== 'null' ? s : undefined;
+}
+
+/** Remove all undefined / null / false (except explicit false booleans) keys from object */
+function strip<T extends object>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  ) as T;
+}
 
 function parseStreamUrls(streamDataStr?: string): SCStreamUrls | undefined {
   if (!streamDataStr) return undefined;

@@ -79,32 +79,49 @@ router.post(
         return;
       }
 
-      // Try to enrich with live user info
-      let avatarUrl: string | undefined;
-      let followerCount: number | undefined;
-      let resolvedDisplayName = displayName || handle;
+      // ── Enrich from ScrapeCreators ────────────────────────────────────────
+      const profileData: Record<string, unknown> = {};
 
       if (ScrapeCreatorsService.isConfigured()) {
         const info = await ScrapeCreatorsService.getUserInfo(handle).catch(() => null);
         if (info) {
-          avatarUrl        = info.avatarMedium || info.avatarThumb;
-          followerCount    = info.followerCount;
-          resolvedDisplayName = displayName || info.nickname || handle;
+          if (info.id)             profileData.tiktokUserId  = info.id;
+          if (info.nickname)       profileData.displayName   = displayName || info.nickname;
+          if (info.bio)            profileData.bio           = info.bio;
+          if (info.avatarThumb)    profileData.avatarThumb   = info.avatarThumb;
+          if (info.avatarMedium)   profileData.avatarMedium  = info.avatarMedium;
+          if (info.avatarLarger)   profileData.avatarLarger  = info.avatarLarger;
+          if (info.verified)       profileData.verified      = info.verified;
+          if (info.privateAccount) profileData.privateAccount = info.privateAccount;
+          if (info.hasShop)        profileData.hasShop       = info.hasShop;
+          if (info.region)         profileData.region        = info.region;
+          if (info.language)       profileData.language      = info.language;
+          if (info.followerCount)  profileData.followerCount  = info.followerCount;
+          if (info.followingCount) profileData.followingCount = info.followingCount;
+          if (info.videoCount)     profileData.videoCount     = info.videoCount;
+          if (info.heartCount)     profileData.heartCount     = info.heartCount;
+          if (info.diggCount)      profileData.diggCount      = info.diggCount;
+          if (info.engagementRate) profileData.engagementRate = info.engagementRate;
+          if (info.shopId)         profileData.shopId         = info.shopId;
+          if (info.shopRegion)     profileData.shopRegion     = info.shopRegion;
+          profileData.profileFetchedAt = new Date();
         }
       }
 
       const store = await TrackedStore.create({
         handle,
-        displayName:  resolvedDisplayName,
-        avatarUrl,
-        followerCount,
-        notes:        notes || '',
-        tags:         tags || [],
-        shopUrl:      shopUrl || `https://www.tiktok.com/@${handle}/shop`,
-        addedBy:      (req as any).user?._id,
+        ...profileData,
+        // Manual overrides always win over SC data
+        ...(displayName                             ? { displayName }                          : {}),
+        ...(notes                                   ? { notes }                                : {}),
+        ...(tags?.length                            ? { tags }                                 : {}),
+        ...(shopUrl                                 ? { shopUrl }                              : {}),
+        // Default shop URL if SC didn't give us one
+        shopUrl: shopUrl || profileData.shopUrl || `https://www.tiktok.com/@${handle}/shop`,
+        addedBy: (req as any).user?._id,
       });
 
-      log.info('Tracked store added', { handle });
+      log.info('Tracked store added', { handle, hasProfile: Object.keys(profileData).length > 0 });
       res.status(201).json(successResponse(store, 'Store added to watchlist', 201));
     } catch (err) { next(err); }
   }
@@ -141,6 +158,50 @@ router.patch(
     } catch (err) { next(err); }
   }
 );
+
+/** POST /tiktok/stores/:handle/refresh — re-fetch profile from ScrapeCreators */
+router.post('/stores/:handle/refresh', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const handle = req.params.handle.replace(/^@/, '').toLowerCase();
+    const store  = await TrackedStore.findOne({ handle });
+    if (!store) throw new AppError(404, 'Store not in watchlist', 'NOT_FOUND');
+
+    if (!ScrapeCreatorsService.isConfigured()) {
+      throw new AppError(503, 'SCRAPECREATORS_API_KEY is not configured', 'SCRAPECREATORS_NOT_CONFIGURED');
+    }
+
+    const info = await ScrapeCreatorsService.getUserInfo(handle);
+    if (!info) {
+      res.json(successResponse(store, 'Profile fetch returned no data — handle may not exist', 200));
+      return;
+    }
+
+    const updates: Record<string, unknown> = { profileFetchedAt: new Date() };
+    if (info.id)             updates.tiktokUserId   = info.id;
+    if (info.nickname)       updates.displayName    = info.nickname;
+    if (info.bio)            updates.bio            = info.bio;
+    if (info.avatarThumb)    updates.avatarThumb    = info.avatarThumb;
+    if (info.avatarMedium)   updates.avatarMedium   = info.avatarMedium;
+    if (info.avatarLarger)   updates.avatarLarger   = info.avatarLarger;
+    if (info.verified        != null) updates.verified       = info.verified;
+    if (info.privateAccount  != null) updates.privateAccount = info.privateAccount;
+    if (info.hasShop         != null) updates.hasShop        = info.hasShop;
+    if (info.region)         updates.region         = info.region;
+    if (info.language)       updates.language       = info.language;
+    if (info.followerCount)  updates.followerCount  = info.followerCount;
+    if (info.followingCount) updates.followingCount = info.followingCount;
+    if (info.videoCount)     updates.videoCount     = info.videoCount;
+    if (info.heartCount)     updates.heartCount     = info.heartCount;
+    if (info.diggCount)      updates.diggCount      = info.diggCount;
+    if (info.engagementRate) updates.engagementRate = info.engagementRate;
+    if (info.shopId)         updates.shopId         = info.shopId;
+    if (info.shopRegion)     updates.shopRegion     = info.shopRegion;
+
+    const updated = await TrackedStore.findOneAndUpdate({ handle }, { $set: updates }, { new: true });
+    log.info('Store profile refreshed', { handle });
+    res.json(successResponse(updated, 'Profile refreshed', 200));
+  } catch (err) { next(err); }
+});
 
 /** DELETE /tiktok/stores/:handle */
 router.delete('/stores/:handle', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {

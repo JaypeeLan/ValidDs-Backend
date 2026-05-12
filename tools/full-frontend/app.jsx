@@ -1153,6 +1153,13 @@ function App() {
     return store;
   }
 
+  async function refreshTrackedStore(handle) {
+    const res = await request(`/tiktok/stores/${handle}/refresh`, { method: "POST" });
+    const store = data(res);
+    setTrackedStores((prev) => prev.map((s) => s.handle === handle ? store : s));
+    return store;
+  }
+
   async function loadSessions(handle, status) {
     setSessionsLoading(true);
     setSessionsError("");
@@ -1416,6 +1423,7 @@ function App() {
             onAddStore={addTrackedStore}
             onRemoveStore={removeTrackedStore}
             onUpdateStore={updateTrackedStore}
+            onRefreshStore={refreshTrackedStore}
             sessions={liveSessions}
             sessionsLoading={sessionsLoading}
             sessionsError={sessionsError}
@@ -2037,7 +2045,7 @@ function BrightDataProductCard({ item, onOpen }) {
 function TikTokLivePage({
   loading, lives, error, onSearch, onDiscover,
   trackedStores, trackedStoresLoading, trackedStoresError,
-  onAddStore, onRemoveStore, onUpdateStore,
+  onAddStore, onRemoveStore, onUpdateStore, onRefreshStore,
   sessions, sessionsLoading, sessionsError, onLoadSessions,
 }) {
   const [tab, setTab] = useState("live");
@@ -2122,7 +2130,7 @@ function TikTokLivePage({
             <div className="grid shopify-grid">
               {toArray(trackedStores).map((store) => (
                 <TrackedStoreCard key={store._id || store.handle} store={store}
-                  onRemove={onRemoveStore} onUpdate={onUpdateStore}
+                  onRemove={onRemoveStore} onUpdate={onUpdateStore} onRefresh={onRefreshStore}
                   onViewSessions={(h) => { onLoadSessions(h); setTab("sessions"); }} />
               ))}
             </div>
@@ -2211,72 +2219,110 @@ function AddStoreForm({ onAdd, loading }) {
 
 // ── Tracked store card ─────────────────────────────────────────────────────────
 
-function TrackedStoreCard({ store, onRemove, onUpdate, onViewSessions }) {
-  const [removing, setRemoving] = useState(false);
-  const [toggling, setToggling] = useState(false);
+function TrackedStoreCard({ store, onRemove, onUpdate, onViewSessions, onRefresh }) {
+  const [removing,  setRemoving]  = useState(false);
+  const [toggling,  setToggling]  = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   async function remove() {
     if (!confirm(`Remove @${store.handle} from watchlist?`)) return;
     setRemoving(true);
     try { await onRemove(store.handle); } catch { setRemoving(false); }
   }
-
   async function toggleActive() {
     setToggling(true);
     try { await onUpdate(store.handle, { isActive: !store.isActive }); }
     finally { setToggling(false); }
   }
+  async function refresh() {
+    setRefreshing(true);
+    try { await onRefresh(store.handle); }
+    finally { setRefreshing(false); }
+  }
 
-  const shopUrl = store.shopUrl || `https://www.tiktok.com/@${store.handle}/shop`;
+  const shopUrl    = store.shopUrl    || `https://www.tiktok.com/@${store.handle}/shop`;
+  const profileUrl = `https://www.tiktok.com/@${store.handle}`;
+  const avatar     = store.avatarMedium || store.avatarThumb || store.avatarLarger;
 
   return (
     <article className="card shopify-card" style={{ opacity: store.isActive ? 1 : 0.6 }}>
       <div className="media-wrap" style={{ aspectRatio: "1/1", background: "var(--surface-alt, #f3f4f6)" }}>
-        {store.avatarUrl
-          ? <img src={store.avatarUrl} alt={store.handle} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        {avatar
+          ? <img src={avatar} alt={store.handle} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: "3rem" }}>🏪</div>
         }
         {!store.isActive && (
           <span style={{ position: "absolute", top: 8, left: 8, background: "#6b7280", color: "#fff", borderRadius: 999, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 700 }}>PAUSED</span>
         )}
+        {store.hasShop && (
+          <span style={{ position: "absolute", top: 8, right: 8, background: "#ff2d55", color: "#fff", borderRadius: 999, padding: "2px 7px", fontSize: "0.68rem", fontWeight: 700 }}>🛍 Shop</span>
+        )}
       </div>
+
       <div className="card-body">
-        <div className="meta-row" style={{ marginBottom: "0.3rem" }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{store.displayName || `@${store.handle}`}</div>
-            <div className="dim small">@{store.handle}</div>
+        {/* Name + handle */}
+        <div style={{ marginBottom: "0.3rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+            <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>{store.displayName || `@${store.handle}`}</span>
+            {store.verified && <span title="Verified" style={{ color: "#1d9bf0", fontSize: "0.8rem" }}>✓</span>}
+          </div>
+          <div className="dim small">
+            @{store.handle}
+            {store.region ? ` · ${store.region}` : ""}
+            {store.category ? ` · ${store.category}` : ""}
           </div>
         </div>
-        <div className="meta-row" style={{ flexWrap: "wrap", gap: "0.3rem", margin: "0.4rem 0" }}>
-          {store.followerCount != null ? <span className="pill soft">{compactNumber(store.followerCount)} followers</span> : null}
-          {store.liveCount > 0 ? <span className="pill soft">🎥 {store.liveCount} live sessions</span> : null}
+
+        {/* Bio */}
+        {store.bio ? <p className="dim small clamp-2" style={{ margin: "0.2rem 0 0.4rem", fontStyle: "italic" }}>{store.bio}</p> : null}
+
+        {/* Stats pills */}
+        <div className="meta-row" style={{ flexWrap: "wrap", gap: "0.25rem", margin: "0.3rem 0" }}>
+          {store.followerCount  ? <span className="pill soft">👥 {compactNumber(store.followerCount)}</span> : null}
+          {store.heartCount     ? <span className="pill soft">❤️ {compactNumber(store.heartCount)}</span> : null}
+          {store.videoCount     ? <span className="pill soft">🎬 {store.videoCount} videos</span> : null}
+          {store.engagementRate ? <span className="pill soft">📈 {store.engagementRate}% ER</span> : null}
+        </div>
+
+        {/* Live performance */}
+        <div className="meta-row" style={{ flexWrap: "wrap", gap: "0.25rem", margin: "0.25rem 0" }}>
+          {store.liveCount > 0 ? <span className="pill soft">🎥 {store.liveCount} lives</span> : null}
+          {store.avgPeakViewers ? <span className="pill soft">👁 avg {compactNumber(store.avgPeakViewers)} viewers</span> : null}
+          {store.avgLiveDurationMinutes ? <span className="pill soft">⏱ avg {store.avgLiveDurationMinutes}m</span> : null}
           {store.totalEstimatedGMV > 0 ? (
             <span className="pill" style={{ background: "var(--success-bg, #dcfce7)", color: "var(--success, #16a34a)", fontWeight: 700 }}>
               ~${compactNumber(store.totalEstimatedGMV)} GMV
             </span>
           ) : null}
         </div>
-        {store.notes ? <p className="dim small clamp-2" style={{ margin: "0.2rem 0" }}>{store.notes}</p> : null}
+
+        {/* Notes + tags */}
+        {store.notes ? <p className="dim small clamp-1" style={{ margin: "0.2rem 0" }}>{store.notes}</p> : null}
+        {toArray(store.tags).length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem", margin: "0.2rem 0" }}>
+            {store.tags.map((t) => <span key={t} className="pill soft" style={{ fontSize: "0.7rem" }}>{t}</span>)}
+          </div>
+        ) : null}
+
+        {/* Last live */}
         {store.lastLiveAt ? (
           <p className="dim small" style={{ margin: "0.2rem 0" }}>Last live: {new Date(store.lastLiveAt).toLocaleDateString()}</p>
         ) : null}
-        <div className="actions" style={{ marginTop: "0.5rem", flexWrap: "wrap" }}>
+
+        {/* Actions */}
+        <div className="actions" style={{ marginTop: "0.6rem", flexWrap: "wrap" }}>
           <a href={shopUrl} target="_blank" rel="noopener noreferrer"
-            className="primary" style={{ padding: "0.35rem 0.8rem", fontSize: "0.8rem", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", textDecoration: "none", fontWeight: 600 }}>
-            View shop ↗
+            className="primary" style={{ padding: "0.35rem 0.8rem", fontSize: "0.78rem", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", textDecoration: "none", fontWeight: 600 }}>
+            Shop ↗
           </a>
-          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
-            onClick={() => onViewSessions(store.handle)}>
-            Sessions
-          </button>
-          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
-            onClick={toggleActive} disabled={toggling}>
-            {store.isActive ? "Pause" : "Resume"}
-          </button>
-          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem", color: "var(--danger, #ef4444)" }}
-            onClick={remove} disabled={removing}>
-            {removing ? "…" : "Remove"}
-          </button>
+          <a href={profileUrl} target="_blank" rel="noopener noreferrer"
+            style={{ padding: "0.35rem 0.7rem", fontSize: "0.78rem", textDecoration: "none", color: "inherit", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+            Profile ↗
+          </a>
+          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }} onClick={() => onViewSessions(store.handle)}>Sessions</button>
+          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }} onClick={refresh} disabled={refreshing}>{refreshing ? "…" : "↻"}</button>
+          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }} onClick={toggleActive} disabled={toggling}>{store.isActive ? "Pause" : "Resume"}</button>
+          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem", color: "var(--danger, #ef4444)" }} onClick={remove} disabled={removing}>{removing ? "…" : "Remove"}</button>
         </div>
       </div>
     </article>

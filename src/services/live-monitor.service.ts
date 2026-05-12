@@ -226,9 +226,30 @@ export const LiveMonitorService = {
     session.estimatedGMV     = estimatedGMV;
     await session.save();
 
-    await TrackedStore.findByIdAndUpdate(session.trackedStore, {
-      $inc: { liveCount: 1, totalEstimatedGMV: estimatedGMV },
-    });
+    // Recompute aggregate averages across all sessions for this store
+    const allSessions = await LiveSession.find({
+      trackedStore: session.trackedStore,
+      status: 'ended',
+      peakViewers: { $gt: 0 },
+    }).lean();
+
+    const newLiveCount  = allSessions.length + 1; // +1 for this session
+    const totalGMV      = allSessions.reduce((s, x) => s + (x.estimatedGMV || 0), 0) + estimatedGMV;
+    const avgPeakViewers = allSessions.length > 0
+      ? Math.round((allSessions.reduce((s, x) => s + (x.peakViewers || 0), 0) + (session.peakViewers || 0)) / newLiveCount)
+      : session.peakViewers || undefined;
+    const avgDuration = allSessions.length > 0
+      ? Math.round((allSessions.reduce((s, x) => s + (x.durationMinutes || 0), 0) + durationMinutes) / newLiveCount)
+      : durationMinutes || undefined;
+
+    const storeUpdate: Record<string, unknown> = {
+      liveCount:         newLiveCount,
+      totalEstimatedGMV: totalGMV,
+    };
+    if (avgPeakViewers) storeUpdate.avgPeakViewers         = avgPeakViewers;
+    if (avgDuration)    storeUpdate.avgLiveDurationMinutes = avgDuration;
+
+    await TrackedStore.findByIdAndUpdate(session.trackedStore, { $set: storeUpdate });
 
     log.info('Live session ended', {
       handle: session.handle,

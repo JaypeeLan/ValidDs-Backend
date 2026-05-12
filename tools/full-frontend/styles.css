@@ -342,6 +342,9 @@ label {
   pointer-events: none;
 }
 
+/* ── GMV / Session card ── */
+.clamp-1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .media-wrap {
   position: relative; width: 100%; aspect-ratio: 1 / 1;
   background: var(--bg-deep); border: 0; padding: 0; cursor: pointer; overflow: hidden;

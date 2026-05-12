@@ -824,6 +824,13 @@ function App() {
   const [tiktokLives, setTiktokLives] = useState([]);
   const [tiktokLiveLoading, setTiktokLiveLoading] = useState(false);
   const [tiktokLiveError, setTiktokLiveError] = useState("");
+  const [trackedStores, setTrackedStores] = useState([]);
+  const [trackedStoresLoading, setTrackedStoresLoading] = useState(false);
+  const [trackedStoresError, setTrackedStoresError] = useState("");
+  const [liveSessions, setLiveSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState("");
+  const [liveEndedHandles, setLiveEndedHandles] = useState([]);
 
   // ── Shopify store integration ────────────────────────────────────────────
   const [shopifyConnection, setShopifyConnection] = useState(null);
@@ -1094,16 +1101,72 @@ function App() {
       const res = await request("/tiktok/live/discover");
       const payload = data(res);
       setTiktokLives(toArray(payload?.live));
+      setLiveEndedHandles(toArray(payload?.ended));
       const liveCount = payload?.liveCount ?? 0;
       const checked = payload?.totalChecked ?? 0;
       setStatus(checked === 0
-        ? "No creator handles found — add products with creator handles first"
-        : `${liveCount} of ${checked} creator${checked !== 1 ? "s" : ""} live`);
+        ? "Watchlist is empty — add stores to track"
+        : `${liveCount} of ${checked} store${checked !== 1 ? "s" : ""} live`);
     } catch (err) {
       setTiktokLives([]);
       setTiktokLiveError(String(err?.message || err));
     } finally {
       setTiktokLiveLoading(false);
+    }
+  }
+
+  async function loadTrackedStores() {
+    setTrackedStoresLoading(true);
+    setTrackedStoresError("");
+    try {
+      const res = await request("/tiktok/stores");
+      setTrackedStores(toArray(data(res)));
+    } catch (err) {
+      setTrackedStoresError(String(err?.message || err));
+    } finally {
+      setTrackedStoresLoading(false);
+    }
+  }
+
+  async function addTrackedStore(handle, notes, tags) {
+    const res = await request("/tiktok/stores", {
+      method: "POST",
+      body: { handle, notes: notes || "", tags: tags || [] },
+    });
+    const store = data(res);
+    setTrackedStores((prev) => {
+      const idx = prev.findIndex((s) => s.handle === store.handle);
+      return idx >= 0 ? prev.map((s, i) => i === idx ? store : s) : [store, ...prev];
+    });
+    return store;
+  }
+
+  async function removeTrackedStore(handle) {
+    await request(`/tiktok/stores/${handle}`, { method: "DELETE" });
+    setTrackedStores((prev) => prev.filter((s) => s.handle !== handle));
+  }
+
+  async function updateTrackedStore(handle, updates) {
+    const res = await request(`/tiktok/stores/${handle}`, { method: "PATCH", body: updates });
+    const store = data(res);
+    setTrackedStores((prev) => prev.map((s) => s.handle === handle ? store : s));
+    return store;
+  }
+
+  async function loadSessions(handle, status) {
+    setSessionsLoading(true);
+    setSessionsError("");
+    try {
+      const qs = new URLSearchParams({ limit: "30" });
+      if (handle) qs.set("handle", handle);
+      if (status) qs.set("status", status);
+      const res = await request(`/tiktok/sessions?${qs.toString()}`);
+      const payload = data(res);
+      setLiveSessions(toArray(payload?.sessions));
+    } catch (err) {
+      setSessionsError(String(err?.message || err));
+    } finally {
+      setSessionsLoading(false);
     }
   }
   async function searchTikTokLive(handles) {
@@ -1136,7 +1199,11 @@ function App() {
     }
   }
   useEffect(() => {
-    if (page === "TikTok Live" && token) loadTikTokLiveDiscover();
+    if (page === "TikTok Live" && token) {
+      loadTrackedStores();
+      loadTikTokLiveDiscover();
+      loadSessions();
+    }
   }, [page]);
   useEffect(() => {
     if (page === "Bright data products") loadBrightDataProducts();
@@ -1343,6 +1410,16 @@ function App() {
             error={tiktokLiveError}
             onSearch={searchTikTokLive}
             onDiscover={loadTikTokLiveDiscover}
+            trackedStores={trackedStores}
+            trackedStoresLoading={trackedStoresLoading}
+            trackedStoresError={trackedStoresError}
+            onAddStore={addTrackedStore}
+            onRemoveStore={removeTrackedStore}
+            onUpdateStore={updateTrackedStore}
+            sessions={liveSessions}
+            sessionsLoading={sessionsLoading}
+            sessionsError={sessionsError}
+            onLoadSessions={loadSessions}
           />
         )}
         {page === "Creators" && (
@@ -1955,57 +2032,336 @@ function BrightDataProductCard({ item, onOpen }) {
   );
 }
 
+// ── TikTok Live — main page ────────────────────────────────────────────────────
+
 function TikTokLivePage({
-  loading,
-  lives,
-  error,
-  onSearch,
-  onDiscover,
+  loading, lives, error, onSearch, onDiscover,
+  trackedStores, trackedStoresLoading, trackedStoresError,
+  onAddStore, onRemoveStore, onUpdateStore,
+  sessions, sessionsLoading, sessionsError, onLoadSessions,
 }) {
+  const [tab, setTab] = useState("live");
   const [handles, setHandles] = useState("");
 
-  function submit() {
+  function submitSearch() {
     const list = handles.split(",").map((h) => h.replace(/^@/, "").trim()).filter(Boolean);
     if (list.length) onSearch(list.join(","));
     else if (onDiscover) onDiscover();
   }
 
+  const tabs = [
+    { id: "live",      label: `🔴 Live Now${toArray(lives).length ? ` (${toArray(lives).length})` : ""}` },
+    { id: "watchlist", label: `👁 Watchlist${toArray(trackedStores).length ? ` (${toArray(trackedStores).length})` : ""}` },
+    { id: "sessions",  label: "📊 Sessions / GMV" },
+  ];
+
   return (
     <div className="page-shell">
       <SectionHeader
-        title="TikTok Live"
-        subtitle="Live streams from your product creators — updated on every visit. Search extra handles below."
+        title="TikTok Live Monitor"
+        subtitle="Track shops that go live to sell products. See who's live, manage your watchlist, and review estimated GMV per session."
       />
-      <div className="filter-panel">
-        <div className="filter-row wide">
-          <input
-            placeholder="Search extra handles (e.g. charlidamelio, khaby.lame) — leave blank to refresh discovery"
-            value={handles}
-            onChange={(e) => setHandles(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
-          />
-          <button className="primary" onClick={submit} disabled={loading}>
-            {loading ? "Checking…" : handles.trim() ? "Check handles" : "Refresh"}
-          </button>
-        </div>
-        <p className="dim small">Auto-discovers handles from your tracked products. Search up to 10 extra handles, @ prefix optional.</p>
-      </div>
-      <ErrorBanner message={error} />
 
-      <div className="grid shopify-grid" aria-busy={loading}>
-        {loading ? (
-          <GridSkeleton count={8} />
-        ) : toArray(lives).length === 0 && !error ? (
-          <EmptyState text="No creator live streams found right now. Check back later or search specific handles above." />
-        ) : (
-          toArray(lives).map((live, idx) => <SCLiveCard key={live?.handle || idx} live={live} />)
-        )}
+      {/* Tab bar */}
+      <div className="filter-panel" style={{ paddingBottom: 0 }}>
+        <div style={{ display: "flex", gap: "0.25rem", borderBottom: "2px solid var(--border)", marginBottom: 0 }}>
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{
+                padding: "0.5rem 1rem", border: "none", background: "none", cursor: "pointer",
+                fontWeight: tab === t.id ? 700 : 400,
+                borderBottom: tab === t.id ? "2px solid var(--primary)" : "2px solid transparent",
+                marginBottom: "-2px", fontSize: "0.88rem", color: tab === t.id ? "var(--primary)" : "inherit",
+              }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* ── Live Now ── */}
+      {tab === "live" && (
+        <div>
+          <div className="filter-panel" style={{ paddingTop: "0.75rem" }}>
+            <div className="filter-row wide">
+              <input
+                placeholder="Ad-hoc check: e.g. niavardalos, shopwithzoe (leave blank to refresh watchlist)"
+                value={handles}
+                onChange={(e) => setHandles(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") submitSearch(); }}
+              />
+              <button className="primary" onClick={submitSearch} disabled={loading}>
+                {loading ? "Checking…" : handles.trim() ? "Check" : "Refresh"}
+              </button>
+            </div>
+            <p className="dim small">Polls all watchlist stores automatically. Ad-hoc: up to 10 handles, @ optional.</p>
+          </div>
+          <ErrorBanner message={error} />
+          <div className="grid shopify-grid" aria-busy={loading}>
+            {loading ? <GridSkeleton count={6} /> :
+             toArray(lives).length === 0 && !error ? (
+              <EmptyState text="No watchlist stores are live right now. Add stores to your watchlist to monitor them." />
+             ) : toArray(lives).map((live, idx) => (
+              <SCLiveCard key={live?.handle || idx} live={live}
+                isTracked={toArray(trackedStores).some((s) => s.handle === live?.handle)}
+                onAddToWatchlist={(handle) => onAddStore(handle)} />
+             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Watchlist ── */}
+      {tab === "watchlist" && (
+        <div>
+          <AddStoreForm onAdd={onAddStore} loading={trackedStoresLoading} />
+          <ErrorBanner message={trackedStoresError} />
+          {trackedStoresLoading && toArray(trackedStores).length === 0 ? <GridSkeleton count={4} /> :
+           toArray(trackedStores).length === 0 ? (
+            <EmptyState text="Your watchlist is empty. Add TikTok shop handles above to start monitoring." />
+           ) : (
+            <div className="grid shopify-grid">
+              {toArray(trackedStores).map((store) => (
+                <TrackedStoreCard key={store._id || store.handle} store={store}
+                  onRemove={onRemoveStore} onUpdate={onUpdateStore}
+                  onViewSessions={(h) => { onLoadSessions(h); setTab("sessions"); }} />
+              ))}
+            </div>
+           )}
+        </div>
+      )}
+
+      {/* ── Sessions / GMV ── */}
+      {tab === "sessions" && (
+        <div>
+          <div className="filter-panel" style={{ paddingTop: "0.75rem" }}>
+            <div className="filter-row">
+              <select onChange={(e) => onLoadSessions(e.target.value || undefined)} defaultValue="">
+                <option value="">All stores</option>
+                {toArray(trackedStores).map((s) => (
+                  <option key={s.handle} value={s.handle}>@{s.handle}</option>
+                ))}
+              </select>
+              <select onChange={(e) => onLoadSessions(undefined, e.target.value || undefined)} defaultValue="">
+                <option value="">All statuses</option>
+                <option value="live">Currently live</option>
+                <option value="ended">Ended</option>
+              </select>
+              <button onClick={() => onLoadSessions()} disabled={sessionsLoading}>
+                {sessionsLoading ? "Loading…" : "Refresh"}
+              </button>
+            </div>
+          </div>
+          <ErrorBanner message={sessionsError} />
+          {sessionsLoading ? <GridSkeleton count={6} /> :
+           toArray(sessions).length === 0 ? (
+            <EmptyState text="No sessions recorded yet. Sessions are created automatically when a watched store goes live." />
+           ) : (
+            <div className="grid shopify-grid">
+              {toArray(sessions).map((s) => <SessionCard key={s._id} session={s} />)}
+            </div>
+           )}
+        </div>
+      )}
     </div>
   );
 }
 
-function SCLiveCard({ live }) {
+// ── Add store form ─────────────────────────────────────────────────────────────
+
+function AddStoreForm({ onAdd, loading }) {
+  const [handle, setHandle] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState(false);
+
+  async function submit() {
+    const h = handle.replace(/^@/, "").trim();
+    if (!h) { setErr("Enter a TikTok handle"); return; }
+    setBusy(true); setErr(""); setOk(false);
+    try {
+      await onAdd(h, notes);
+      setHandle(""); setNotes(""); setOk(true);
+      setTimeout(() => setOk(false), 3000);
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="filter-panel" style={{ paddingTop: "0.75rem" }}>
+      <div className="filter-row wide">
+        <input placeholder="TikTok handle, e.g. shopwithzoe or @niavardalos"
+          value={handle} onChange={(e) => setHandle(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        <input placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)}
+          style={{ maxWidth: 220 }} />
+        <button className="primary" onClick={submit} disabled={busy || loading || !handle.trim()}>
+          {busy ? "Adding…" : "Add to watchlist"}
+        </button>
+      </div>
+      {err ? <p style={{ color: "var(--danger)", fontSize: "0.82rem", margin: "0.25rem 0 0" }}>{err}</p> : null}
+      {ok  ? <p style={{ color: "var(--success, #22c55e)", fontSize: "0.82rem", margin: "0.25rem 0 0" }}>✓ Store added</p> : null}
+      <p className="dim small">Stores are automatically checked for live status when you visit this page.</p>
+    </div>
+  );
+}
+
+// ── Tracked store card ─────────────────────────────────────────────────────────
+
+function TrackedStoreCard({ store, onRemove, onUpdate, onViewSessions }) {
+  const [removing, setRemoving] = useState(false);
+  const [toggling, setToggling] = useState(false);
+
+  async function remove() {
+    if (!confirm(`Remove @${store.handle} from watchlist?`)) return;
+    setRemoving(true);
+    try { await onRemove(store.handle); } catch { setRemoving(false); }
+  }
+
+  async function toggleActive() {
+    setToggling(true);
+    try { await onUpdate(store.handle, { isActive: !store.isActive }); }
+    finally { setToggling(false); }
+  }
+
+  const shopUrl = store.shopUrl || `https://www.tiktok.com/@${store.handle}/shop`;
+
+  return (
+    <article className="card shopify-card" style={{ opacity: store.isActive ? 1 : 0.6 }}>
+      <div className="media-wrap" style={{ aspectRatio: "1/1", background: "var(--surface-alt, #f3f4f6)" }}>
+        {store.avatarUrl
+          ? <img src={store.avatarUrl} alt={store.handle} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: "3rem" }}>🏪</div>
+        }
+        {!store.isActive && (
+          <span style={{ position: "absolute", top: 8, left: 8, background: "#6b7280", color: "#fff", borderRadius: 999, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 700 }}>PAUSED</span>
+        )}
+      </div>
+      <div className="card-body">
+        <div className="meta-row" style={{ marginBottom: "0.3rem" }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{store.displayName || `@${store.handle}`}</div>
+            <div className="dim small">@{store.handle}</div>
+          </div>
+        </div>
+        <div className="meta-row" style={{ flexWrap: "wrap", gap: "0.3rem", margin: "0.4rem 0" }}>
+          {store.followerCount != null ? <span className="pill soft">{compactNumber(store.followerCount)} followers</span> : null}
+          {store.liveCount > 0 ? <span className="pill soft">🎥 {store.liveCount} live sessions</span> : null}
+          {store.totalEstimatedGMV > 0 ? (
+            <span className="pill" style={{ background: "var(--success-bg, #dcfce7)", color: "var(--success, #16a34a)", fontWeight: 700 }}>
+              ~${compactNumber(store.totalEstimatedGMV)} GMV
+            </span>
+          ) : null}
+        </div>
+        {store.notes ? <p className="dim small clamp-2" style={{ margin: "0.2rem 0" }}>{store.notes}</p> : null}
+        {store.lastLiveAt ? (
+          <p className="dim small" style={{ margin: "0.2rem 0" }}>Last live: {new Date(store.lastLiveAt).toLocaleDateString()}</p>
+        ) : null}
+        <div className="actions" style={{ marginTop: "0.5rem", flexWrap: "wrap" }}>
+          <a href={shopUrl} target="_blank" rel="noopener noreferrer"
+            className="primary" style={{ padding: "0.35rem 0.8rem", fontSize: "0.8rem", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", textDecoration: "none", fontWeight: 600 }}>
+            View shop ↗
+          </a>
+          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
+            onClick={() => onViewSessions(store.handle)}>
+            Sessions
+          </button>
+          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
+            onClick={toggleActive} disabled={toggling}>
+            {store.isActive ? "Pause" : "Resume"}
+          </button>
+          <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem", color: "var(--danger, #ef4444)" }}
+            onClick={remove} disabled={removing}>
+            {removing ? "…" : "Remove"}
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+// ── Session card (GMV history) ─────────────────────────────────────────────────
+
+function SessionCard({ session }) {
+  const [expanded, setExpanded] = useState(false);
+  const products = toArray(session.productSnapshots);
+  const isLive = session.status === "live";
+  const duration = session.durationMinutes > 0
+    ? `${session.durationMinutes}m`
+    : isLive ? "Ongoing" : "—";
+  const gmv = session.estimatedGMV ?? 0;
+
+  return (
+    <article className="card shopify-card">
+      <div className="card-body">
+        {/* Header row */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", marginBottom: "0.5rem" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              {isLive
+                ? <span style={{ background: "#ef4444", color: "#fff", borderRadius: 999, padding: "2px 7px", fontSize: "0.7rem", fontWeight: 700 }}>🔴 LIVE</span>
+                : <span style={{ background: "#6b7280", color: "#fff", borderRadius: 999, padding: "2px 7px", fontSize: "0.7rem", fontWeight: 700 }}>ENDED</span>}
+              <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>@{session.handle}</span>
+            </div>
+            {session.title ? <p className="clamp-1 dim small" style={{ margin: "0.15rem 0 0" }}>{session.title}</p> : null}
+          </div>
+          {gmv > 0 && (
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--success, #16a34a)" }}>~${compactNumber(gmv)}</div>
+              <div className="dim small">est. GMV</div>
+            </div>
+          )}
+        </div>
+
+        {/* Stats row */}
+        <div className="meta-row" style={{ flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.4rem" }}>
+          <span className="pill soft">🕐 {new Date(session.startedAt).toLocaleString()}</span>
+          {duration !== "—" ? <span className="pill soft">⏱ {duration}</span> : null}
+          {session.peakViewers > 0 ? <span className="pill soft">👁 {compactNumber(session.peakViewers)} peak</span> : null}
+          {session.totalJoined > 0 ? <span className="pill soft">👥 {compactNumber(session.totalJoined)} joined</span> : null}
+          {products.length > 0 ? <span className="pill soft">📦 {products.length} products</span> : null}
+        </div>
+
+        {/* Product breakdown */}
+        {products.length > 0 && (
+          <div>
+            <button className="link-btn" style={{ fontSize: "0.8rem" }} onClick={() => setExpanded((v) => !v)}>
+              {expanded ? "Hide" : "Show"} product breakdown ▾
+            </button>
+            {expanded && (
+              <div style={{ marginTop: "0.4rem", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                {products.map((p, i) => (
+                  <div key={p.productId || i} style={{ display: "flex", gap: "0.5rem", alignItems: "center", fontSize: "0.8rem", padding: "0.3rem", background: "var(--surface-alt, #f9fafb)", borderRadius: "var(--radius-sm)" }}>
+                    {p.imageUrl ? <img src={p.imageUrl} alt={p.title} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} /> : null}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="clamp-1" style={{ fontWeight: 600 }}>{p.title || "Product"}</div>
+                      <div className="dim" style={{ fontSize: "0.75rem" }}>
+                        ${p.price} · +{p.soldDelta ?? 0} sold
+                        {p.estimatedRevenue > 0 ? ` · ~$${compactNumber(p.estimatedRevenue)}` : ""}
+                      </div>
+                    </div>
+                    {p.productUrl ? <a href={p.productUrl} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ flexShrink: 0 }}>↗</a> : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {products.length === 0 && !isLive && (
+          <p className="dim small" style={{ marginTop: "0.3rem" }}>No product data captured — store may not have a TikTok Shop or snapshot failed.</p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+// ── SCLiveCard (live now card) ─────────────────────────────────────────────────
+
+function SCLiveCard({ live, isTracked, onAddToWatchlist }) {
   const user = live?.user || {};
   const room = live?.room || {};
   const streams = live?.streams || {};
@@ -2016,17 +2372,25 @@ function SCLiveCard({ live }) {
   const viewers = room?.liveRoomStats?.userCount;
   const followers = user?.followerCount;
   const streamUrl = streams?.hls || streams?.flv;
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(isTracked);
+
+  async function quickAdd() {
+    setAdding(true);
+    try {
+      await onAddToWatchlist(handle);
+      setAdded(true);
+    } catch { /* ignore */ }
+    finally { setAdding(false); }
+  }
 
   return (
     <article className="card shopify-card sc-live-card">
       <div className="media-wrap">
         {streamUrl ? (
-          <video
-            src={streamUrl}
-            poster={cover || undefined}
+          <video src={streamUrl} poster={cover || undefined}
             controls muted playsInline preload="metadata"
-            style={{ width: "100%", height: "100%", objectFit: "cover", background: "#000" }}
-          />
+            style={{ width: "100%", height: "100%", objectFit: "cover", background: "#000" }} />
         ) : (
           <MediaImage srcs={[cover]} alt={title} placeholder="No cover" />
         )}
@@ -2034,9 +2398,9 @@ function SCLiveCard({ live }) {
       </div>
       <div className="card-body">
         <div className="meta-row" style={{ marginBottom: "0.3rem" }}>
-          {user?.avatarThumb ? (
-            <img src={user.avatarThumb} alt={handle} style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-          ) : null}
+          {user?.avatarThumb
+            ? <img src={user.avatarThumb} alt={handle} style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+            : null}
           <div>
             <div style={{ fontWeight: 700, fontSize: "0.88rem" }}>{user?.nickname || `@${handle}`}</div>
             <div className="dim small">@{handle}{user?.verified ? " ✓" : ""}</div>
@@ -2047,14 +2411,20 @@ function SCLiveCard({ live }) {
           {viewers != null ? <span className="pill soft">👁 {compactNumber(viewers)} viewers</span> : null}
           {followers != null ? <span className="pill soft">{compactNumber(followers)} followers</span> : null}
         </div>
-        <div className="actions" style={{ marginTop: "0.5rem" }}>
-          <a className="primary" style={{ padding: "0.4rem 0.9rem", fontSize: "0.82rem", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", textDecoration: "none", fontWeight: 600 }}
+        <div className="actions" style={{ marginTop: "0.5rem", flexWrap: "wrap" }}>
+          <a className="primary"
+            style={{ padding: "0.4rem 0.9rem", fontSize: "0.82rem", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", textDecoration: "none", fontWeight: 600 }}
             href={watchUrl} target="_blank" rel="noopener noreferrer">
             Watch live ↗
           </a>
-          {streamUrl ? (
-            <a className="link-btn" href={streamUrl} target="_blank" rel="noopener noreferrer">Stream URL ↗</a>
+          {!added && onAddToWatchlist ? (
+            <button style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }} onClick={quickAdd} disabled={adding}>
+              {adding ? "Adding…" : "+ Watchlist"}
+            </button>
+          ) : added ? (
+            <span className="dim small" style={{ alignSelf: "center" }}>✓ Watching</span>
           ) : null}
+          {streamUrl ? <a className="link-btn" href={streamUrl} target="_blank" rel="noopener noreferrer">Stream URL ↗</a> : null}
         </div>
       </div>
     </article>

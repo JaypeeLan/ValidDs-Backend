@@ -6,6 +6,36 @@ const log = logger.child({ module: 'scrapecreators-service' });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface SCUserInfo {
+  id?: string;
+  uniqueId?: string;
+  nickname?: string;
+  avatarThumb?: string;
+  avatarMedium?: string;
+  verified?: boolean;
+  followerCount?: number;
+  followingCount?: number;
+  videoCount?: number;
+  heartCount?: number;
+  signature?: string;
+  commerceUserInfo?: {
+    commerceUser?: boolean;
+  };
+}
+
+export interface SCShopProduct {
+  productId:   string;
+  title:       string;
+  imageUrl:    string;
+  price:       number;
+  currency:    string;
+  soldCount:   number;
+  productUrl:  string;
+  inStock?:    boolean;
+  rating?:     number;
+  reviewCount?: number;
+}
+
 export interface SCLiveRoomUserInfo {
   id: string;
   uniqueId: string;
@@ -126,6 +156,84 @@ export const ScrapeCreatorsService = {
       streams,
       watchUrl,
     };
+  },
+
+  /**
+   * Fetch basic profile info for a TikTok handle.
+   * Returns null if the handle doesn't exist or the request fails.
+   */
+  async getUserInfo(handle: string): Promise<SCUserInfo | null> {
+    this.assertConfigured();
+    const cleanHandle = handle.replace(/^@/, '').trim().toLowerCase();
+    const url = `${env.SCRAPECREATORS_BASE_URL}/v1/tiktok/user/info?handle=${encodeURIComponent(cleanHandle)}`;
+    try {
+      const res = await fetch(url, {
+        headers: { 'x-api-key': env.SCRAPECREATORS_API_KEY!, 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) return null;
+      const data = await res.json() as any;
+      // ScrapeCreators nests user info under userInfo or directly
+      const u = data?.userInfo?.user || data?.user || data;
+      if (!u?.uniqueId) return null;
+      const stats = data?.userInfo?.stats || data?.stats || {};
+      return {
+        id:             u.id,
+        uniqueId:       u.uniqueId,
+        nickname:       u.nickname,
+        avatarThumb:    u.avatarThumb?.urlList?.[0] || u.avatarThumb,
+        avatarMedium:   u.avatarMedium?.urlList?.[0] || u.avatarMedium,
+        verified:       u.verified,
+        followerCount:  stats.followerCount ?? u.followerCount,
+        followingCount: stats.followingCount ?? u.followingCount,
+        videoCount:     stats.videoCount ?? u.videoCount,
+        heartCount:     stats.heartCount ?? u.heartCount,
+        signature:      u.signature,
+        commerceUserInfo: u.commerceUserInfo,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Fetch a TikTok Shop's products with sold counts.
+   * Used for GMV delta snapshots — call at live start and live end.
+   * Returns empty array if the store has no TikTok Shop or the endpoint fails.
+   */
+  async getShopProducts(handle: string): Promise<SCShopProduct[]> {
+    this.assertConfigured();
+    const cleanHandle = handle.replace(/^@/, '').trim().toLowerCase();
+    const url = `${env.SCRAPECREATORS_BASE_URL}/v1/tiktok/shop?handle=${encodeURIComponent(cleanHandle)}`;
+    try {
+      const res = await fetch(url, {
+        headers: { 'x-api-key': env.SCRAPECREATORS_API_KEY!, 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        log.debug('ScrapeCreators: shop products not available', { handle: cleanHandle, status: res.status });
+        return [];
+      }
+      const data = await res.json() as any;
+      // Normalise whatever shape comes back
+      const raw: any[] = data?.products || data?.data?.products || data?.items || data?.data || [];
+      if (!Array.isArray(raw)) return [];
+      return raw.map((p: any) => ({
+        productId:   String(p.productId || p.id || ''),
+        title:       String(p.title || p.name || ''),
+        imageUrl:    String(p.imageUrl || p.image || p.cover || ''),
+        price:       Number(p.price ?? p.salePrice ?? 0),
+        currency:    String(p.currency || 'USD'),
+        soldCount:   Number(p.soldCount ?? p.sold ?? p.sales ?? 0),
+        productUrl:  String(p.productUrl || p.url || `https://www.tiktok.com/@${cleanHandle}/shop`),
+        inStock:     p.inStock !== false,
+        rating:      p.rating != null ? Number(p.rating) : undefined,
+        reviewCount: p.reviewCount != null ? Number(p.reviewCount) : undefined,
+      }));
+    } catch (err) {
+      log.debug('ScrapeCreators: getShopProducts failed', { handle: cleanHandle, err: String(err) });
+      return [];
+    }
   },
 
   /**

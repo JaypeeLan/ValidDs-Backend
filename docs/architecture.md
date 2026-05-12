@@ -2,7 +2,7 @@
 
 ## Overview
 
-ValidDs backend is an Express + TypeScript API server that powers TikTok Shop product discovery. It ingests structured product data from EchoTik, enriches it with real TikTok creator data (EnsembleData) and Google Shopping reviews (SearchApi), stores results in MongoDB, and serves them via a REST API to the ValidDs frontend.
+ValidDs backend is an Express + TypeScript API server for TikTok-oriented product research. It exposes REST APIs for products, creatives, auth, billing, Shopify store connection, and admin tools. Data lives in **MongoDB**; **Redis** backs caching and freshness markers. Automated bulk ingestion is **minimal / disabled** until sources are reconnected in `src/ingestion/orchestrator.ts` (see `docs/data-ingestion.md`).
 
 ---
 
@@ -21,40 +21,25 @@ ValidDs backend is an Express + TypeScript API server that powers TikTok Shop pr
 │  Rate Limiter → Sanitizer → Routes → Error Handler            │
 │                                                                │
 │  Routes: /api/v1/auth  /profile  /products  /creatives        │
-│          /admin  /billing  /jobs  /health                     │
+│          /stores  /ingestion  /jobs  /admin  /billing  /health │
 └───────┬───────────────────────┬───────────────────────────────┘
         │                       │
 ┌───────▼──────┐     ┌──────────▼──────────────────────────────┐
 │  Redis       │     │  MongoDB Atlas                           │
 │              │     │                                          │
 │  - API cache │     │  Collections:                            │
-│  - Image URL │     │  products  creatives  users              │
-│    resolution│     │  transactions                            │
-│  - Freshness │     │                                          │
+│  - Freshness │     │  products  creatives  users              │
+│                │     │  transactions                            │
 └──────────────┘     └─────────────────────────────────────────┘
         │
 ┌───────▼────────────────────────────────────────────────────────┐
-│                   Data Ingestion Pipeline                      │
+│                   Data ingestion & enrichment                  │
 │                                                                │
-│  EchoTik API (Primary — TikTok Shop structured data):         │
-│    ├─ /product/list   — paginated, sorted by 30d sales        │
-│    ├─ /product/comment — verified buyer reviews               │
-│    └─ /batch/cover/download — image temp URL exchange         │
-│                                                                │
-│  EnsembleData (Creator Enrichment):                           │
-│    └─ /keyword/full-search — find real TikTok creator         │
-│         promoting the product → overwrites primaryCreator     │
-│                                                                │
-│  SearchApi (Review Enrichment):                               │
-│    ├─ google_shopping → product_token                         │
-│    └─ google_product  → reviews + relatedProducts             │
-│                                                                │
-│  CreativeService — TikTok video ingestion per product         │
-│                                                                │
-│  Image Resolution (serve-time, not ingest-time):             │
-│    └─ echotik.image.ts → Redis cache → /batch/cover/download  │
-│                                                                │
-│  Freshness Tracking → MongoDB → Cache invalidation            │
+│  IngestionOrchestrator — primary hook for future TikTok feeds │
+│  ProductEnricher — AI extraction + TeemDrop + creatives path │
+│  CreativeService — TikTok creatives (disabled until enabled)   │
+│  ShopifyService — OAuth + Admin API product push             │
+│  FreshnessService — Redis markers for last successful runs    │
 └────────────────────────────────────────────────────────────────┘
         │
 ┌───────▼─────────────────────────────────────────────────────┐
@@ -70,42 +55,22 @@ ValidDs backend is an Express + TypeScript API server that powers TikTok Shop pr
 ## Layer Responsibilities
 
 ### API Layer (`src/api/`)
-Handles HTTP only. Controllers parse requests, call services, and format responses. They never touch the database directly. Product controllers resolve EchoTik image URLs at serve time via `toPlainWithImages()`.
+Handles HTTP only. Controllers parse requests, call services, and format responses. They do not query MongoDB directly except through services/repositories.
 
 ### Service Layer (`src/services/`)
-All business logic lives here. Key services:
-- `SearchApiService` — Google Shopping review and related product fetching
-- `DiscoveryService` — categorizes products into discovery sections
-- `CreativeService` — fetches and ingests TikTok creative videos
-- `ProductService` — product feed, search, and cleanup logic
+Business logic: `ProductService`, `CreativeService`, `DiscoveryService`, `ShopifyService`, `ProductEnricher`, AI extractors, TeemDrop client, etc.
 
 ### Model Layer (`src/models/`)
-Mongoose schemas and documents. All database access goes through `src/db/repositories/`.
+Mongoose schemas. Database access goes through `src/db/repositories/`.
 
 ### Cache Layer (`src/cache/`)
-Redis-backed cache. Used for:
-- API response caching (generic TTL)
-- EchoTik image URL resolution (`echotik:img:<url>`, 20h TTL)
-- Freshness tracking (`ingestion:last-run:<entity>`)
-
-Cache failures are non-fatal — a miss falls through to the database or external API.
+Redis-backed cache for API responses and freshness keys (`ingestion:last-run:<entity>`). Cache misses fall through to MongoDB or external calls.
 
 ### Freshness Layer (`src/freshness/`)
-System-level (Redis-backed) tracking of when each entity type was last successfully ingested. Separate from document-level `status` field (`active` | `stale` | `archived`).
+Tracks when entity types were last successfully updated (Redis).
 
-### Data Ingestion Pipeline (`src/ingestion/`)
-
-**EchoTik pipeline** (`src/ingestion/echotik/`) — primary source:
-- Fetches structured TikTok Shop product data
-- No AI extraction required — data is already structured
-- Real pricing, ratings, sales figures, image gallery, commission rates
-
-**EnsembleData** (`src/ingestion/ensemble/`) — creator enrichment:
-- Used post-ingest to resolve real TikTok creators promoting each product
-- `primaryCreator` is overwritten with the creator of the highest-view post found
-
-**SearchApi** (`src/services/search.service.ts`) — review enrichment:
-- Three-step: google_shopping → product_token → google_product → reviews
+### Data ingestion (`src/ingestion/`)
+Shared types (`ingestion.types.ts`) and `IngestionOrchestrator`. Extend here when wiring new TikTok or catalog sources.
 
 ---
 
@@ -135,7 +100,6 @@ Request → Middleware stack
             └── Miss → Repository (MongoDB)
                      → Cache the result
                      → return response
-        → (EchoTik products) resolve image URLs via echotik.image.ts
         → Response
 ```
 
@@ -143,18 +107,17 @@ Request → Middleware stack
 
 ## Key Technical Decisions
 
-See `docs/decision-log.md` for full reasoning. Summary:
+See `docs/decision-log.md` for historical reasoning. Current summary:
 
 | Decision | Choice | Reason |
 |---|---|---|
 | Runtime | TypeScript / Node.js | Team familiarity, strong ecosystem |
 | Framework | Express | Simple, well-understood, minimal magic |
 | Database | MongoDB (Mongoose) | Flexible schema for evolving product data |
-| Cache | Redis | Fast cache; also used for image URL resolution |
-| Product source | EchoTik | Structured TikTok Shop data — no AI extraction cost |
-| Creator data | EnsembleData | Real TikTok @handles and engagement metrics |
-| Reviews | SearchApi | Google Shopping reviews + related products |
-| Image serving | Serve-time resolution | volces.com URLs expire 24h; store originals, resolve at request time |
+| Cache | Redis | Fast cache + freshness markers |
+| Ingestion | Orchestrator placeholder | Central place to plug TikTok/catalog sources back in |
+| Enrichment | `ProductEnricher` | AI + optional TeemDrop + discovery when posts exist |
+| Shopify | Custom OAuth app | Store connection and product push via Admin API |
 | Deployment | Render | Simplest free-tier deployment path |
 | Error tracking | Sentry | Best-in-class free tier |
 
@@ -166,11 +129,11 @@ See `docs/decision-log.md` for full reasoning. Summary:
 - **Headers**: Helmet sets HSTS, CSP, X-Frame-Options, and other protective headers
 - **CORS**: Explicit origin allowlist — no wildcard in production
 - **Input**: MongoDB operator injection + XSS stripped on every request
-- **Rate limiting**: Global 100 req/15min + strict 10 req/15min on sensitive routes
+- **Rate limiting**: Global 100 req/15min + stricter limits on sensitive routes
 - **Authentication**: JWT (user-facing) + internal API key (service-to-service)
-- **Key storage**: API keys stored as SHA-256 hashes. Raw keys never persisted.
-- **Field encryption**: AES-256-GCM for sensitive fields in MongoDB
-- **Secrets**: All credentials in environment variables. Never in code or logs.
+- **Key storage**: API keys stored as hashes where applicable. Raw secrets never logged.
+- **Field encryption**: AES-256-GCM for sensitive fields (e.g. Shopify tokens on user)
+- **Secrets**: Environment variables only — never in code or git
 
 ---
 
@@ -188,7 +151,6 @@ External services:
   MongoDB Atlas M0 (free) — US East
   Redis (Upstash free)    — US East
   Sentry (free)           — cloud
-  Grafana Cloud (free)    — cloud
 ```
 
 ---
@@ -197,9 +159,7 @@ External services:
 
 - Render free tier sleeps after 15 minutes of inactivity (~30s cold start)
 - MongoDB Atlas M0 has no automated backups
-- EchoTik image URLs expire after 24 hours (mitigated by serve-time resolution + Redis cache)
-- EchoTik API has usage quotas — contact support to increase if ingestion fails mid-run
-- EnsembleData rate-limited to 1 request per 2 seconds — adds latency per product during ingestion
+- Bulk ingestion / creative fetch paths may be disabled — check logs and `docs/data-ingestion.md`
 - Single-instance deployment only (no horizontal scaling on free tier)
 
 See `docs/risks.md` for full risk register.

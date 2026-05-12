@@ -27,7 +27,7 @@ export const ImageService = {
   /**
    * Checks whether an image URL is actually serving an image — i.e. returns
    * a 2xx status AND a `Content-Type` that starts with `image/`. Some CDNs
-   * (notably TikTok / volces) return 200 with an HTML error page or plain
+   * (notably some TikTok / CDN hosts) return 200 with an HTML error page or plain
    * text when a signed URL is expired, which is why we can't trust HTTP
    * status alone.
    *

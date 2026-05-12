@@ -176,11 +176,11 @@ const envSchema = z.object({
   ),
   SHOPIFY_API_SCOPES: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional().default('write_products,read_products')
+    z.string().min(1).optional().default('read_products,write_products')
   ),
   SHOPIFY_API_VERSION: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional().default('2024-10')
+    z.string().min(1).optional().default('2025-01')
   ),
   SHOPIFY_REDIRECT_URI: z.preprocess(
     (val) => (val === '' ? undefined : val),
@@ -193,6 +193,16 @@ const envSchema = z.object({
   SHOPIFY_PARTNER_REFERRAL_CODE: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional()
+  ),
+
+  // ScrapeCreators
+  SCRAPECREATORS_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional()
+  ),
+  SCRAPECREATORS_BASE_URL: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional().default('https://api.scrapecreators.com')
   ),
 
   // Apify

@@ -1,5 +1,6 @@
 # Environment
 .env
+backend.env
 .env.local
 .env.staging
 .env.production
@@ -41,7 +42,7 @@ Thumbs.db
 INSTRUCTIONS.md
 pricing-model.txt
 
-tools
+tools/full-frontend/node_modules
 
 .claude
 

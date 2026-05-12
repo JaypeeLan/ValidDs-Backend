@@ -11,7 +11,14 @@
  *  7. Register graceful shutdown handlers
  */
 
-import 'dotenv/config';
+import path from 'path';
+import dotenv from 'dotenv';
+
+// Load from repo root (parent of `src/` or `dist/`) so it works even when cwd is wrong.
+// `backend.env` is merged second so keys there fill gaps (common in monorepos / full-frontend tooling).
+const envRoot = path.resolve(__dirname, '..');
+dotenv.config({ path: path.join(envRoot, '.env') });
+dotenv.config({ path: path.join(envRoot, 'backend.env') });
 
 // Step 1: Validate env — crashes immediately if anything is wrong
 import { env } from './config/env.validation';

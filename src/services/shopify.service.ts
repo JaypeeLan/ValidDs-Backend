@@ -161,10 +161,10 @@ export const ShopifyService = {
       scope: env.SHOPIFY_API_SCOPES,
       redirect_uri: env.SHOPIFY_REDIRECT_URI!,
       state,
-      'grant_options[]': '',
     });
 
     const url = `https://${normalized}/admin/oauth/authorize?${params.toString()}`;
+    log.info('Shopify OAuth URL built', { url, redirect_uri: env.SHOPIFY_REDIRECT_URI });
     return { url, state };
   },
 

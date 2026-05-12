@@ -12,6 +12,7 @@ import billingRouter from './billing/billing.routes';
 import waitlistRouter from './waitlist/waitlist.routes';
 import scraperRouter from './scrapers/scraper.routes';
 import storeRouter from './stores/store.routes';
+import tiktokRouter from './tiktok/tiktok.routes';
 
 const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
@@ -25,6 +26,7 @@ apiRouter.use('/billing', billingRouter);
 apiRouter.use('/waitlist', waitlistRouter);
 apiRouter.use('/scrapers', scraperRouter);
 apiRouter.use('/stores', storeRouter);
+apiRouter.use('/tiktok', tiktokRouter);
 
 // Sentry test endpoint
 apiRouter.get('/debug-sentry', (_req, _res) => {

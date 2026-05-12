@@ -506,11 +506,8 @@ function mapProductToShopify(
   for (const t of product.hashtags ?? []) tags.push(t);
 
   // Build options/variants from sizes/colors if present.
-  const sizes = (product.sizes ?? []).filter(Boolean);
-  const colors = (product.colors ?? []).filter(Boolean);
+
   const options: ShopifyProductPayload['options'] = [];
-  if (sizes.length) options.push({ name: 'Size', values: sizes });
-  if (colors.length) options.push({ name: 'Color', values: colors });
 
   const variants: ShopifyProductPayload['variants'] = [{
     price: price.toFixed(2),

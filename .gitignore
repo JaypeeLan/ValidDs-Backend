@@ -33,17 +33,16 @@ Thumbs.db
 *.swp
 *.swo
 
-# Docker
-.dockerignore
-
 # TypeScript
 *.tsbuildinfo
 
 INSTRUCTIONS.md
 pricing-model.txt
 
-tools/full-frontend/node_modules
-
 .claude
 
 products.json
+
+# Local dev harness — not versioned or deployed
+tools/
+

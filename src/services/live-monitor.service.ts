@@ -11,7 +11,7 @@
 import { TrackedStore }  from '../models/tracked-store.model';
 import { LiveSession, IProductSnapshot } from '../models/live-session.model';
 import { ScrapeCreatorsService, SCLiveResult } from './scrapecreators.service';
-import { TikTokWebcastService, WebcastProduct } from './tiktok-webcast.service';
+import { TikTokShopScraperService, ShopProduct } from './tiktok-shop-scraper.service';
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'live-monitor' });
@@ -100,47 +100,33 @@ export const LiveMonitorService = {
     const existing = await LiveSession.findOne({ handle: result.handle, status: 'live' });
 
     if (existing) {
-      // Poll: viewer snapshot + refresh product sold counts mid-live
+      // Poll: viewer snapshot only — product deltas computed at session end
       existing.polls.push({ takenAt: now, viewerCount: viewers });
       if (viewers > existing.peakViewers) existing.peakViewers = viewers;
       if (entered > existing.totalJoined)  existing.totalJoined = entered;
       existing.title    = result.room?.title || existing.title;
       existing.coverUrl = result.room?.coverUrl || existing.coverUrl;
-
-      // Refresh product sold counts (soldInLive is the live-running counter)
-      if (roomId) {
-        const liveProducts = await TikTokWebcastService.getLiveProducts(String(roomId), result.handle);
-        if (liveProducts.length > 0) {
-          existing.productSnapshots = mergeWebcastProducts(
-            existing.productSnapshots as IProductSnapshot[],
-            liveProducts,
-          );
-          existing.estimatedGMV = existing.productSnapshots.reduce(
-            (sum, p) => sum + (p.estimatedRevenue || 0), 0
-          );
-        }
-      }
-
       await existing.save();
-      log.debug('Live session polled', { handle: result.handle, viewers, roomId });
+      log.debug('Live session polled', { handle: result.handle, viewers });
       return;
     }
 
-    // New live session — fetch products from webcast API
-    const liveProducts = roomId
-      ? await TikTokWebcastService.getLiveProducts(String(roomId), result.handle)
-      : [];
+    // New live session — snapshot current sold counts as baseline
+    const startProducts = await TikTokShopScraperService.getSellerProducts(
+      result.handle,
+      store.tiktokUserId,
+    );
 
-    const productSnapshots: IProductSnapshot[] = liveProducts.map((p) => ({
+    const productSnapshots: IProductSnapshot[] = startProducts.map((p) => ({
       productId:        p.productId,
       productUrl:       p.productUrl,
       title:            p.title,
       imageUrl:         p.imageUrl,
       price:            p.price,
-      currency:         p.currency,
-      soldAtStart:      p.soldInLive,   // baseline at session start
-      soldAtEnd:        p.soldInLive,   // will be updated on polls / end
-      soldDelta:        0,              // delta grows as live progresses
+      currency:         p.currency || 'USD',
+      soldAtStart:      p.soldCount,   // baseline — compare at session end
+      soldAtEnd:        p.soldCount,
+      soldDelta:        0,
       estimatedRevenue: 0,
     }));
 
@@ -156,7 +142,7 @@ export const LiveMonitorService = {
       roomId:       String(roomId),
       productSnapshots,
       polls: [{ takenAt: now, viewerCount: viewers }],
-      currency: 'USD',
+      currency:     startProducts[0]?.currency || 'USD',
     });
 
     await TrackedStore.findByIdAndUpdate(store._id, {
@@ -166,55 +152,71 @@ export const LiveMonitorService = {
     log.info('Live session started', {
       handle:       result.handle,
       sessionId:    session._id,
-      roomId,
-      productCount: liveProducts.length,
+      productCount: startProducts.length,
+      hasBaseline:  startProducts.length > 0,
     });
   },
 
   async _endSession(session: any, now: Date): Promise<void> {
     const durationMinutes = Math.round((now.getTime() - session.startedAt.getTime()) / 60_000);
 
-    // Final product snapshot from webcast API
-    let finalProducts: WebcastProduct[] = [];
-    if (session.roomId) {
-      finalProducts = await TikTokWebcastService.getLiveProducts(session.roomId, session.handle);
-    }
+    // Final snapshot — compare against baseline to compute delta
+    const store = await TrackedStore.findById(session.trackedStore).lean();
+    const finalProducts = await TikTokShopScraperService.getSellerProducts(
+      session.handle,
+      store?.tiktokUserId,
+    );
 
     let estimatedGMV = 0;
     let updatedSnapshots: IProductSnapshot[];
 
-    if (finalProducts.length > 0) {
-      // We have webcast data — soldInLive is the authoritative in-session count
+    if (finalProducts.length > 0 && session.productSnapshots.length > 0) {
+      // Both snapshots available — compute deltas
       updatedSnapshots = session.productSnapshots.map((snap: IProductSnapshot) => {
         const final = finalProducts.find((p) => p.productId === snap.productId);
         if (!final) return snap;
-        const soldAtEnd      = final.soldInLive;
-        const soldDelta      = Math.max(0, soldAtEnd - snap.soldAtStart);
+        const soldAtEnd        = final.soldCount;
+        const soldDelta        = Math.max(0, soldAtEnd - snap.soldAtStart);
         const estimatedRevenue = soldDelta * snap.price;
         estimatedGMV += estimatedRevenue;
         return { ...snap, soldAtEnd, soldDelta, estimatedRevenue };
       });
 
-      // Add any new products that appeared mid-live
+      // Products that appeared in the final snapshot but not at start
       for (const fp of finalProducts) {
         if (!updatedSnapshots.find((s) => s.productId === fp.productId)) {
+          const estimatedRevenue = fp.soldCount * fp.price;
+          estimatedGMV += estimatedRevenue;
           updatedSnapshots.push({
             productId:        fp.productId,
             productUrl:       fp.productUrl,
             title:            fp.title,
             imageUrl:         fp.imageUrl,
             price:            fp.price,
-            currency:         fp.currency,
+            currency:         fp.currency || 'USD',
             soldAtStart:      0,
-            soldAtEnd:        fp.soldInLive,
-            soldDelta:        fp.soldInLive,
-            estimatedRevenue: fp.soldInLive * fp.price,
+            soldAtEnd:        fp.soldCount,
+            soldDelta:        fp.soldCount,
+            estimatedRevenue,
           });
-          estimatedGMV += fp.soldInLive * fp.price;
         }
       }
+    } else if (finalProducts.length > 0 && session.productSnapshots.length === 0) {
+      // No baseline — record final counts but can't compute delta
+      updatedSnapshots = finalProducts.map((fp) => ({
+        productId:        fp.productId,
+        productUrl:       fp.productUrl,
+        title:            fp.title,
+        imageUrl:         fp.imageUrl,
+        price:            fp.price,
+        currency:         fp.currency || 'USD',
+        soldAtStart:      fp.soldCount,
+        soldAtEnd:        fp.soldCount,
+        soldDelta:        0,
+        estimatedRevenue: 0,
+      }));
     } else {
-      // No final data — keep whatever we had from polls
+      // No product data available — keep whatever baseline we had
       updatedSnapshots = session.productSnapshots;
       estimatedGMV = session.estimatedGMV || 0;
     }
@@ -260,37 +262,3 @@ export const LiveMonitorService = {
   },
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function mergeWebcastProducts(
-  existing: IProductSnapshot[],
-  live: WebcastProduct[],
-): IProductSnapshot[] {
-  const merged = existing.map((snap) => {
-    const current = live.find((p) => p.productId === snap.productId);
-    if (!current) return snap;
-    const soldAtEnd        = current.soldInLive;
-    const soldDelta        = Math.max(0, soldAtEnd - snap.soldAtStart);
-    const estimatedRevenue = soldDelta * snap.price;
-    return { ...snap, soldAtEnd, soldDelta, estimatedRevenue };
-  });
-
-  for (const lp of live) {
-    if (!merged.find((s) => s.productId === lp.productId)) {
-      merged.push({
-        productId:        lp.productId,
-        productUrl:       lp.productUrl,
-        title:            lp.title,
-        imageUrl:         lp.imageUrl,
-        price:            lp.price,
-        currency:         lp.currency,
-        soldAtStart:      lp.soldInLive,
-        soldAtEnd:        lp.soldInLive,
-        soldDelta:        0,
-        estimatedRevenue: 0,
-      });
-    }
-  }
-
-  return merged;
-}

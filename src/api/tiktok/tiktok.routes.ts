@@ -6,6 +6,7 @@ import { successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
 import { ScrapeCreatorsService } from '../../services/scrapecreators.service';
 import { LiveMonitorService } from '../../services/live-monitor.service';
+import { TikTokWebcastService } from '../../services/tiktok-webcast.service';
 import { TrackedStore } from '../../models/tracked-store.model';
 import { LiveSession } from '../../models/live-session.model';
 import { logger } from '../../logger';
@@ -219,6 +220,57 @@ router.get(
       res.json(successResponse(
         { live, liveCount: live.length, totalChecked: results.length },
         'Batch live status fetched',
+        200
+      ));
+    } catch (err) { next(err); }
+  }
+);
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Live product shelf — fetch products pinned to a live room via TikTok webcast API
+// ────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /tiktok/live/products?roomId=<roomId>&handle=<handle>
+ * Fetches the product shelf for an active live room directly from TikTok's
+ * internal webcast API. Returns soldInLive counts (units sold in this live session).
+ */
+router.get(
+  '/live/products',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const roomId = String(req.query.roomId || '').trim();
+      const handle = String(req.query.handle || '').replace(/^@/, '').trim().toLowerCase();
+
+      if (!roomId && !handle) {
+        throw new AppError(400, 'roomId or handle is required', 'VALIDATION_ERROR');
+      }
+
+      let resolvedRoomId = roomId;
+
+      // If no roomId, try to get it from a live check
+      if (!resolvedRoomId && handle) {
+        if (!ScrapeCreatorsService.isConfigured()) {
+          throw new AppError(503, 'SCRAPECREATORS_API_KEY is not configured', 'SCRAPECREATORS_NOT_CONFIGURED');
+        }
+        const live = await ScrapeCreatorsService.getUserLive(handle);
+        if (!live.isLive) {
+          res.json(successResponse({ products: [], roomId: null }, `@${handle} is not currently live`, 200));
+          return;
+        }
+        resolvedRoomId = live.roomId || '';
+        if (!resolvedRoomId) {
+          res.json(successResponse({ products: [], roomId: null }, 'Could not determine roomId from live response', 200));
+          return;
+        }
+      }
+
+      const products = await TikTokWebcastService.getLiveProducts(resolvedRoomId, handle);
+
+      res.json(successResponse(
+        { products, roomId: resolvedRoomId, productCount: products.length },
+        `${products.length} product${products.length !== 1 ? 's' : ''} in live room`,
         200
       ));
     } catch (err) { next(err); }

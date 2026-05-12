@@ -51,6 +51,7 @@ export interface SCLiveRoomUserInfo {
 }
 
 export interface SCLiveRoom {
+  id?: string;              // room ID — used for webcast product fetching
   title?: string;
   coverUrl?: string;
   squareCoverImg?: string;
@@ -73,6 +74,7 @@ export interface SCStreamUrls {
 export interface SCLiveResult {
   handle: string;
   isLive: boolean;
+  roomId?: string;          // top-level for easy access
   user?: SCLiveRoomUserInfo;
   room?: SCLiveRoom;
   streams?: SCStreamUrls;
@@ -81,7 +83,7 @@ export interface SCLiveResult {
 
 interface SCRawResponse {
   liveRoomUserInfo?: SCLiveRoomUserInfo;
-  liveRoom?: SCLiveRoom;
+  liveRoom?: SCLiveRoom & { id?: string | number };
   streamData?: {
     pull_data?: {
       stream_data?: string; // JSON string of stream URLs
@@ -145,14 +147,19 @@ export const ScrapeCreatorsService = {
       return { handle: cleanHandle, isLive: false, watchUrl };
     }
 
-    // Parse stream URLs out of the nested JSON string Shopify returns
+    // Parse stream URLs out of the nested JSON string TikTok returns
     const streams = parseStreamUrls(data.streamData?.pull_data?.stream_data);
+
+    // roomId can live on liveRoom.id, liveRoomUserInfo.roomId, or nested
+    const roomId: string | undefined =
+      String(data.liveRoom?.id || data.liveRoomUserInfo?.roomId || '').trim() || undefined;
 
     return {
       handle: cleanHandle,
       isLive: true,
-      user: data.liveRoomUserInfo,
-      room: data.liveRoom,
+      roomId,
+      user:   data.liveRoomUserInfo,
+      room:   { ...data.liveRoom, id: roomId },
       streams,
       watchUrl,
     };

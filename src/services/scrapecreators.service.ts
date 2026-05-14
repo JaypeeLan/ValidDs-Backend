@@ -116,7 +116,8 @@ export const ScrapeCreatorsService = {
 
   /**
    * Check if a TikTok user is currently live.
-   * Returns null if the user is not live or the handle doesn't exist.
+   * Requires a non-empty **room id** in the ScrapeCreators payload; otherwise returns `isLive: false`
+   * (stale `liveRoomUserInfo` after a stream ends is common).
    */
   async getUserLive(handle: string): Promise<SCLiveResult> {
     this.assertConfigured();
@@ -156,12 +157,19 @@ export const ScrapeCreatorsService = {
       return { handle: cleanHandle, isLive: false, watchUrl };
     }
 
-    // Parse stream URLs out of the nested JSON string TikTok returns
-    const streams = parseStreamUrls(data.streamData?.pull_data?.stream_data);
-
     // roomId can live on liveRoom.id, liveRoomUserInfo.roomId, or nested
     const roomId: string | undefined =
       String(data.liveRoom?.id || data.liveRoomUserInfo?.roomId || '').trim() || undefined;
+
+    // Stale payloads after a stream has ended sometimes still include user/room stubs without a real room id.
+    // Only treat as live when we can anchor a webcast room (same rule used by GMV / live-products flows).
+    if (!roomId) {
+      log.debug('ScrapeCreators: live-shaped payload but no roomId — treating as not live', { handle: cleanHandle });
+      return { handle: cleanHandle, isLive: false, watchUrl };
+    }
+
+    // Parse stream URLs out of the nested JSON string TikTok returns
+    const streams = parseStreamUrls(data.streamData?.pull_data?.stream_data);
 
     return {
       handle: cleanHandle,

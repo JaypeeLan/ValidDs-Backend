@@ -25,7 +25,9 @@ const router = Router();
  *   DELETE /tiktok/stores/:handle        → remove from watchlist
  *
  * Live discovery (uses tracked stores watchlist)
- *   GET    /tiktok/live/discover         → live `LiveSession` rows from DB (hourly job syncs via external API)
+ *   GET    /tiktok/live/discover         → live `LiveSession` rows from DB (read-only)
+ *   POST   /tiktok/live/reconcile        → re-check open sessions via ScrapeCreators; ends rows no longer live
+ *   POST   /tiktok/live/ingest-discovery → admin: Apify live keyword search → upsert TrackedStore + LiveSession
  *   POST   /tiktok/live/watchlist        → add a handle to the watchlist (any signed-in user; same as POST /stores body)
  *
  * One-off checks (no watchlist needed)
@@ -47,6 +49,11 @@ const AddStoreSchema = z.object({
   notes:       z.string().optional(),
   tags:        z.array(z.string()).optional(),
   shopUrl:     z.string().url().optional(),
+});
+
+const IngestLiveDiscoverySchema = z.object({
+  keyword: z.string().min(1, 'keyword is required').transform((v) => v.trim()),
+  maxItems: z.coerce.number().int().min(1).max(50).optional().default(20),
 });
 
 const UpdateStoreSchema = z.object({
@@ -129,7 +136,6 @@ router.get('/stores', requireAuth, requireRole('admin'), async (req: Request, re
 router.post(
   '/stores',
   requireAuth,
-  requireRole('admin'),
   validate(AddStoreSchema, 'body'),
   addTrackedStoreFromBody,
 );
@@ -240,6 +246,46 @@ router.get(
       ));
     } catch (err) { next(err); }
   }
+);
+
+/** POST /tiktok/live/reconcile — ScrapeCreators pass to end stale open sessions (same logic as hourly job) */
+router.post(
+  '/live/reconcile',
+  requireAuth,
+  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!ScrapeCreatorsService.isConfigured()) {
+        throw new AppError(
+          503,
+          'Live reconciliation requires ScrapeCreators (SCRAPECREATORS_API_KEY)',
+          'SCRAPECREATORS_NOT_CONFIGURED',
+        );
+      }
+      const ended = await LiveMonitorService.reconcileOpenLiveSessions();
+      res.json(successResponse(
+        { ended },
+        ended.length === 0
+          ? 'No sessions ended; all open rows still report live'
+          : `${ended.length} session(s) ended (no longer live)`,
+        200,
+      ));
+    } catch (err) { next(err); }
+  },
+);
+
+/** POST /tiktok/live/ingest-discovery — Apify TikTok live scraper by keyword; upsert stores + open sessions (admin) */
+router.post(
+  '/live/ingest-discovery',
+  requireAuth,
+  requireRole('admin'),
+  validate(IngestLiveDiscoverySchema, 'body'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { keyword, maxItems } = req.body as z.infer<typeof IngestLiveDiscoverySchema>;
+      const result = await LiveMonitorService.ingestLiveRoomsFromApifyDiscovery(keyword, maxItems);
+      res.json(successResponse(result, 'Live discovery ingest completed', 200));
+    } catch (err) { next(err); }
+  },
 );
 
 /** POST /tiktok/live/watchlist — same watchlist as admin POST /stores; any authenticated user */

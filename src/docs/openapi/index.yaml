@@ -40,7 +40,7 @@ tags:
   - name: Stores
     description: Shopify OAuth — connect a merchant store and push ValidDs products via Admin REST
   - name: TikTok Live
-    description: Live session data from MongoDB (`GET /tiktok/live/discover`); add handles with `POST /tiktok/live/watchlist`; hourly job syncs from ScrapeCreators
+    description: Live session data from MongoDB (`GET /tiktok/live/discover`); reconcile stale sessions with `POST /tiktok/live/reconcile`; add handles with `POST /tiktok/live/watchlist`; hourly job syncs from ScrapeCreators
   - name: TikTok Live (Admin)
     description: Admin-only — manage the tracked store watchlist, run ad-hoc live checks, view session GMV history
 
@@ -127,6 +127,10 @@ paths:
     $ref: './paths/stores.yaml#/shopifyPushProduct'
   /api/v1/tiktok/live/discover:
     $ref: './paths/tiktok.yaml#/liveDiscover'
+  /api/v1/tiktok/live/reconcile:
+    $ref: './paths/tiktok.yaml#/liveReconcile'
+  /api/v1/tiktok/live/ingest-discovery:
+    $ref: './paths/tiktok.yaml#/liveIngestDiscovery'
   /api/v1/tiktok/live/watchlist:
     $ref: './paths/tiktok.yaml#/liveWatchlist'
   /api/v1/tiktok/live:

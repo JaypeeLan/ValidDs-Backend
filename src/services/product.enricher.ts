@@ -157,7 +157,8 @@ export const ProductEnricher = {
         totalLikes:    post.creatorTotalLikes,
         region:        post.creatorRegion,
         verified:      post.creatorVerified,
-        avatarUrl:     post.creatorAvatarUrl,
+        avatarUrl:        post.creatorAvatarUrl,
+        primaryImageUrl:  post.creatorAvatarUrl,
         tiktokPostUrl,
       },
 

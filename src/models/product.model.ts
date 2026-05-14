@@ -46,7 +46,8 @@ const PrimaryCreatorSchema = new Schema<IPrimaryCreator>(
     followers:     { type: Number, min: 0 },
     verified:      { type: Boolean, default: false },
     tiktokPostUrl: { type: String },
-    avatarUrl:     { type: String, default: null },
+    avatarUrl:        { type: String, default: null },
+    primaryImageUrl:  { type: String, default: null },
   },
   { _id: false },
 );

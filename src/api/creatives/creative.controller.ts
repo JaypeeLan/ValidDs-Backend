@@ -94,7 +94,7 @@ export const CreativeController = {
   async listTopAds(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as CreativeTopAdsListQuery;
-      const result = await CreativeService.findCreatives(query, { 'creator.isIndependentCreator': true });
+      const result = await CreativeService.findCreatives(query, { isIndependentCreator: true });
 
       res.json(
         successResponse(

@@ -1,22 +1,23 @@
 import { z } from 'zod';
-import { PRODUCT_CATEGORIES, PRODUCT_DISCOVERY_SECTIONS } from './product.constants';
+import { PRODUCT_CATEGORIES, PRODUCT_SUBCATEGORIES, PRODUCT_DISCOVERY_SECTIONS } from './product.constants';
 
-const CategoryFilterSchema = z.union([z.string(), z.array(z.string())])
-  .optional()
-  .transform(val => {
-    if (!val) return undefined;
-    const categories = Array.isArray(val) 
-      ? val.filter(Boolean) 
-      : val.split(',').map(s => s.trim()).filter(Boolean);
-    
-    return categories;
-  })
-  .refine(cats => {
-    if (!cats) return true;
-    return cats.every(c => (PRODUCT_CATEGORIES as readonly string[]).includes(c));
-  }, {
-    message: `Invalid category. Allowed: ${PRODUCT_CATEGORIES.join(', ')}`
-  });
+const MultiStringSchema = (allowedValues?: string[]) =>
+  z.union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      const items = Array.isArray(val)
+        ? val.filter(Boolean)
+        : val.split(',').map((s) => s.trim()).filter(Boolean);
+      return items.length ? items : undefined;
+    })
+    .refine(
+      (items) => {
+        if (!items || !allowedValues) return true;
+        return items.every((v) => allowedValues.includes(v));
+      },
+      { message: allowedValues ? `Invalid value. Allowed: ${allowedValues.join(', ')}` : 'Invalid value' }
+    );
 
 export const ProductFeedQuerySchema = z.object({
   /** Full-text search; when set, results are ranked by text relevance (other sort options are ignored). */
@@ -31,7 +32,8 @@ export const ProductFeedQuerySchema = z.object({
     }),
   page:           z.coerce.number().min(1).default(1),
   limit:          z.coerce.number().min(1).max(100).default(20),
-  category:       CategoryFilterSchema,
+  category:       MultiStringSchema(PRODUCT_CATEGORIES),
+  subcategory:    MultiStringSchema(PRODUCT_SUBCATEGORIES),
   niche:          z.string().min(1).optional(),
   trendDirection: z.enum(['rising', 'peaked', 'saturating', 'unknown']).optional(),
   minTrendScore:  z.coerce.number().min(0).max(100).optional(),

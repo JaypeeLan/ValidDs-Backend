@@ -48,6 +48,13 @@ feed:
         in: query
         description: Ignored when `q` is present.
         schema: { type: string, enum: [trendScore, views, recent, engagement], default: trendScore }
+      - name: subcategory
+        in: query
+        description: Filter by subcategory (L2). Pass multiple times or comma-separated for multi-select.
+        schema:
+          type: array
+          items:
+            type: string
       - name: region
         in: query
         schema: { type: string }
@@ -170,8 +177,8 @@ detail:
 categories:
   get:
     tags: [Products]
-    summary: Get all unique categories
-    description: Returns a list of all active unique product categories.
+    summary: List all L1 categories
+    description: Returns all top-level (L1) category names as a flat array.
     responses:
       '200':
         description: Categories retrieved successfully
@@ -189,3 +196,84 @@ categories:
                           type: array
                           items:
                             type: string
+                          example:
+                            - Beauty & Personal Care
+                            - Fashion
+                            - Health & Wellness
+                            - Home & Kitchen
+                            - Food & Beverage
+                            - Electronics & Tech
+                            - Sports & Outdoors
+                            - Pets
+                            - Kids & Baby
+                            - Automotive
+                            - Tools & Home Improvement
+
+subcategories:
+  get:
+    tags: [Products]
+    summary: List L2 subcategories
+    description: |
+      Without `category`: returns an object mapping every L1 → its L2 subcategories.
+
+      With `category`: returns a flat array of L2 subcategories for that specific L1.
+    parameters:
+      - name: category
+        in: query
+        required: false
+        description: L1 category name. If omitted, all mappings are returned.
+        schema:
+          type: string
+          example: Beauty & Personal Care
+    responses:
+      '200':
+        description: Subcategories retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      oneOf:
+                        - type: array
+                          description: Subcategories for a single L1 (when `category` is passed)
+                          items: { type: string }
+                          example: [Skincare, Makeup & Cosmetics, Hair Care]
+                        - type: object
+                          description: Full L1 → L2 mapping (when no `category` is passed)
+                          additionalProperties:
+                            type: array
+                            items: { type: string }
+
+taxonomy:
+  get:
+    tags: [Products]
+    summary: Full category taxonomy (L1 → L2 → L3)
+    description: |
+      Returns the complete three-level category taxonomy.
+
+      - **L1** — top-level category (e.g. `"Beauty & Personal Care"`)
+      - **L2** — subcategory (e.g. `"Skincare"`)
+      - **L3** — leaf / product type array (e.g. `["Face Serums", "Moisturizers & Creams"]`)
+
+      Use this to build category pickers, filter chips, or validate incoming product classifications.
+    responses:
+      '200':
+        description: Full taxonomy retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      description: L1 → L2 → L3[] nested object
+                      additionalProperties:
+                        type: object
+                        additionalProperties:
+                          type: array
+                          items: { type: string }

@@ -19,7 +19,6 @@ router.post('/product-refresh', requireApiKey, JobsController.triggerProductRefr
 router.post('/product-ingestion', requireApiKey, JobsController.triggerProductIngestion);
 router.post('/creative-ingestion', requireApiKey, JobsController.triggerCreativeIngestion);
 router.post('/stale-cleanup', requireApiKey, JobsController.triggerStaleCleanup);
-
 // GET warnings — helps users diagnose misconfigured cron jobs (which default to GET)
 router.get('/product-refresh', JobsController.getMethodWarning);
 router.get('/product-ingestion', JobsController.getMethodWarning);

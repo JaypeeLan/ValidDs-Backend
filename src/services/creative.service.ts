@@ -91,7 +91,7 @@ export const CreativeService = {
       return false;
   },
 
-  async findCreatives(filters: any) {
+  async findCreatives(filters: any, extraMatch?: Record<string, unknown>) {
     const { q, productId, section, isAd, region, minViews, hashtags, page = 1, limit = 20, sortBy = 'recent', categoryL1, categoryL2, categoryL3 } = filters;
     const query: any = {};
     if (productId) query.productId = productId;
@@ -110,6 +110,9 @@ export const CreativeService = {
       const safeSearch = escapeRegex(String(q).trim());
       const regex = new RegExp(safeSearch, 'i');
       query.$or = [{ productName: regex }, { productDescription: regex }, { description: regex }, { hashtags: regex }, { 'creator.handle': regex }, { externalVideoId: regex }];
+    }
+    if (extraMatch && Object.keys(extraMatch).length > 0) {
+      Object.assign(query, extraMatch);
     }
 
     const skip = (Number(page) - 1) * Number(limit);

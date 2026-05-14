@@ -3,9 +3,13 @@ required:
   - id
   - productId
   - externalVideoId
+  - embedUrl
+  - tiktokPostUrl
   - creator
   - metrics
-  - isAd
+  - section
+  - isIndependentCreator
+  - publishedAt
 properties:
   id:
     type: string
@@ -15,20 +19,26 @@ properties:
     example: 60b9b3b3e2b4f9a0c8b2c1d4
   externalVideoId:
     type: string
-    example: 7628237127481969942
-  videoPlayUrl:
+    example: "7628237127481969942"
+  embedUrl:
     type: string
     format: uri
+    description: Permanent TikTok embed URL (https://www.tiktok.com/embed/v2/<id>). Use this — CDN play URLs expire.
+  tiktokPostUrl:
+    type: string
+    format: uri
+    description: Direct link to the TikTok post.
   thumbnailUrl:
     type: string
     format: uri
+
   creator:
     type: object
+    required: [handle, followers, verified, tiktokPostUrl, isIndependentCreator]
     properties:
-      tiktokUserId:
-        type: string
       handle:
         type: string
+        example: "@naturalglow"
       displayName:
         type: string
       bio:
@@ -38,19 +48,26 @@ properties:
         format: uri
       followers:
         type: integer
+        example: 48200
       following:
         type: integer
       totalLikes:
         type: integer
       region:
         type: string
+        example: US
       verified:
         type: boolean
       tiktokPostUrl:
         type: string
         format: uri
+      isIndependentCreator:
+        type: boolean
+        description: When true this creator is an independent creator — surfaced in top-ads discovery.
+
   metrics:
     type: object
+    required: [viewCount, likeCount, commentCount, shareCount]
     properties:
       viewCount:
         type: integer
@@ -62,27 +79,108 @@ properties:
         type: integer
       engagementRate:
         type: number
+        nullable: true
+      source:
+        type: string
+        example: TikTok
+      fetchedAt:
+        type: string
+        format: date-time
+
   section:
     type: string
     enum: [top-ads, trending, influencer-reviews, tutorials, viral-unboxings]
-  isAd:
+
+  isIndependentCreator:
     type: boolean
+    description: Top-level mirror of creator.isIndependentCreator — set when the creator is not the brand/seller.
+
+  productName:
+    type: string
+    description: Product name associated with this creative (from AI extraction).
+  productDescription:
+    type: string
+    maxLength: 2000
+
   categoryL1:
     type: string
   categoryL2:
     type: string
   categoryL3:
     type: string
+  categoryPath:
+    type: string
+    example: "Beauty & Personal Care > Skincare > Face Serums"
+
   description:
     type: string
+    maxLength: 2000
+    description: Video caption / description.
   hashtags:
     type: array
     items:
       type: string
+
+  topComments:
+    type: array
+    items:
+      type: object
+      properties:
+        comment:
+          type: string
+        source:
+          type: string
+        likeCount:
+          type: integer
+        authorHandle:
+          type: string
+        collectedAt:
+          type: string
+          format: date-time
+
+  relatedVideos:
+    type: array
+    description: Other TikTok videos for the same product (secondary creatives).
+    items:
+      type: object
+      properties:
+        externalVideoId:
+          type: string
+        embedUrl:
+          type: string
+          format: uri
+        tiktokPostUrl:
+          type: string
+          format: uri
+        thumbnailUrl:
+          type: string
+          format: uri
+        creator:
+          type: object
+          properties:
+            handle: { type: string }
+            displayName: { type: string }
+            avatarUrl: { type: string, format: uri }
+            followers: { type: integer }
+            verified: { type: boolean }
+            tiktokPostUrl: { type: string, format: uri }
+            isIndependentCreator: { type: boolean }
+        metrics:
+          type: object
+          properties:
+            viewCount: { type: integer }
+            likeCount: { type: integer }
+            commentCount: { type: integer }
+            shareCount: { type: integer }
+            engagementRate: { type: number, nullable: true }
+        publishedAt:
+          type: string
+          format: date-time
+
   publishedAt:
     type: string
     format: date-time
-  collectedAt:
+  ingestedAt:
     type: string
     format: date-time
   createdAt:

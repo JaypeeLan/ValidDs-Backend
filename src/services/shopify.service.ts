@@ -473,14 +473,6 @@ interface ShopifyProductPayload {
   tags?: string;
   status?: 'active' | 'draft' | 'archived';
   images?: Array<{ src: string }>;
-  variants?: Array<{
-    price: string;
-    compare_at_price?: string;
-    sku?: string;
-    inventory_management?: 'shopify' | null;
-    requires_shipping?: boolean;
-    taxable?: boolean;
-  }>;
   options?: Array<{ name: string; values: string[] }>;
 }
 
@@ -489,9 +481,9 @@ function mapProductToShopify(
   overrides?: { price?: number; status?: 'active' | 'draft' | 'archived' }
 ): ShopifyProductPayload {
   const price = overrides?.price ?? product.price ?? 0;
-  const compareAt = product.originalPrice && product.originalPrice > price
-    ? product.originalPrice
-    : undefined;
+  // const compareAt = product.originalPrice && product.originalPrice > price
+  //   ? product.originalPrice
+  //   : undefined;
 
   const images: Array<{ src: string }> = [];
   if (product.primaryImageUrl) images.push({ src: product.primaryImageUrl });
@@ -508,14 +500,14 @@ function mapProductToShopify(
 
   const options: ShopifyProductPayload['options'] = [];
 
-  const variants: ShopifyProductPayload['variants'] = [{
-    price: price.toFixed(2),
-    ...(compareAt ? { compare_at_price: compareAt.toFixed(2) } : {}),
-    sku: product.externalId,
-    inventory_management: null,
-    requires_shipping: true,
-    taxable: true,
-  }];
+  // const variants: ShopifyProductPayload['variants'] = [{
+  //   price: price.toFixed(2),
+  //   ...(compareAt ? { compare_at_price: compareAt.toFixed(2) } : {}),
+  //   sku: product.externalId,
+  //   inventory_management: null,
+  //   requires_shipping: true,
+  //   taxable: true,
+  // }];
 
   return {
     title: product.title.slice(0, 255),
@@ -525,7 +517,7 @@ function mapProductToShopify(
     tags: tags.filter((t, i, arr) => arr.indexOf(t) === i).join(', '),
     status: overrides?.status ?? 'draft',
     images: images.length ? images : undefined,
-    variants,
+    // variants,
     options: options.length ? options : undefined,
   };
 }

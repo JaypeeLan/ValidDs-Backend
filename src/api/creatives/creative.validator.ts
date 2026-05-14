@@ -31,6 +31,10 @@ export const CreativeThumbnailQuerySchema = z.object({
 
 export type CreativeListQuery = z.infer<typeof CreativeListQuerySchema>;
 
+/** Same filters as list creatives, without legacy `section` (top ads are defined by `creator.isIndependentCreator`). */
+export const CreativeTopAdsListQuerySchema = CreativeListQuerySchema.omit({ section: true });
+export type CreativeTopAdsListQuery = z.infer<typeof CreativeTopAdsListQuerySchema>;
+
 export const CreativeIngestBodySchema = z.object({
   keyword: z.string().min(2).max(100),
   limit:   z.coerce.number().min(1).max(50).default(10),

@@ -10,13 +10,11 @@ export type ProductType     = 'evergreen' | 'trend-driven' | 'seasonal' | 'unkno
 // ── Sub-document interfaces ───────────────────────────────────────────────────
 
 export interface IPrimaryCreator {
-  tiktokUserId?: string;
   handle: string;
   displayName?: string;
   followers?: number;
   verified?: boolean;
   tiktokPostUrl?: string;
-  /** Fetched from TikTok oEmbed / ui-avatars fallback */
   avatarUrl?: string | null;
 }
 
@@ -31,7 +29,6 @@ export interface IProductReview {
 export interface IProductSupplierShop {
   name: string | null;
   url:  string | null;
-  /** Store-level average rating */
   rating: number | null;
 }
 
@@ -43,7 +40,6 @@ export interface IProductSupplier {
   productUrl?: string;
   shareUrl?: string;
   price?: number | null;
-  originalPrice?: number | null;
   onSale?: boolean;
   currency?: string;
   rating?: number | null;
@@ -53,20 +49,13 @@ export interface IProductSupplier {
   availableForSale?: boolean;
   shippingDays?: number;
   moq?: number;
-  /** Store info (name, url, rating) */
   shop?: IProductSupplierShop | null;
   checkedAt?: Date;
   fetchedAt?: Date;
-  // ── Competitor intelligence ───────────────────────────────────────────────
-  /** Monthly unique visitors to the store (SimilarWeb) */
   monthlyTraffic?: number | null;
-  /** Units of this specific product sold (Shopify public API) */
   productUnitsSold?: number | null;
-  /** Estimated monthly revenue for this product at this store */
   estimatedMonthlyRevenue?: number | null;
-  /** How revenue was derived */
   revenueSource?: 'product-sales' | 'traffic-estimate' | null;
-  /** Composite competitor rank score 0–100 (revenue 40%, traffic 30%, units 20%, price 10%) */
   competitorScore?: number | null;
 }
 
@@ -78,25 +67,15 @@ export type PurchaseIntent = 'impulse' | 'considered' | 'habitual' | 'gifting';
 export type ContentFormat  = 'tutorial' | 'lifestyle' | 'entertainment' | 'review' | 'comparison';
 
 export interface IMarketingAnalysis {
-  /** Primary gender skew of the target audience */
   primaryGender: Gender;
-  /** Top age brackets, e.g. ["18-24", "25-34"] */
   topAgeGroups: string[];
-  /** Top geographic markets, e.g. ["US", "Southeast Asia"] */
   topRegions: string[];
-  /** Accessibility or special-needs tags, e.g. ["senior-friendly"] or ["none"] */
   accessibilityTags: string[];
-  /** Lifestyle / interest segments, e.g. ["beauty enthusiast", "fitness lover"] */
   lifestyleSegments: string[];
-  /** Broad income bracket of the typical buyer */
   incomeLevel: IncomeLevel;
-  /** Primary purchase driver */
   purchaseIntent: PurchaseIntent;
-  /** Dominant TikTok content style used to market this product */
   contentFormat: ContentFormat;
-  /** 1–2 sentence summary of the marketing opportunity */
   marketingInsight: string;
-  /** ISO timestamp of when this analysis was generated */
   analyzedAt: Date;
 }
 
@@ -106,18 +85,15 @@ export interface IAIIntelligence {
   confidence: number;
   confidenceReason: string;
   brand?: string;
-  categoryKeywords: string[];
   buyingSentimentScore?: number;
   buyingSentimentReason?: string;
   extractedAt: Date;
-  // Enrichment fields (set by enrichment pipeline)
   niche?: string;
   productType: ProductType;
   priceBand?: PriceBand;
   audience: string[];
   problemStatement?: string;
   valueStatement?: string;
-  /** Uniform AI-generated marketing demographic analysis */
   marketingAnalysis?: IMarketingAnalysis | null;
 }
 
@@ -129,6 +105,30 @@ export interface ITrend {
   reason?: string;
   isTrending: boolean;
   calculatedAt: Date;
+}
+
+// ── Price trend ───────────────────────────────────────────────────────────────
+
+export interface IPriceTrendWindow {
+  label: 'today' | '7d' | '14d' | '30d' | '60d' | '90d';
+  daysAgo: number;
+  /** 0 when no historical data exists for this period */
+  price: number;
+}
+
+export interface IPriceTrend {
+  direction: 'up' | 'down' | 'stable';
+  /** Percentage change from oldest available window vs today, rounded to 1 decimal */
+  changePercent: number;
+  windows: IPriceTrendWindow[];
+}
+
+// ── Price history entry ───────────────────────────────────────────────────────
+
+export interface IPriceHistoryEntry {
+  price: number;
+  currency: string;
+  recordedAt: string;
 }
 
 // ── Main product interface ────────────────────────────────────────────────────
@@ -158,8 +158,12 @@ export interface IProduct {
   // Pricing
   price?: number;
   currency: string;
-  originalPrice?: number;
-  shippingFee?: number;
+
+  // Price trend (computed on-read from priceHistory)
+  priceTrend?: IPriceTrend | null;
+
+  // Price history (appended on each re-ingestion when price changes)
+  priceHistory?: IPriceHistoryEntry[];
 
   // Competitor suppliers (sorted by competitorScore desc)
   suppliers: IProductSupplier[];
@@ -181,7 +185,8 @@ export interface IProduct {
   likeCount: number;
   commentCount: number;
   shareCount: number;
-  engagementRate?: number;
+  /** (likes + comments + shares) / views × 100 — null when views = 0 */
+  engagementRate?: number | null;
 
   // Creator
   primaryCreator?: IPrimaryCreator;
@@ -192,23 +197,15 @@ export interface IProduct {
   // Trend
   trend: ITrend;
 
-  // Creative summary
-  creativeCounts: {
-    ads: number;
-    organic: number;
-    reviews: number;
-    total: number;
-  };
-
   // Shop context
   shopName?: string;
   shopUrl?: string;
-  shopFollowers?: number;
+  /** Defaults to 0 when shop followers are unavailable */
+  shopFollowers: number;
   postUrl?: string;
-  videoUrl?: string;
+  /** ISO 8601 timestamp when the TikTok video was originally posted */
+  postCreatedAt?: string | null;
   productUrl?: string;
-  variations: unknown[];
-  sizes: string[];
 
   // Validation
   validationStatus: string;

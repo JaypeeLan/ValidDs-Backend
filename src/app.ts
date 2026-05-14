@@ -13,7 +13,7 @@ import { healthRouter } from './api/index';
 import apiRouter from './api/index';
 import { Sentry } from './monitoring/sentry';
 import swaggerUi from 'swagger-ui-express';
-import { getSwaggerSpec } from './docs/swagger.provider';
+import { getAdminSwaggerSpec, getSwaggerSpec } from './docs/swagger.provider';
 import { handleStripeWebhook } from './api/webhooks/stripe.webhook.controller';
 
 /**
@@ -110,9 +110,17 @@ export async function createApp(): Promise<Application> {
   app.use(sanitizeMiddleware);
 
   // ── 7.5 Swagger Documentation ─────────────────────────────────────────────
-  const swaggerSpec = await getSwaggerSpec();
+  const [swaggerSpec, adminSwaggerSpec] = await Promise.all([getSwaggerSpec(), getAdminSwaggerSpec()]);
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     customSiteTitle: 'ValidDs API Documentation',
+    swaggerOptions: {
+      persistAuthorization: true,
+      filter: true,
+      displayRequestDuration: true,
+    },
+  }));
+  app.use('/admin-docs', swaggerUi.serve, swaggerUi.setup(adminSwaggerSpec, {
+    customSiteTitle: 'ValidDs Admin API',
     swaggerOptions: {
       persistAuthorization: true,
       filter: true,

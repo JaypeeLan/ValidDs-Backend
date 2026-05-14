@@ -8,153 +8,210 @@ required:
   - normalizedTitle
   - categoryL1
   - categoryPath
-  - primaryCreator
-  - aiIntelligence
+  - aiInsight
   - trend
 properties:
   id:
     type: string
+    example: 60b9b3b3e2b4f9a0c8b2c1d4
+
   externalId:
     type: string
-    description: "Source external identifier"
+    description: Source-specific external identifier.
   source:
     type: string
     enum: [scarper, manual]
-    description: "Ingestion source"
+    description: Ingestion source.
   status:
     type: string
-    enum: [active, archived, stale]
+    enum: [active, review, invalid]
+    description: "`active` = live in the feed; `review` = pending QA; `invalid` = rejected."
+
   title:
     type: string
+    maxLength: 120
   normalizedTitle:
     type: string
   description:
     type: string
+    maxLength: 2000
   hashtags:
     type: array
     items:
       type: string
+
   categoryL1:
     type: string
+    example: "Beauty & Personal Care"
   categoryL2:
     type: string
+    example: "Skincare"
   categoryL3:
     type: string
+    example: "Face Serums"
   categoryPath:
     type: string
+    example: "Beauty & Personal Care > Skincare > Face Serums"
+
   primaryImageUrl:
     type: string
     format: uri
-    description: "Primary product image URL"
   imageUrls:
     type: array
     items:
       type: string
       format: uri
-    description: "Full product image gallery"
+
   price:
     type: number
+    minimum: 0
+    example: 24.99
   currency:
     type: string
-  suppliers:
+    example: USD
+
+  priceHistory:
     type: array
+    description: Historical price snapshots recorded at ingestion time.
     items:
       type: object
       properties:
-        platform:
-          type: string
-        productUrl:
-          type: string
-          format: uri
         price:
           type: number
         currency:
           type: string
+        recordedAt:
+          type: string
+          description: ISO date string (YYYY-MM-DD).
+
+  suppliers:
+    type: array
+    description: Marketplace / supplier listings found for this product.
+    items:
+      type: object
+      properties:
+        source:
+          type: string
+          example: amazon
+        platform:
+          type: string
+          example: Amazon
+        externalId:
+          type: string
+        title:
+          type: string
+        productUrl:
+          type: string
+          format: uri
+        shareUrl:
+          type: string
+          format: uri
+        price:
+          type: number
+          nullable: true
+        onSale:
+          type: boolean
+        currency:
+          type: string
+        rating:
+          type: number
+          nullable: true
+        totalRatings:
+          type: integer
+          nullable: true
+        totalReviews:
+          type: integer
+          nullable: true
+        soldLast30Days:
+          type: integer
+          nullable: true
+        availableForSale:
+          type: boolean
         shippingDays:
           type: integer
         moq:
           type: integer
+          description: Minimum order quantity.
+        shop:
+          type: object
+          nullable: true
+          properties:
+            name: { type: string }
+            url: { type: string, format: uri }
+            rating: { type: number, nullable: true }
+        monthlyTraffic:
+          type: integer
+          nullable: true
+        productUnitsSold:
+          type: integer
+          nullable: true
+        estimatedMonthlyRevenue:
+          type: number
+          nullable: true
+        revenueSource:
+          type: string
+          enum: [product-sales, traffic-estimate]
+          nullable: true
+        competitorScore:
+          type: number
+          minimum: 0
+          maximum: 100
+          nullable: true
         checkedAt:
           type: string
           format: date-time
-  salesEvidence:
-    type: object
-    properties:
-      unitsSold:
-        type: integer
-      store:
-        type: string
-      storeUrl:
-        type: string
-        format: uri
-        description: "Direct listing URL"
-      timeframe:
-        type: string
-      sourceBreakdown:
-        type: array
-        items:
-          type: object
-          properties:
-            source:
-              type: string
-            unitsSold:
-              type: integer
-      fetchedAt:
-        type: string
-        format: date-time
-  ratingSources:
-    type: array
-    items:
-      type: object
-      properties:
-        platform:
-          type: string
-        rating:
-          type: number
-        reviewCount:
-          type: integer
-        sourceUrl:
-          type: string
-          format: uri
         fetchedAt:
           type: string
           format: date-time
+
+  rating:
+    type: number
+    minimum: 0
+    maximum: 5
+    description: Weighted average rating derived from all rating sources (1–5).
+  reviewCount:
+    type: integer
+    description: Total review count across all sources.
+
+  ratingSources:
+    type: array
+    description: Per-platform rating breakdown used to derive the weighted average.
+    items:
+      type: object
+      properties:
+        platform: { type: string }
+        rating: { type: number }
+        reviewCount: { type: integer }
+        sourceUrl: { type: string, format: uri }
+        fetchedAt: { type: string, format: date-time }
+
   reviews:
     type: array
-    description: "Review snippets from ingestion sources (e.g. AI extraction, TikTok comments)"
+    description: Review snippets from ingestion sources.
     items:
       type: object
       properties:
-        source:
-          type: string
-        text:
-          type: string
-        collectedAt:
-          type: string
-          format: date-time
-  topComments:
-    type: array
-    description: "Verified TikTok comments"
-    items:
-      type: object
-      properties:
-        text:
-          type: string
-        likeCount:
-          type: integer
-        authorHandle:
-          type: string
-        sentiment:
-          type: string
-          enum: [positive, negative, neutral]
-        source:
-          type: string
-        collectedAt:
-          type: string
-          format: date-time
+        author: { type: string, nullable: true }
+        rating: { type: number, nullable: true }
+        content: { type: string, nullable: true }
+        date: { type: string, nullable: true }
+        item: { type: string, nullable: true }
+
+  soldCount:
+    type: integer
+    minimum: 0
+    description: Lifetime sold count (from TikTok Shop scraper where available).
+  totalSales:
+    type: number
+    minimum: 0
+  totalGmv:
+    type: number
+    minimum: 0
+    description: Total gross merchandise value.
+
   viewCount:
     type: integer
-    description: "Product discovery post views"
+    description: Views on the discovery post.
   likeCount:
     type: integer
   commentCount:
@@ -163,67 +220,52 @@ properties:
     type: integer
   engagementRate:
     type: number
-  rating:
-    type: number
-    description: "Weighted average rating from all sources (1-5)"
-  reviewCount:
-    type: integer
-    description: "Total number of reviews across all sources"
+    nullable: true
+
   primaryCreator:
     type: object
-    description: "TikTok creator promoting this product"
+    description: TikTok creator who posted the discovery video.
     properties:
-      tiktokUserId:
-        type: string
-      handle:
-        type: string
-        description: "TikTok @username of the creator"
-      displayName:
-        type: string
-      bio:
-        type: string
-      followers:
-        type: integer
-      following:
-        type: integer
-      totalLikes:
-        type: integer
-      region:
-        type: string
-      verified:
-        type: boolean
-      avatarUrl:
-        type: string
-        format: uri
-      tiktokPostUrl:
-        type: string
-        format: uri
-        description: "Direct link to the creator's TikTok video or product page"
-  aiIntelligence:
+      handle: { type: string, example: "@naturalglow" }
+      displayName: { type: string }
+      followers: { type: integer }
+      verified: { type: boolean }
+      tiktokPostUrl: { type: string, format: uri }
+      avatarUrl: { type: string, format: uri, nullable: true }
+
+  aiInsight:
     type: object
+    description: AI-derived product intelligence (transformed from raw extraction).
     properties:
       confidence:
-        type: number
-      confidenceReason:
-        type: string
-      brand:
-        type: string
-      categoryKeywords:
-        type: array
-        items:
-          type: string
-      buyingSentimentScore:
-        type: number
-      buyingSentimentReason:
-        type: string
-      extractedAt:
-        type: string
-        format: date-time
+        type: object
+        properties:
+          score:
+            type: number
+            minimum: 0
+            maximum: 100
+            description: How confident the AI is this is a real product.
+          reason:
+            type: string
+      buyingSentiment:
+        type: object
+        properties:
+          score:
+            type: number
+            minimum: 0
+            maximum: 100
+            description: Percentage of comments expressing buying intent.
+          reason:
+            type: string
+
   trend:
     type: object
+    required: [score, direction, isTrending]
     properties:
       score:
         type: number
+        minimum: 0
+        maximum: 5
       direction:
         type: string
         enum: [rising, peaked, saturating, stable, declining, emerging, viral, unknown]
@@ -234,76 +276,39 @@ properties:
       calculatedAt:
         type: string
         format: date-time
+
   discoverySections:
     type: array
+    description: Discovery buckets this product belongs to.
     items:
       type: string
-      enum: [top-ads, trending, top-rated, viral]
+      enum: [top-ads, trending, top-rated, viral, influencer-reviews, tutorials, viral-unboxings]
+
   isTopAd:
     type: boolean
-    description: |
-      Present on API list/detail responses: `true` when `discoverySections` contains `top-ads`.
-      Use query `section=top-ads` or `isAd=true` to list only these products.
-  relatedProducts:
-    type: array
-    description: "Related marketplace items when available from enrichment"
-    items:
-      type: object
-      properties:
-        title:
-          type: string
-        price:
-          type: string
-        thumbnail:
-          type: string
-          format: uri
-        link:
-          type: string
-          format: uri
-        store:
-          type: string
-  creativeCounts:
-    type: object
-    properties:
-      ads:
-        type: integer
-      organic:
-        type: integer
-      reviews:
-        type: integer
-      total:
-        type: integer
+    description: "`true` when `discoverySections` contains `top-ads`. Computed on read."
 
-  region:
+  shopName:
     type: string
-    description: "Market region e.g. US, GB, BR"
-  commissionRate:
-    type: number
-    description: "Affiliate commission rate as decimal e.g. 0.13 = 13%"
-  totalSale30d:
-    type: integer
-    description: "Units sold in last 30 days"
-  totalSale7d:
-    type: integer
-    description: "Units sold in last 7 days"
-  totalGmv:
-    type: number
-    description: "Total gross merchandise value"
-  totalGmv30d:
-    type: number
-    description: "GMV in last 30 days"
-  totalCreators:
-    type: integer
-    description: "Number of TikTok influencers selling this product"
-  salesChannel:
+  shopUrl:
     type: string
-    enum: [video, live, none]
-    description: "Primary sales driver on TikTok"
-  freeShipping:
-    type: boolean
-  isManagedStore:
-    type: boolean
-    description: "Whether the seller is managed"
+    format: uri
+  shopFollowers:
+    type: integer
+    minimum: 0
+  postUrl:
+    type: string
+    format: uri
+  postCreatedAt:
+    type: string
+    nullable: true
+  productUrl:
+    type: string
+    format: uri
+
+  validationStatus:
+    type: string
+    example: pending
 
   lastIngestedAt:
     type: string

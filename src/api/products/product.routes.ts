@@ -28,7 +28,9 @@ router.get(
   ProductController.keywordContext
 );
 
-router.get('/categories', ProductController.categories);
+router.get('/categories',    ProductController.categories);
+router.get('/subcategories', ProductController.subcategories);
+router.get('/taxonomy',      ProductController.taxonomy);
 router.get('/saved', requireAuth, ProductController.saved);
 
 // :id must come last — otherwise static segments like "categories" match as an id

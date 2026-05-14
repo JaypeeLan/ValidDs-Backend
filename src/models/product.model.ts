@@ -3,18 +3,23 @@ import type {
   IAIIntelligence,
   IMarketingAnalysis,
   IPrimaryCreator,
+  IPriceHistoryEntry,
+  IPriceTrend,
+  IPriceTrendWindow,
   IProductDocument,
   IProductModel,
   IProductReview,
   IProductSupplier,
   IProductSupplierShop,
   ITrend,
-} from '../types/product.types';
+} from '../types/product.types.js';
 
 export type {
   IAIIntelligence,
   IMarketingAnalysis,
   IPrimaryCreator,
+  IPriceTrend,
+  IPriceTrendWindow,
   IProduct,
   IProductDocument,
   IProductModel,
@@ -30,13 +35,12 @@ export type {
   IncomeLevel,
   PurchaseIntent,
   ContentFormat,
-} from '../types/product.types';
+} from '../types/product.types.js';
 
 // ── Sub-schemas ───────────────────────────────────────────────────────────────
 
 const PrimaryCreatorSchema = new Schema<IPrimaryCreator>(
   {
-    tiktokUserId:  { type: String },
     handle:        { type: String, required: true },
     displayName:   { type: String },
     followers:     { type: Number, min: 0 },
@@ -76,7 +80,6 @@ const ProductSupplierSchema = new Schema<IProductSupplier>(
     productUrl:       { type: String },
     shareUrl:         { type: String },
     price:            { type: Number, min: 0, default: null },
-    originalPrice:    { type: Number, min: 0, default: null },
     onSale:           { type: Boolean, default: false },
     currency:         { type: String, default: 'USD' },
     rating:           { type: Number, min: 0, max: 5, default: null },
@@ -89,7 +92,6 @@ const ProductSupplierSchema = new Schema<IProductSupplier>(
     shop:             { type: ProductSupplierShopSchema, default: null },
     checkedAt:        { type: Date },
     fetchedAt:        { type: Date },
-    // ── Competitor intelligence ─────────────────────────────────────────────
     monthlyTraffic:          { type: Number, min: 0, default: null },
     productUnitsSold:        { type: Number, min: 0, default: null },
     estimatedMonthlyRevenue: { type: Number, min: 0, default: null },
@@ -140,11 +142,10 @@ const AIIntelligenceSchema = new Schema<IAIIntelligence>(
     confidence:            { type: Number, required: true, min: 0, max: 100 },
     confidenceReason:      { type: String, required: true },
     brand:                 { type: String },
-    categoryKeywords:      [{ type: String }],
     buyingSentimentScore:  { type: Number, min: 0, max: 100 },
     buyingSentimentReason: { type: String },
     extractedAt:           { type: Date, default: Date.now },
-    niche:                 { type: String },
+    niche:            { type: String },
     productType: {
       type: String,
       enum: ['evergreen', 'trend-driven', 'seasonal', 'unknown'],
@@ -154,9 +155,9 @@ const AIIntelligenceSchema = new Schema<IAIIntelligence>(
       type: String,
       enum: ['budget', 'mid-range', 'premium'],
     },
-    audience:          [{ type: String }],
-    problemStatement:  { type: String },
-    valueStatement:    { type: String },
+    audience:         [{ type: String }],
+    problemStatement: { type: String },
+    valueStatement:   { type: String },
     marketingAnalysis: { type: MarketingAnalysisSchema, default: null },
   },
   { _id: false },
@@ -173,6 +174,33 @@ const TrendSchema = new Schema<ITrend>(
     reason:       { type: String },
     isTrending:   { type: Boolean, default: false },
     calculatedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
+const PriceTrendWindowSchema = new Schema<IPriceTrendWindow>(
+  {
+    label:   { type: String, enum: ['today', '7d', '14d', '30d', '60d', '90d'], required: true },
+    daysAgo: { type: Number, required: true },
+    price:   { type: Number, required: true, min: 0 },
+  },
+  { _id: false },
+);
+
+const PriceTrendSchema = new Schema<IPriceTrend>(
+  {
+    direction:     { type: String, enum: ['up', 'down', 'stable'], required: true },
+    changePercent: { type: Number, required: true },
+    windows:       { type: [PriceTrendWindowSchema], default: [] },
+  },
+  { _id: false },
+);
+
+const PriceHistoryEntrySchema = new Schema<IPriceHistoryEntry>(
+  {
+    price:      { type: Number, required: true, min: 0 },
+    currency:   { type: String, required: true },
+    recordedAt: { type: String, required: true },
   },
   { _id: false },
 );
@@ -198,10 +226,11 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
     primaryImageUrl: { type: String },
     imageUrls:       [{ type: String }],
 
-    price:         { type: Number, min: 0 },
-    currency:      { type: String, default: 'USD' },
-    originalPrice: { type: Number, min: 0 },
-    shippingFee:   { type: Number, min: 0 },
+    price:    { type: Number, min: 0 },
+    currency: { type: String, default: 'USD' },
+
+    // priceTrend is computed on-read, not stored — omit from schema
+    priceHistory: { type: [PriceHistoryEntrySchema], default: [] },
 
     suppliers: { type: [ProductSupplierSchema], default: [] },
 
@@ -217,7 +246,7 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
     likeCount:      { type: Number, default: 0, min: 0 },
     commentCount:   { type: Number, default: 0, min: 0 },
     shareCount:     { type: Number, default: 0, min: 0 },
-    engagementRate: { type: Number, min: 0 },
+    engagementRate: { type: Number, default: null },
 
     primaryCreator: { type: PrimaryCreatorSchema },
 
@@ -225,21 +254,12 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
 
     trend: { type: TrendSchema, required: true, default: () => ({}) },
 
-    creativeCounts: {
-      ads:     { type: Number, default: 0, min: 0 },
-      organic: { type: Number, default: 0, min: 0 },
-      reviews: { type: Number, default: 0, min: 0 },
-      total:   { type: Number, default: 0, min: 0 },
-    },
-
     shopName:      { type: String },
     shopUrl:       { type: String },
-    shopFollowers: { type: Number, min: 0 },
+    shopFollowers: { type: Number, min: 0, default: 0 },
     postUrl:       { type: String },
-    videoUrl:      { type: String },
+    postCreatedAt: { type: String, default: null },
     productUrl:    { type: String },
-    variations:    { type: [Schema.Types.Mixed], default: [] },
-    sizes:         [{ type: String }],
 
     validationStatus: { type: String, required: true, default: 'pending' },
 

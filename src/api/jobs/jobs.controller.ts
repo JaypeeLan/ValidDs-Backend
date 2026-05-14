@@ -3,6 +3,7 @@ import { runStaleCleanupJob } from '../../jobs/product-refresh.job';
 import {
   getJobsStatus,
   triggerCreativeIngestionJob,
+  triggerLiveMonitorDiscoverJob,
   triggerProductIngestionJob,
   triggerProductRefreshJob,
 } from '../../jobs/index';
@@ -98,6 +99,23 @@ export const JobsController = {
     }
 
     res.json(successResponse({ triggered: true }, 'Creative ingestion started in background'));
+  },
+
+  /**
+   * POST /jobs/live-monitor-discover
+   * Runs TikTok live discovery for all active tracked stores (ScrapeCreators live checks + Apify shop snapshots for GMV).
+   * Same code path as the hourly in-process cron.
+   */
+  async triggerLiveMonitorDiscover(req: Request, res: Response): Promise<void> {
+    log.info('Manual live monitor discover triggered via API');
+
+    const trigger = triggerLiveMonitorDiscoverJob();
+    if (!trigger.started) {
+      res.status(409).json(successResponse({ triggered: false }, trigger.reason || 'Live monitor discover already running'));
+      return;
+    }
+
+    res.json(successResponse({ triggered: true }, 'Live monitor discover started in background'));
   },
 
   /**

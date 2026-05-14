@@ -2,12 +2,13 @@
  * LiveMonitorService
  *
  * Orchestrates TikTok Live session tracking for tracked stores:
- *   1. When discover() finds a store is live → start or continue a LiveSession
- *   2. Snapshot product sold counts at session start and end
+ *   1. discover() unions **active watchlist** handles with **open `LiveSession` handles**, re-checks live via ScrapeCreators, starts/continues sessions, and ends DB rows when no longer live
+ *   2. Snapshot product sold counts at session start and end (Apify shop scraper — not ScrapeCreators)
  *   3. Compute estimated GMV delta when the session ends
  *   4. Update TrackedStore aggregate stats
  */
 
+import type { Types } from 'mongoose';
 import { TrackedStore }  from '../models/tracked-store.model';
 import { LiveSession, IProductSnapshot } from '../models/live-session.model';
 import { ScrapeCreatorsService, SCLiveResult } from './scrapecreators.service';
@@ -15,6 +16,13 @@ import { TikTokShopScraperService, ShopProduct } from './tiktok-shop-scraper.ser
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'live-monitor' });
+
+/** TrackedStore fields used when opening or polling a live session */
+type TrackedStoreLeanForLive = {
+  _id: Types.ObjectId;
+  handle: string;
+  tiktokUserId?: string;
+};
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -25,45 +33,147 @@ export interface DiscoverResult {
   totalChecked: number;
 }
 
+/** Response for `GET /tiktok/live/discover` — read-only from MongoDB (synced by hourly job). */
+export interface CachedLiveDiscoverResult {
+  /** `LiveSession` documents with `status: 'live'`. */
+  sessions: Array<Record<string, unknown>>;
+  /**
+   * Same rows as `sessions`, in the legacy `SCLiveResult` shape (ScrapeCreators live discover).
+   * Clients that still read `data.live` should use this; `sessions` holds full Mongo documents.
+   */
+  live: SCLiveResult[];
+  /** Always empty for this endpoint (no per-request “just ended” diff vs a prior response). */
+  ended: string[];
+  liveCount: number;
+  /** Count of active tracked stores (watchlist size); mirrors legacy `discover().totalChecked`. */
+  totalChecked: number;
+  totalActiveStores: number;
+  /** Latest `lastCheckedAt` among active tracked stores (after a sync run); null if never synced. */
+  watchlistLastCheckedAt: Date | null;
+}
+
+/** Map a persisted live session (lean) into the shape returned by ScrapeCreators live checks. */
+function liveSessionLeanToSCLiveResult(doc: Record<string, unknown>): SCLiveResult {
+  const handle = String(doc.handle ?? '');
+  const polls = (Array.isArray(doc.polls) ? doc.polls : []) as Array<{ viewerCount?: number }>;
+  const lastPoll = polls.length > 0 ? polls[polls.length - 1] : undefined;
+  const userCount = lastPoll?.viewerCount ?? (Number(doc.peakViewers ?? 0) || 0);
+  const roomRaw = doc.roomId;
+  const roomId = roomRaw != null && String(roomRaw) !== '' ? String(roomRaw) : undefined;
+  const ts = doc.trackedStore as { toString?: () => string } | undefined;
+  const storeId = ts?.toString?.() ?? '';
+
+  return {
+    handle,
+    isLive: true,
+    roomId,
+    user: {
+      id: storeId || handle,
+      uniqueId: handle,
+      nickname: handle,
+    },
+    room: {
+      id: roomId,
+      title: doc.title ? String(doc.title) : undefined,
+      coverUrl: doc.coverUrl ? String(doc.coverUrl) : undefined,
+      liveRoomStats: {
+        userCount,
+        enterCount: Number(doc.totalJoined ?? 0) || 0,
+      },
+    },
+    watchUrl: `https://www.tiktok.com/@${handle}/live`,
+  };
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export const LiveMonitorService = {
 
   /**
+   * Read live sessions from the database only (no external API).
+   * Populated by the hourly `runLiveMonitorDiscoverJob` / `discover()` sync.
+   */
+  async getCachedLiveDiscover(): Promise<CachedLiveDiscoverResult> {
+    const [sessions, totalActiveStores, agg] = await Promise.all([
+      LiveSession.find({ status: 'live' }).sort({ startedAt: -1 }).lean(),
+      TrackedStore.countDocuments({ isActive: true }),
+      TrackedStore.aggregate([
+        { $match: { isActive: true, lastCheckedAt: { $exists: true, $ne: null } } },
+        { $group: { _id: null, maxChecked: { $max: '$lastCheckedAt' } } },
+      ]),
+    ]);
+
+    const row = agg[0] as { maxChecked?: Date } | undefined;
+    const watchlistLastCheckedAt = row?.maxChecked ?? null;
+
+    const live = sessions.map((s) => liveSessionLeanToSCLiveResult(s as Record<string, unknown>));
+
+    return {
+      sessions: sessions as unknown as Array<Record<string, unknown>>,
+      live,
+      ended: [],
+      liveCount: sessions.length,
+      totalChecked: totalActiveStores,
+      totalActiveStores,
+      watchlistLastCheckedAt,
+    };
+  },
+
+  /**
    * Full discover cycle:
-   *  • Load all active TrackedStore handles
-   *  • Check each via ScrapeCreators
-   *  • Start sessions for newly-live stores
-   *  • Poll (update viewers) for already-live stores
-   *  • End sessions for stores that are no longer live
+   *  • Load active TrackedStore handles **and** handles with `LiveSession` status `live`
+   *    (union) so open sessions are re-checked even if the store is paused or missing from the batch
+   *  • Check each via ScrapeCreators (live status only)
+   *  • Start sessions for newly-live stores (requires a TrackedStore row)
+   *  • Poll (update viewers) for already-live sessions
+   *  • End sessions when the API says that handle is no longer live
    */
   async discover(): Promise<DiscoverResult> {
-    const stores = await TrackedStore.find({ isActive: true }).lean();
-    if (stores.length === 0) {
+    const activeStores = await TrackedStore.find({ isActive: true }).lean();
+    const liveSessionHandleList = await LiveSession.distinct('handle', { status: 'live' });
+    const liveSessionHandles = [
+      ...new Set(
+        liveSessionHandleList.map((h) =>
+          String(h ?? '')
+            .replace(/^@/, '')
+            .trim()
+            .toLowerCase()
+        ).filter(Boolean)
+      ),
+    ];
+
+    const activeHandleSet = new Set(activeStores.map((s) => s.handle));
+    const extraHandles = liveSessionHandles.filter((h) => !activeHandleSet.has(h));
+    const extraStores = extraHandles.length
+      ? await TrackedStore.find({ handle: { $in: extraHandles } }).lean()
+      : [];
+
+    const storeByHandle = new Map<string, TrackedStoreLeanForLive>();
+    for (const s of extraStores) storeByHandle.set(s.handle, s);
+    for (const s of activeStores) storeByHandle.set(s.handle, s);
+
+    const handlesUnion = [...new Set([...activeStores.map((s) => s.handle), ...liveSessionHandles])];
+
+    if (handlesUnion.length === 0) {
       return { live: [], ended: [], liveCount: 0, totalChecked: 0 };
     }
 
-    const handles = stores.map((s) => s.handle);
-
-    // Check in batches of 10
     const BATCH = 10;
     const allResults: SCLiveResult[] = [];
-    for (let i = 0; i < handles.length; i += BATCH) {
-      const chunk = handles.slice(i, i + BATCH);
+    for (let i = 0; i < handlesUnion.length; i += BATCH) {
+      const chunk = handlesUnion.slice(i, i + BATCH);
       const results = await ScrapeCreatorsService.batchGetUserLive(chunk);
       allResults.push(...results);
     }
 
     const now = new Date();
-    const liveHandles  = new Set(allResults.filter((r) => r.isLive).map((r) => r.handle));
+    const liveHandles = new Set(allResults.filter((r) => r.isLive).map((r) => r.handle));
 
-    // ── Handle newly live / still live stores ─────────────────────────────────
     for (const result of allResults) {
       if (!result.isLive) continue;
-      await this._handleLive(result, stores.find((s) => s.handle === result.handle)!, now);
+      await this._handleLive(result, storeByHandle.get(result.handle), now);
     }
 
-    // ── End sessions for stores that are no longer live ───────────────────────
     const activeSessions = await LiveSession.find({ status: 'live' });
     const ended: string[] = [];
     for (const session of activeSessions) {
@@ -73,9 +183,8 @@ export const LiveMonitorService = {
       }
     }
 
-    // Update lastCheckedAt for all stores
     await TrackedStore.updateMany(
-      { handle: { $in: handles } },
+      { handle: { $in: activeStores.map((s) => s.handle) } },
       { $set: { lastCheckedAt: now } }
     );
 
@@ -85,13 +194,68 @@ export const LiveMonitorService = {
       live:         liveResults,
       ended,
       liveCount:    liveResults.length,
-      totalChecked: allResults.length,
+      totalChecked: handlesUnion.length,
     };
+  },
+
+  /**
+   * One-handle live check (ScrapeCreators). Used after adding a store to the watchlist so
+   * `GET /tiktok/live/discover` can reflect a current broadcast without waiting for the hourly job.
+   * Opens a `LiveSession` with **`fastStart`** (no Apify wait); the next full `discover()` run fills product baselines when applicable.
+   */
+  async probeWatchlistHandle(handle: string): Promise<{ probed: boolean; isLive: boolean }> {
+    const h = handle.replace(/^@/, '').trim().toLowerCase();
+    if (!h || !ScrapeCreatorsService.isConfigured()) {
+      return { probed: false, isLive: false };
+    }
+
+    try {
+      const store = await TrackedStore.findOne({ handle: h }).lean();
+      if (!store) return { probed: false, isLive: false };
+
+      const result = await ScrapeCreatorsService.getUserLive(h);
+      const now = new Date();
+
+      const storeLean: TrackedStoreLeanForLive = {
+        _id: store._id as Types.ObjectId,
+        handle: store.handle,
+        tiktokUserId: store.tiktokUserId,
+      };
+
+      if (result.isLive) {
+        await this._handleLive({ ...result, handle: h }, storeLean, now, { fastStart: true });
+        if (store.isActive !== false) {
+          await TrackedStore.updateOne({ handle: h }, { $set: { lastCheckedAt: now } });
+        }
+        log.info('Watchlist live probe: live', { handle: h });
+        return { probed: true, isLive: true };
+      }
+
+      const open = await LiveSession.findOne({ handle: h, status: 'live' });
+      if (open) {
+        await this._endSession(open, now);
+        log.info('Watchlist live probe: ended stale session', { handle: h });
+      }
+
+      if (store.isActive !== false) {
+        await TrackedStore.updateOne({ handle: h }, { $set: { lastCheckedAt: now } });
+      }
+
+      return { probed: true, isLive: false };
+    } catch (e) {
+      log.warn('probeWatchlistHandle failed', { handle: h, err: String(e) });
+      return { probed: false, isLive: false };
+    }
   },
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  async _handleLive(result: SCLiveResult, store: any, now: Date): Promise<void> {
+  async _handleLive(
+    result: SCLiveResult,
+    store: TrackedStoreLeanForLive | undefined,
+    now: Date,
+    options?: { fastStart?: boolean },
+  ): Promise<void> {
     const viewers = result.room?.liveRoomStats?.userCount ?? 0;
     const entered = result.room?.liveRoomStats?.enterCount ?? 0;
     const roomId  = result.roomId || result.room?.id || '';
@@ -111,11 +275,21 @@ export const LiveMonitorService = {
       return;
     }
 
-    // New live session — snapshot current sold counts as baseline
-    const startProducts = await TikTokShopScraperService.getSellerProducts(
-      result.handle,
-      store.tiktokUserId,
-    );
+    if (!store) {
+      log.warn('Skipping new live session — no TrackedStore for handle', { handle: result.handle });
+      return;
+    }
+
+    // New live session — snapshot current sold counts as baseline (skipped on fastStart from watchlist probe)
+    let startProducts: ShopProduct[];
+    if (options?.fastStart) {
+      startProducts = [];
+    } else {
+      startProducts = await TikTokShopScraperService.getSellerProducts(
+        result.handle,
+        store.tiktokUserId,
+      );
+    }
 
     const productSnapshots: IProductSnapshot[] = startProducts.map((p) => ({
       productId:        p.productId,

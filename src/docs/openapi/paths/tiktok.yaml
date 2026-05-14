@@ -1,7 +1,7 @@
 # ── TikTok Live ───────────────────────────────────────────────────────────────
 #
 # Access levels:
-#   User (JWT)  → GET /tiktok/live/discover
+#   User (JWT)  → GET /tiktok/live/discover, POST /tiktok/live/watchlist
 #   Admin only  → all /tiktok/stores/*, /tiktok/sessions/*, /tiktok/live,
 #                 /tiktok/live/batch, /tiktok/live/products
 #
@@ -10,29 +10,24 @@
 liveDiscover:
   get:
     tags: [TikTok Live]
-    summary: Discover live stores
+    summary: List live sessions from database
     description: |
-      Checks all active tracked stores for live status in batches of 10.
+      Returns **`LiveSession`** documents with `status: 'live'` from MongoDB (no external API call).
 
-      For each store that is newly live a `LiveSession` is created and a
-      product sold-count baseline is captured (via ScrapeCreators showcase or
-      Apify). For stores that were live but have gone offline, the session is
-      ended, a final snapshot is taken, and estimated GMV is computed as:
+      **`data.live`** mirrors the legacy ScrapeCreators live-discover shape (same handles as `sessions`) so older clients keep working; prefer **`data.sessions`** for full documents.
 
-      ```
-      soldDelta          = soldAtEnd − soldAtStart   (per product)
-      estimatedRevenue   = soldDelta × price
-      estimatedGMV       = Σ estimatedRevenue
-      ```
+      Data is refreshed by a **background job** that runs about **every hour** and runs
+      `LiveMonitorService.discover()`: ScrapeCreators for **live status** only; Apify shop scraper for
+      product sold-count snapshots when sessions start/end.
+      Use `watchlistLastCheckedAt` on the response as a freshness hint for when the watchlist was last synced.
 
-      Returns the list of stores currently live, each with user profile,
-      room stats (viewers, join count), optional stream URLs, and a direct
-      TikTok watch link.
+      To force a sync immediately (same code as the cron), call **`POST /api/v1/jobs/live-monitor-discover`**
+      with `X-API-Key: INTERNAL_API_KEY`.
     security:
       - BearerAuth: []
     responses:
       '200':
-        description: Live discovery result
+        description: Cached live sessions from DB
         content:
           application/json:
             schema:
@@ -43,22 +38,76 @@ liveDiscover:
                     data:
                       type: object
                       properties:
+                        sessions:
+                          type: array
+                          description: LiveSession documents (status live)
+                          items:
+                            type: object
                         live:
                           type: array
+                          description: Legacy-compatible list (same rows as sessions), shaped like ScrapeCreators live results
                           items:
-                            $ref: '#/LiveResult'
+                            type: object
                         ended:
                           type: array
-                          description: Handles whose sessions just ended this cycle
-                          items: { type: string, example: fashionnova }
+                          description: Always empty for this endpoint
+                          items:
+                            type: string
                         liveCount:
                           type: integer
-                          example: 3
+                          example: 2
                         totalChecked:
                           type: integer
+                          description: Active watchlist size (same as totalActiveStores; legacy field name)
+                        totalActiveStores:
+                          type: integer
+                          description: Count of active tracked stores on the watchlist
                           example: 104
-      '503':
-        description: SCRAPECREATORS_API_KEY is not configured
+                        watchlistLastCheckedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                          description: Max `lastCheckedAt` among active tracked stores after last successful sync job
+
+liveWatchlist:
+  post:
+    tags: [TikTok Live]
+    summary: Add a TikTok handle to the live watchlist
+    description: |
+      Adds a shop handle to the shared **TrackedStore** watchlist used by the live monitor job and `GET /tiktok/live/discover`.
+      Same request body and behaviour as **admin** `POST /tiktok/stores` (profile enrichment when `SCRAPECREATORS_API_KEY` is set).
+      Any authenticated user may call this route; listing or removing stores remains under admin routes.
+
+      After a successful body validation, the server runs a **one-handle live probe** (same source as the hourly job) when `SCRAPECREATORS_API_KEY` is set, so a store that is **live right now** gets a `LiveSession` row immediately and shows up on `GET /tiktok/live/discover` without waiting for the cron.
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [handle]
+            properties:
+              handle:
+                type: string
+                description: TikTok handle — @ prefix stripped automatically
+                example: gymshark
+              displayName: { type: string }
+              notes: { type: string }
+              tags:
+                type: array
+                items: { type: string }
+              shopUrl:
+                type: string
+                format: uri
+    responses:
+      '201':
+        description: Store added to watchlist
+      '200':
+        description: Handle already on watchlist — existing document returned
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
 
 # ── Admin-only: Tracked stores (collection) ───────────────────────────────────
 
@@ -81,6 +130,8 @@ stores:
       enriched with profile data (avatar, bio, follower count, shop flags, etc.)
       from `/v1/tiktok/profile`. If the handle already exists, returns the
       existing document.
+
+      **Any signed-in user** can add handles via **`POST /api/v1/tiktok/live/watchlist`** (same body); this admin route is for operators managing the full list.
     security:
       - BearerAuth: []
     requestBody:

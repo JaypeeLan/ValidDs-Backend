@@ -4,6 +4,7 @@
 #   • Product ingestion   — daily at 00:00 (midnight)
 #   • Creative ingestion  — every 12h, at 00:00 and 12:00
 #   • Stale cleanup       — every 5 minutes
+#   • Live monitor discover — every 1h (30s initial delay); ScrapeCreators live checks (watchlist ∪ open sessions) + Apify shop snapshots; updates LiveSession docs
 # All trigger endpoints require the X-API-Key header matching INTERNAL_API_KEY
 # and run the job asynchronously. The HTTP response returns immediately once
 # the job has been enqueued.
@@ -128,6 +129,42 @@ creativeIngestion:
     tags:
       - Jobs
     summary: Method warning for creative ingestion
+    description: Returns a 405 error explaining that POST is required.
+    responses:
+      '405':
+        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+
+liveMonitorDiscover:
+  post:
+    tags:
+      - Jobs
+    summary: Trigger TikTok live monitor discover
+    description: |
+      Runs `LiveMonitorService.discover()` — ScrapeCreators **live** checks for the union of
+      **active tracked-store handles** and **handles with `LiveSession` status `live`** (so open sessions are re-verified and ended when no longer live);
+      Apify shop scraper for product sold-count snapshots at session start/end; starts/updates/ends `LiveSession` documents.
+      Same code path as the hourly in-process cron. Skips ScrapeCreators calls if `SCRAPECREATORS_API_KEY` is unset.
+    security:
+      - ApiKeyAuth: []
+    responses:
+      '200':
+        description: Job started (runs in background)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '409':
+        description: Previous discover run still in progress
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+      '401':
+        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+  get:
+    tags:
+      - Jobs
+    summary: Method warning for live monitor discover
     description: Returns a 405 error explaining that POST is required.
     responses:
       '405':

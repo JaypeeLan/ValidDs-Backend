@@ -17,7 +17,7 @@ const router = Router();
 /**
  * TikTok Routes
  *
- * Tracked stores (watchlist)
+ * Tracked stores (watchlist) — admin JWT
  *   GET    /tiktok/stores                → list all tracked stores
  *   POST   /tiktok/stores                → add a store by handle
  *   GET    /tiktok/stores/:handle        → store detail + recent sessions
@@ -25,7 +25,8 @@ const router = Router();
  *   DELETE /tiktok/stores/:handle        → remove from watchlist
  *
  * Live discovery (uses tracked stores watchlist)
- *   GET    /tiktok/live/discover         → check all tracked stores, manage sessions, return live ones
+ *   GET    /tiktok/live/discover         → live `LiveSession` rows from DB (hourly job syncs via external API)
+ *   POST   /tiktok/live/watchlist        → add a handle to the watchlist (any signed-in user; same as POST /stores body)
  *
  * One-off checks (no watchlist needed)
  *   GET    /tiktok/live?handle=          → check a single handle
@@ -56,6 +57,66 @@ const UpdateStoreSchema = z.object({
   isActive:    z.boolean().optional(),
 });
 
+/** Create a `TrackedStore` watchlist row (or return existing). Shared by admin POST /stores and user POST /live/watchlist. */
+async function addTrackedStoreFromBody(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { handle, displayName, notes, tags, shopUrl } = req.body as z.infer<typeof AddStoreSchema>;
+
+    const existing = await TrackedStore.findOne({ handle });
+    if (existing) {
+      await LiveMonitorService.probeWatchlistHandle(handle);
+      res.json(successResponse(existing, 'Store already in watchlist', 200));
+      return;
+    }
+
+    const profileData: Record<string, unknown> = {};
+
+    if (ScrapeCreatorsService.isConfigured()) {
+      const info = await ScrapeCreatorsService.getUserInfo(handle).catch(() => null);
+      if (info) {
+        if (info.id)             profileData.tiktokUserId   = info.id;
+        const resolvedName = displayName || info.nickname;
+        if (resolvedName)        profileData.displayName    = resolvedName;
+        if (info.bio)            profileData.bio            = info.bio;
+        if (info.avatarThumb)    profileData.avatarThumb    = info.avatarThumb;
+        if (info.avatarMedium)   profileData.avatarMedium   = info.avatarMedium;
+        if (info.avatarLarger)   profileData.avatarLarger   = info.avatarLarger;
+        if (info.verified)       profileData.verified       = info.verified;
+        if (info.privateAccount) profileData.privateAccount = info.privateAccount;
+        if (info.hasShop)        profileData.hasShop        = info.hasShop;
+        if (info.region)         profileData.region         = info.region;
+        if (info.language)       profileData.language       = info.language;
+        if (info.followerCount)  profileData.followerCount  = info.followerCount;
+        if (info.followingCount) profileData.followingCount = info.followingCount;
+        if (info.videoCount)     profileData.videoCount     = info.videoCount;
+        if (info.heartCount)     profileData.heartCount     = info.heartCount;
+        if (info.diggCount)      profileData.diggCount      = info.diggCount;
+        if (info.engagementRate) profileData.engagementRate = info.engagementRate;
+        if (info.shopId)         profileData.shopId         = info.shopId;
+        if (info.shopRegion)     profileData.shopRegion     = info.shopRegion;
+        profileData.profileFetchedAt = new Date();
+      }
+    }
+
+    const store = await TrackedStore.create({
+      handle,
+      ...profileData,
+      ...(displayName ? { displayName } : {}),
+      ...(notes       ? { notes }       : {}),
+      ...(tags?.length ? { tags }       : {}),
+      shopUrl: shopUrl || `https://www.tiktok.com/@${handle}/shop`,
+      addedBy: (req as { user?: { _id?: unknown } }).user?._id,
+    });
+
+    await LiveMonitorService.probeWatchlistHandle(handle);
+
+    log.info('Tracked store added', { handle, hasProfile: Object.keys(profileData).length > 0 });
+    res.status(201).json(successResponse(store, 'Store added to watchlist', 201));
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** GET /tiktok/stores */
 router.get('/stores', requireAuth, requireRole('admin'), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -70,62 +131,7 @@ router.post(
   requireAuth,
   requireRole('admin'),
   validate(AddStoreSchema, 'body'),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { handle, displayName, notes, tags, shopUrl } = req.body as z.infer<typeof AddStoreSchema>;
-
-      const existing = await TrackedStore.findOne({ handle });
-      if (existing) {
-        res.json(successResponse(existing, 'Store already in watchlist', 200));
-        return;
-      }
-
-      // ── Enrich from ScrapeCreators ────────────────────────────────────────
-      const profileData: Record<string, unknown> = {};
-
-      if (ScrapeCreatorsService.isConfigured()) {
-        const info = await ScrapeCreatorsService.getUserInfo(handle).catch(() => null);
-        if (info) {
-          if (info.id)             profileData.tiktokUserId   = info.id;
-          // nickname is already guaranteed ≠ handle by getUserInfo; manual displayName always wins
-          const resolvedName = displayName || info.nickname;
-          if (resolvedName)        profileData.displayName    = resolvedName;
-          if (info.bio)            profileData.bio            = info.bio;
-          if (info.avatarThumb)    profileData.avatarThumb    = info.avatarThumb;
-          if (info.avatarMedium)   profileData.avatarMedium   = info.avatarMedium;
-          if (info.avatarLarger)   profileData.avatarLarger   = info.avatarLarger;
-          if (info.verified)       profileData.verified       = info.verified;
-          if (info.privateAccount) profileData.privateAccount = info.privateAccount;
-          if (info.hasShop)        profileData.hasShop        = info.hasShop;
-          if (info.region)         profileData.region         = info.region;
-          if (info.language)       profileData.language       = info.language;
-          if (info.followerCount)  profileData.followerCount  = info.followerCount;
-          if (info.followingCount) profileData.followingCount = info.followingCount;
-          if (info.videoCount)     profileData.videoCount     = info.videoCount;
-          if (info.heartCount)     profileData.heartCount     = info.heartCount;
-          if (info.diggCount)      profileData.diggCount      = info.diggCount;
-          if (info.engagementRate) profileData.engagementRate = info.engagementRate;
-          if (info.shopId)         profileData.shopId         = info.shopId;
-          if (info.shopRegion)     profileData.shopRegion     = info.shopRegion;
-          profileData.profileFetchedAt = new Date();
-        }
-      }
-
-      const store = await TrackedStore.create({
-        handle,
-        ...profileData,
-        // Manual overrides always win
-        ...(displayName ? { displayName } : {}),
-        ...(notes       ? { notes }       : {}),
-        ...(tags?.length ? { tags }       : {}),
-        shopUrl: shopUrl || `https://www.tiktok.com/@${handle}/shop`,
-        addedBy: (req as any).user?._id,
-      });
-
-      log.info('Tracked store added', { handle, hasProfile: Object.keys(profileData).length > 0 });
-      res.status(201).json(successResponse(store, 'Store added to watchlist', 201));
-    } catch (err) { next(err); }
-  }
+  addTrackedStoreFromBody,
 );
 
 /** GET /tiktok/stores/:handle */
@@ -225,19 +231,23 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (!ScrapeCreatorsService.isConfigured()) {
-        throw new AppError(503, 'SCRAPECREATORS_API_KEY is not configured', 'SCRAPECREATORS_NOT_CONFIGURED');
-      }
-
-      const result = await LiveMonitorService.discover();
+      const result = await LiveMonitorService.getCachedLiveDiscover();
 
       res.json(successResponse(
         result,
-        `${result.liveCount} store${result.liveCount !== 1 ? 's' : ''} live (${result.totalChecked} checked)`,
+        `${result.liveCount} live session${result.liveCount !== 1 ? 's' : ''} in database`,
         200
       ));
     } catch (err) { next(err); }
   }
+);
+
+/** POST /tiktok/live/watchlist — same watchlist as admin POST /stores; any authenticated user */
+router.post(
+  '/live/watchlist',
+  requireAuth,
+  validate(AddStoreSchema, 'body'),
+  addTrackedStoreFromBody,
 );
 
 // ────────────────────────────────────────────────────────────────────────────────

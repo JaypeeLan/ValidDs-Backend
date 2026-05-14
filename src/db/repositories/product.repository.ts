@@ -162,6 +162,7 @@ export interface EnrichedProductInput {
     region?: string;
     verified?: boolean;
     avatarUrl?: string;
+    primaryImageUrl?: string;
     tiktokPostUrl: string;
   };
 

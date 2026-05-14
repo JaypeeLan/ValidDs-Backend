@@ -16,6 +16,7 @@ export interface IPrimaryCreator {
   verified?: boolean;
   tiktokPostUrl?: string;
   avatarUrl?: string | null;
+  primaryImageUrl?: string | null;
 }
 
 export interface IProductReview {

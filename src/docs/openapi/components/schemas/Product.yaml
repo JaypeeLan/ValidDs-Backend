@@ -231,7 +231,8 @@ properties:
       followers: { type: integer }
       verified: { type: boolean }
       tiktokPostUrl: { type: string, format: uri }
-      avatarUrl: { type: string, format: uri, nullable: true }
+      avatarUrl:       { type: string, format: uri, nullable: true }
+      primaryImageUrl: { type: string, format: uri, nullable: true, description: "Creator avatar — same as avatarUrl, for consistent frontend access" }
 
   aiInsight:
     type: object

@@ -103,11 +103,15 @@ Removes a product from the user's saved list.
 ## 4. TikTok Live (`/tiktok/live`)
 
 ### `GET /tiktok/live/discover`
-Returns cached **live** sessions from MongoDB (`LiveSession` with `status: live`), plus watchlist metadata. No ScrapeCreators call on this route; data is updated by the hourly live-monitor job.
+Returns cached **live** sessions from MongoDB (`LiveSession` with `status: live`), plus watchlist metadata. **Only streams with at least 2 concurrent viewers** (latest poll snapshot or `peakViewers`) are included in `sessions`, `live`, and `liveCount`. **Read-only** — no ScrapeCreators call on this route; **`data.ended`** is always an empty array.
+**Authentication:** Required (JWT).
+
+### `POST /tiktok/live/reconcile`
+Re-checks every open live session with ScrapeCreators and **ends** database rows that are no longer live. Response **`data.ended`** lists handles closed in that pass. Requires **`SCRAPECREATORS_API_KEY`** (otherwise **503** `SCRAPECREATORS_NOT_CONFIGURED`).
 **Authentication:** Required (JWT).
 
 ### `POST /tiktok/live/watchlist`
-Adds a TikTok **handle** to the shared live-monitoring watchlist (`TrackedStore`). Same enrichment and body as admin **`POST /tiktok/stores`**; returns **`201`** when created or **`200`** if the handle was already on the watchlist. When **`SCRAPECREATORS_API_KEY`** is set, the server immediately checks whether that handle is **live** and upserts a `LiveSession` so **`GET /tiktok/live/discover`** can show them without waiting for the hourly job.
+Adds a TikTok **handle** to the shared live-monitoring watchlist (`TrackedStore`). Same enrichment and body as admin **`POST /tiktok/stores`**; returns **`201`** when created or **`200`** if the handle was already on the watchlist. When **`SCRAPECREATORS_API_KEY`** is set, the server probes live status; a **`LiveSession`** is created only if the stream is live **with at least 2 concurrent viewers**, so **`GET /tiktok/live/discover`** can list it without waiting for the hourly job.
 **Authentication:** Required (JWT — any signed-in user).
 **Body:** `{ "handle": "brandname" }` — optional `displayName`, `notes`, `tags`, `shopUrl` (same as admin add-store).
 

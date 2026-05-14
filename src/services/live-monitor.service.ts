@@ -6,6 +6,7 @@
  *   2. Snapshot product sold counts at session start and end (Apify shop scraper — not ScrapeCreators)
  *   3. Compute estimated GMV delta when the session ends
  *   4. Update TrackedStore aggregate stats
+ *   5. ingestLiveRoomsFromApifyDiscovery() — Apify live keyword search → upsert watchlist rows + fastStart sessions
  */
 
 import type { Types } from 'mongoose';
@@ -13,6 +14,8 @@ import { TrackedStore }  from '../models/tracked-store.model';
 import { LiveSession, IProductSnapshot } from '../models/live-session.model';
 import { ScrapeCreatorsService, SCLiveResult } from './scrapecreators.service';
 import { TikTokShopScraperService, ShopProduct } from './tiktok-shop-scraper.service';
+import { runTikTokLiveScraper } from './apify.service';
+import type { TikTokLiveScraperItem } from './apify.types';
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'live-monitor' });
@@ -33,16 +36,16 @@ export interface DiscoverResult {
   totalChecked: number;
 }
 
-/** Response for `GET /tiktok/live/discover` — read-only from MongoDB (synced by hourly job). */
+/** Response for `GET /tiktok/live/discover` — read-only from MongoDB; only streams with ≥2 concurrent viewers are listed. */
 export interface CachedLiveDiscoverResult {
-  /** `LiveSession` documents with `status: 'live'`. */
+  /** `LiveSession` documents with `status: 'live'` and at least **2** concurrent viewers (last poll or peak). */
   sessions: Array<Record<string, unknown>>;
   /**
    * Same rows as `sessions`, in the legacy `SCLiveResult` shape (ScrapeCreators live discover).
    * Clients that still read `data.live` should use this; `sessions` holds full Mongo documents.
    */
   live: SCLiveResult[];
-  /** Always empty for this endpoint (no per-request “just ended” diff vs a prior response). */
+  /** Always empty on discover (read-only). `POST /tiktok/live/reconcile` returns handles it closed in its own `data.ended`. */
   ended: string[];
   liveCount: number;
   /** Count of active tracked stores (watchlist size); mirrors legacy `discover().totalChecked`. */
@@ -52,16 +55,118 @@ export interface CachedLiveDiscoverResult {
   watchlistLastCheckedAt: Date | null;
 }
 
-/** Map a persisted live session (lean) into the shape returned by ScrapeCreators live checks. */
-function liveSessionLeanToSCLiveResult(doc: Record<string, unknown>): SCLiveResult {
-  const handle = String(doc.handle ?? '');
+const MIN_VIEWERS_FOR_DISCOVER = 2;
+
+/** Concurrent viewers from last poll snapshot, else peakViewers on the persisted session. */
+function liveSessionDocViewerCount(doc: Record<string, unknown>): number {
   const polls = (Array.isArray(doc.polls) ? doc.polls : []) as Array<{ viewerCount?: number }>;
   const lastPoll = polls.length > 0 ? polls[polls.length - 1] : undefined;
-  const userCount = lastPoll?.viewerCount ?? (Number(doc.peakViewers ?? 0) || 0);
+  return lastPoll?.viewerCount ?? (Number(doc.peakViewers ?? 0) || 0);
+}
+
+function liveSessionDocPassesViewerThreshold(doc: Record<string, unknown>): boolean {
+  return liveSessionDocViewerCount(doc) >= MIN_VIEWERS_FOR_DISCOVER;
+}
+
+function scLiveResultPassesViewerThreshold(r: SCLiveResult): boolean {
+  const n = r.room?.liveRoomStats?.userCount;
+  const v = typeof n === 'number' && Number.isFinite(n) ? n : 0;
+  return v >= MIN_VIEWERS_FOR_DISCOVER;
+}
+
+function viewerCountFromApifyItem(item: TikTokLiveScraperItem): number {
+  if (typeof item.user_count === 'number' && Number.isFinite(item.user_count)) return item.user_count;
+  const t = item.stats?.total_user;
+  if (typeof t === 'number' && Number.isFinite(t)) return t;
+  return 0;
+}
+
+function handleFromApifyItem(item: TikTokLiveScraperItem): string | null {
+  const raw = item.owner?.unique_id;
+  if (!raw || typeof raw !== 'string') return null;
+  const h = raw.replace(/^@/, '').trim().toLowerCase();
+  return h || null;
+}
+
+/** Build an `SCLiveResult` from an Apify live-scraper row so `_handleLive` can open/poll sessions. */
+function apifyLiveItemToSCLiveResult(item: TikTokLiveScraperItem, handle: string): SCLiveResult | null {
+  const roomId = String(item.id_str ?? item.id ?? item.room_id ?? '').trim();
+  if (!roomId) return null;
+  const v = viewerCountFromApifyItem(item);
+  const urls = item.cover?.url_list;
+  const cover = Array.isArray(urls) && urls[0] ? String(urls[0]).trim() : undefined;
+  const owner = item.owner;
+  return {
+    handle,
+    isLive: true,
+    roomId,
+    user: {
+      id: String(owner?.id ?? handle),
+      uniqueId: handle,
+      nickname: (owner?.nickname && String(owner.nickname).trim()) || handle,
+      avatarThumb: owner?.avatar_thumb?.url_list?.[0],
+      followerCount:
+        typeof owner?.follow_info?.follower_count === 'number'
+          ? owner.follow_info.follower_count
+          : undefined,
+    },
+    room: {
+      id: roomId,
+      title: item.title ? String(item.title) : undefined,
+      coverUrl: cover,
+      squareCoverImg: cover,
+      liveRoomStats: {
+        userCount: v,
+        enterCount: 0,
+      },
+    },
+    watchUrl: `https://www.tiktok.com/@${handle}/live`,
+  };
+}
+
+export interface IngestLiveDiscoveryResult {
+  keyword: string;
+  apifyItemCount: number;
+  handlesProcessed: number;
+  storesCreated: number;
+  storesExisting: number;
+  sessionsStarted: number;
+  sessionsPolled: number;
+  skippedNoHandle: number;
+  skippedNoRoomId: number;
+  skippedLowViewers: number;
+}
+
+/** Optional `TrackedStore` fields merged into discover cards when the live room has no cover yet. */
+type StoreDiscoverEnrichment = {
+  displayName?: string;
+  avatarThumb?: string;
+  avatarMedium?: string;
+  avatarLarger?: string;
+  followerCount?: number;
+};
+
+/** Map a persisted live session (lean) into the shape returned by ScrapeCreators live checks. */
+function liveSessionLeanToSCLiveResult(
+  doc: Record<string, unknown>,
+  store?: StoreDiscoverEnrichment | null,
+): SCLiveResult {
+  const handle = String(doc.handle ?? '');
+  const userCount = liveSessionDocViewerCount(doc);
   const roomRaw = doc.roomId;
   const roomId = roomRaw != null && String(roomRaw) !== '' ? String(roomRaw) : undefined;
   const ts = doc.trackedStore as { toString?: () => string } | undefined;
   const storeId = ts?.toString?.() ?? '';
+
+  const sessionCover = doc.coverUrl != null ? String(doc.coverUrl).trim() : '';
+  const roomCover =
+    sessionCover ||
+    (store?.avatarLarger ? String(store.avatarLarger).trim() : '') ||
+    (store?.avatarMedium ? String(store.avatarMedium).trim() : '') ||
+    (store?.avatarThumb ? String(store.avatarThumb).trim() : '') ||
+    undefined;
+
+  const nick = store?.displayName?.trim() || handle;
 
   return {
     handle,
@@ -70,12 +175,17 @@ function liveSessionLeanToSCLiveResult(doc: Record<string, unknown>): SCLiveResu
     user: {
       id: storeId || handle,
       uniqueId: handle,
-      nickname: handle,
+      nickname: nick,
+      avatarThumb: store?.avatarThumb,
+      avatarMedium: store?.avatarMedium || store?.avatarLarger,
+      avatarLarger: store?.avatarLarger || store?.avatarMedium || store?.avatarThumb,
+      followerCount: store?.followerCount,
     },
     room: {
       id: roomId,
       title: doc.title ? String(doc.title) : undefined,
-      coverUrl: doc.coverUrl ? String(doc.coverUrl) : undefined,
+      coverUrl: roomCover,
+      squareCoverImg: sessionCover || undefined,
       liveRoomStats: {
         userCount,
         enterCount: Number(doc.totalJoined ?? 0) || 0,
@@ -90,8 +200,8 @@ function liveSessionLeanToSCLiveResult(doc: Record<string, unknown>): SCLiveResu
 export const LiveMonitorService = {
 
   /**
-   * Read live sessions from the database only (no external API).
-   * Populated by the hourly `runLiveMonitorDiscoverJob` / `discover()` sync.
+   * Read live sessions from MongoDB only (no ScrapeCreators). Use `reconcileOpenLiveSessions` via
+   * `POST /tiktok/live/reconcile` to end stale rows first.
    */
   async getCachedLiveDiscover(): Promise<CachedLiveDiscoverResult> {
     const [sessions, totalActiveStores, agg] = await Promise.all([
@@ -106,17 +216,80 @@ export const LiveMonitorService = {
     const row = agg[0] as { maxChecked?: Date } | undefined;
     const watchlistLastCheckedAt = row?.maxChecked ?? null;
 
-    const live = sessions.map((s) => liveSessionLeanToSCLiveResult(s as Record<string, unknown>));
+    const sessionsFiltered = sessions.filter((s) =>
+      liveSessionDocPassesViewerThreshold(s as Record<string, unknown>)
+    );
+
+    const trackedIds = [
+      ...new Set(
+        sessionsFiltered
+          .map((s) => (s as { trackedStore?: Types.ObjectId }).trackedStore)
+          .filter((id): id is Types.ObjectId => Boolean(id))
+      ),
+    ];
+    const stores = trackedIds.length
+      ? await TrackedStore.find({ _id: { $in: trackedIds } })
+          .select({ avatarThumb: 1, avatarMedium: 1, avatarLarger: 1, displayName: 1, followerCount: 1 })
+          .lean()
+      : [];
+    const storeById = new Map<string, StoreDiscoverEnrichment>(
+      stores.map((st) => [String(st._id), st as StoreDiscoverEnrichment])
+    );
+
+    const live = sessionsFiltered.map((s) => {
+      const doc = s as Record<string, unknown>;
+      const sid = doc.trackedStore != null ? String(doc.trackedStore) : '';
+      const st = sid ? storeById.get(sid) : undefined;
+      return liveSessionLeanToSCLiveResult(doc, st);
+    });
 
     return {
-      sessions: sessions as unknown as Array<Record<string, unknown>>,
+      sessions: sessionsFiltered as unknown as Array<Record<string, unknown>>,
       live,
       ended: [],
-      liveCount: sessions.length,
+      liveCount: sessionsFiltered.length,
       totalChecked: totalActiveStores,
       totalActiveStores,
       watchlistLastCheckedAt,
     };
+  },
+
+  /**
+   * Re-verify every open `LiveSession` against ScrapeCreators; ends sessions the API reports as not live.
+   * Batched to limit latency (caps unique handles per request).
+   */
+  async reconcileOpenLiveSessions(): Promise<string[]> {
+    const openDocs = await LiveSession.find({ status: 'live' });
+    if (openDocs.length === 0) return [];
+
+    const uniqueHandles = [...new Set(openDocs.map((s) => s.handle))];
+    const MAX = 50;
+    const handles = uniqueHandles.slice(0, MAX);
+    if (uniqueHandles.length > MAX) {
+      log.warn('reconcileOpenLiveSessions: capping handles', { total: uniqueHandles.length, max: MAX });
+    }
+
+    const BATCH = 10;
+    const now = new Date();
+    const ended: string[] = [];
+
+    for (let i = 0; i < handles.length; i += BATCH) {
+      const chunk = handles.slice(i, i + BATCH);
+      const results = await ScrapeCreatorsService.batchGetUserLive(chunk);
+
+      for (const r of results) {
+        if (r.isLive) continue;
+        const session = openDocs.find((s) => s.handle === r.handle && s.status === 'live');
+        if (!session) continue;
+        await this._endSession(session, now);
+        ended.push(r.handle);
+      }
+    }
+
+    if (ended.length > 0) {
+      log.info('reconcileOpenLiveSessions: ended sessions', { count: ended.length, handles: ended });
+    }
+    return ended;
   },
 
   /**
@@ -188,7 +361,7 @@ export const LiveMonitorService = {
       { $set: { lastCheckedAt: now } }
     );
 
-    const liveResults = allResults.filter((r) => r.isLive);
+    const liveResults = allResults.filter((r) => r.isLive && scLiveResultPassesViewerThreshold(r));
 
     return {
       live:         liveResults,
@@ -223,6 +396,13 @@ export const LiveMonitorService = {
       };
 
       if (result.isLive) {
+        if (!scLiveResultPassesViewerThreshold(result)) {
+          log.debug('Watchlist live probe: below viewer threshold — not starting session', {
+            handle: h,
+            viewers: result.room?.liveRoomStats?.userCount,
+          });
+          return { probed: true, isLive: false };
+        }
         await this._handleLive({ ...result, handle: h }, storeLean, now, { fastStart: true });
         if (store.isActive !== false) {
           await TrackedStore.updateOne({ handle: h }, { $set: { lastCheckedAt: now } });
@@ -277,6 +457,11 @@ export const LiveMonitorService = {
 
     if (!store) {
       log.warn('Skipping new live session — no TrackedStore for handle', { handle: result.handle });
+      return;
+    }
+
+    if (viewers < MIN_VIEWERS_FOR_DISCOVER) {
+      log.debug('Skipping new live session — below viewer threshold', { handle: result.handle, viewers });
       return;
     }
 
@@ -433,6 +618,126 @@ export const LiveMonitorService = {
       estimatedGMV,
       sessionId: session._id,
     });
+  },
+
+  /**
+   * Apify TikTok live discovery (`easyapi/tiktok-live-scraper`) for `keyword`, then upsert
+   * creators into `TrackedStore` and start or poll `LiveSession` for rooms with ≥2 viewers.
+   * New sessions use **fastStart** (no Apify shop baseline until the next full `discover()` run).
+   */
+  async ingestLiveRoomsFromApifyDiscovery(
+    keyword: string,
+    maxItems = 20,
+  ): Promise<IngestLiveDiscoveryResult> {
+    const k = keyword.trim();
+    const capped = Math.min(Math.max(1, maxItems), 50);
+    const items = await runTikTokLiveScraper(k, capped);
+
+    const byHandle = new Map<string, TikTokLiveScraperItem>();
+    let skippedNoHandle = 0;
+    for (const item of items) {
+      const h = handleFromApifyItem(item);
+      if (!h) {
+        skippedNoHandle += 1;
+        continue;
+      }
+      const prev = byHandle.get(h);
+      if (!prev || viewerCountFromApifyItem(item) > viewerCountFromApifyItem(prev)) {
+        byHandle.set(h, item);
+      }
+    }
+
+    const now = new Date();
+    let storesCreated = 0;
+    let storesExisting = 0;
+    let sessionsStarted = 0;
+    let sessionsPolled = 0;
+    let skippedNoRoomId = 0;
+    let skippedLowViewers = 0;
+
+    for (const [handle, item] of byHandle) {
+      const scLive = apifyLiveItemToSCLiveResult(item, handle);
+      if (!scLive) {
+        skippedNoRoomId += 1;
+        continue;
+      }
+
+      let store = await TrackedStore.findOne({ handle });
+      if (!store) {
+        const profileData: Record<string, unknown> = {};
+        if (ScrapeCreatorsService.isConfigured()) {
+          const info = await ScrapeCreatorsService.getUserInfo(handle).catch(() => null);
+          if (info) {
+            if (info.id) profileData.tiktokUserId = info.id;
+            if (info.nickname) profileData.displayName = info.nickname;
+            if (info.bio) profileData.bio = info.bio;
+            if (info.avatarThumb) profileData.avatarThumb = info.avatarThumb;
+            if (info.avatarMedium) profileData.avatarMedium = info.avatarMedium;
+            if (info.avatarLarger) profileData.avatarLarger = info.avatarLarger;
+            if (info.verified != null) profileData.verified = info.verified;
+            if (info.hasShop != null) profileData.hasShop = info.hasShop;
+            if (info.followerCount != null) profileData.followerCount = info.followerCount;
+            profileData.profileFetchedAt = now;
+          }
+        }
+        const thumb = item.owner?.avatar_thumb?.url_list?.[0];
+        if (!profileData.avatarThumb && thumb) profileData.avatarThumb = thumb;
+
+        store = await TrackedStore.create({
+          handle,
+          ...profileData,
+          shopUrl: `https://www.tiktok.com/@${handle}/shop`,
+        });
+        storesCreated += 1;
+      } else {
+        storesExisting += 1;
+      }
+
+      const storeLean: TrackedStoreLeanForLive = {
+        _id: store._id as Types.ObjectId,
+        handle: store.handle,
+        tiktokUserId: store.tiktokUserId,
+      };
+
+      if (!scLiveResultPassesViewerThreshold(scLive)) {
+        skippedLowViewers += 1;
+        continue;
+      }
+
+      const hadOpen = await LiveSession.findOne({ handle, status: 'live' });
+      await this._handleLive(scLive, storeLean, now, { fastStart: true });
+      const open = await LiveSession.findOne({ handle, status: 'live' });
+      if (open) {
+        if (hadOpen) sessionsPolled += 1;
+        else sessionsStarted += 1;
+      }
+    }
+
+    log.info('ingestLiveRoomsFromApifyDiscovery done', {
+      keyword: k,
+      apifyItemCount: items.length,
+      handlesProcessed: byHandle.size,
+      storesCreated,
+      storesExisting,
+      sessionsStarted,
+      sessionsPolled,
+      skippedNoHandle,
+      skippedNoRoomId,
+      skippedLowViewers,
+    });
+
+    return {
+      keyword: k,
+      apifyItemCount: items.length,
+      handlesProcessed: byHandle.size,
+      storesCreated,
+      storesExisting,
+      sessionsStarted,
+      sessionsPolled,
+      skippedNoHandle,
+      skippedNoRoomId,
+      skippedLowViewers,
+    };
   },
 };
 

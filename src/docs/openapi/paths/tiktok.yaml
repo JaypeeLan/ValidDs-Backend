@@ -1,8 +1,8 @@
 # ── TikTok Live ───────────────────────────────────────────────────────────────
 #
 # Access levels:
-#   User (JWT)  → GET /tiktok/live/discover, POST /tiktok/live/watchlist
-#   Admin only  → all /tiktok/stores/*, /tiktok/sessions/*, /tiktok/live,
+#   User (JWT)  → GET /tiktok/live/discover, POST /tiktok/live/reconcile, POST /tiktok/live/watchlist
+#   Admin only  → POST /tiktok/live/ingest-discovery, all /tiktok/stores/*, /tiktok/sessions/*, /tiktok/live,
 #                 /tiktok/live/batch, /tiktok/live/products
 #
 # ─────────────────────────────────────────────────────────────────────────────
@@ -12,16 +12,16 @@ liveDiscover:
     tags: [TikTok Live]
     summary: List live sessions from database
     description: |
-      Returns **`LiveSession`** documents with `status: 'live'` from MongoDB (no external API call).
+      Returns **`LiveSession`** documents with `status: 'live'` from MongoDB. Only sessions with **at least 2 concurrent viewers** (latest poll or peak) appear in **`sessions`** / **`live`** / **`liveCount`**.
 
-      **`data.live`** mirrors the legacy ScrapeCreators live-discover shape (same handles as `sessions`) so older clients keep working; prefer **`data.sessions`** for full documents.
+      Read-only: **no** ScrapeCreators call. To re-verify open sessions and end rows that are no longer live, use **`POST /api/v1/tiktok/live/reconcile`**.
 
-      Data is refreshed by a **background job** that runs about **every hour** and runs
-      `LiveMonitorService.discover()`: ScrapeCreators for **live status** only; Apify shop scraper for
-      product sold-count snapshots when sessions start/end.
+      **`data.live`** mirrors the legacy ScrapeCreators live-discover shape (same handles as `sessions`) so older clients keep working; prefer **`data.sessions`** for full documents. **`data.ended`** is always an empty array on this route.
+
+      Data is also refreshed by a **background job** about **every hour** (`LiveMonitorService.discover()`): ScrapeCreators for **live status**; Apify shop scraper for product sold-count snapshots when sessions start/end.
       Use `watchlistLastCheckedAt` on the response as a freshness hint for when the watchlist was last synced.
 
-      To force a sync immediately (same code as the cron), call **`POST /api/v1/jobs/live-monitor-discover`**
+      To force a full watchlist sync immediately (same code as the cron), call **`POST /api/v1/jobs/live-monitor-discover`**
       with `X-API-Key: INTERNAL_API_KEY`.
     security:
       - BearerAuth: []
@@ -45,12 +45,12 @@ liveDiscover:
                             type: object
                         live:
                           type: array
-                          description: Legacy-compatible list (same rows as sessions), shaped like ScrapeCreators live results
+                          description: Legacy-compatible list (same rows as sessions), shaped like ScrapeCreators live results. Card images use `room.coverUrl` and `user.avatarLarger` / `user.avatarMedium` / `user.avatarThumb`.
                           items:
-                            type: object
+                            $ref: '#/LiveResult'
                         ended:
                           type: array
-                          description: Always empty for this endpoint
+                          description: Always empty on GET discover; use `POST /tiktok/live/reconcile` for ended handles
                           items:
                             type: string
                         liveCount:
@@ -69,6 +69,96 @@ liveDiscover:
                           nullable: true
                           description: Max `lastCheckedAt` among active tracked stores after last successful sync job
 
+liveReconcile:
+  post:
+    tags: [TikTok Live]
+    summary: Reconcile open live sessions with ScrapeCreators
+    description: |
+      Re-verifies each open **`LiveSession`** via ScrapeCreators (same logic as the hourly live monitor) and **ends** rows the API reports as no longer live.
+
+      **`data.ended`** lists handles closed in this request (empty if none).
+
+      Requires **`SCRAPECREATORS_API_KEY`**. Returns **503** with code **`SCRAPECREATORS_NOT_CONFIGURED`** when it is not set.
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Reconciliation finished
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [ended]
+                      properties:
+                        ended:
+                          type: array
+                          description: Handles whose live session was ended in this request
+                          items:
+                            type: string
+      '503':
+        description: ScrapeCreators API key not configured
+
+liveIngestDiscovery:
+  post:
+    tags: [TikTok Live (Admin)]
+    summary: Ingest live rooms from Apify keyword search into MongoDB
+    description: |
+      Runs the Apify **TikTok live scraper** for **`keyword`**, upserts each creator into **`TrackedStore`**,
+      and starts or polls **`LiveSession`** when concurrent viewers are **≥ 2** (same threshold as discover).
+      New sessions use **fastStart** (shop product baselines are filled on the next full `LiveMonitorService.discover()` run).
+
+      Requires **`APIFY_API_TOKEN`**. When **`SCRAPECREATORS_API_KEY`** is set, new stores are enriched from the profile API.
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [keyword]
+            properties:
+              keyword:
+                type: string
+                description: Search term for the live discovery actor
+                example: skincare
+              maxItems:
+                type: integer
+                minimum: 1
+                maximum: 50
+                default: 20
+                description: Max live rooms to take from the actor (server caps at 50)
+    responses:
+      '200':
+        description: Ingest finished — counts in `data`
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        keyword: { type: string }
+                        apifyItemCount: { type: integer }
+                        handlesProcessed: { type: integer }
+                        storesCreated: { type: integer }
+                        storesExisting: { type: integer }
+                        sessionsStarted: { type: integer }
+                        sessionsPolled: { type: integer }
+                        skippedNoHandle: { type: integer }
+                        skippedNoRoomId: { type: integer }
+                        skippedLowViewers: { type: integer }
+      '500':
+        description: APIFY_API_TOKEN missing or Apify failure
+
 liveWatchlist:
   post:
     tags: [TikTok Live]
@@ -78,7 +168,7 @@ liveWatchlist:
       Same request body and behaviour as **admin** `POST /tiktok/stores` (profile enrichment when `SCRAPECREATORS_API_KEY` is set).
       Any authenticated user may call this route; listing or removing stores remains under admin routes.
 
-      After a successful body validation, the server runs a **one-handle live probe** (same source as the hourly job) when `SCRAPECREATORS_API_KEY` is set, so a store that is **live right now** gets a `LiveSession` row immediately and shows up on `GET /tiktok/live/discover` without waiting for the cron.
+      After a successful body validation, the server runs a **one-handle live probe** (same source as the hourly job) when `SCRAPECREATORS_API_KEY` is set. A **`LiveSession`** is started only if the API reports live **and** at least **2** concurrent viewers, so **`GET /tiktok/live/discover`** can show the stream without waiting for the cron.
     security:
       - BearerAuth: []
     requestBody:
@@ -361,10 +451,10 @@ sessionItem:
 LiveResult:
   type: object
   properties:
-    handle:   { type: string, example: gymshark }
-    isLive:   { type: boolean }
-    roomId:   { type: string, example: "7412345678901234567" }
-    watchUrl: { type: string, format: uri, example: "https://www.tiktok.com/@gymshark/live" }
+    handle:     { type: string, example: gymshark }
+    isLive:     { type: boolean }
+    roomId:     { type: string, example: "7412345678901234567" }
+    watchUrl:   { type: string, format: uri, example: "https://www.tiktok.com/@gymshark/live" }
     user:
       type: object
       properties:
@@ -372,6 +462,7 @@ LiveResult:
         nickname:       { type: string }
         avatarThumb:    { type: string, format: uri }
         avatarMedium:   { type: string, format: uri }
+        avatarLarger:   { type: string, format: uri }
         verified:       { type: boolean }
         followerCount:  { type: integer }
         followingCount: { type: integer }

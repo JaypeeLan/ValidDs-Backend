@@ -232,11 +232,12 @@ export const ProductController = {
         existing.videos.push({
           id: creative._id,
           externalVideoId: creative.externalVideoId,
-          videoPlayUrl: creative.videoPlayUrl,
+          embedUrl: creative.embedUrl,
+          tiktokPostUrl: creative.tiktokPostUrl,
           thumbnailUrl: creative.thumbnailUrl,
           metrics: creative.metrics,
           section: creative.section,
-          isAd: creative.isAd,
+          isIndependentCreator: creative.isIndependentCreator,
         });
       }
       

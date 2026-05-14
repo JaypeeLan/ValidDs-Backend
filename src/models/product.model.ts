@@ -263,6 +263,11 @@ const ProductSchema = new Schema<IProductDocument, IProductModel>(
 
     validationStatus: { type: String, required: true, default: 'pending' },
 
+    creativeCounts: {
+      type: new Schema({ ads: Number, organic: Number, reviews: Number, total: Number }, { _id: false }),
+      default: null,
+    },
+
     lastIngestedAt:      { type: Date, required: true },
     dataSourceUpdatedAt: { type: Date, required: true },
   },

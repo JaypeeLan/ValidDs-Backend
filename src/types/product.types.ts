@@ -207,6 +207,14 @@ export interface IProduct {
   postCreatedAt?: string | null;
   productUrl?: string;
 
+  // Creative counts (computed by enricher)
+  creativeCounts?: {
+    ads: number;
+    organic: number;
+    reviews: number;
+    total: number;
+  };
+
   // Validation
   validationStatus: string;
 

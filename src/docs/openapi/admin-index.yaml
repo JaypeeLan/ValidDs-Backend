@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: ValidDs Admin API
+  description: |
+    OpenAPI for **`/api/v1/admin/*`**. All operations require **JWT** with **admin** role unless noted otherwise.
+
+    Markdown reference: **`admin-docs/endpoints.md`** at the repository root.
+  version: 1.0.0
+  contact:
+    name: ValidDs Support
+    url: https://validds.com/support
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://validds-backend-g196.onrender.com
+    description: Staging environment
+
+tags:
+  - name: Admin
+    description: System health, analytics, user/product management, transactions, waitlist listing.
+
+paths:
+  /api/v1/admin/health:
+    $ref: ./paths/admin.yaml#/health
+  /api/v1/admin/analytics/users:
+    $ref: ./paths/admin.yaml#/analyticsUsers
+  /api/v1/admin/analytics/products:
+    $ref: ./paths/admin.yaml#/analyticsProducts
+  /api/v1/admin/analytics/creatives:
+    $ref: ./paths/admin.yaml#/analyticsCreatives
+  /api/v1/admin/users:
+    $ref: ./paths/admin.yaml#/users
+  /api/v1/admin/users/{userId}:
+    $ref: ./paths/admin.yaml#/userDelete
+  /api/v1/admin/users/{userId}/status:
+    $ref: ./paths/admin.yaml#/userStatusUpdate
+  /api/v1/admin/products:
+    $ref: ./paths/admin.yaml#/products
+  /api/v1/admin/products/{productId}:
+    $ref: ./paths/admin.yaml#/productDelete
+  /api/v1/admin/transactions:
+    $ref: ./paths/admin.yaml#/transactions
+  /api/v1/admin/waitlist:
+    $ref: ./paths/admin.yaml#/waitlist
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SuccessResponse:
+      $ref: ./components/schemas/Common.yaml#/SuccessResponse
+    ErrorResponse:
+      $ref: ./components/schemas/Common.yaml#/ErrorResponse
+    User:
+      $ref: ./components/schemas/User.yaml
+    Product:
+      $ref: ./components/schemas/Product.yaml

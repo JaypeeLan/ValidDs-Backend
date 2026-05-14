@@ -8,7 +8,6 @@ export type CreativeSection =
   | 'viral-unboxings';
 
 export interface ICreatorProfile {
-  tiktokUserId: string;
   handle: string;
   displayName?: string;
   bio?: string;
@@ -19,6 +18,8 @@ export interface ICreatorProfile {
   region?: string;
   verified: boolean;
   tiktokPostUrl: string;
+  /** When true, this creator is an independent creator — surfaced as a top ad for discovery */
+  isIndependentCreator: boolean;
 }
 
 export interface IVideoMetrics {
@@ -26,7 +27,8 @@ export interface IVideoMetrics {
   likeCount: number;
   commentCount: number;
   shareCount: number;
-  engagementRate?: number;
+  /** (likes + comments + shares) / views × 100 — null when views = 0 */
+  engagementRate?: number | null;
   source: string;
   fetchedAt: Date;
 }
@@ -41,7 +43,9 @@ export interface ICreativeComment {
 
 export interface ISecondaryVideo {
   externalVideoId: string;
-  videoPlayUrl?: string;
+  /** Permanent TikTok embed URL (https://www.tiktok.com/embed/v2/<id>) — no CDN expiry */
+  embedUrl: string;
+  tiktokPostUrl: string;
   thumbnailUrl?: string;
   creator: ICreatorProfile;
   metrics: IVideoMetrics;
@@ -52,17 +56,21 @@ export interface ISecondaryVideo {
 export interface ICreative {
   productId: mongoose.Types.ObjectId;
   externalVideoId: string;
-  videoPlayUrl?: string;
+  /** Permanent TikTok embed URL — use this instead of a CDN play URL which expires */
+  embedUrl: string;
+  tiktokPostUrl: string;
   thumbnailUrl?: string;
   creator: ICreatorProfile;
   metrics: IVideoMetrics;
   section: CreativeSection;
-  isAd: boolean;
+  /** true when the creator is NOT the product's own brand/seller */
+  isIndependentCreator: boolean;
   productName?: string;
   productDescription?: string;
   categoryL1?: string;
   categoryL2?: string;
   categoryL3?: string;
+  categoryPath?: string;
   description?: string;
   hashtags: string[];
   topComments: ICreativeComment[];

@@ -154,7 +154,8 @@ export const ProductController = {
       }
 
       const { feed, freshness } = await ProductService.getFeed({
-        category: query.category,
+        category:    query.category,
+        subcategory: query.subcategory,
         trendDirection: query.trendDirection,
         minTrendScore: query.minTrendScore,
         minViews: query.minViews,
@@ -163,6 +164,7 @@ export const ProductController = {
         page: query.page,
         limit: query.limit,
         sortBy: query.sortBy,
+        userRegion: query.region,
       });
 
       const feedPlains = await toPlainWithImages(feed.data as unknown as ProductLike[]);
@@ -285,13 +287,26 @@ export const ProductController = {
   async categories(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const categories = await ProductService.getCategories();
-      res.json(
-        successResponse(
-          { categories },
-          ResponseMessage.SUCCESS,
-          200
-        )
-      );
+      res.json(successResponse({ categories }, ResponseMessage.SUCCESS, 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async subcategories(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const category = req.query.category as string | undefined;
+      const data = await ProductService.getSubcategories(category);
+      res.json(successResponse(data, ResponseMessage.SUCCESS, 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async taxonomy(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await ProductService.getTaxonomy();
+      res.json(successResponse(data, ResponseMessage.SUCCESS, 200));
     } catch (err) {
       next(err);
     }

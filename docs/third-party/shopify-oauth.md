@@ -1,5 +1,7 @@
 # Shopify OAuth — Setup Guide
 
+For **frontend engineers** (fetch flows, redirects, push product): see **[frontend-shopify-integration.md](../frontend-shopify-integration.md)**.
+
 ## What It Is
 
 Shopify OAuth lets a ValidDs user connect their Shopify store so we can push winning products straight from ValidDs into their catalog.
@@ -39,7 +41,7 @@ All paths below are prefixed with **`/api/v1/stores`**. Source: `src/api/stores/
 - `POST https://<api-host>/api/v1/stores/shopify/disconnect`
 - `POST https://<api-host>/api/v1/stores/shopify/products`
 
-Canonical catalog of all V1 routes (including these) lives in **`docs/endpoints.md`**.
+Canonical catalog of all V1 routes (including these) lives in **`docs/endpoints.md`**. Admin-only routes are documented separately in **`admin-docs/endpoints.md`**.
 
 **OpenAPI (Swagger)** — the same five routes are described under tag **Stores** in `src/docs/openapi/index.yaml` (path specs in `src/docs/openapi/paths/stores.yaml`, shared schemas in `src/docs/openapi/components/schemas/Shopify.yaml`).
 

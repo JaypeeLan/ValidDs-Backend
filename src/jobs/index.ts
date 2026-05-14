@@ -21,7 +21,6 @@ let productIngestionTimeout: ReturnType<typeof setTimeout> | null = null;
 let productIngestionInterval: ReturnType<typeof setInterval> | null = null;
 let creativeIngestionTimeout: ReturnType<typeof setTimeout> | null = null;
 let creativeIngestionInterval: ReturnType<typeof setInterval> | null = null;
-
 let lastProductRefreshRun: Date | null = null;
 let lastStaleCleanupRun: Date | null = null;
 let lastProductIngestionRun: Date | null = null;
@@ -190,9 +189,9 @@ export function getJobsStatus() {
       creativeIngestion: !!creativeIngestionInterval || !!creativeIngestionTimeout,
     },
     lastRuns: {
-      productRefresh: lastProductRefreshRun,
-      staleCleanup: lastStaleCleanupRun,
-      productIngestion: lastProductIngestionRun,
+      productRefresh:    lastProductRefreshRun,
+      staleCleanup:      lastStaleCleanupRun,
+      productIngestion:  lastProductIngestionRun,
       creativeIngestion: lastCreativeIngestionRun,
     },
     outcomes: {
@@ -243,6 +242,7 @@ export function startJobs(): void {
     triggerCreativeIngestionJob();
     creativeIngestionInterval = setInterval(() => triggerCreativeIngestionJob(), HALF_DAY_INTERVAL_MS);
   }, creativeDelay);
+
 }
 
 export function stopJobs(): void {

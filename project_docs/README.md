@@ -6,9 +6,9 @@ This folder holds **weekly status Word reports** and **static reference exports*
 
 | Topic | Canonical location |
 |--------|---------------------|
-| HTTP API (paths, query params, schemas) | `src/docs/openapi/` (served at `/docs` when the app runs) |
+| HTTP API (paths, query params, schemas) | `src/docs/openapi/` — Swagger at **`/docs`**; admin **`/api/v1/admin/*`** at **`/admin-docs`** (`admin-index.yaml` + `admin-docs/endpoints.md`) |
 | Environment variables | `.env.example` |
-| Developer-oriented endpoint list | `docs/endpoints.md` (repo root `docs/`) |
+| Developer-oriented endpoint list | `docs/endpoints.md` (public + jobs + Shopify, etc.); **`admin-docs/endpoints.md`** for `/api/v1/admin/*` |
 | Data sources (reader-friendly) | `data_sources.txt` (repo root) |
 
 ## Files here

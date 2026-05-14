@@ -80,9 +80,9 @@ export interface ShopifyScraperItem {
   currency: string;
   originalPrice: number | null;
   onSale: boolean;
-  variantsCount: number;
+  // variantsCount: number;
   options: ShopifyScraperOption[];
-  variants: ShopifyScraperVariant[];
+  // variants: ShopifyScraperVariant[];
   images: string[];
   media: ShopifyScraperMediaItem[];
   rating: number | null;

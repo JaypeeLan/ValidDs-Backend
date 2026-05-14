@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import axios from 'axios';
 import { CreativeService } from '../../services/creative.service';
-import { CreativeListQuery, CreativeIngestBody } from './creative.validator';
+import { CreativeListQuery, CreativeTopAdsListQuery, CreativeIngestBody } from './creative.validator';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { NotFoundError } from '../../middleware/error.middleware';
 import { Creative } from '../../models/creative.model';
@@ -74,6 +74,27 @@ export const CreativeController = {
     try {
       const query = req.query as unknown as CreativeListQuery;
       const result = await CreativeService.findCreatives(query);
+
+      res.json(
+        successResponse(
+          result,
+          ResponseMessage.CREATIVES_RETRIEVED,
+          200
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * Paginated creatives whose primary creator is an independent creator (top ads).
+   * GET /api/v1/creatives/top-ads
+   */
+  async listTopAds(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const query = req.query as unknown as CreativeTopAdsListQuery;
+      const result = await CreativeService.findCreatives(query, { 'creator.isIndependentCreator': true });
 
       res.json(
         successResponse(

@@ -35,7 +35,8 @@ HTTP Request
     ▼
 [8] Routes
     ├── /health, /ready           ← healthRouter (no auth)
-    ├── /docs                     ← Swagger UI
+    ├── /docs                     ← Swagger UI (public API)
+    ├── /admin-docs               ← Swagger UI (`/api/v1/admin/*` only)
     └── /api/v1/*                 ← apiRouter → feature routers
     │
     ▼

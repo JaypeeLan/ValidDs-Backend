@@ -8,7 +8,9 @@ info:
     
     ### Authentication
     - **API Key**: Required for internal/service-to-service communication.
-    - **JWT**: Required for account-specific routes (auth, profile, saved products, **stores/Shopify**, ingestion, admin). Product and creative **list/detail/search** are public unless noted on the operation.
+    - **JWT**: Required for account-specific routes (auth, profile, saved products, **stores/Shopify**, ingestion). Product and creative **list/detail/search** are public unless noted on the operation.
+    
+    **Admin** (`/api/v1/admin/*`) OpenAPI is published separately at **`/admin-docs`** (see `admin-docs/openapi/` in the repo).
   version: 1.0.0
   contact:
     name: ValidDs Support
@@ -31,12 +33,10 @@ tags:
     description: User settings and account management
   - name: Ingestion
     description: Background ingestion controls.
-  - name: Admin
-    description: System health and analytics for users, products, and TikTok creatives.
   - name: Billing
     description: Stripe billing — public plan catalog, Checkout session creation, subscription state, and publishable key
   - name: Waitlist
-    description: Pre-launch email waitlist — public `POST /api/v1/waitlist` to join, admin-only `GET /api/v1/admin/waitlist` to list
+    description: Pre-launch email waitlist — public `POST /api/v1/waitlist` to join; admin listing is documented under **`/admin-docs`**.
   - name: Stores
     description: Shopify OAuth — connect a merchant store and push ValidDs products via Admin REST
   - name: TikTok Live
@@ -77,6 +77,10 @@ paths:
     $ref: './paths/products.yaml#/keywordContext'
   /api/v1/products/categories:
     $ref: './paths/products.yaml#/categories'
+  /api/v1/products/subcategories:
+    $ref: './paths/products.yaml#/subcategories'
+  /api/v1/products/taxonomy:
+    $ref: './paths/products.yaml#/taxonomy'
   /api/v1/products/{id}:
     $ref: './paths/products.yaml#/detail'
   /api/v1/ingestion/trigger:
@@ -91,30 +95,10 @@ paths:
     $ref: './paths/jobs.yaml#/creativeIngestion'
   /api/v1/jobs/stale-cleanup:
     $ref: './paths/jobs.yaml#/staleCleanup'
-  /api/v1/admin/health:
-    $ref: './paths/admin.yaml#/health'
-  /api/v1/admin/analytics/users:
-    $ref: './paths/admin.yaml#/analyticsUsers'
-  /api/v1/admin/analytics/products:
-    $ref: './paths/admin.yaml#/analyticsProducts'
-  /api/v1/admin/analytics/creatives:
-    $ref: './paths/admin.yaml#/analyticsCreatives'
-  /api/v1/admin/users:
-    $ref: './paths/admin.yaml#/users'
-  /api/v1/admin/users/{userId}:
-    $ref: './paths/admin.yaml#/userDelete'
-  /api/v1/admin/users/{userId}/status:
-    $ref: './paths/admin.yaml#/userStatusUpdate'
-  /api/v1/admin/products:
-    $ref: './paths/admin.yaml#/products'
-  /api/v1/admin/products/{productId}:
-    $ref: './paths/admin.yaml#/productDelete'
-  /api/v1/admin/transactions:
-    $ref: './paths/admin.yaml#/transactions'
-  /api/v1/admin/waitlist:
-    $ref: './paths/admin.yaml#/waitlist'
   /api/v1/creatives:
     $ref: './paths/creatives.yaml#/creatives'
+  /api/v1/creatives/top-ads:
+    $ref: './paths/creatives.yaml#/topAdsList'
   /api/v1/creatives/{id}:
     $ref: './paths/creatives.yaml#/creativeDetail'
   /api/v1/billing/plans:

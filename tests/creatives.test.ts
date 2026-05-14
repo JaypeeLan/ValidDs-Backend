@@ -99,11 +99,14 @@ describe('Creatives Endpoints', () => {
       externalVideoId: 'vid_1',
       section: 'top-ads',
       isAd: true,
-      publishedAt: new Date(),
+      publishedAt: new Date('2020-01-01'),
       creator: {
+        tiktokUserId: 'u1',
         handle: 'cre1',
         displayName: 'Creator One',
-        region: 'US'
+        region: 'US',
+        tiktokPostUrl: 'https://www.tiktok.com/@cre1/video/1',
+        isIndependentCreator: false,
       },
       metrics: {
         viewCount: 10000,
@@ -111,6 +114,26 @@ describe('Creatives Endpoints', () => {
       }
     });
     creativeId = (creative._id as any).toString();
+
+    await Creative.create({
+      productId: product._id,
+      externalVideoId: 'vid_2',
+      section: 'trending',
+      isAd: false,
+      publishedAt: new Date('2024-01-01'),
+      creator: {
+        tiktokUserId: 'u2',
+        handle: 'indie1',
+        displayName: 'Indie Creator',
+        region: 'GB',
+        tiktokPostUrl: 'https://www.tiktok.com/@indie1/video/2',
+        isIndependentCreator: true,
+      },
+      metrics: {
+        viewCount: 500,
+        likeCount: 50
+      }
+    });
   });
 
   afterAll(async () => {
@@ -138,8 +161,23 @@ describe('Creatives Endpoints', () => {
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
     expect(body.success).toBe(true);
-    expect(body.data.data.length).toBeGreaterThanOrEqual(1);
-    expect(body.data.data[0].externalVideoId).toBe('vid_1');
+    const ids = body.data.data.map((c: { externalVideoId: string }) => c.externalVideoId).sort();
+    expect(ids).toEqual(['vid_1', 'vid_2']);
+  });
+
+  it('GET /api/v1/creatives/top-ads should return only independent-creator creatives', async () => {
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: '/api/v1/creatives/top-ads',
+      token: testToken
+    });
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    expect(body.success).toBe(true);
+    expect(body.data.data.length).toBe(1);
+    expect(body.data.data[0].externalVideoId).toBe('vid_2');
+    expect(body.data.data[0].creator.isIndependentCreator).toBe(true);
   });
 
   it('GET /api/v1/creatives?section=top-ads should work', async () => {

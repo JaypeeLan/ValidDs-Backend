@@ -5,7 +5,7 @@ import type {
   ICreatorProfile,
   ISecondaryVideo,
   IVideoMetrics,
-} from '../types/creative.types';
+} from '../types/creative.types.js';
 
 export type {
   CreativeSection,
@@ -15,13 +15,12 @@ export type {
   ICreatorProfile,
   ISecondaryVideo,
   IVideoMetrics,
-} from '../types/creative.types';
+} from '../types/creative.types.js';
 
-// ── Mongoose Schemas ──────────────────────────────────────────────────────────
+// ── Sub-schemas ───────────────────────────────────────────────────────────────
 
 const CreatorProfileSchema = new Schema<ICreatorProfile>(
   {
-    tiktokUserId:  { type: String, required: true },
     handle:        { type: String, required: true },
     displayName:   { type: String },
     bio:           { type: String },
@@ -32,94 +31,89 @@ const CreatorProfileSchema = new Schema<ICreatorProfile>(
     region:        { type: String },
     verified:      { type: Boolean, required: true, default: false },
     tiktokPostUrl: { type: String, required: true },
+    isIndependentCreator: { type: Boolean, default: false, index: true },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const VideoMetricsSchema = new Schema<IVideoMetrics>(
   {
-    viewCount:     { type: Number, required: true, default: 0, min: 0 },
-    likeCount:     { type: Number, required: true, default: 0, min: 0 },
-    commentCount:  { type: Number, required: true, default: 0, min: 0 },
-    shareCount:    { type: Number, required: true, default: 0, min: 0 },
-    engagementRate:{ type: Number, min: 0 },
-    source:        { type: String, required: true, default: 'TikTok' },
-    fetchedAt:     { type: Date, required: true, default: Date.now },
+    viewCount:      { type: Number, required: true, default: 0, min: 0 },
+    likeCount:      { type: Number, required: true, default: 0, min: 0 },
+    commentCount:   { type: Number, required: true, default: 0, min: 0 },
+    shareCount:     { type: Number, required: true, default: 0, min: 0 },
+    engagementRate: { type: Number, default: null },
+    source:         { type: String, required: true, default: 'TikTok' },
+    fetchedAt:      { type: Date, required: true, default: Date.now },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const CreativeCommentSchema = new Schema<ICreativeComment>(
   {
-    comment:     { type: String, required: true },
-    source:      { type: String, required: true },
-    likeCount:   { type: Number, min: 0 },
-    authorHandle:{ type: String },
-    collectedAt: { type: Date, default: Date.now },
+    comment:      { type: String, required: true },
+    source:       { type: String, required: true },
+    likeCount:    { type: Number, min: 0 },
+    authorHandle: { type: String },
+    collectedAt:  { type: Date, default: Date.now },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const SecondaryVideoSchema = new Schema<ISecondaryVideo>(
   {
     externalVideoId: { type: String, required: true },
-    videoPlayUrl:    { type: String },
+    embedUrl:        { type: String, required: true },
+    tiktokPostUrl:   { type: String, required: true },
     thumbnailUrl:    { type: String },
     creator:         { type: CreatorProfileSchema, required: true },
     metrics:         { type: VideoMetricsSchema, required: true },
     topComments:     { type: [CreativeCommentSchema], default: [] },
     publishedAt:     { type: Date, required: true },
   },
-  { _id: false }
+  { _id: false },
 );
 
-// ── Main Schema ───────────────────────────────────────────────────────────────
+// ── Main schema ───────────────────────────────────────────────────────────────
 
 const CreativeSchema = new Schema<ICreativeDocument>(
   {
-    // Identity
     productId:       { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
     externalVideoId: { type: String, required: true, unique: true },
 
-    // Video Content
-    videoPlayUrl:  { type: String },
+    embedUrl:      { type: String, required: true },
+    tiktokPostUrl: { type: String, required: true },
     thumbnailUrl:  { type: String },
 
-    // Creator (full richly-typed profile)
     creator: { type: CreatorProfileSchema, required: true },
-
-    // Performance
     metrics: { type: VideoMetricsSchema, required: true },
 
-    // Classification
     section: {
       type: String,
       enum: ['top-ads', 'trending', 'influencer-reviews', 'tutorials', 'viral-unboxings'],
       required: true,
       index: true,
     },
-    isAd: { type: Boolean, default: false, index: true },
-    productName: { type: String },
+    isIndependentCreator: { type: Boolean, default: false, index: true },
+
+    productName:        { type: String },
     productDescription: { type: String, maxlength: 2000 },
 
-    // Taxonomy
-    categoryL1: { type: String, index: true },
-    categoryL2: { type: String },
-    categoryL3: { type: String },
+    categoryL1:   { type: String, index: true },
+    categoryL2:   { type: String },
+    categoryL3:   { type: String },
+    categoryPath: { type: String },
 
-    // Content Metadata
     description: { type: String, maxlength: 2000 },
     hashtags:    [{ type: String }],
     topComments: { type: [CreativeCommentSchema], default: [] },
 
-    // Variations
     relatedVideos: { type: [SecondaryVideoSchema], default: [] },
 
-    // Timing
     publishedAt: { type: Date, required: true },
     ingestedAt:  { type: Date, required: true, default: Date.now },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // ── Indexes ───────────────────────────────────────────────────────────────────

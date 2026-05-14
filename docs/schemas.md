@@ -73,7 +73,7 @@ User, auth, bookmarks, jobs, and admin analytics live in their respective models
 
 ### `WaitlistEntry` collection
 
-Captured from the public `POST /api/v1/waitlist` endpoint. Read-only for admins via `GET /api/v1/admin/waitlist`.
+Captured from the public `POST /api/v1/waitlist` endpoint. Read-only for admins via `GET /api/v1/admin/waitlist` (see [`admin-docs/endpoints.md`](../admin-docs/endpoints.md)).
 
 | Field       | Type     | Notes                                                                |
 |-------------|----------|----------------------------------------------------------------------|

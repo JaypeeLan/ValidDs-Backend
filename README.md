@@ -154,7 +154,7 @@ All API endpoints are prefixed with `/api/v1`.
 | `GET /api/v1/stores`       | Competitor store data                         |
 | `GET /api/v1/suppliers`    | Supplier/sourceability data                   |
 
-Full endpoint documentation with request/response shapes is in [docs/endpoints.md](./docs/endpoints.md).
+Full endpoint documentation with request/response shapes is in [docs/endpoints.md](./docs/endpoints.md). **Admin** routes: [admin-docs/endpoints.md](./admin-docs/endpoints.md) and interactive OpenAPI at **`/admin-docs`** when the server is running.
 
 ---
 
@@ -197,6 +197,7 @@ If you discover a security issue, please report it privately rather than opening
 | [Architecture](./docs/architecture.md)           | System design, components, and key decisions |
 | [Schema](./docs/schema.md)                       | Database schema for all entities             |
 | [Endpoints](./docs/endpoints.md)                 | Full API reference                           |
+| [Admin API](./admin-docs/endpoints.md)           | `/api/v1/admin/*` routes (JWT + admin role) |
 | [Data Acquisition](./docs/data-acquisition.md)   | TikTok data sources and fallback strategy    |
 | [Environment Setup](./docs/environment-setup.md) | Full local setup walkthrough                 |
 | [Monitoring](./docs/monitoring.md)               | Logging, metrics, and alerting               |

@@ -1,5 +1,5 @@
 import { ProductRepository, ProductFeedFilters } from '../db/repositories/product.repository';
-import { PRODUCT_CATEGORIES } from '../api/products/product.constants';
+import { PRODUCT_CATEGORIES, SUBCATEGORIES_BY_CATEGORY, CATEGORY_TAXONOMY } from '../api/products/product.constants';
 import { IProductDocument } from '../models/product.model';
 import { FreshnessService } from '../freshness/freshness.service';
 import { CacheService } from '../cache/cache.service';
@@ -76,6 +76,17 @@ export const ProductService = {
    */
   async getCategories(): Promise<string[]> {
     return [...PRODUCT_CATEGORIES];
+  },
+
+  async getSubcategories(category?: string): Promise<Record<string, string[]> | string[]> {
+    if (category) {
+      return SUBCATEGORIES_BY_CATEGORY[category] ?? [];
+    }
+    return SUBCATEGORIES_BY_CATEGORY;
+  },
+
+  async getTaxonomy(): Promise<typeof CATEGORY_TAXONOMY> {
+    return CATEGORY_TAXONOMY;
   },
 
   /**

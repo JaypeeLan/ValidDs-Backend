@@ -4,6 +4,7 @@ import { validate } from '../../middleware/validate.middleware';
 import { requireAuth } from '../../middleware/auth.middleware';
 import {
   CreativeListQuerySchema,
+  CreativeTopAdsListQuerySchema,
   CreativeIdParamSchema,
   CreativeIngestBodySchema,
   CreativeStreamQuerySchema,
@@ -16,6 +17,7 @@ const router = Router();
  * Creative Routes
  *
  * GET /api/v1/creatives — List creatives (public discovery)
+ * GET /api/v1/creatives/top-ads — Creatives from independent creators (top ads)
  * GET /api/v1/creatives/:id — Detail (public)
  * POST /api/v1/creatives/ingest — requires JWT
  */
@@ -25,6 +27,12 @@ router.post(
   requireAuth,
   validate(CreativeIngestBodySchema, 'body'),
   CreativeController.ingest
+);
+
+router.get(
+  '/top-ads',
+  validate(CreativeTopAdsListQuerySchema, 'query'),
+  CreativeController.listTopAds
 );
 
 router.get(

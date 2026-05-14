@@ -5,6 +5,26 @@ import { PRODUCT_CATEGORIES } from '../../api/products/product.constants';
 
 const log = logger.child({ module: 'product-repository' });
 
+/**
+ * Exclusion projection for catalog list + text search.
+ * Drops large blobs unused by discovery cards (reviews, galleries, long copy, nested marketing analysis).
+ * Product detail (`findById`) still loads full documents.
+ */
+export const PRODUCT_LISTING_HEAVY_FIELD_PROJECTION: Record<string, 0> = {
+  reviews: 0,
+  topComments: 0,
+  imageUrls: 0,
+  description: 0,
+  hashtags: 0,
+  variations: 0,
+  relatedProducts: 0,
+  salesEvidence: 0,
+  'aiIntelligence.marketingAnalysis': 0,
+  /** Trim per-supplier blobs; cards use scores, shop, and listing URLs. */
+  'suppliers.monthlyTraffic': 0,
+  'suppliers.estimatedMonthlyRevenue': 0,
+};
+
 // ── Generic title filtering ───────────────────────────────────────────────────
 
 const GENERIC_PHRASES = [
@@ -198,6 +218,7 @@ export interface EnrichedProductInput {
 
 export interface ProductFeedFilters {
   category?: string[];
+  subcategory?: string[];
   section?: string;
   trendDirection?: string;
   minTrendScore?: number;
@@ -348,29 +369,32 @@ export const ProductRepository = {
 
     // ── Multi-Region fallback (graceful when imported data has no region) ───
     if (filters.userRegion) {
-      const regionCount = await Product.countDocuments({ region: filters.userRegion, status: 'active' });
+      const [regionCount, usCount] = await Promise.all([
+        Product.countDocuments({ region: filters.userRegion, status: 'active' }),
+        Product.countDocuments({ region: 'US', status: 'active' }),
+      ]);
       if (regionCount > 0) {
         query['region'] = filters.userRegion;
-      } else {
-        const usCount = await Product.countDocuments({ region: 'US', status: 'active' });
-        if (usCount > 0) {
-          query['region'] = 'US';
-        }
-        // If neither requested region nor US exists, do not apply region filter.
+      } else if (usCount > 0) {
+        query['region'] = 'US';
       }
+      // If neither requested region nor US exists, do not apply region filter.
     } else {
-      const hasRegionedData = await Product.countDocuments({
-        region: { $exists: true, $nin: [null, ''] },
-        status: 'active',
-      });
+      const [hasRegionedData, usCount] = await Promise.all([
+        Product.countDocuments({
+          region: { $exists: true, $nin: [null, ''] },
+          status: 'active',
+        }),
+        Product.countDocuments({ region: 'US', status: 'active' }),
+      ]);
       if (hasRegionedData > 0) {
-        const usCount = await Product.countDocuments({ region: 'US', status: 'active' });
         if (usCount > 0) query['region'] = 'US';
       }
       // If data has no region values at all, return full active catalog.
     }
 
     if (filters.category?.length)       query['categoryL1'] = { $in: filters.category };
+    if (filters.subcategory?.length)    query['categoryL2'] = { $in: filters.subcategory };
     if (filters.trendDirection)         query['trend.direction'] = filters.trendDirection;
     if (filters.minTrendScore != null)  query['trend.score'] = { $gte: filters.minTrendScore };
     if (filters.minViews != null)       query['viewCount'] = { $gte: filters.minViews };
@@ -385,7 +409,12 @@ export const ProductRepository = {
     const sort = sortMap[filters.sortBy ?? 'trendScore'] ?? sortMap['trendScore'];
 
     const [data, total] = await Promise.all([
-      Product.find(query).sort(sort).skip(skip).limit(limit).lean(),
+      Product.find(query)
+        .select(PRODUCT_LISTING_HEAVY_FIELD_PROJECTION)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       Product.countDocuments(query),
     ]);
 
@@ -423,7 +452,9 @@ export const ProductRepository = {
     const [data, total] = await Promise.all([
       Product.find(filter, { score: { $meta: 'textScore' } })
         .sort({ score: { $meta: 'textScore' } })
-        .skip(skip).limit(limit).lean(),
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       Product.countDocuments(filter),
     ]);
 

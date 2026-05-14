@@ -100,7 +100,20 @@ Removes a product from the user's saved list.
 
 ---
 
-## 4. Background Job Endpoints (`/jobs`)
+## 4. TikTok Live (`/tiktok/live`)
+
+### `GET /tiktok/live/discover`
+Returns cached **live** sessions from MongoDB (`LiveSession` with `status: live`), plus watchlist metadata. No ScrapeCreators call on this route; data is updated by the hourly live-monitor job.
+**Authentication:** Required (JWT).
+
+### `POST /tiktok/live/watchlist`
+Adds a TikTok **handle** to the shared live-monitoring watchlist (`TrackedStore`). Same enrichment and body as admin **`POST /tiktok/stores`**; returns **`201`** when created or **`200`** if the handle was already on the watchlist. When **`SCRAPECREATORS_API_KEY`** is set, the server immediately checks whether that handle is **live** and upserts a `LiveSession` so **`GET /tiktok/live/discover`** can show them without waiting for the hourly job.
+**Authentication:** Required (JWT — any signed-in user).
+**Body:** `{ "handle": "brandname" }` — optional `displayName`, `notes`, `tags`, `shopUrl` (same as admin add-store).
+
+---
+
+## 5. Background Job Endpoints (`/jobs`)
 
 These endpoints are used for monitoring and triggering ingestion/cleanup jobs from external cron services.
 **Authentication:** Required. Requires `X-API-Key` header (matches `INTERNAL_API_KEY`).
@@ -109,6 +122,7 @@ These endpoints are used for monitoring and triggering ingestion/cleanup jobs fr
 - Product ingestion — daily at **00:00**
 - Creative ingestion — every 12h at **00:00 / 12:00**
 - Stale cleanup — every 5 minutes
+- TikTok live monitor discover — **every 1 hour** (wall-clock from server start; first run ~30s after jobs start). ScrapeCreators live checks on the **union of active tracked stores and handles with open `LiveSession` rows**; Apify for shop sold-count snapshots when sessions start/end; updates `LiveSession` documents (ends rows when no longer live).
 
 ### `GET /jobs/status`
 Returns the status of all job timers, last-run timestamps, per-job success/error outcomes, and the wall-clock schedule each job runs on.
@@ -125,9 +139,12 @@ Triggers the legacy hashtag-based product refresh pipeline (manual only; not on 
 ### `POST /jobs/stale-cleanup`
 Forces an immediate stale-product cleanup pass.
 
+### `POST /jobs/live-monitor-discover`
+Runs TikTok live discovery: ScrapeCreators live checks on **active watchlist handles plus any handle with `LiveSession` status `live`**, then ends sessions the API reports as not live; Apify shop snapshots for GMV at session start/end. Same code path as the **hourly** in-process cron. Skips live API calls if `SCRAPECREATORS_API_KEY` is unset. Returns immediately while work runs in the background.
+
 ---
 
-## 5. Ingestion Endpoints (`/ingestion`)
+## 6. Ingestion Endpoints (`/ingestion`)
 
 ### `POST /ingestion/trigger`
 Fires an asynchronous backend pipeline to scrape Social platforms (e.g. TikTok) via EnsembleData and enrich newly discovered products.
@@ -136,13 +153,13 @@ Wait times depend on downstream AI providers (DeepSeek, OpenAI).
 
 ---
 
-## 6. Admin Endpoints (`/admin`)
+## 7. Admin Endpoints (`/admin`)
 
 Admin route reference (health, analytics, users, transactions, waitlist) lives in **[`admin-docs/endpoints.md`](../admin-docs/endpoints.md)** at the repository root. Same `/api/v1` base path and response envelopes as the rest of this file. **OpenAPI (Swagger):** **`/admin-docs`** on the running server.
 
 ---
 
-## 7. Waitlist Endpoints (`/waitlist`)
+## 8. Waitlist Endpoints (`/waitlist`)
 
 ### `POST /waitlist`
 Public endpoint. Adds an email to the pre-launch waitlist. Idempotent — a duplicate email returns `200` with `alreadyOnWaitlist: true` instead of erroring.
@@ -152,7 +169,7 @@ Public endpoint. Adds an email to the pre-launch waitlist. Idempotent — a dupl
 
 ---
 
-## 8. Shopify store integration (`/stores/shopify`)
+## 9. Shopify store integration (`/stores/shopify`)
 
 Connect a merchant’s Shopify store (OAuth) and push ValidDs products into their catalog. Routes are mounted under **`/api/v1/stores`**. Responses use the standard envelope in `docs/api-responses.md`. **OpenAPI:** `src/docs/openapi/paths/stores.yaml` (tag **Stores** in `src/docs/openapi/index.yaml`).
 
@@ -211,7 +228,7 @@ Connect a merchant’s Shopify store (OAuth) and push ValidDs products into thei
 
 ---
 
-## 9. System Health Endpoints
+## 10. System Health Endpoints
 
 ### `GET /health`
 Liveness probe. Indicates if the Express process is running.

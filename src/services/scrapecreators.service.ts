@@ -4,6 +4,11 @@ import { logger } from '../logger';
 
 const log = logger.child({ module: 'scrapecreators-service' });
 
+/**
+ * ScrapeCreators HTTP client — **live** (`/v1/tiktok/user/live`, batch) and **profile** (`/v1/tiktok/profile`).
+ * TikTok Shop product lists / sold counts for GMV use `TikTokShopScraperService` (Apify), not this module.
+ */
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface SCUserInfo {
@@ -38,19 +43,6 @@ export interface SCUserInfo {
 
   // Engagement rate (computed if stats available)
   engagementRate?: number; // heartCount / followerCount * 100
-}
-
-export interface SCShopProduct {
-  productId:   string;
-  title:       string;
-  imageUrl:    string;
-  price:       number;
-  currency:    string;
-  soldCount:   number;
-  productUrl:  string;
-  inStock?:    boolean;
-  rating?:     number;
-  reviewCount?: number;
 }
 
 export interface SCLiveRoomUserInfo {
@@ -253,46 +245,6 @@ export const ScrapeCreatorsService = {
       });
     } catch {
       return null;
-    }
-  },
-
-  /**
-   * Fetch a TikTok Shop's products with sold counts.
-   * Used for GMV delta snapshots — call at live start and live end.
-   * Returns empty array if the store has no TikTok Shop or the endpoint fails.
-   */
-  async getShopProducts(handle: string): Promise<SCShopProduct[]> {
-    this.assertConfigured();
-    const cleanHandle = handle.replace(/^@/, '').trim().toLowerCase();
-    const url = `${env.SCRAPECREATORS_BASE_URL}/v1/tiktok/shop?handle=${encodeURIComponent(cleanHandle)}`;
-    try {
-      const res = await fetch(url, {
-        headers: { 'x-api-key': env.SCRAPECREATORS_API_KEY!, 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!res.ok) {
-        log.debug('ScrapeCreators: shop products not available', { handle: cleanHandle, status: res.status });
-        return [];
-      }
-      const data = await res.json() as any;
-      // Normalise whatever shape comes back
-      const raw: any[] = data?.products || data?.data?.products || data?.items || data?.data || [];
-      if (!Array.isArray(raw)) return [];
-      return raw.map((p: any) => ({
-        productId:   String(p.productId || p.id || ''),
-        title:       String(p.title || p.name || ''),
-        imageUrl:    String(p.imageUrl || p.image || p.cover || ''),
-        price:       Number(p.price ?? p.salePrice ?? 0),
-        currency:    String(p.currency || 'USD'),
-        soldCount:   Number(p.soldCount ?? p.sold ?? p.sales ?? 0),
-        productUrl:  String(p.productUrl || p.url || `https://www.tiktok.com/@${cleanHandle}/shop`),
-        inStock:     p.inStock !== false,
-        rating:      p.rating != null ? Number(p.rating) : undefined,
-        reviewCount: p.reviewCount != null ? Number(p.reviewCount) : undefined,
-      }));
-    } catch (err) {
-      log.debug('ScrapeCreators: getShopProducts failed', { handle: cleanHandle, err: String(err) });
-      return [];
     }
   },
 

@@ -4,21 +4,23 @@
  * Gets TikTok Shop product sold counts for a creator/store.
  * Used for pre/post live snapshot delta → estimated GMV.
  *
- * Strategy (tried in order):
- *   1. ScrapeCreators /v1/tiktok/user/showcase  — instant, free, US + some others
- *   2. Apify pro100chok/tiktok-shop-scraper-usage (store type) — works for US, ~20s
- *   3. Apify pro100chok/tiktok-shop-scraper-usage (creator type) — profile-level fallback
+ * **ScrapeCreators is not used here** — shop catalog / sold counts come from Apify only
+ * (see `pro100chok/tiktok-shop-scraper-usage`). ScrapeCreators remains for **live** endpoints only
+ * (`getUserLive`, `batchGetUserLive`) and optional profile enrichment (`getUserInfo`).
+ *
+ * Strategy:
+ *   1. Apify `pro100chok/tiktok-shop-scraper-usage` (store type) when `tiktokUserId` is known
+ *   2. Apify same actor (creator type) — profile-level fallback
  *
  * The `salesVolume` field is a lifetime total sold count.
  * Delta between two snapshots = units sold during that window = live GMV basis.
  *
- * Non-US stores (PH, ID, TH, etc.) are not supported by Apify shop scraper.
+ * Non-US stores (PH, ID, TH, etc.) may not be supported by the Apify shop scraper.
  * For those we return [] and GMV shows as "unavailable".
  */
 
 import { ApifyClient } from 'apify-client';
 import { env } from '../config/env.validation';
-import { ScrapeCreatorsService } from './scrapecreators.service';
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'tiktok-shop-scraper' });
@@ -53,32 +55,8 @@ export const TikTokShopScraperService = {
   async getSellerProducts(handle: string, userId?: string): Promise<ShopProduct[]> {
     const cleanHandle = handle.replace(/^@/, '').trim().toLowerCase();
 
-    // ── 1. ScrapeCreators showcase (fastest, no extra cost) ────────────────
-    if (ScrapeCreatorsService.isConfigured()) {
-      try {
-        const products = await ScrapeCreatorsService.getShopProducts(cleanHandle);
-        if (products.length > 0) {
-          log.info('Shop products from ScrapeCreators showcase', { handle: cleanHandle, count: products.length });
-          return products.map((p) => ({
-            productId:   p.productId,
-            title:       p.title,
-            imageUrl:    p.imageUrl,
-            price:       p.price,
-            currency:    p.currency,
-            soldCount:   p.soldCount,
-            productUrl:  p.productUrl,
-            rating:      p.rating,
-            reviewCount: p.reviewCount,
-          }));
-        }
-      } catch (err) {
-        log.debug('ScrapeCreators showcase failed', { handle: cleanHandle, err: String(err) });
-      }
-    }
-
-    // ── 2 & 3. Apify (US stores, ~20-30s) ────────────────────────────────
     if (!env.APIFY_API_TOKEN) {
-      log.debug('No APIFY_API_TOKEN — skipping Apify shop scrape', { handle: cleanHandle });
+      log.debug('No APIFY_API_TOKEN — cannot fetch shop products', { handle: cleanHandle });
       return [];
     }
 

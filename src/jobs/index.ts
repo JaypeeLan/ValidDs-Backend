@@ -2,6 +2,8 @@ import { runProductRefreshJob, runStaleCleanupJob } from './product-refresh.job'
 import { Product } from '../models/product.model';
 import { Creative } from '../models/creative.model';
 import { CreativeService } from '../services/creative.service';
+import { LiveMonitorService } from '../services/live-monitor.service';
+import { ScrapeCreatorsService } from '../services/scrapecreators.service';
 import { logger } from '../logger';
 import { env } from '../config/env.validation';
 
@@ -9,6 +11,8 @@ const log = logger.child({ module: 'jobs' });
 
 const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const HALF_DAY_INTERVAL_MS = 12 * 60 * 60 * 1000;
+const LIVE_MONITOR_INTERVAL_MS = 60 * 60 * 1000;
+const LIVE_MONITOR_INITIAL_DELAY_MS = 30_000;
 const STALE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const PRODUCT_INGESTION_HOUR_LAGOS = 0;
 const CREATIVE_INGESTION_HOURS_LAGOS = [0, 12] as const;
@@ -21,19 +25,25 @@ let productIngestionTimeout: ReturnType<typeof setTimeout> | null = null;
 let productIngestionInterval: ReturnType<typeof setInterval> | null = null;
 let creativeIngestionTimeout: ReturnType<typeof setTimeout> | null = null;
 let creativeIngestionInterval: ReturnType<typeof setInterval> | null = null;
+let liveMonitorTimeout: ReturnType<typeof setTimeout> | null = null;
+let liveMonitorInterval: ReturnType<typeof setInterval> | null = null;
 let lastProductRefreshRun: Date | null = null;
 let lastStaleCleanupRun: Date | null = null;
 let lastProductIngestionRun: Date | null = null;
 let lastCreativeIngestionRun: Date | null = null;
+let lastLiveMonitorRun: Date | null = null;
 let lastProductRefreshSuccessAt: Date | null = null;
 let lastProductIngestionSuccessAt: Date | null = null;
 let lastCreativeIngestionSuccessAt: Date | null = null;
+let lastLiveMonitorSuccessAt: Date | null = null;
 let lastProductRefreshError: string | null = null;
 let lastProductIngestionError: string | null = null;
 let lastCreativeIngestionError: string | null = null;
+let lastLiveMonitorError: string | null = null;
 let isProductRefreshRunning = false;
 let isProductIngestionRunning = false;
 let isCreativeIngestionRunning = false;
+let isLiveMonitorRunning = false;
 
 function toErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -181,18 +191,58 @@ export function triggerCreativeIngestionJob(): { started: boolean; reason?: stri
   return { started: true };
 }
 
+/**
+ * Polls ScrapeCreators for **live status** on the union of active tracked stores and handles with open `LiveSession` rows;
+ * starts/ends `LiveSession` docs, updates viewer polls.
+ * Shop sold-count baselines use Apify (`TikTokShopScraperService`), not ScrapeCreators.
+ * Syncs data later read by `GET /tiktok/live/discover`; runs on an hourly timer and via POST `/jobs/live-monitor-discover`.
+ */
+export function triggerLiveMonitorDiscoverJob(): { started: boolean; reason?: string } {
+  if (isLiveMonitorRunning) {
+    return { started: false, reason: 'Live monitor discover is already running' };
+  }
+  isLiveMonitorRunning = true;
+  lastLiveMonitorRun = new Date();
+  lastLiveMonitorError = null;
+
+  void (async () => {
+    try {
+      if (!ScrapeCreatorsService.isConfigured()) {
+        log.debug('Live monitor discover skipped — SCRAPECREATORS_API_KEY not set');
+        return;
+      }
+      const result = await LiveMonitorService.discover();
+      lastLiveMonitorSuccessAt = new Date();
+      log.info('Live monitor discover finished', {
+        liveCount: result.liveCount,
+        totalChecked: result.totalChecked,
+        ended: result.ended.length,
+      });
+    } catch (err) {
+      lastLiveMonitorError = toErrorMessage(err);
+      log.error('Live monitor discover failed', err);
+    } finally {
+      isLiveMonitorRunning = false;
+    }
+  })();
+
+  return { started: true };
+}
+
 export function getJobsStatus() {
   return {
     timers: {
       staleCleanup: !!staleCleanupTimer,
       productIngestion: !!productIngestionInterval || !!productIngestionTimeout,
       creativeIngestion: !!creativeIngestionInterval || !!creativeIngestionTimeout,
+      liveMonitorDiscover: !!liveMonitorInterval || !!liveMonitorTimeout,
     },
     lastRuns: {
       productRefresh:    lastProductRefreshRun,
       staleCleanup:      lastStaleCleanupRun,
       productIngestion:  lastProductIngestionRun,
       creativeIngestion: lastCreativeIngestionRun,
+      liveMonitorDiscover: lastLiveMonitorRun,
     },
     outcomes: {
       productRefresh: {
@@ -210,11 +260,17 @@ export function getJobsStatus() {
         lastSuccessAt: lastCreativeIngestionSuccessAt,
         lastError: lastCreativeIngestionError,
       },
+      liveMonitorDiscover: {
+        running: isLiveMonitorRunning,
+        lastSuccessAt: lastLiveMonitorSuccessAt,
+        lastError: lastLiveMonitorError,
+      },
     },
     intervals: {
       staleCleanupMs: STALE_CLEANUP_INTERVAL_MS,
       productIngestionMs: DAILY_INTERVAL_MS,
       creativeIngestionMs: HALF_DAY_INTERVAL_MS,
+      liveMonitorDiscoverMs: LIVE_MONITOR_INTERVAL_MS,
     },
     env: env.NODE_ENV,
   };
@@ -243,6 +299,10 @@ export function startJobs(): void {
     creativeIngestionInterval = setInterval(() => triggerCreativeIngestionJob(), HALF_DAY_INTERVAL_MS);
   }, creativeDelay);
 
+  liveMonitorTimeout = setTimeout(() => {
+    triggerLiveMonitorDiscoverJob();
+    liveMonitorInterval = setInterval(() => triggerLiveMonitorDiscoverJob(), LIVE_MONITOR_INTERVAL_MS);
+  }, LIVE_MONITOR_INITIAL_DELAY_MS);
 }
 
 export function stopJobs(): void {
@@ -251,5 +311,7 @@ export function stopJobs(): void {
   if (productIngestionInterval) clearInterval(productIngestionInterval);
   if (creativeIngestionTimeout) clearTimeout(creativeIngestionTimeout);
   if (creativeIngestionInterval) clearInterval(creativeIngestionInterval);
+  if (liveMonitorTimeout) clearTimeout(liveMonitorTimeout);
+  if (liveMonitorInterval) clearInterval(liveMonitorInterval);
   log.info('Background jobs stopped');
 }

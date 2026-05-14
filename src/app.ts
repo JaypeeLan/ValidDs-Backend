@@ -110,23 +110,31 @@ export async function createApp(): Promise<Application> {
   app.use(sanitizeMiddleware);
 
   // ── 7.5 Swagger Documentation ─────────────────────────────────────────────
+  // Use `serveFiles` (not shared `serve`) so each mount gets its own swagger-ui-init.js;
+  // otherwise the global init script is overwritten and /docs shows the last-registered spec (admin).
   const [swaggerSpec, adminSwaggerSpec] = await Promise.all([getSwaggerSpec(), getAdminSwaggerSpec()]);
-  app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  const docsSwaggerUiOpts = {
     customSiteTitle: 'ValidDs API Documentation',
     swaggerOptions: {
       persistAuthorization: true,
       filter: true,
       displayRequestDuration: true,
     },
-  }));
-  app.use('/admin-docs', swaggerUi.serve, swaggerUi.setup(adminSwaggerSpec, {
+  };
+  const adminSwaggerUiOpts = {
     customSiteTitle: 'ValidDs Admin API',
     swaggerOptions: {
       persistAuthorization: true,
       filter: true,
       displayRequestDuration: true,
     },
-  }));
+  };
+  app.use('/docs', swaggerUi.serveFiles(swaggerSpec, docsSwaggerUiOpts), swaggerUi.setup(swaggerSpec, docsSwaggerUiOpts));
+  app.use(
+    '/admin-docs',
+    swaggerUi.serveFiles(adminSwaggerSpec, adminSwaggerUiOpts),
+    swaggerUi.setup(adminSwaggerSpec, adminSwaggerUiOpts),
+  );
 
   // ── 8. Routes ─────────────────────────────────────────────────────────────
   // Serve local products export used by internal frontend tooling.

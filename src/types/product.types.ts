@@ -15,8 +15,12 @@ export interface IPrimaryCreator {
   followers?: number;
   verified?: boolean;
   tiktokPostUrl?: string;
-  avatarUrl?: string | null;
+  /** Creator profile image (canonical avatar for UI). */
   primaryImageUrl?: string | null;
+  /** Legacy alias of `primaryImageUrl` — kept in sync on API responses. */
+  avatarUrl?: string | null;
+  /** Proxied via linked creative thumbnail endpoint (TikTok CDN blocks direct hotlinks). */
+  avatarProxyUrl?: string;
 }
 
 export interface IProductReview {

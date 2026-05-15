@@ -10,7 +10,7 @@ export const CreativeListQuerySchema = z.object({
   region:    z.string().regex(/^[a-zA-Z]{2}$/, 'Region must be a 2-letter country code').optional(),
   minViews:  z.coerce.number().min(0).optional(),
   hashtags:  z.union([z.string(), z.array(z.string())]).optional(),
-  sortBy:    z.enum(['views', 'likes', 'recent', 'engagement']).default('recent'),
+  sortBy:    z.enum(['views', 'likes', 'recent', 'engagement']).default('views'),
   categoryL1: z.string().optional(),
   categoryL2: z.string().optional(),
   categoryL3: z.string().optional(),

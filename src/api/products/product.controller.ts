@@ -3,6 +3,7 @@ import { ProductService } from '../../services/product.service';
 import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
+import type { ProductApiResponse } from '../../types/product.types';
 import {
   enrichProductsWithCreatorAvatars,
   normalizePrimaryCreatorOnProduct,
@@ -60,7 +61,7 @@ function getProfileCountryCode(req: Request): string {
 
 // Removed buildCreatorsVideos as 'topVideos' is deleted. It is now handled via the /creatives endpoint.
 
-function formatProductResponse(input: ProductLike): Record<string, unknown> {
+function formatProductResponse(input: ProductLike): ProductApiResponse {
   const product = typeof input.toObject === 'function' ? input.toObject() : input;
   const aiIntelligence = (product.aiIntelligence ?? {}) as NonNullable<ProductLike['aiIntelligence']>;
   const trend = (product.trend ?? {}) as NonNullable<ProductLike['trend']>;
@@ -100,7 +101,7 @@ function formatProductResponse(input: ProductLike): Record<string, unknown> {
 
   normalizePrimaryCreatorOnProduct(response);
 
-  return response;
+  return response as ProductApiResponse;
 }
 
 function deriveAverageRatingFromSources(sources: any[]): number | undefined {
@@ -140,6 +141,7 @@ export const ProductController = {
         const results = await ProductService.search(query.q, query.category, query.page, query.limit, {
           section: query.section,
           isAd: query.isAd,
+          sortBy: query.sortBy,
         });
         const freshness = await FreshnessService.getResponseMetadata('product');
 

@@ -226,9 +226,14 @@ properties:
     type: object
     description: TikTok creator who posted the discovery video.
     properties:
-      handle: { type: string, example: "@naturalglow" }
+      tiktokUserId: { type: string }
+      handle: { type: string, example: "colorkey_vn" }
       displayName: { type: string }
+      bio: { type: string }
       followers: { type: integer }
+      following: { type: integer }
+      totalLikes: { type: integer }
+      region: { type: string, example: "US" }
       verified: { type: boolean }
       tiktokPostUrl: { type: string, format: uri }
       primaryImageUrl:

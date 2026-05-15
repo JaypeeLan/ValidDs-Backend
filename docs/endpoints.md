@@ -14,7 +14,7 @@ Returns a paginated list of products (full catalog by page). Supports optional f
 **Query Parameters:**
 - `page` *(number, optional)*: Page number (defaults to 1).
 - `limit` *(number, optional)*: Items per page (defaults to 20, max 100).
-- `q` *(string, optional)*: When set, runs MongoDB text search on titles/descriptions; results ordered by relevance (`sortBy` is ignored).
+- `q` *(string, optional)*: When set, runs MongoDB text search on titles/descriptions (still sorted by `sortBy`, default `gmv`).
 - `category` *(string, optional)*: Filter by canonical category. Accepts a single string or comma-separated list.
 - `niche` *(string, optional)*: Filter by specific sub-niche string.
 - `trendDirection` *(string, optional)*: Filter by direction. Accepts `rising`, `peaked`, `saturating`, `unknown`.
@@ -22,7 +22,7 @@ Returns a paginated list of products (full catalog by page). Supports optional f
 - `minViews` *(number, optional)*: Filter out products whose primary video has less than this amount of views.
 - `section` *(string, optional)*: Require a discovery section slug on the product (e.g. `top-ads`, `trending`, `viral`). See OpenAPI enum.
 - `isAd` *(boolean, optional)*: When `true`, same as the `top-ads` discovery bucket (`discoverySections` contains `top-ads`). When `false`, excludes that bucket.
-- `sortBy` *(string, optional)*: `trendScore` (default), `views`, `recent`, `engagement` (ignored when `q` is set).
+- `sortBy` *(string, optional)*: `gmv` (default, highest `totalGmv` first), `trendScore`, `views`, `recent`, `engagement`.
 - `region` *(string, optional)*: Echoed in the response; defaults from the user profile when omitted.
 
 ### `GET /products/:id`

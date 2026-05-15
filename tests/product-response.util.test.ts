@@ -1,7 +1,19 @@
 import {
+  normalizePrimaryCreatorForStorage,
   normalizePrimaryCreatorOnProduct,
   type CreatorAvatarEnrichment,
 } from '../src/utils/product-response.util';
+
+describe('normalizePrimaryCreatorForStorage', () => {
+  it('writes primaryImageUrl from avatarUrl when only legacy field is set', () => {
+    const stored = normalizePrimaryCreatorForStorage({
+      handle: 'colorkey_vn',
+      avatarUrl: 'https://ui-avatars.com/api/?name=CC',
+    });
+    expect(stored.primaryImageUrl).toBe('https://ui-avatars.com/api/?name=CC');
+    expect(stored.avatarUrl).toBe('https://ui-avatars.com/api/?name=CC');
+  });
+});
 
 describe('normalizePrimaryCreatorOnProduct', () => {
   it('prefers primaryImageUrl as the canonical creator avatar', () => {

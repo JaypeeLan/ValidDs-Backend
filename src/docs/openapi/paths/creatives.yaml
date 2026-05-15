@@ -45,11 +45,11 @@ creatives:
           type: integer
       - name: sortBy
         in: query
-        description: Sort criteria
+        description: Sort criteria. Default `views` = highest view count first.
         schema:
           type: string
           enum: [views, likes, recent, engagement]
-          default: recent
+          default: views
     responses:
       '200':
         description: Success
@@ -115,11 +115,11 @@ topAdsList:
           type: integer
       - name: sortBy
         in: query
-        description: Sort criteria
+        description: Sort criteria. Default `views` = highest view count first.
         schema:
           type: string
           enum: [views, likes, recent, engagement]
-          default: recent
+          default: views
     responses:
       '200':
         description: Success

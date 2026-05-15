@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { Product, IProductDocument, IProductModel } from '../../models/product.model';
 import { logger } from '../../logger';
 import { PRODUCT_CATEGORIES } from '../../api/products/product.constants';
+import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 
 const log = logger.child({ module: 'product-repository' });
 
@@ -227,11 +228,23 @@ export interface ProductFeedFilters {
   isAd?: boolean;
   page?: number;
   limit?: number;
-  sortBy?: 'trendScore' | 'views' | 'recent' | 'engagement';
+  sortBy?: 'gmv' | 'trendScore' | 'views' | 'recent' | 'engagement';
   userRegion?: string;
 }
 
 /** Applies discovery-section rules to a Mongo filter (feed or text search). */
+const PRODUCT_SORT_MAP: Record<string, Record<string, 1 | -1>> = {
+  gmv:         { totalGmv: -1, lastIngestedAt: -1 },
+  trendScore:  { 'trend.score': -1 },
+  views:       { viewCount: -1 },
+  recent:      { lastIngestedAt: -1 },
+  engagement:  { engagementRate: -1 },
+};
+
+function resolveProductSort(sortBy?: string): Record<string, 1 | -1> {
+  return PRODUCT_SORT_MAP[sortBy ?? 'gmv'] ?? PRODUCT_SORT_MAP.gmv;
+}
+
 function applyDiscoverySectionRules(
   filter: Record<string, unknown>,
   opts: { section?: string; isAd?: boolean }
@@ -314,7 +327,7 @@ export const ProductRepository = {
             engagementRate:input.engagementRate,
 
             // Discovery origin
-            primaryCreator: input.primaryCreator,
+            primaryCreator: normalizePrimaryCreatorForStorage(input.primaryCreator),
 
             // AI intelligence
             aiIntelligence: input.aiIntelligence,
@@ -401,13 +414,7 @@ export const ProductRepository = {
     if (filters.minViews != null)       query['viewCount'] = { $gte: filters.minViews };
     applyDiscoverySectionRules(query, { section: filters.section, isAd: filters.isAd });
 
-    const sortMap: Record<string, Record<string, 1 | -1>> = {
-      trendScore:  { 'trend.score': -1 },
-      views:       { viewCount: -1 },
-      recent:      { lastIngestedAt: -1 },
-      engagement:  { engagementRate: -1 },
-    };
-    const sort = sortMap[filters.sortBy ?? 'trendScore'] ?? sortMap['trendScore'];
+    const sort = resolveProductSort(filters.sortBy);
 
     const [data, total] = await Promise.all([
       Product.find(query)
@@ -440,7 +447,7 @@ export const ProductRepository = {
     category?: string[],
     page = 1,
     limit = 20,
-    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd'>,
+    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd' | 'sortBy'>,
   ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
     const skip    = (page - 1) * limit;
     const filter: Record<string, unknown> = {
@@ -450,9 +457,12 @@ export const ProductRepository = {
     if (category?.length) filter['categoryL1'] = { $in: category };
     if (discovery) applyDiscoverySectionRules(filter, discovery);
 
+    const sort = resolveProductSort(discovery?.sortBy);
+
     const [data, total] = await Promise.all([
       Product.find(filter, { score: { $meta: 'textScore' } })
-        .sort({ score: { $meta: 'textScore' } })
+        .select(PRODUCT_LISTING_HEAVY_FIELD_PROJECTION)
+        .sort(sort)
         .skip(skip)
         .limit(limit)
         .lean(),

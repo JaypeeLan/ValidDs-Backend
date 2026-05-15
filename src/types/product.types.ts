@@ -9,18 +9,47 @@ export type ProductType     = 'evergreen' | 'trend-driven' | 'seasonal' | 'unkno
 
 // ── Sub-document interfaces ───────────────────────────────────────────────────
 
+/** TikTok creator on the discovery post — persisted on `Product.primaryCreator`. */
 export interface IPrimaryCreator {
+  tiktokUserId?: string;
   handle: string;
   displayName?: string;
+  bio?: string;
   followers?: number;
+  following?: number;
+  totalLikes?: number;
+  region?: string;
   verified?: boolean;
   tiktokPostUrl?: string;
   /** Creator profile image (canonical avatar for UI). */
   primaryImageUrl?: string | null;
-  /** Legacy alias of `primaryImageUrl` — kept in sync on API responses. */
+  /** Legacy alias of `primaryImageUrl` — mirrored on read/write when set. */
   avatarUrl?: string | null;
-  /** Proxied via linked creative thumbnail endpoint (TikTok CDN blocks direct hotlinks). */
+}
+
+/** `primaryCreator` after `formatProductResponse` (includes read-time proxy URL). */
+export interface IPrimaryCreatorApi extends IPrimaryCreator {
+  /** Same-origin proxy for `primaryImageUrl` when a linked creative exists. */
   avatarProxyUrl?: string;
+}
+
+export interface ProductAiInsightResponse {
+  confidence: { score?: number; reason?: string };
+  buyingSentiment: { score?: number; reason?: string };
+}
+
+/** Public product shape returned by GET /products and GET /products/:id. */
+export interface ProductApiResponse {
+  _id: unknown;
+  title: string;
+  primaryImageUrl?: string;
+  primaryCreator?: IPrimaryCreatorApi;
+  aiInsight?: ProductAiInsightResponse;
+  isTopAd?: boolean;
+  rating?: number;
+  ratings?: number;
+  trend?: ITrend & { isTrending: boolean };
+  [key: string]: unknown;
 }
 
 export interface IProductReview {

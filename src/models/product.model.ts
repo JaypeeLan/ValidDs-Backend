@@ -41,13 +41,18 @@ export type {
 
 const PrimaryCreatorSchema = new Schema<IPrimaryCreator>(
   {
-    handle:        { type: String, required: true },
-    displayName:   { type: String },
-    followers:     { type: Number, min: 0 },
-    verified:      { type: Boolean, default: false },
-    tiktokPostUrl: { type: String },
-    avatarUrl:        { type: String, default: null },
-    primaryImageUrl:  { type: String, default: null },
+    tiktokUserId:    { type: String, default: '' },
+    handle:          { type: String, required: true },
+    displayName:     { type: String },
+    bio:             { type: String },
+    followers:       { type: Number, min: 0 },
+    following:       { type: Number, min: 0 },
+    totalLikes:      { type: Number, min: 0 },
+    region:          { type: String },
+    verified:        { type: Boolean, default: false },
+    tiktokPostUrl:   { type: String },
+    primaryImageUrl: { type: String, default: null },
+    avatarUrl:       { type: String, default: null },
   },
   { _id: false },
 );

@@ -42,7 +42,7 @@ export const ProductFeedQuerySchema = z.object({
   isAd:           z.coerce.boolean().optional(),
   /** Filter by discovery section slug (e.g. `top-ads`). Matches if the value appears in `discoverySections`. */
   section:        z.enum(PRODUCT_DISCOVERY_SECTIONS).optional(),
-  sortBy:         z.enum(['trendScore', 'views', 'recent', 'engagement']).default('trendScore'),
+  sortBy:         z.enum(['gmv', 'trendScore', 'views', 'recent', 'engagement']).default('gmv'),
   region:         z.string().optional(),
 });
 

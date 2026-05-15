@@ -97,7 +97,7 @@ export const ProductService = {
     category?: string[],
     page = 1,
     limit = 20,
-    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd'>
+    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd' | 'sortBy'>
   ): Promise<PaginatedResponse<IProductDocument>> {
     return ProductRepository.search(query, category, page, limit, discovery);
   },

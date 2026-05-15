@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { Creative } from '../models/creative.model';
+import type { IPrimaryCreator, IPrimaryCreatorApi } from '../types/product.types';
 
 export type CreatorAvatarEnrichment = {
   creativeId: string;
@@ -12,6 +13,19 @@ function pickUrl(...vals: unknown[]): string | undefined {
     if (typeof v === 'string' && v.trim()) return v.trim();
   }
   return undefined;
+}
+
+/** Normalize creator avatar fields before persisting to MongoDB. */
+export function normalizePrimaryCreatorForStorage(
+  creator: IPrimaryCreator,
+): IPrimaryCreator {
+  const primaryImageUrl =
+    pickUrl(creator.primaryImageUrl, creator.avatarUrl) ?? null;
+  return {
+    ...creator,
+    primaryImageUrl,
+    avatarUrl: primaryImageUrl,
+  };
 }
 
 function creatorAvatarProxyPath(creativeId: string): string {
@@ -38,12 +52,22 @@ export function normalizePrimaryCreatorOnProduct(
       ? creatorAvatarProxyPath(enrichment.creativeId)
       : pickUrl(pc.avatarProxyUrl);
 
-  product.primaryCreator = {
-    ...pc,
+  const apiCreator: IPrimaryCreatorApi = {
+    handle: typeof pc.handle === 'string' ? pc.handle : '',
+    displayName: typeof pc.displayName === 'string' ? pc.displayName : undefined,
+    bio: typeof pc.bio === 'string' ? pc.bio : undefined,
+    tiktokUserId: typeof pc.tiktokUserId === 'string' ? pc.tiktokUserId : undefined,
+    followers: typeof pc.followers === 'number' ? pc.followers : undefined,
+    following: typeof pc.following === 'number' ? pc.following : undefined,
+    totalLikes: typeof pc.totalLikes === 'number' ? pc.totalLikes : undefined,
+    region: typeof pc.region === 'string' ? pc.region : undefined,
+    verified: typeof pc.verified === 'boolean' ? pc.verified : undefined,
+    tiktokPostUrl: typeof pc.tiktokPostUrl === 'string' ? pc.tiktokPostUrl : undefined,
     primaryImageUrl,
     avatarUrl: primaryImageUrl,
     ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
   };
+  product.primaryCreator = apiCreator;
 }
 
 /** Top creative per product (by views) that has a creator avatar URL. */

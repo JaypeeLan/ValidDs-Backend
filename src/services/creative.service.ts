@@ -92,7 +92,7 @@ export const CreativeService = {
   },
 
   async findCreatives(filters: any, extraMatch?: Record<string, unknown>) {
-    const { q, productId, section, isAd, region, minViews, hashtags, page = 1, limit = 20, sortBy = 'recent', categoryL1, categoryL2, categoryL3 } = filters;
+    const { q, productId, section, isAd, region, minViews, hashtags, page = 1, limit = 20, sortBy = 'views', categoryL1, categoryL2, categoryL3 } = filters;
     const query: any = {};
     if (productId) query.productId = productId;
     if (section) query.section = section;
@@ -117,11 +117,13 @@ export const CreativeService = {
 
     const skip = (Number(page) - 1) * Number(limit);
     const mLimit = Number(limit);
-    let sort: any = { createdAt: -1 };
-    if (sortBy === 'views') sort = { 'metrics.viewCount': -1 };
-    if (sortBy === 'likes') sort = { 'metrics.likeCount': -1 };
-    if (sortBy === 'engagement') sort = { 'metrics.engagementRate': -1 };
-    if (sortBy === 'recent') sort = { publishedAt: -1 };
+    const sortMap: Record<string, Record<string, 1 | -1>> = {
+      views:      { 'metrics.viewCount': -1, publishedAt: -1 },
+      likes:      { 'metrics.likeCount': -1, publishedAt: -1 },
+      engagement: { 'metrics.engagementRate': -1, publishedAt: -1 },
+      recent:     { publishedAt: -1 },
+    };
+    const sort = sortMap[sortBy] ?? sortMap.views;
 
     const [rawData, total] = await Promise.all([
       Creative.find(query).sort(sort).skip(skip).limit(mLimit).populate('productId', 'title thumbnailUrl'),

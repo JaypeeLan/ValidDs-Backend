@@ -5,7 +5,7 @@ feed:
     description: |
       Returns active products with default pagination (`page`, `limit`).
       With no filters, this is the full catalog, one page at a time.
-      Pass `q` to run full-text search on the same endpoint (results ordered by relevance; `sortBy` is ignored when `q` is set).
+      Pass `q` to run full-text search on the same endpoint (matches by relevance; results are ordered by `sortBy`, default **`gmv`** = highest `totalGmv` first).
     parameters:
       - name: q
         in: query
@@ -46,8 +46,8 @@ feed:
           enum: [top-ads, trending, top-rated, viral, influencer-reviews, tutorials, viral-unboxings]
       - name: sortBy
         in: query
-        description: Ignored when `q` is present.
-        schema: { type: string, enum: [trendScore, views, recent, engagement], default: trendScore }
+        description: Sort order for results. Default `gmv` sorts by `totalGmv` descending (highest first).
+        schema: { type: string, enum: [gmv, trendScore, views, recent, engagement], default: gmv }
       - name: subcategory
         in: query
         description: Filter by subcategory (L2). Pass multiple times or comma-separated for multi-select.

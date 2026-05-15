@@ -182,7 +182,8 @@ describe('Products Endpoints', () => {
         region: 'US',
         verified: true,
         avatarUrl: 'https://example.com/creator1.jpg',
-        tiktokPostUrl: 'https://www.tiktok.com/@creator1/video/vid_primary_1'
+        primaryImageUrl: 'https://example.com/creator1.jpg',
+        tiktokPostUrl: 'https://www.tiktok.com/@creator1/video/vid_primary_1',
       },
 
       // AI
@@ -228,6 +229,8 @@ describe('Products Endpoints', () => {
     expect(firstProduct.title).toBe('Clip Hair Curler');
     expect(firstProduct.categoryPath).toBe('Beauty & Personal Care / Hair Care / Hair Styling Tools');
     expect(firstProduct.primaryCreator.handle).toBe('creator1');
+    expect(firstProduct.primaryCreator.primaryImageUrl).toBe('https://example.com/creator1.jpg');
+    expect(firstProduct.primaryCreator.avatarUrl).toBe('https://example.com/creator1.jpg');
     expect(firstProduct.trend.isTrending).toBe(true);
     
     // Assert internal AI structure is shielded as formatted in controller

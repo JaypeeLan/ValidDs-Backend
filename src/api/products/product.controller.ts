@@ -3,6 +3,10 @@ import { ProductService } from '../../services/product.service';
 import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
+import {
+  enrichProductsWithCreatorAvatars,
+  normalizePrimaryCreatorOnProduct,
+} from '../../utils/product-response.util';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: {
@@ -94,6 +98,8 @@ function formatProductResponse(input: ProductLike): Record<string, unknown> {
   delete response.aiIntelligence;
   delete response.aiExtraction; // Cleanup legacy field if present
 
+  normalizePrimaryCreatorOnProduct(response);
+
   return response;
 }
 
@@ -137,7 +143,9 @@ export const ProductController = {
         });
         const freshness = await FreshnessService.getResponseMetadata('product');
 
-        const searchPlains = await toPlainWithImages(results.data as unknown as ProductLike[]);
+        const searchPlains = await enrichProductsWithCreatorAvatars(
+          await toPlainWithImages(results.data as unknown as ProductLike[]),
+        );
         res.json(
           successResponse(
             {
@@ -167,7 +175,9 @@ export const ProductController = {
         userRegion: query.region,
       });
 
-      const feedPlains = await toPlainWithImages(feed.data as unknown as ProductLike[]);
+      const feedPlains = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages(feed.data as unknown as ProductLike[]),
+      );
       res.json(
         successResponse(
           {
@@ -189,7 +199,9 @@ export const ProductController = {
     try {
       const { id } = req.params;
       const { product, freshness } = await ProductService.getById(id);
-      const [plain] = await toPlainWithImages([product as unknown as ProductLike]);
+      const [plain] = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages([product as unknown as ProductLike]),
+      );
 
       res.json(
         successResponse(
@@ -267,7 +279,9 @@ export const ProductController = {
       const savedDocs = user.savedProducts
         .filter(p => p.productId)
         .map(p => p.productId as unknown as ProductLike);
-      const savedPlains = await toPlainWithImages(savedDocs);
+      const savedPlains = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages(savedDocs),
+      );
       const products = savedPlains.map(formatProductResponse);
 
       res.json(

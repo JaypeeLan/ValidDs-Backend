@@ -231,8 +231,19 @@ properties:
       followers: { type: integer }
       verified: { type: boolean }
       tiktokPostUrl: { type: string, format: uri }
-      avatarUrl:       { type: string, format: uri, nullable: true }
-      primaryImageUrl: { type: string, format: uri, nullable: true, description: "Creator avatar — same as avatarUrl, for consistent frontend access" }
+      primaryImageUrl:
+        type: string
+        format: uri
+        nullable: true
+        description: Creator profile image (canonical avatar — use this for product cards and detail)
+      avatarUrl:
+        type: string
+        format: uri
+        nullable: true
+        description: Legacy alias of `primaryImageUrl` (mirrored on read)
+      avatarProxyUrl:
+        type: string
+        description: Same-origin proxy for `primaryImageUrl` when a linked creative exists (prefer over raw TikTok CDN URL)
 
   aiInsight:
     type: object

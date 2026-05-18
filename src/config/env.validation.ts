@@ -227,6 +227,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   LOG_PRETTY: z.coerce.boolean().default(false),
   ENABLE_DEV_JOBS: z.coerce.boolean().default(false),
+  /** When false, in-process timers and manual `/jobs/*` triggers are no-ops. */
+  ENABLE_BACKGROUND_JOBS: z.coerce.boolean().default(false),
 
 });
 

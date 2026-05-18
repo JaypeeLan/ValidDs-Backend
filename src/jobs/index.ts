@@ -85,7 +85,16 @@ async function getCreativeVideoTotal(): Promise<number> {
   return rows[0]?.total || 0;
 }
 
+export function isBackgroundJobsEnabled(): boolean {
+  if (!env.ENABLE_BACKGROUND_JOBS) return false;
+  if (env.NODE_ENV === 'development' && !env.ENABLE_DEV_JOBS) return false;
+  return true;
+}
+
 export function triggerProductRefreshJob(): { started: boolean; reason?: string } {
+  if (!isBackgroundJobsEnabled()) {
+    return { started: false, reason: 'Background jobs are disabled' };
+  }
   if (isProductRefreshRunning) {
     return { started: false, reason: 'Product refresh job is already running' };
   }
@@ -146,6 +155,9 @@ export async function runCreativeIngestionJob(): Promise<void> {
 }
 
 export function triggerProductIngestionJob(): { started: boolean; reason?: string } {
+  if (!isBackgroundJobsEnabled()) {
+    return { started: false, reason: 'Background jobs are disabled' };
+  }
   if (isProductIngestionRunning) {
     return { started: false, reason: 'Product ingestion is already running' };
   }
@@ -169,6 +181,9 @@ export function triggerProductIngestionJob(): { started: boolean; reason?: strin
 }
 
 export function triggerCreativeIngestionJob(): { started: boolean; reason?: string } {
+  if (!isBackgroundJobsEnabled()) {
+    return { started: false, reason: 'Background jobs are disabled' };
+  }
   if (isCreativeIngestionRunning) {
     return { started: false, reason: 'Creative ingestion is already running' };
   }
@@ -198,6 +213,9 @@ export function triggerCreativeIngestionJob(): { started: boolean; reason?: stri
  * Syncs data later read by `GET /tiktok/live/discover`; runs on an hourly timer and via POST `/jobs/live-monitor-discover`.
  */
 export function triggerLiveMonitorDiscoverJob(): { started: boolean; reason?: string } {
+  if (!isBackgroundJobsEnabled()) {
+    return { started: false, reason: 'Background jobs are disabled' };
+  }
   if (isLiveMonitorRunning) {
     return { started: false, reason: 'Live monitor discover is already running' };
   }
@@ -273,12 +291,17 @@ export function getJobsStatus() {
       liveMonitorDiscoverMs: LIVE_MONITOR_INTERVAL_MS,
     },
     env: env.NODE_ENV,
+    enabled: isBackgroundJobsEnabled(),
   };
 }
 
 export function startJobs(): void {
-  if (env.NODE_ENV === 'development' && !env.ENABLE_DEV_JOBS) {
-    log.info('Background jobs disabled in development (ENABLE_DEV_JOBS=false)');
+  if (!isBackgroundJobsEnabled()) {
+    log.info('Background jobs disabled', {
+      enableBackgroundJobs: env.ENABLE_BACKGROUND_JOBS,
+      enableDevJobs: env.ENABLE_DEV_JOBS,
+      nodeEnv: env.NODE_ENV,
+    });
     return;
   }
 

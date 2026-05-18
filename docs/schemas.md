@@ -49,15 +49,24 @@ One document per TikTok video tied to a product (`productId`).
 
 ---
 
-## 3. API-only response fields (Product)
+## 3. API response shapes (Product)
+
+| Endpoint | Schema | Notes |
+|----------|--------|--------|
+| `GET /products` | **`ProductFeedItem`** | Discovery cards only — no suppliers blob, marketing analysis, reviews, etc. |
+| `GET /products/:id` | **`Product`** (full) | Detail drawer/page including `aiInsight.marketingAnalysis`, history, suppliers |
+
+### API-only fields (detail + feed)
 
 Returned by controllers, not always stored as separate columns:
 
 | Field | Meaning |
 |-------|---------|
 | `isTopAd` | `true` when `discoverySections` contains `top-ads` |
-| `aiInsight` | Reshaped view of `aiIntelligence` for clients |
+| `aiInsight` | Reshaped `aiIntelligence`: confidence, buyingSentiment, **marketingAnalysis**, brand, niche, audience, problem/value statements |
 | `ratings` | Alias for the resolved numeric rating in list/detail payloads |
+| `salesHistory` / `salesTrend` | Unit-sales snapshots and windowed trend (`windows[].value` = units) |
+| `revenueHistory` / `revenueTrend` | GMV snapshots and windowed trend (`windows[].value` = revenue) |
 
 ---
 

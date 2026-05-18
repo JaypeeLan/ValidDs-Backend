@@ -20,8 +20,8 @@ properties:
     description: Source-specific external identifier.
   source:
     type: string
-    enum: [scarper, manual]
-    description: Ingestion source.
+    description: Ingestion pipeline source.
+    example: tiktok
   status:
     type: string
     enum: [active, review, invalid]
@@ -207,7 +207,35 @@ properties:
   totalGmv:
     type: number
     minimum: 0
-    description: Total gross merchandise value.
+    description: Total gross merchandise value (GMV).
+
+  salesHistory:
+    type: array
+    description: Snapshots of `totalSales` over time (detail responses).
+    items:
+      $ref: ./MetricTrend.yaml#/SalesHistoryEntry
+
+  salesTrend:
+    allOf:
+      - $ref: ./MetricTrend.yaml#/MetricTrend
+    nullable: true
+    description: Windowed view of unit sales (`windows[].value` = units).
+
+  revenueHistory:
+    type: array
+    description: Snapshots of `totalGmv` over time (detail responses).
+    items:
+      $ref: ./MetricTrend.yaml#/RevenueHistoryEntry
+
+  revenueTrend:
+    allOf:
+      - $ref: ./MetricTrend.yaml#/MetricTrend
+    nullable: true
+    description: Windowed view of GMV (`windows[].value` = revenue).
+
+  commentCount:
+    type: integer
+    minimum: 0
 
   viewCount:
     type: integer
@@ -252,7 +280,9 @@ properties:
 
   aiInsight:
     type: object
-    description: AI-derived product intelligence (transformed from raw extraction).
+    description: |
+      Client-facing AI intelligence (`aiIntelligence` reshaped on read).
+      `marketingAnalysis` and extended fields are populated on `GET /products/:id`; feed cards usually omit `marketingAnalysis`.
     properties:
       confidence:
         type: object
@@ -261,7 +291,6 @@ properties:
             type: number
             minimum: 0
             maximum: 100
-            description: How confident the AI is this is a real product.
           reason:
             type: string
       buyingSentiment:
@@ -271,9 +300,34 @@ properties:
             type: number
             minimum: 0
             maximum: 100
-            description: Percentage of comments expressing buying intent.
           reason:
             type: string
+      marketingAnalysis:
+        allOf:
+          - $ref: ./MarketingAnalysis.yaml
+        nullable: true
+      brand:
+        type: string
+        example: Angel Beyond
+      niche:
+        type: string
+        example: Plus-size activewear
+      audience:
+        type: array
+        items: { type: string }
+      productType:
+        type: string
+        enum: [evergreen, trend-driven, seasonal, unknown]
+      priceBand:
+        type: string
+        enum: [budget, mid-range, premium]
+      problemStatement:
+        type: string
+      valueStatement:
+        type: string
+      extractedAt:
+        type: string
+        format: date-time
 
   trend:
     type: object
@@ -310,6 +364,10 @@ properties:
   shopUrl:
     type: string
     format: uri
+  shopAvatarUrl:
+    type: string
+    format: uri
+    nullable: true
   shopFollowers:
     type: integer
     minimum: 0
@@ -323,9 +381,19 @@ properties:
     type: string
     format: uri
 
+  creativeCounts:
+    type: object
+    nullable: true
+    properties:
+      ads: { type: integer }
+      organic: { type: integer }
+      reviews: { type: integer }
+      total: { type: integer }
+
   validationStatus:
     type: string
-    example: pending
+    description: QA pipeline status (separate from catalog `status`).
+    example: active
 
   lastIngestedAt:
     type: string

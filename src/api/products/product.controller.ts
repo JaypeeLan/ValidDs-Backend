@@ -3,7 +3,7 @@ import { ProductService } from '../../services/product.service';
 import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
-import type { ProductApiResponse } from '../../types/product.types';
+import type { ProductApiResponse, ProductFeedItem } from '../../types/product.types';
 import {
   enrichProductsWithCreatorAvatars,
   normalizePrimaryCreatorOnProduct,
@@ -15,6 +15,15 @@ type ProductLike = Record<string, unknown> & {
     confidenceReason?: string;
     buyingSentimentScore?: number;
     buyingSentimentReason?: string;
+    marketingAnalysis?: Record<string, unknown> | null;
+    brand?: string;
+    niche?: string;
+    audience?: string[];
+    productType?: string;
+    priceBand?: string;
+    problemStatement?: string;
+    valueStatement?: string;
+    extractedAt?: string | Date;
   };
   trend?: {
     direction?: string;
@@ -53,6 +62,68 @@ async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, 
 // Removed getProfileCountryCode — market is now determined by attachMarketModels middleware
 // which reads req.user.contentRegion and resolves req.models to the correct per-market collection.
 
+function maxCompetitorScore(suppliers: unknown): number | null {
+  if (!Array.isArray(suppliers)) return null;
+  let max: number | null = null;
+  for (const row of suppliers) {
+    const score = Number((row as { competitorScore?: number })?.competitorScore);
+    if (Number.isFinite(score) && (max === null || score > max)) max = score;
+  }
+  return max;
+}
+
+/** Lean payload for discovery product cards (`GET /products`). */
+function formatProductFeedItem(input: ProductLike): ProductFeedItem {
+  const product = typeof input.toObject === 'function' ? input.toObject() : input;
+  const aiIntelligence = (product.aiIntelligence ?? {}) as NonNullable<ProductLike['aiIntelligence']>;
+  const trend = (product.trend ?? {}) as NonNullable<ProductLike['trend']>;
+  const ratingSources = Array.isArray((product as any).ratingSources) ? (product as any).ratingSources : [];
+  const derivedRating = deriveAverageRatingFromSources(ratingSources);
+  const finalRating =
+    typeof (product as any).rating === 'number' && (product as any).rating > 0
+      ? (product as any).rating
+      : derivedRating;
+  const discoverySections = Array.isArray((product as any).discoverySections)
+    ? ((product as any).discoverySections as string[])
+    : [];
+
+  const item: ProductFeedItem = {
+    id: String((product as any)._id ?? (product as any).id),
+    title: String(product.title ?? ''),
+    primaryImageUrl: (product as any).primaryImageUrl,
+    price: (product as any).price,
+    currency: (product as any).currency,
+    categoryL1: String((product as any).categoryL1 ?? ''),
+    categoryPath: (product as any).categoryPath,
+    rating: finalRating,
+    ratings: finalRating,
+    totalSales: (product as any).totalSales,
+    totalGmv: (product as any).totalGmv,
+    salesTrend: (product as any).salesTrend ?? null,
+    shopName: (product as any).shopName,
+    shopAvatarUrl: (product as any).shopAvatarUrl ?? null,
+    lastIngestedAt: (product as any).lastIngestedAt,
+    isTopAd: discoverySections.includes('top-ads'),
+    competitionScore: maxCompetitorScore((product as any).suppliers),
+    aiInsight: {
+      confidence: { score: aiIntelligence.confidence },
+      buyingSentiment: { score: aiIntelligence.buyingSentimentScore },
+    },
+    trend: {
+      score: trend.score,
+      direction: trend.direction,
+      isTrending: Boolean(trend.isTrending),
+    },
+  };
+
+  if (product.primaryCreator) {
+    item.primaryCreator = { ...(product.primaryCreator as object) } as ProductFeedItem['primaryCreator'];
+    normalizePrimaryCreatorOnProduct(item as Record<string, unknown>);
+  }
+
+  return item;
+}
+
 function formatProductResponse(input: ProductLike): ProductApiResponse {
   const product = typeof input.toObject === 'function' ? input.toObject() : input;
   const aiIntelligence = (product.aiIntelligence ?? {}) as NonNullable<ProductLike['aiIntelligence']>;
@@ -85,6 +156,15 @@ function formatProductResponse(input: ProductLike): ProductApiResponse {
         score: aiIntelligence.buyingSentimentScore,
         reason: aiIntelligence.buyingSentimentReason,
       },
+      marketingAnalysis: aiIntelligence.marketingAnalysis ?? null,
+      brand: aiIntelligence.brand,
+      niche: aiIntelligence.niche,
+      audience: aiIntelligence.audience,
+      productType: aiIntelligence.productType,
+      priceBand: aiIntelligence.priceBand,
+      problemStatement: aiIntelligence.problemStatement,
+      valueStatement: aiIntelligence.valueStatement,
+      extractedAt: aiIntelligence.extractedAt,
     },
   } as Record<string, unknown>;
 
@@ -141,7 +221,7 @@ export const ProductController = {
         res.json(
           successResponse(
             {
-              products: searchPlains.map(formatProductResponse),
+              products: searchPlains.map(formatProductFeedItem),
               pagination: results.pagination,
               freshness,
             },
@@ -171,7 +251,7 @@ export const ProductController = {
       res.json(
         successResponse(
           {
-            products: feedPlains.map(formatProductResponse),
+            products: feedPlains.map(formatProductFeedItem),
             pagination: feed.pagination,
             freshness,
           },

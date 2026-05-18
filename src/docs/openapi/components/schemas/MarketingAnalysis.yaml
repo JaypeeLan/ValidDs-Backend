@@ -1,0 +1,45 @@
+type: object
+required:
+  - primaryGender
+  - topAgeGroups
+  - topRegions
+  - accessibilityTags
+  - lifestyleSegments
+  - incomeLevel
+  - purchaseIntent
+  - contentFormat
+  - marketingInsight
+  - analyzedAt
+properties:
+  primaryGender:
+    type: string
+    enum: [female, male, mixed, unisex]
+  topAgeGroups:
+    type: array
+    items: { type: string }
+    example: ["25-34", "18-24"]
+  topRegions:
+    type: array
+    items: { type: string }
+    example: [US, UK, Canada]
+  accessibilityTags:
+    type: array
+    items: { type: string }
+  lifestyleSegments:
+    type: array
+    items: { type: string }
+  incomeLevel:
+    type: string
+    enum: [budget, mid-range, premium, luxury]
+  purchaseIntent:
+    type: string
+    enum: [impulse, considered, habitual, gifting]
+  contentFormat:
+    type: string
+    enum: [tutorial, lifestyle, entertainment, review, comparison]
+  marketingInsight:
+    type: string
+    description: Actionable positioning summary for ads and landing pages.
+  analyzedAt:
+    type: string
+    format: date-time

@@ -74,7 +74,7 @@ feed:
                         products:
                           type: array
                           items:
-                            $ref: '../components/schemas/Product.yaml'
+                            $ref: '../components/schemas/ProductFeedItem.yaml'
                         pagination:
                           type: object
                         freshness:

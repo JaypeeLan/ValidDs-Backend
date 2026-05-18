@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { runStaleCleanupJob } from '../../jobs/product-refresh.job';
 import {
   getJobsStatus,
+  isBackgroundJobsEnabled,
   triggerCreativeIngestionJob,
   triggerLiveMonitorDiscoverJob,
   triggerProductIngestionJob,
@@ -11,6 +12,16 @@ import { logger } from '../../logger';
 import { successResponse } from '../../utils/response.util';
 
 const log = logger.child({ module: 'jobs-controller' });
+
+function respondJobsDisabled(res: Response): void {
+  res.status(503).json({
+    success: false,
+    error: {
+      code: 'JOBS_DISABLED',
+      message: 'Background jobs are disabled. Set ENABLE_BACKGROUND_JOBS=true to run schedulers.',
+    },
+  });
+}
 
 /**
  * Jobs Controller
@@ -50,6 +61,10 @@ export const JobsController = {
    * Triggers the full product refresh pipeline (Ingestion -> AI -> Enrichment -> DB).
    */
   async triggerProductRefresh(req: Request, res: Response): Promise<void> {
+    if (!isBackgroundJobsEnabled()) {
+      respondJobsDisabled(res);
+      return;
+    }
     log.info('Manual product refresh triggered via API', {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
@@ -73,6 +88,10 @@ export const JobsController = {
    * 00:00 Africa/Lagos cron.
    */
   async triggerProductIngestion(req: Request, res: Response): Promise<void> {
+    if (!isBackgroundJobsEnabled()) {
+      respondJobsDisabled(res);
+      return;
+    }
     log.info('Manual product ingestion triggered via API');
 
     const trigger = triggerProductIngestionJob();
@@ -90,6 +109,10 @@ export const JobsController = {
    * single pass. Same code path as the 12-hour (00:00 / 12:00 Africa/Lagos) cron.
    */
   async triggerCreativeIngestion(req: Request, res: Response): Promise<void> {
+    if (!isBackgroundJobsEnabled()) {
+      respondJobsDisabled(res);
+      return;
+    }
     log.info('Manual creative ingestion triggered via API');
 
     const trigger = triggerCreativeIngestionJob();
@@ -107,6 +130,10 @@ export const JobsController = {
    * Same code path as the hourly in-process cron.
    */
   async triggerLiveMonitorDiscover(req: Request, res: Response): Promise<void> {
+    if (!isBackgroundJobsEnabled()) {
+      respondJobsDisabled(res);
+      return;
+    }
     log.info('Manual live monitor discover triggered via API');
 
     const trigger = triggerLiveMonitorDiscoverJob();
@@ -123,6 +150,10 @@ export const JobsController = {
    * Triggers the DB stale data cleanup.
    */
   async triggerStaleCleanup(req: Request, res: Response): Promise<void> {
+    if (!isBackgroundJobsEnabled()) {
+      respondJobsDisabled(res);
+      return;
+    }
     log.info('Manual stale cleanup triggered via API');
     
     await runStaleCleanupJob();

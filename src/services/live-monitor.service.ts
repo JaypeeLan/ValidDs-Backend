@@ -110,6 +110,15 @@ export const LiveMonitorService = {
   },
 
   /**
+   * No-op — full watchlist discovery was removed with TrackedStore.
+   * Kept so schedulers and `POST /jobs/live-monitor-discover` still compile and exit cleanly.
+   */
+  async discover(): Promise<DiscoverResult> {
+    log.debug('discover() skipped — TrackedStore removed');
+    return { live: [], ended: [], liveCount: 0, totalChecked: 0 };
+  },
+
+  /**
    * No-op stub — watchlist routes have been removed.
    * Kept to avoid breaking any existing callers at compile time.
    */

@@ -77,11 +77,19 @@ analyticsUsers:
 analyticsProducts:
   get:
     summary: Product Analytics
-    description: Returns overview of the product ingestion pipeline and category breakdown.
+    description: Returns overview of the product ingestion pipeline and category breakdown. Optionally filtered to a single market.
     tags:
       - Admin
     security:
       - BearerAuth: []
+    parameters:
+      - in: query
+        name: market
+        required: false
+        schema:
+          type: string
+          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+        description: Filter analytics to a specific market. Omit for all markets.
     responses:
       '200':
         description: Successful response
@@ -110,10 +118,19 @@ analyticsCreatives:
     description: |
       Returns TikTok creative (video) inventory: document counts, total video slots (primary + related),
       ingestion in the last 24h, breakdown by feed section, ads vs organic, and top L1 categories.
+      Optionally filtered to a single market.
     tags:
       - Admin
     security:
       - BearerAuth: []
+    parameters:
+      - in: query
+        name: market
+        required: false
+        schema:
+          type: string
+          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+        description: Filter analytics to a specific market. Omit for all markets.
     responses:
       '200':
         description: Successful response
@@ -203,6 +220,12 @@ users:
           type: string
           enum: [free, trial, pro, team, starter, validator, scale]
       - in: query
+        name: role
+        schema:
+          type: string
+          enum: [user, admin]
+        description: Filter by user role
+      - in: query
         name: q
         schema:
           type: string
@@ -225,60 +248,6 @@ users:
                       type: array
                       items:
                         $ref: '../components/schemas/User.yaml'
-                    pagination:
-                      $ref: '../components/schemas/Common.yaml#/Pagination'
-
-products:
-  get:
-    summary: List Products
-    description: Returns a paginated list of products with filtering options.
-    tags:
-      - Admin
-    security:
-      - BearerAuth: []
-    parameters:
-      - in: query
-        name: page
-        schema:
-          type: integer
-          default: 1
-      - in: query
-        name: limit
-        schema:
-          type: integer
-          default: 20
-      - in: query
-        name: status
-        schema:
-          type: string
-          enum: [active, archived, stale]
-      - in: query
-        name: source
-        schema:
-          type: string
-      - in: query
-        name: q
-        schema:
-          type: string
-        description: Search by title or description
-    responses:
-      '200':
-        description: Successful response
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                data:
-                  type: object
-                  properties:
-                    products:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/Product.yaml'
                     pagination:
                       $ref: '../components/schemas/Common.yaml#/Pagination'
 
@@ -330,20 +299,244 @@ userStatusUpdate:
       '200':
         $ref: '../components/schemas/Common.yaml#/SuccessResponse'
 
+products:
+  get:
+    summary: List Products
+    description: Returns a paginated list of products for a given market with filtering options.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: market
+        required: true
+        schema:
+          type: string
+          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+        description: Market/region to query products from
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 20
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum: [active, archived, stale]
+      - in: query
+        name: source
+        schema:
+          type: string
+        description: Filter by ingestion source
+      - in: query
+        name: category
+        schema:
+          type: string
+        description: Filter by categoryL1
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Search by title or description
+    responses:
+      '200':
+        description: Successful response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    products:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/Product.yaml'
+                    pagination:
+                      $ref: '../components/schemas/Common.yaml#/Pagination'
+
+  post:
+    summary: Create Product
+    description: Manually add a product to a market collection.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [market, title, categoryL1]
+            properties:
+              market:
+                type: string
+                enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+              title:
+                type: string
+                maxLength: 120
+              categoryL1:
+                type: string
+              categoryL2:
+                type: string
+              categoryL3:
+                type: string
+              description:
+                type: string
+                maxLength: 2000
+              price:
+                type: number
+                minimum: 0
+              currency:
+                type: string
+                default: USD
+              primaryImageUrl:
+                type: string
+                format: uri
+              source:
+                type: string
+                enum: [scarper, manual]
+                default: manual
+              status:
+                type: string
+                enum: [active, review, invalid]
+                default: review
+    responses:
+      '201':
+        description: Product created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    product:
+                      $ref: '../components/schemas/Product.yaml'
+
 productDelete:
   delete:
     summary: Delete Product
-    description: Permanently delete a product.
+    description: Permanently delete a product from a specific market collection.
     tags:
       - Admin
     security:
       - BearerAuth: []
     parameters:
       - in: path
-        name: productId
+        name: id
         required: true
         schema:
           type: string
+        description: MongoDB ObjectId of the product
+      - in: query
+        name: market
+        required: true
+        schema:
+          type: string
+          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+        description: Market collection the product belongs to
+    responses:
+      '200':
+        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+
+creatives:
+  post:
+    summary: Create Creative
+    description: Manually add a TikTok creative video to a market collection.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [market, externalVideoId]
+            properties:
+              market:
+                type: string
+                enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+              externalVideoId:
+                type: string
+                description: TikTok video ID
+              productId:
+                type: string
+                description: MongoDB ObjectId of linked product (optional)
+              videoPlayUrl:
+                type: string
+                format: uri
+              thumbnailUrl:
+                type: string
+                format: uri
+              isAd:
+                type: boolean
+                default: false
+              section:
+                type: string
+                enum: [trending, top-ads, influencer-reviews, tutorials, viral-unboxings]
+              creatorHandle:
+                type: string
+              description:
+                type: string
+                maxLength: 2000
+    responses:
+      '201':
+        description: Creative created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                data:
+                  type: object
+                  properties:
+                    creative:
+                      $ref: '../components/schemas/Creative.yaml'
+
+creativeDelete:
+  delete:
+    summary: Delete Creative
+    description: Permanently delete a creative from a specific market collection.
+    tags:
+      - Admin
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: MongoDB ObjectId of the creative
+      - in: query
+        name: market
+        required: true
+        schema:
+          type: string
+          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+        description: Market collection the creative belongs to
     responses:
       '200':
         $ref: '../components/schemas/Common.yaml#/SuccessResponse'

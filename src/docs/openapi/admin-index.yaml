@@ -37,8 +37,12 @@ paths:
     $ref: ./paths/admin.yaml#/userStatusUpdate
   /api/v1/admin/products:
     $ref: ./paths/admin.yaml#/products
-  /api/v1/admin/products/{productId}:
+  /api/v1/admin/products/{id}:
     $ref: ./paths/admin.yaml#/productDelete
+  /api/v1/admin/creatives:
+    $ref: ./paths/admin.yaml#/creatives
+  /api/v1/admin/creatives/{id}:
+    $ref: ./paths/admin.yaml#/creativeDelete
   /api/v1/admin/transactions:
     $ref: ./paths/admin.yaml#/transactions
   /api/v1/admin/waitlist:
@@ -64,3 +68,5 @@ components:
       $ref: ./components/schemas/User.yaml
     Product:
       $ref: ./components/schemas/Product.yaml
+    Creative:
+      $ref: ./components/schemas/Creative.yaml

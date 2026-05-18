@@ -6,6 +6,8 @@ import { getJobsStatus } from '../../jobs/index';
 import { User } from '../../models/user.model';
 import { Product } from '../../models/product.model';
 import { Creative } from '../../models/creative.model';
+import { getMarketModels } from '../../models/market-models.factory';
+import { MARKET_CODES, toMarketCode, type MarketCode } from '../../utils/markets';
 import { successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
 import type {
@@ -17,6 +19,11 @@ import type {
   AdminProductIdParamInput,
   AdminProductsQueryInput,
   AdminWaitlistQueryInput,
+  AdminProductsQueryV2Input,
+  AdminDeleteContentParamInput,
+  AdminCreateProductInput,
+  AdminCreateCreativeInput,
+  AdminAnalyticsQueryInput,
 } from './admin.validator';
 import { TransactionService } from '../../services/transaction.service';
 import { WaitlistService } from '../../services/waitlist.service';
@@ -105,40 +112,48 @@ export const getUserAnalytics = async (req: Request, res: Response, next: NextFu
 
 export const getProductAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const totalProducts = await Product.countDocuments();
-
-    // Products ingested in the last 24h
+    const query = req.query as unknown as AdminAnalyticsQueryInput;
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const freshProducts = await Product.countDocuments({ lastIngestedAt: { $gte: oneDayAgo } });
 
-    // Breakdown by source
-    const sourceAggregation = await Product.aggregate([
-      { $group: { _id: '$source', count: { $sum: 1 } } }
-    ]);
-    const productsBySource = sourceAggregation.reduce((acc, curr) => {
-      acc[curr._id || 'unknown'] = curr.count;
-      return acc;
-    }, {} as Record<string, number>);
+    // If a specific market is requested, query only that collection.
+    // Otherwise aggregate across all markets.
+    const markets: MarketCode[] = query.market ? [query.market as MarketCode] : [...MARKET_CODES];
 
-    // Breakdown by Top Level Category
-    const categoryAggregation = await Product.aggregate([
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ]);
-    const topCategories = categoryAggregation.reduce((acc, curr) => {
-      acc[curr._id || 'Uncategorized'] = curr.count;
-      return acc;
-    }, {} as Record<string, number>);
+    let totalProducts = 0;
+    let freshProducts = 0;
+    const productsBySource: Record<string, number> = {};
+    const topCategoriesAcc: Record<string, number> = {};
 
+    await Promise.all(markets.map(async (market) => {
+      const { Product: MarketProduct } = getMarketModels(market);
+      const [total, fresh, sourceAgg, catAgg] = await Promise.all([
+        MarketProduct.countDocuments(),
+        MarketProduct.countDocuments({ lastIngestedAt: { $gte: oneDayAgo } }),
+        MarketProduct.aggregate([{ $group: { _id: '$source', count: { $sum: 1 } } }]),
+        MarketProduct.aggregate([
+          { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 10 },
+        ]),
+      ]);
+      totalProducts += total;
+      freshProducts += fresh;
+      for (const { _id, count } of sourceAgg) productsBySource[_id || 'unknown'] = (productsBySource[_id || 'unknown'] ?? 0) + count;
+      for (const { _id, count } of catAgg)    topCategoriesAcc[_id || 'Uncategorized'] = (topCategoriesAcc[_id || 'Uncategorized'] ?? 0) + count;
+    }));
+
+    const topCategories = Object.fromEntries(
+      Object.entries(topCategoriesAcc).sort(([, a], [, b]) => b - a).slice(0, 10)
+    );
 
     res.json({
       success: true,
       data: {
+        markets: query.market ? [query.market] : MARKET_CODES,
         totalProducts,
         freshProducts24h: freshProducts,
         productsBySource,
-        topCategories
+        topCategories,
       }
     });
   } catch (err) {
@@ -146,59 +161,60 @@ export const getProductAnalytics = async (req: Request, res: Response, next: Nex
   }
 };
 
-export const getCreativeAnalytics = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getCreativeAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const totalCreatives = await Creative.countDocuments();
-
+    const query = req.query as unknown as AdminAnalyticsQueryInput;
+    const markets: MarketCode[] = query.market ? [query.market as MarketCode] : [...MARKET_CODES];
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const freshCreatives24h = await Creative.countDocuments({ ingestedAt: { $gte: oneDayAgo } });
 
-    const [adsCount, organicCount] = await Promise.all([
-      Creative.countDocuments({ isAd: true }),
-      Creative.countDocuments({ isAd: false }),
-    ]);
+    let totalCreatives = 0;
+    let freshCreatives24h = 0;
+    let adsCount = 0;
+    let organicCount = 0;
+    let totalVideos = 0;
+    const creativesBySection: Record<string, number> = {};
+    const topCategoriesAcc: Record<string, number> = {};
 
-    const sectionAggregation = await Creative.aggregate([
-      { $group: { _id: '$section', count: { $sum: 1 } } },
-    ]);
-    const creativesBySection = sectionAggregation.reduce((acc, curr) => {
-      acc[curr._id || 'unknown'] = curr.count;
-      return acc;
-    }, {} as Record<string, number>);
+    await Promise.all(markets.map(async (market) => {
+      const { Creative: MarketCreative } = getMarketModels(market);
+      const [total, fresh, ads, organic, sectionAgg, catAgg, videoRows] = await Promise.all([
+        MarketCreative.countDocuments(),
+        MarketCreative.countDocuments({ ingestedAt: { $gte: oneDayAgo } }),
+        MarketCreative.countDocuments({ isAd: true }),
+        MarketCreative.countDocuments({ isAd: false }),
+        MarketCreative.aggregate([{ $group: { _id: '$section', count: { $sum: 1 } } }]),
+        MarketCreative.aggregate([
+          { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 10 },
+        ]),
+        MarketCreative.aggregate([
+          { $project: { videoCount: { $add: [1, { $size: { $ifNull: ['$relatedVideos', []] } }] } } },
+          { $group: { _id: null, totalVideos: { $sum: '$videoCount' } } },
+        ]),
+      ]);
+      totalCreatives += total;
+      freshCreatives24h += fresh;
+      adsCount += ads;
+      organicCount += organic;
+      totalVideos += videoRows[0]?.totalVideos ?? 0;
+      for (const { _id, count } of sectionAgg) creativesBySection[_id || 'unknown'] = (creativesBySection[_id || 'unknown'] ?? 0) + count;
+      for (const { _id, count } of catAgg)     topCategoriesAcc[_id || 'Uncategorized'] = (topCategoriesAcc[_id || 'Uncategorized'] ?? 0) + count;
+    }));
 
-    const categoryAggregation = await Creative.aggregate([
-      { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 },
-    ]);
-    const topCategories = categoryAggregation.reduce((acc, curr) => {
-      acc[curr._id || 'Uncategorized'] = curr.count;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const videoTotalRows = await Creative.aggregate([
-      {
-        $project: {
-          videoCount: {
-            $add: [1, { $size: { $ifNull: ['$relatedVideos', []] } }],
-          },
-        },
-      },
-      { $group: { _id: null, totalVideos: { $sum: '$videoCount' } } },
-    ]);
-    const totalVideos = videoTotalRows[0]?.totalVideos ?? 0;
+    const topCategories = Object.fromEntries(
+      Object.entries(topCategoriesAcc).sort(([, a], [, b]) => b - a).slice(0, 10)
+    );
 
     res.json({
       success: true,
       data: {
+        markets: query.market ? [query.market] : MARKET_CODES,
         totalCreatives,
         totalVideos,
         freshCreatives24h,
         creativesBySection,
-        creativesByAdType: {
-          ads: adsCount,
-          organic: organicCount,
-        },
+        creativesByAdType: { ads: adsCount, organic: organicCount },
         topCategories,
       },
     });
@@ -209,39 +225,34 @@ export const getCreativeAnalytics = async (_req: Request, res: Response, next: N
 
 export const listProducts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const query = req.query as unknown as AdminProductsQueryInput;
+    const query = req.query as unknown as AdminProductsQueryV2Input;
+    const market = toMarketCode(query.market);
+    const { Product: MarketProduct } = getMarketModels(market);
+
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
     const filter: Record<string, unknown> = {};
-    if (query.status) filter.status = query.status;
-    if (query.source) filter.source = query.source;
-    if (query.category) filter.category = query.category;
+    if (query.status)   filter.status = query.status;
+    if (query.source)   filter.source = query.source;
+    if (query.category) filter.categoryL1 = query.category;
     if (query.q) {
       const regex = new RegExp(query.q, 'i');
-      filter.$or = [{ title: regex }, { description: regex }, { tags: { $in: [regex] } }];
+      filter.$or = [{ title: regex }, { description: regex }];
     }
 
     const [products, total] = await Promise.all([
-      Product.find(filter)
-        .sort({ lastIngestedAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      Product.countDocuments(filter),
+      MarketProduct.find(filter).sort({ lastIngestedAt: -1 }).skip(skip).limit(limit).lean(),
+      MarketProduct.countDocuments(filter),
     ]);
 
     res.json(
       successResponse(
         {
+          market,
           products,
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages: Math.max(1, Math.ceil(total / limit)),
-          },
+          pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
         },
         'Products retrieved successfully.'
       )
@@ -388,20 +399,110 @@ export const deleteUser = async (req: Request, res: Response, next: NextFunction
 
 export const deleteProduct = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { productId } = req.params as unknown as AdminProductIdParamInput;
+    const { id } = req.params as unknown as AdminDeleteContentParamInput;
+    const market = toMarketCode((req.query as any).market);
+    const { Product: MarketProduct } = getMarketModels(market);
 
-    const product = await Product.findById(productId);
+    const product = await MarketProduct.findById(id);
     if (!product) {
       throw new AppError(404, 'Product not found', 'PRODUCT_NOT_FOUND');
     }
 
-    await Product.findByIdAndDelete(productId);
+    await MarketProduct.findByIdAndDelete(id);
 
     res.json(
-      successResponse(
-        { id: productId },
-        'Product permanently deleted successfully.'
-      )
+      successResponse({ id, market }, 'Product permanently deleted successfully.')
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Admin content creation ────────────────────────────────────────────────────
+
+export const createProduct = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const body = req.body as AdminCreateProductInput;
+    const market = toMarketCode(body.market);
+    const { Product: MarketProduct } = getMarketModels(market);
+
+    const now = new Date();
+    const normalizedTitle = body.title.trim().toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ');
+
+    const product = await MarketProduct.create({
+      externalId:      body.externalId,
+      source:          body.source ?? 'admin',
+      status:          'review',
+      title:           body.title,
+      normalizedTitle,
+      description:     body.description ?? '',
+      categoryL1:      body.categoryL1,
+      categoryL2:      body.categoryL2 ?? '',
+      categoryPath:    body.categoryL2 ? `${body.categoryL1} > ${body.categoryL2}` : body.categoryL1,
+      price:           body.price ?? 0,
+      currency:        body.currency ?? 'USD',
+      productUrl:      body.productUrl ?? '',
+      primaryImageUrl: body.primaryImageUrl ?? '',
+      shopName:        body.shopName ?? '',
+      validationStatus: 'pending',
+      lastIngestedAt:      now,
+      dataSourceUpdatedAt: now,
+      aiIntelligence: {
+        confidence: 0,
+        confidenceReason: 'Manually created by admin',
+        extractedAt: now,
+      },
+      trend: { score: 0, direction: 'unknown', isTrending: false, calculatedAt: now },
+    });
+
+    res.status(201).json(
+      successResponse({ market, product }, 'Product created successfully.')
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createCreative = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const body = req.body as AdminCreateCreativeInput;
+    const market = toMarketCode(body.market);
+    const { Creative: MarketCreative } = getMarketModels(market);
+
+    const creative = await MarketCreative.create({
+      externalVideoId: body.externalVideoId,
+      productId:       body.productId ? new mongoose.Types.ObjectId(body.productId) : undefined,
+      videoPlayUrl:    body.videoPlayUrl ?? '',
+      thumbnailUrl:    body.thumbnailUrl ?? '',
+      isAd:            body.isAd ?? false,
+      section:         body.section ?? 'ads',
+      description:     body.description ?? '',
+      creator: body.creatorHandle ? { handle: body.creatorHandle, followers: 0 } : undefined,
+      metrics:    { viewCount: 0, likeCount: 0, commentCount: 0, shareCount: 0 },
+      ingestedAt: new Date(),
+    });
+
+    res.status(201).json(
+      successResponse({ market, creative }, 'Creative created successfully.')
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteCreative = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params as unknown as AdminDeleteContentParamInput;
+    const market = toMarketCode((req.query as any).market);
+    const { Creative: MarketCreative } = getMarketModels(market);
+
+    const creative = await MarketCreative.findByIdAndDelete(id);
+    if (!creative) {
+      throw new AppError(404, 'Creative not found', 'CREATIVE_NOT_FOUND');
+    }
+
+    res.json(
+      successResponse({ id, market }, 'Creative permanently deleted successfully.')
     );
   } catch (err) {
     next(err);

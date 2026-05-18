@@ -76,7 +76,7 @@ const SecondaryVideoSchema = new Schema<ISecondaryVideo>(
 
 // ── Main schema ───────────────────────────────────────────────────────────────
 
-const CreativeSchema = new Schema<ICreativeDocument>(
+export const CreativeSchema = new Schema<ICreativeDocument>(
   {
     productId:       { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
     externalVideoId: { type: String, required: true, unique: true },

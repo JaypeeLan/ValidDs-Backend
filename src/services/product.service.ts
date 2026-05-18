@@ -1,6 +1,6 @@
 import { ProductRepository, ProductFeedFilters } from '../db/repositories/product.repository';
 import { PRODUCT_CATEGORIES, SUBCATEGORIES_BY_CATEGORY, CATEGORY_TAXONOMY } from '../api/products/product.constants';
-import { IProductDocument } from '../models/product.model';
+import { IProductDocument, IProductModel } from '../models/product.model';
 import { FreshnessService } from '../freshness/freshness.service';
 import { CacheService } from '../cache/cache.service';
 import { CacheKeys, CACHE_TTL } from '../cache/cache.keys';
@@ -20,7 +20,11 @@ export const ProductService = {
    * Get the product feed with optional filters.
    * Cached in Redis for 5 minutes.
    */
-  async getFeed(filters: ProductFeedFilters): Promise<{
+  async getFeed(
+    filters: ProductFeedFilters,
+    /** Market-specific Product model from req.models.Product. Defaults to global model (US). */
+    productModel?: IProductModel,
+  ): Promise<{
     feed: PaginatedResponse<IProductDocument>;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
   }> {
@@ -32,7 +36,7 @@ export const ProductService = {
 
     let feed = await CacheService.get<PaginatedResponse<IProductDocument>>(cacheKey);
     if (feed === null) {
-      feed = await ProductRepository.findFeed(filters);
+      feed = await ProductRepository.findFeed(filters, productModel);
       // Do not cache an empty page — avoids locking in "no products" for 5m after deploy or ingestion lag.
       if (feed.pagination.total > 0) {
         await CacheService.set(cacheKey, feed, CACHE_TTL.PRODUCT_FEED);
@@ -51,7 +55,11 @@ export const ProductService = {
   /**
    * Get a single product by its MongoDB ID.
    */
-  async getById(id: string): Promise<{
+  async getById(
+    id: string,
+    /** Market-specific Product model from req.models.Product. Defaults to global model (US). */
+    productModel?: IProductModel,
+  ): Promise<{
     product: IProductDocument;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
   }> {
@@ -61,7 +69,7 @@ export const ProductService = {
       cacheKey,
       CACHE_TTL.PRODUCT_DETAIL,
       async () => {
-        const p = await ProductRepository.findById(id);
+        const p = await ProductRepository.findById(id, productModel);
         if (!p) throw new NotFoundError('Product');
         return p;
       }
@@ -97,9 +105,11 @@ export const ProductService = {
     category?: string[],
     page = 1,
     limit = 20,
-    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd' | 'sortBy'>
+    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd' | 'sortBy'>,
+    /** Market-specific Product model from req.models.Product. Defaults to global model (US). */
+    productModel?: IProductModel,
   ): Promise<PaginatedResponse<IProductDocument>> {
-    return ProductRepository.search(query, category, page, limit, discovery);
+    return ProductRepository.search(query, category, page, limit, discovery, productModel);
   },
 
   async keywordContext(params: {

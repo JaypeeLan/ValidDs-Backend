@@ -11,11 +11,16 @@ required:
   - isIndependentCreator
   - publishedAt
 properties:
+  _id:
+    type: string
+    description: MongoDB document ID (alias of `id`).
+    example: 60b9b3b3e2b4f9a0c8b2c1d3
   id:
     type: string
     example: 60b9b3b3e2b4f9a0c8b2c1d3
   productId:
     type: string
+    nullable: true
     example: 60b9b3b3e2b4f9a0c8b2c1d4
   externalVideoId:
     type: string
@@ -31,9 +36,16 @@ properties:
   thumbnailUrl:
     type: string
     format: uri
+    nullable: true
+
+  isAd:
+    type: boolean
+    description: Whether this creative is a paid advertisement (top-ads).
+    default: false
 
   creator:
     type: object
+    nullable: true
     required: [handle, followers, verified, tiktokPostUrl, isIndependentCreator]
     properties:
       handle:

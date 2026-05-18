@@ -233,10 +233,6 @@ properties:
     nullable: true
     description: Windowed view of GMV (`windows[].value` = revenue).
 
-  commentCount:
-    type: integer
-    minimum: 0
-
   viewCount:
     type: integer
     description: Views on the discovery post.

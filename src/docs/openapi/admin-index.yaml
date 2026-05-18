@@ -2,9 +2,11 @@ openapi: 3.0.3
 info:
   title: ValidDs Admin API
   description: |
-    OpenAPI for **`/api/v1/admin/*`**. All operations require **JWT** with **admin** role unless noted otherwise.
+    OpenAPI for **`/api/v1/admin/*`**. All operations require **JWT** with **admin** role.
 
-    Markdown reference: **`admin-docs/endpoints.md`** at the repository root.
+    **Multi-market:** Product and creative content is scoped by `market` (US, UK, …). List/delete use `?market=`; create passes `market` in the JSON body. Analytics accept optional `?market=` or aggregate all regions when omitted.
+
+    Markdown reference: **`admin-docs/endpoints.md`**. Interactive UI: **`/admin-docs`**.
   version: 1.0.0
   contact:
     name: ValidDs Support
@@ -70,3 +72,7 @@ components:
       $ref: ./components/schemas/Product.yaml
     Creative:
       $ref: ./components/schemas/Creative.yaml
+    MarketCode:
+      $ref: ./components/schemas/Admin.yaml#/MarketCode
+    AdminCreativeSection:
+      $ref: ./components/schemas/Admin.yaml#/AdminCreativeSection

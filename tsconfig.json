@@ -12,27 +12,7 @@
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "paths": {
-      "*": ["./*"],
-      "@config/*": ["./src/config/*"],
-      "@api/*": ["./src/api/*"],
-      "@services/*": ["./src/services/*"],
-      "@models/*": ["./src/models/*"],
-      "@middleware/*": ["./src/middleware/*"],
-      "@logger/*": ["./src/logger/*"],
-      "@monitoring/*": ["./src/monitoring/*"],
-      "@security/*": ["./src/security/*"],
-      "@cache/*": ["./src/cache/*"],
-      "@db/*": ["./src/db/*"],
-      "@utils/*": ["./src/utils/*"],
-      "@freshness/*": ["./src/freshness/*"],
-      "@ingestion/*": ["./src/ingestion/*"],
-      "@jobs/*": ["./src/jobs/*"],
-      "@queue/*": ["./src/queue/*"]
-    }
+    "sourceMap": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tests"]

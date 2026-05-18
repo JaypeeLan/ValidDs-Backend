@@ -49,17 +49,9 @@ async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, 
   ) as Record<string, unknown>[];
 }
 
-function getProfileCountryCode(req: Request): string {
-  if (!req.user) return 'us';
-  if (req.user.contentRegion) return req.user.contentRegion.toLowerCase();
-  const locale = req.user.locale;
-  if (locale && locale.includes('-')) {
-    return locale.split('-')[1].toLowerCase();
-  }
-  return 'us';
-}
-
 // Removed buildCreatorsVideos as 'topVideos' is deleted. It is now handled via the /creatives endpoint.
+// Removed getProfileCountryCode — market is now determined by attachMarketModels middleware
+// which reads req.user.contentRegion and resolves req.models to the correct per-market collection.
 
 function formatProductResponse(input: ProductLike): ProductApiResponse {
   const product = typeof input.toObject === 'function' ? input.toObject() : input;
@@ -132,17 +124,15 @@ export const ProductController = {
   async feed(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as ProductFeedQuery;
-
-      if (!query.region) {
-        query.region = getProfileCountryCode(req).toUpperCase();
-      }
+      // Market is determined by attachMarketModels (req.models.Product → products_us, products_uk, etc.)
+      // The collection IS the market — no userRegion filter needed.
 
       if (query.q) {
         const results = await ProductService.search(query.q, query.category, query.page, query.limit, {
           section: query.section,
           isAd: query.isAd,
           sortBy: query.sortBy,
-        });
+        }, req.models?.Product);
         const freshness = await FreshnessService.getResponseMetadata('product');
 
         const searchPlains = await enrichProductsWithCreatorAvatars(
@@ -154,7 +144,6 @@ export const ProductController = {
               products: searchPlains.map(formatProductResponse),
               pagination: results.pagination,
               freshness,
-              region: query.region,
             },
             ResponseMessage.PRODUCTS_RETRIEVED,
             200
@@ -174,8 +163,7 @@ export const ProductController = {
         page: query.page,
         limit: query.limit,
         sortBy: query.sortBy,
-        userRegion: query.region,
-      });
+      }, req.models?.Product);
 
       const feedPlains = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages(feed.data as unknown as ProductLike[]),
@@ -186,7 +174,6 @@ export const ProductController = {
             products: feedPlains.map(formatProductResponse),
             pagination: feed.pagination,
             freshness,
-            region: query.region,
           },
           ResponseMessage.PRODUCTS_RETRIEVED,
           200
@@ -200,7 +187,7 @@ export const ProductController = {
   async detail(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      const { product, freshness } = await ProductService.getById(id);
+      const { product, freshness } = await ProductService.getById(id, req.models?.Product);
       const [plain] = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages([product as unknown as ProductLike]),
       );
@@ -332,7 +319,7 @@ export const ProductController = {
   async keywordContext(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as ProductKeywordContextQuery;
-      const country = (query.country ?? getProfileCountryCode(req)).toLowerCase();
+      const country = (query.country ?? req.user?.contentRegion ?? 'US').toLowerCase();
       const result = await ProductService.keywordContext({
         ...query,
         country,

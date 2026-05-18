@@ -73,7 +73,7 @@ export const CreativeController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as CreativeListQuery;
-      const result = await CreativeService.findCreatives(query);
+      const result = await CreativeService.findCreatives(query, undefined, req.models?.Creative);
 
       res.json(
         successResponse(
@@ -94,7 +94,7 @@ export const CreativeController = {
   async listTopAds(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as CreativeTopAdsListQuery;
-      const result = await CreativeService.findCreatives(query, { isIndependentCreator: true });
+      const result = await CreativeService.findCreatives(query, { isIndependentCreator: true }, req.models?.Creative);
 
       res.json(
         successResponse(
@@ -115,7 +115,7 @@ export const CreativeController = {
   async detail(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      const creative = await CreativeService.getCreativeById(id);
+      const creative = await CreativeService.getCreativeById(id, req.models?.Creative);
 
       if (!creative) {
         throw new NotFoundError('Creative not found');

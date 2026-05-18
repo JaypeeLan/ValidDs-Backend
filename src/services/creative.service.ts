@@ -1,4 +1,5 @@
-import { Creative } from '../models/creative.model';
+import { Creative, type ICreativeDocument } from '../models/creative.model';
+import type { Model } from 'mongoose';
 import { logger } from '../logger';
 import mongoose from 'mongoose';
 
@@ -91,7 +92,12 @@ export const CreativeService = {
       return false;
   },
 
-  async findCreatives(filters: any, extraMatch?: Record<string, unknown>) {
+  async findCreatives(
+    filters: any,
+    extraMatch?: Record<string, unknown>,
+    /** Market-specific Creative model from req.models.Creative. Defaults to global model (US). */
+    creativeModel: Model<ICreativeDocument> = Creative,
+  ) {
     const { q, productId, section, isAd, region, minViews, hashtags, page = 1, limit = 20, sortBy = 'views', categoryL1, categoryL2, categoryL3 } = filters;
     const query: any = {};
     if (productId) query.productId = productId;
@@ -126,15 +132,19 @@ export const CreativeService = {
     const sort = sortMap[sortBy] ?? sortMap.views;
 
     const [rawData, total] = await Promise.all([
-      Creative.find(query).sort(sort).skip(skip).limit(mLimit).populate('productId', 'title thumbnailUrl'),
-      Creative.countDocuments(query),
+      creativeModel.find(query).sort(sort).skip(skip).limit(mLimit).populate('productId', 'title thumbnailUrl'),
+      creativeModel.countDocuments(query),
     ]);
     const data = rawData.map((doc) => this.formatWithAllVideos(doc));
     return { data, pagination: { total, page: Number(page), limit: mLimit, pages: Math.ceil(total / mLimit) } };
   },
 
-  async getCreativeById(id: string) {
-    const doc = await Creative.findById(id).populate('productId', 'title thumbnailUrl');
+  async getCreativeById(
+    id: string,
+    /** Market-specific Creative model from req.models.Creative. Defaults to global model (US). */
+    creativeModel: Model<ICreativeDocument> = Creative,
+  ) {
+    const doc = await creativeModel.findById(id).populate('productId', 'title thumbnailUrl');
     if (!doc) return null;
     return this.formatWithAllVideos(doc);
   },

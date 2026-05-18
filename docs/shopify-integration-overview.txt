@@ -1,0 +1,125 @@
+ValidDs + Shopify — what we've built and what's next
+
+A short overview for non-technical readers (product, operations, partners).
+
+
+WHAT WE WANTED
+--------------
+
+Let ValidDs users connect their own Shopify store to the platform, then send
+products they find in ValidDs into that store as Shopify listings—without
+copying titles, images, and prices by hand.
+
+
+WHAT WE'VE ACHIEVED (ALREADY BUILT)
+-----------------------------------
+
+1. "Link my Shopify store" in the app
+
+   - Signed-in users can open My Shopify in ValidDs.
+   - If they already have a store, they enter their shop address (for example
+     my-brand.myshopify.com) and start a secure Connect with Shopify flow.
+   - If they don't have a store yet, we can send them to Shopify's sign-up
+     page to create one, then they return to ValidDs to connect.
+
+2. Secure connection (one store per user)
+
+   - After the merchant approves access on Shopify's side, ValidDs saves the
+     link between that user's account and their shop.
+   - The connection is stored securely (access details are encrypted; we
+     don't expose secrets in the app or API).
+   - Users can see whether they're connected or not, and basic shop info
+     (name, admin link).
+   - Users can disconnect from ValidDs when they want (they may still need to
+     remove the app inside Shopify for a full unlink).
+
+3. Push a product from ValidDs to Shopify
+
+   - From a product detail view (when the store is connected), users can push
+     a ValidDs product into their Shopify catalog.
+   - The product is created in Shopify (typically as a draft so the merchant
+     can review before publishing).
+   - They can optionally set a price when pushing.
+   - On success, they get a link to open that product in Shopify Admin to
+     finish editing or publish.
+
+4. Backend and documentation
+
+   - The API supports: check connection status, start connect, handle
+     Shopify's return URL, disconnect, and push product.
+   - Technical guides exist for the frontend team (how to call each step).
+   - A demo / internal frontend includes My Shopify and "Push to Shopify" on
+     product screens.
+
+
+HOW IT FEELS FOR A MERCHANT (SIMPLE FLOW)
+-----------------------------------------
+
+1. Sign in to ValidDs.
+2. Go to My Shopify, enter shop name, then Connect.
+3. Approve ValidDs on Shopify's permission screen.
+4. Land back in ValidDs with "Store connected."
+5. Browse products in ValidDs, open a product, Push to Shopify, then review
+   in Shopify Admin.
+
+
+WHERE WE ARE TODAY — WHY NOT EVERY STORE CAN CONNECT YET
+--------------------------------------------------------
+
+The software is ready, but Shopify treats apps in two broad ways:
+
+TODAY (typical):
+  Connect works for development / test stores and stores you explicitly
+  allow in the Shopify Partner dashboard.
+
+AFTER SHOPIFY APPROVES THE APP:
+  Any merchant with a Shopify store can install and connect ValidDs through
+  the normal public flow.
+
+We are waiting for Shopify to verify / approve our app (Partner program
+review). Until that is done, Shopify may block or limit installs from
+arbitrary real merchant stores—even though our connect-and-push flow works
+end-to-end in testing.
+
+This is a Shopify platform gate, not a missing feature in ValidDs code.
+
+
+NEXT STEPS
+----------
+
+1. Shopify verification (in progress / waiting)
+
+   - Complete anything Shopify asks for in the Partner Dashboard (app listing,
+     privacy policy, scopes explanation, test instructions, demo video if
+     required).
+   - Submit the app for review.
+   - Wait for approval so the app can be installed by any Shopify merchant,
+     not only test shops.
+
+2. After approval
+
+   - Turn on or confirm production OAuth settings (live API keys, correct
+     redirect URL, app URL).
+   - Announce "Connect your Shopify store" to users in production.
+   - Monitor first real connections and product pushes; fix any edge cases
+     Shopify surfaces in the wild.
+
+3. Optional follow-ups (later, not blocked on verification)
+
+   - Bulk push or sync multiple products at once.
+   - Map more product fields (variants, collections, inventory).
+   - Clearer in-app help if push fails (permissions, plan limits on Shopify's
+     side).
+
+
+SUMMARY
+-------
+
+Connect a Shopify store from ValidDs     Built
+Push ValidDs products into Shopify       Built
+Disconnect / connection status           Built
+Any merchant worldwide can connect       Waiting on Shopify app verification
+
+Bottom line: ValidDs can already link a store and push products in test
+conditions. The main remaining step is Shopify's approval so any store can
+use the same connect flow in production.

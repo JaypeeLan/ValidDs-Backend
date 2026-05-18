@@ -373,38 +373,39 @@ export const ProductRepository = {
     }
   },
 
-  async findFeed(filters: ProductFeedFilters): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
+  async findFeed(
+    filters: ProductFeedFilters,
+    /** Pass req.models.Product to query the correct market collection. Defaults to the global US model. */
+    model: IProductModel = Product,
+  ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
     const page  = Math.max(1, filters.page ?? 1);
     const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
     const skip  = (page - 1) * limit;
 
-    // Include stale rows so the catalog does not go empty between refreshes; exclude only archived.
+    // Each market already has its own collection — no region filter needed when
+    // a market-specific model is passed. The legacy `userRegion` filter still
+    // applies when using the global model (single-collection fallback).
     const query: Record<string, unknown> = { status: { $ne: 'archived' } };
 
-    // ── Multi-Region fallback (graceful when imported data has no region) ───
-    if (filters.userRegion) {
-      const [regionCount, usCount] = await Promise.all([
-        Product.countDocuments({ region: filters.userRegion, status: 'active' }),
-        Product.countDocuments({ region: 'US', status: 'active' }),
-      ]);
-      if (regionCount > 0) {
-        query['region'] = filters.userRegion;
-      } else if (usCount > 0) {
-        query['region'] = 'US';
+    // ── Legacy multi-region fallback (single-collection path only) ───────────
+    if (model === Product) {
+      if (filters.userRegion) {
+        const [regionCount, usCount] = await Promise.all([
+          model.countDocuments({ region: filters.userRegion, status: 'active' }),
+          model.countDocuments({ region: 'US', status: 'active' }),
+        ]);
+        if (regionCount > 0) {
+          query['region'] = filters.userRegion;
+        } else if (usCount > 0) {
+          query['region'] = 'US';
+        }
+      } else {
+        const [hasRegionedData, usCount] = await Promise.all([
+          model.countDocuments({ region: { $exists: true, $nin: [null, ''] }, status: 'active' }),
+          model.countDocuments({ region: 'US', status: 'active' }),
+        ]);
+        if (hasRegionedData > 0 && usCount > 0) query['region'] = 'US';
       }
-      // If neither requested region nor US exists, do not apply region filter.
-    } else {
-      const [hasRegionedData, usCount] = await Promise.all([
-        Product.countDocuments({
-          region: { $exists: true, $nin: [null, ''] },
-          status: 'active',
-        }),
-        Product.countDocuments({ region: 'US', status: 'active' }),
-      ]);
-      if (hasRegionedData > 0) {
-        if (usCount > 0) query['region'] = 'US';
-      }
-      // If data has no region values at all, return full active catalog.
     }
 
     if (filters.category?.length)       query['categoryL1'] = { $in: filters.category };
@@ -417,13 +418,13 @@ export const ProductRepository = {
     const sort = resolveProductSort(filters.sortBy);
 
     const [data, total] = await Promise.all([
-      Product.find(query)
+      model.find(query)
         .select(PRODUCT_LISTING_HEAVY_FIELD_PROJECTION)
         .sort(sort)
         .skip(skip)
         .limit(limit)
         .lean(),
-      Product.countDocuments(query),
+      model.countDocuments(query),
     ]);
 
     const totalPages = Math.ceil(total / limit);
@@ -433,9 +434,13 @@ export const ProductRepository = {
     };
   },
 
-  async findById(id: string): Promise<IProductDocument | null> {
+  async findById(
+    id: string,
+    /** Pass req.models.Product to query the correct market collection. Defaults to the global US model. */
+    model: IProductModel = Product,
+  ): Promise<IProductDocument | null> {
     if (!mongoose.isValidObjectId(id)) return null;
-    return Product.findById(id);
+    return model.findById(id);
   },
 
   async getCategories(): Promise<string[]> {
@@ -448,6 +453,8 @@ export const ProductRepository = {
     page = 1,
     limit = 20,
     discovery?: Pick<ProductFeedFilters, 'section' | 'isAd' | 'sortBy'>,
+    /** Pass req.models.Product to query the correct market collection. Defaults to the global US model. */
+    model: IProductModel = Product,
   ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
     const skip    = (page - 1) * limit;
     const filter: Record<string, unknown> = {
@@ -460,13 +467,13 @@ export const ProductRepository = {
     const sort = resolveProductSort(discovery?.sortBy);
 
     const [data, total] = await Promise.all([
-      Product.find(filter, { score: { $meta: 'textScore' } })
+      model.find(filter, { score: { $meta: 'textScore' } })
         .select(PRODUCT_LISTING_HEAVY_FIELD_PROJECTION)
         .sort(sort)
         .skip(skip)
         .limit(limit)
         .lean(),
-      Product.countDocuments(filter),
+      model.countDocuments(filter),
     ]);
 
     const totalPages = Math.ceil(total / limit);

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { ProductController } from './product.controller';
 import { validate } from '../../middleware/validate.middleware';
 import { requireAuth } from '../../middleware/auth.middleware';
+import { attachMarketModels } from '../../middleware/market.middleware';
 import { ProductFeedQuerySchema, ProductKeywordContextQuerySchema } from './product.validator';
 
 const router = Router();
@@ -15,6 +16,10 @@ const router = Router();
  * GET /products/:id — product detail (public)
  * GET /products/saved — requires JWT (user bookmarks)
  */
+
+// attachMarketModels reads req.user?.contentRegion and sets req.models.
+// For authenticated users it picks their selected region; for public requests it defaults to US.
+router.use(attachMarketModels);
 
 router.get(
   '/',

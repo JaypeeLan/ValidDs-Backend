@@ -23,7 +23,6 @@ export interface IViewerPoll {
 // ── Interfaces ─────────────────────────────────────────────────────────────────
 
 export interface ILiveSession {
-  trackedStore: mongoose.Types.ObjectId;
   handle:       string;   // denormalised for quick queries
 
   status:  'live' | 'ended';
@@ -83,9 +82,8 @@ const ViewerPollSchema = new Schema<IViewerPoll>(
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
 
-const LiveSessionSchema = new Schema<ILiveSessionDocument>(
+export const LiveSessionSchema = new Schema<ILiveSessionDocument>(
   {
-    trackedStore: { type: Schema.Types.ObjectId, ref: 'TrackedStore', required: true, index: true },
     handle:       { type: String, required: true, lowercase: true, trim: true, index: true },
 
     status:  { type: String, enum: ['live', 'ended'], default: 'live', index: true },

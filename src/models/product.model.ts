@@ -213,7 +213,7 @@ const PriceHistoryEntrySchema = new Schema<IPriceHistoryEntry>(
 
 // ── Main schema ───────────────────────────────────────────────────────────────
 
-const ProductSchema = new Schema<IProductDocument, IProductModel>(
+export const ProductSchema = new Schema<IProductDocument, IProductModel>(
   {
     externalId: { type: String, required: true },
     source:     { type: String, required: true },

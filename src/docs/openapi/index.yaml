@@ -169,6 +169,10 @@ components:
       $ref: './components/schemas/User.yaml'
     Product:
       $ref: './components/schemas/Product.yaml'
+    ProductFeedItem:
+      $ref: './components/schemas/ProductFeedItem.yaml'
+    MarketingAnalysis:
+      $ref: './components/schemas/MarketingAnalysis.yaml'
     Creative:
       $ref: './components/schemas/Creative.yaml'
     ShopifyPublicConnection:

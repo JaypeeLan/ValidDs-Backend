@@ -197,7 +197,7 @@ liveWatchlist:
       '200':
         description: Handle already on watchlist — existing document returned
       '401':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
 
 # ── Admin-only: Tracked stores (collection) ───────────────────────────────────
 

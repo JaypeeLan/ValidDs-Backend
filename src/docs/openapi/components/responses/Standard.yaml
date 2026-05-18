@@ -33,6 +33,13 @@ ForbiddenResponse:
       schema:
         $ref: '../schemas/Common.yaml#/ErrorResponse'
 
+MethodNotAllowedResponse:
+  description: Method Not Allowed
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/Common.yaml#/ErrorResponse'
+
 NotFoundResponse:
   description: Not Found
   content:

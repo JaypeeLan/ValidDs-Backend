@@ -27,7 +27,7 @@ status:
             schema:
               $ref: '../components/schemas/Common.yaml#/SuccessResponse'
       '401':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
 
 productRefresh:
   post:
@@ -54,7 +54,7 @@ productRefresh:
             schema:
               $ref: '../components/schemas/Common.yaml#/SuccessResponse'
       '401':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
   get:
     tags:
       - Jobs
@@ -62,7 +62,7 @@ productRefresh:
     description: Returns a 405 error explaining that POST is required.
     responses:
       '405':
-        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+        $ref: '../components/responses/Standard.yaml#/MethodNotAllowedResponse'
 
 productIngestion:
   post:
@@ -89,7 +89,7 @@ productIngestion:
             schema:
               $ref: '../components/schemas/Common.yaml#/SuccessResponse'
       '401':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
   get:
     tags:
       - Jobs
@@ -97,7 +97,7 @@ productIngestion:
     description: Returns a 405 error explaining that POST is required.
     responses:
       '405':
-        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+        $ref: '../components/responses/Standard.yaml#/MethodNotAllowedResponse'
 
 creativeIngestion:
   post:
@@ -124,7 +124,7 @@ creativeIngestion:
             schema:
               $ref: '../components/schemas/Common.yaml#/SuccessResponse'
       '401':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
   get:
     tags:
       - Jobs
@@ -132,7 +132,7 @@ creativeIngestion:
     description: Returns a 405 error explaining that POST is required.
     responses:
       '405':
-        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+        $ref: '../components/responses/Standard.yaml#/MethodNotAllowedResponse'
 
 liveMonitorDiscover:
   post:
@@ -160,7 +160,7 @@ liveMonitorDiscover:
             schema:
               $ref: '../components/schemas/Common.yaml#/SuccessResponse'
       '401':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
   get:
     tags:
       - Jobs
@@ -168,7 +168,7 @@ liveMonitorDiscover:
     description: Returns a 405 error explaining that POST is required.
     responses:
       '405':
-        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+        $ref: '../components/responses/Standard.yaml#/MethodNotAllowedResponse'
 
 staleCleanup:
   post:
@@ -189,7 +189,7 @@ staleCleanup:
             schema:
               $ref: '../components/schemas/Common.yaml#/SuccessResponse'
       '401':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
   get:
     tags:
       - Jobs
@@ -197,4 +197,4 @@ staleCleanup:
     description: Returns a 405 error explaining that POST is required.
     responses:
       '405':
-        $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+        $ref: '../components/responses/Standard.yaml#/MethodNotAllowedResponse'

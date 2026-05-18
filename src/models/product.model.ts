@@ -6,6 +6,10 @@ import type {
   IPriceHistoryEntry,
   IPriceTrend,
   IPriceTrendWindow,
+  IMetricTrend,
+  IMetricTrendWindow,
+  ISalesHistoryEntry,
+  IRevenueHistoryEntry,
   IProductDocument,
   IProductModel,
   IProductReview,
@@ -211,6 +215,51 @@ const PriceHistoryEntrySchema = new Schema<IPriceHistoryEntry>(
   { _id: false },
 );
 
+const MetricTrendWindowSchema = new Schema<IMetricTrendWindow>(
+  {
+    label:   { type: String, required: true },
+    daysAgo: { type: Number, required: true, min: 0 },
+    value:   { type: Number, required: true, min: 0 },
+  },
+  { _id: false },
+);
+
+const MetricTrendSchema = new Schema<IMetricTrend>(
+  {
+    direction:     { type: String, enum: ['up', 'down', 'stable'], required: true },
+    changePercent: { type: Number, required: true },
+    windows:       { type: [MetricTrendWindowSchema], default: [] },
+  },
+  { _id: false },
+);
+
+const SalesHistoryEntrySchema = new Schema<ISalesHistoryEntry>(
+  {
+    sales:      { type: Number, required: true, min: 0 },
+    recordedAt: { type: Schema.Types.Mixed, required: true },
+  },
+  { _id: false },
+);
+
+const RevenueHistoryEntrySchema = new Schema<IRevenueHistoryEntry>(
+  {
+    revenue:    { type: Number, required: true, min: 0 },
+    recordedAt: { type: Schema.Types.Mixed, required: true },
+  },
+  { _id: false },
+);
+
+const RatingSourceSchema = new Schema(
+  {
+    platform:    { type: String },
+    rating:      { type: Number, min: 0, max: 5 },
+    reviewCount: { type: Number, min: 0 },
+    sourceUrl:   { type: String },
+    fetchedAt:   { type: Date },
+  },
+  { _id: false },
+);
+
 // ── Main schema ───────────────────────────────────────────────────────────────
 
 export const ProductSchema = new Schema<IProductDocument, IProductModel>(
@@ -247,6 +296,13 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     soldCount:  { type: Number, min: 0 },
     totalSales: { type: Number, min: 0 },
     totalGmv:   { type: Number, min: 0 },
+    salesHistory:   { type: [SalesHistoryEntrySchema], default: [] },
+    salesTrend:     { type: MetricTrendSchema, default: null },
+    revenueHistory: { type: [RevenueHistoryEntrySchema], default: [] },
+    revenueTrend:   { type: MetricTrendSchema, default: null },
+
+    ratingSources: { type: [RatingSourceSchema], default: [] },
+    discoverySections: [{ type: String }],
 
     viewCount:      { type: Number, default: 0, min: 0 },
     likeCount:      { type: Number, default: 0, min: 0 },
@@ -262,6 +318,7 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
 
     shopName:      { type: String },
     shopUrl:       { type: String },
+    shopAvatarUrl: { type: String, default: null },
     shopFollowers: { type: Number, min: 0, default: 0 },
     postUrl:       { type: String },
     postCreatedAt: { type: String, default: null },

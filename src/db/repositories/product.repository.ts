@@ -7,23 +7,31 @@ import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.
 const log = logger.child({ module: 'product-repository' });
 
 /**
- * Exclusion projection for catalog list + text search.
- * Drops large blobs unused by discovery cards (reviews, galleries, long copy, nested marketing analysis).
- * Product detail (`findById`) still loads full documents.
+ * Inclusion projection for discovery grid (`GET /products`).
+ * Only fields rendered on product cards — detail uses full `findById`.
  */
-export const PRODUCT_LISTING_HEAVY_FIELD_PROJECTION: Record<string, 0> = {
-  reviews: 0,
-  topComments: 0,
-  imageUrls: 0,
-  description: 0,
-  hashtags: 0,
-  variations: 0,
-  relatedProducts: 0,
-  salesEvidence: 0,
-  'aiIntelligence.marketingAnalysis': 0,
-  /** Trim per-supplier blobs; cards use scores, shop, and listing URLs. */
-  'suppliers.monthlyTraffic': 0,
-  'suppliers.estimatedMonthlyRevenue': 0,
+export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
+  title: 1,
+  primaryImageUrl: 1,
+  price: 1,
+  currency: 1,
+  categoryL1: 1,
+  categoryPath: 1,
+  rating: 1,
+  totalSales: 1,
+  totalGmv: 1,
+  salesTrend: 1,
+  shopName: 1,
+  shopAvatarUrl: 1,
+  lastIngestedAt: 1,
+  discoverySections: 1,
+  'aiIntelligence.confidence': 1,
+  'aiIntelligence.buyingSentimentScore': 1,
+  'trend.score': 1,
+  'trend.direction': 1,
+  'trend.isTrending': 1,
+  'suppliers.competitorScore': 1,
+  primaryCreator: 1,
 };
 
 // ── Generic title filtering ───────────────────────────────────────────────────
@@ -419,7 +427,7 @@ export const ProductRepository = {
 
     const [data, total] = await Promise.all([
       model.find(query)
-        .select(PRODUCT_LISTING_HEAVY_FIELD_PROJECTION)
+        .select(PRODUCT_LISTING_FIELD_PROJECTION)
         .sort(sort)
         .skip(skip)
         .limit(limit)
@@ -468,7 +476,7 @@ export const ProductRepository = {
 
     const [data, total] = await Promise.all([
       model.find(filter, { score: { $meta: 'textScore' } })
-        .select(PRODUCT_LISTING_HEAVY_FIELD_PROJECTION)
+        .select(PRODUCT_LISTING_FIELD_PROJECTION)
         .sort(sort)
         .skip(skip)
         .limit(limit)

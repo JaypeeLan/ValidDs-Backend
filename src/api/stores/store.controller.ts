@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { env } from '../../config/env.validation';
-import { AppError, NotFoundError } from '../../middleware/error.middleware';
+import { AppError } from '../../middleware/error.middleware';
 import { logger } from '../../logger';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
-import { Product } from '../../models/product.model';
 import { User } from '../../models/user.model';
+import { getMarketModels } from '../../models/market-models.factory';
+import { toMarketCode } from '../../utils/markets';
 import { ShopifyService } from '../../services/shopify.service';
 import {
   ShopifyAddProductInput,
@@ -130,7 +131,8 @@ export const StoreController = {
       try {
         const frontendBase = env.FRONTEND_URL;
         res.redirect(
-          `${frontendBase}/stores/shopify/callback?status=error&code=${encodeURIComponent(code)}&message=${encodeURIComponent(message)}`
+          // `${frontendBase}/stores/shopify/callback?status=error&code=${encodeURIComponent(code)}&message=${encodeURIComponent(message)}`
+          `${frontendBase}`
         );
       } catch {
         next(err);
@@ -198,9 +200,16 @@ export const StoreController = {
       const input = req.body as ShopifyAddProductInput;
       const user = req.user!;
 
-      const product = await Product.findById(input.productId);
+      // Products live in per-market collections (products_us, …) — same as GET /products.
+      const market = toMarketCode(input.market ?? user.contentRegion);
+      const { Product: MarketProduct } = getMarketModels(market);
+      const product = await MarketProduct.findById(input.productId);
       if (!product) {
-        throw new NotFoundError('Product');
+        throw new AppError(
+          404,
+          `Product not found in market ${market}`,
+          'PRODUCT_NOT_FOUND',
+        );
       }
 
       const created = await ShopifyService.createProductFromDbProduct(user, product, {

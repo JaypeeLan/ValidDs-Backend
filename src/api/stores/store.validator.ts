@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { MARKET_CODES } from '../../utils/markets';
+
+const MarketCodeEnum = z.enum(MARKET_CODES as [string, ...string[]]);
 
 /**
  * Validators for the Shopify store integration endpoints.
@@ -22,6 +25,8 @@ export const ShopifyCallbackQuerySchema = z.object({
 
 export const ShopifyAddProductSchema = z.object({
   productId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'productId must be a valid MongoDB ObjectId'),
+  /** Defaults to the user's `contentRegion` when omitted. */
+  market: MarketCodeEnum.optional(),
   // Optional client-side overrides
   price: z.coerce.number().positive().optional(),
   status: z.enum(['active', 'draft', 'archived']).optional(),

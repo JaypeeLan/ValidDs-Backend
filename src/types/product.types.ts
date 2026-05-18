@@ -36,9 +36,51 @@ export interface IPrimaryCreatorApi extends IPrimaryCreator {
 export interface ProductAiInsightResponse {
   confidence: { score?: number; reason?: string };
   buyingSentiment: { score?: number; reason?: string };
+  /** Present on product detail when enrichment has run; null on feed cards (listing projection). */
+  marketingAnalysis?: IMarketingAnalysis | null;
+  brand?: string;
+  niche?: string;
+  audience?: string[];
+  productType?: ProductType;
+  priceBand?: PriceBand;
+  problemStatement?: string;
+  valueStatement?: string;
+  extractedAt?: string | Date;
 }
 
-/** Public product shape returned by GET /products and GET /products/:id. */
+/** Discovery grid card — GET /products (feed/search). */
+export interface ProductFeedItem {
+  id: string;
+  title: string;
+  primaryImageUrl?: string;
+  price?: number;
+  currency?: string;
+  categoryL1: string;
+  categoryPath?: string;
+  rating?: number;
+  ratings?: number;
+  totalSales?: number;
+  totalGmv?: number;
+  salesTrend?: IMetricTrend | null;
+  shopName?: string;
+  shopAvatarUrl?: string | null;
+  lastIngestedAt: string | Date;
+  isTopAd?: boolean;
+  /** Max `suppliers[].competitorScore` when present. */
+  competitionScore?: number | null;
+  aiInsight: {
+    confidence: { score?: number };
+    buyingSentiment?: { score?: number };
+  };
+  trend?: {
+    score?: number;
+    direction?: string;
+    isTrending?: boolean;
+  };
+  primaryCreator?: IPrimaryCreatorApi;
+}
+
+/** Full product shape returned by GET /products/:id (and saved list). */
 export interface ProductApiResponse {
   _id: unknown;
   title: string;
@@ -165,6 +207,30 @@ export interface IPriceHistoryEntry {
   recordedAt: string;
 }
 
+// ── Sales / revenue trends (stored on product detail) ───────────────────────────
+
+export interface IMetricTrendWindow {
+  label: string;
+  daysAgo: number;
+  value: number;
+}
+
+export interface IMetricTrend {
+  direction: 'up' | 'down' | 'stable';
+  changePercent: number;
+  windows: IMetricTrendWindow[];
+}
+
+export interface ISalesHistoryEntry {
+  sales: number;
+  recordedAt: Date | string;
+}
+
+export interface IRevenueHistoryEntry {
+  revenue: number;
+  recordedAt: Date | string;
+}
+
 // ── Main product interface ────────────────────────────────────────────────────
 
 export interface IProduct {
@@ -213,6 +279,19 @@ export interface IProduct {
   totalSales?: number;
   /** Lifetime GMV (price × totalSales) */
   totalGmv?: number;
+  salesHistory?: ISalesHistoryEntry[];
+  salesTrend?: IMetricTrend | null;
+  revenueHistory?: IRevenueHistoryEntry[];
+  revenueTrend?: IMetricTrend | null;
+
+  discoverySections?: string[];
+  ratingSources?: Array<{
+    platform?: string;
+    rating?: number;
+    reviewCount?: number;
+    sourceUrl?: string;
+    fetchedAt?: Date | string;
+  }>;
 
   // TikTok engagement
   viewCount: number;
@@ -234,6 +313,7 @@ export interface IProduct {
   // Shop context
   shopName?: string;
   shopUrl?: string;
+  shopAvatarUrl?: string | null;
   /** Defaults to 0 when shop followers are unavailable */
   shopFollowers: number;
   postUrl?: string;

@@ -1,0 +1,89 @@
+type: object
+description: Lean product shape for the discovery grid (`GET /products`). Use `Product` schema for detail.
+required:
+  - id
+  - title
+  - categoryL1
+  - aiInsight
+  - lastIngestedAt
+properties:
+  id:
+    type: string
+  title:
+    type: string
+  primaryImageUrl:
+    type: string
+    format: uri
+  price:
+    type: number
+  currency:
+    type: string
+    example: USD
+  categoryL1:
+    type: string
+    example: Fashion
+  categoryPath:
+    type: string
+  rating:
+    type: number
+  ratings:
+    type: number
+  totalSales:
+    type: number
+    description: Units sold (all time).
+  totalGmv:
+    type: number
+    description: Gross merchandise value (all time).
+  salesTrend:
+    allOf:
+      - $ref: ./MetricTrend.yaml#/MetricTrend
+    nullable: true
+    description: Sparkline data (e.g. 7-day windows).
+  shopName:
+    type: string
+  shopAvatarUrl:
+    type: string
+    format: uri
+    nullable: true
+  lastIngestedAt:
+    type: string
+    format: date-time
+  isTopAd:
+    type: boolean
+  competitionScore:
+    type: number
+    nullable: true
+    description: Max supplier `competitorScore` when available.
+  aiInsight:
+    type: object
+    properties:
+      confidence:
+        type: object
+        properties:
+          score:
+            type: number
+            minimum: 0
+            maximum: 100
+      buyingSentiment:
+        type: object
+        properties:
+          score:
+            type: number
+            minimum: 0
+            maximum: 100
+  trend:
+    type: object
+    properties:
+      score:
+        type: number
+      direction:
+        type: string
+      isTrending:
+        type: boolean
+  primaryCreator:
+    type: object
+    properties:
+      handle: { type: string }
+      primaryImageUrl: { type: string, format: uri, nullable: true }
+      avatarUrl: { type: string, format: uri, nullable: true }
+      avatarProxyUrl: { type: string }

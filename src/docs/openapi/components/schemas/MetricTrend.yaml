@@ -1,0 +1,55 @@
+MetricTrendWindow:
+  type: object
+  required: [label, daysAgo, value]
+  properties:
+    label:
+      type: string
+      example: today
+    daysAgo:
+      type: integer
+      minimum: 0
+    value:
+      type: number
+      minimum: 0
+
+MetricTrend:
+  type: object
+  required: [direction, changePercent, windows]
+  properties:
+    direction:
+      type: string
+      enum: [up, down, stable]
+    changePercent:
+      type: number
+    windows:
+      type: array
+      items:
+        $ref: '#/MetricTrendWindow'
+
+MetricHistoryEntry:
+  type: object
+  required: [recordedAt]
+  properties:
+    recordedAt:
+      type: string
+      format: date-time
+
+SalesHistoryEntry:
+  allOf:
+    - $ref: '#/MetricHistoryEntry'
+    - type: object
+      required: [sales]
+      properties:
+        sales:
+          type: number
+          minimum: 0
+
+RevenueHistoryEntry:
+  allOf:
+    - $ref: '#/MetricHistoryEntry'
+    - type: object
+      required: [revenue]
+      properties:
+        revenue:
+          type: number
+          minimum: 0

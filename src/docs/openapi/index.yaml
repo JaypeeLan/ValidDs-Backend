@@ -10,7 +10,11 @@ info:
     - **API Key**: Required for internal/service-to-service communication.
     - **JWT**: Required for account-specific routes (auth, profile, saved products, **stores/Shopify**, ingestion). Product and creative **list/detail/search** are public unless noted on the operation.
     
-    **Admin** (`/api/v1/admin/*`) OpenAPI is published separately at **`/admin-docs`** (see `admin-docs/openapi/` in the repo).
+    **Admin & ops** (`/api/v1/admin/*`, `/jobs/*`, TikTok operator routes) → **`/admin-docs`** only.
+
+    ### Quick reference
+    - **Categories** — `GET /products/categories`, `GET /products/subcategories`
+    - **Region** — `GET /profile/content-region`, `PATCH /profile/content-region`
   version: 1.0.0
   contact:
     name: ValidDs Support
@@ -23,26 +27,28 @@ servers:
     description: Staging environment
 
 tags:
+  - name: Categories
+    description: Fetch category and subcategory lists (no products)
+  - name: Region
+    description: Get or update the user's content region / market (JWT)
   - name: Health
     description: System status and uptime checks
   - name: Auth
     description: User registration, login, email verification, and session management
-  - name: Products
-    description: Product list (paginated, optional search and filters) and product details
   - name: Profile
-    description: User settings and account management
-  - name: Ingestion
-    description: Background ingestion controls.
+    description: User profile and saved products (bookmarks)
+  - name: Products
+    description: Product feed and detail
+  - name: Creatives
+    description: TikTok creative videos — list, top ads, and detail
   - name: Billing
     description: Stripe billing — public plan catalog, Checkout session creation, subscription state, and publishable key
   - name: Waitlist
-    description: Pre-launch email waitlist — public `POST /api/v1/waitlist` to join; admin listing is documented under **`/admin-docs`**.
+    description: Pre-launch email waitlist — public `POST /api/v1/waitlist` to join
   - name: Stores
     description: Shopify OAuth — connect a merchant store and push ValidDs products via Admin REST
   - name: TikTok Live
-    description: Live session data from MongoDB (`GET /tiktok/live/discover`); reconcile stale sessions with `POST /tiktok/live/reconcile`; add handles with `POST /tiktok/live/watchlist`; hourly job syncs from ScrapeCreators
-  - name: TikTok Live (Admin)
-    description: Admin-only — manage the tracked store watchlist, run ad-hoc live checks, view session GMV history
+    description: Live sessions from MongoDB — `GET /tiktok/live/discover`, `POST /tiktok/live/reconcile` (JWT)
 
 paths:
   /health:
@@ -65,6 +71,8 @@ paths:
     $ref: './paths/auth.yaml#/me'
   /api/v1/auth/logout:
     $ref: './paths/auth.yaml#/logout'
+  /api/v1/profile/content-region:
+    $ref: './paths/profile-content-region.yaml'
   /api/v1/profile:
     $ref: './paths/profile.yaml'
   /api/v1/profile/bookmarks:
@@ -83,20 +91,6 @@ paths:
     $ref: './paths/products.yaml#/taxonomy'
   /api/v1/products/{id}:
     $ref: './paths/products.yaml#/detail'
-  /api/v1/ingestion/trigger:
-    $ref: './paths/ingestion.yaml#/trigger'
-  /api/v1/jobs/status:
-    $ref: './paths/jobs.yaml#/status'
-  /api/v1/jobs/product-refresh:
-    $ref: './paths/jobs.yaml#/productRefresh'
-  /api/v1/jobs/product-ingestion:
-    $ref: './paths/jobs.yaml#/productIngestion'
-  /api/v1/jobs/creative-ingestion:
-    $ref: './paths/jobs.yaml#/creativeIngestion'
-  /api/v1/jobs/stale-cleanup:
-    $ref: './paths/jobs.yaml#/staleCleanup'
-  /api/v1/jobs/live-monitor-discover:
-    $ref: './paths/jobs.yaml#/liveMonitorDiscover'
   /api/v1/creatives:
     $ref: './paths/creatives.yaml#/creatives'
   /api/v1/creatives/top-ads:
@@ -129,26 +123,6 @@ paths:
     $ref: './paths/tiktok.yaml#/liveDiscover'
   /api/v1/tiktok/live/reconcile:
     $ref: './paths/tiktok.yaml#/liveReconcile'
-  /api/v1/tiktok/live/ingest-discovery:
-    $ref: './paths/tiktok.yaml#/liveIngestDiscovery'
-  /api/v1/tiktok/live/watchlist:
-    $ref: './paths/tiktok.yaml#/liveWatchlist'
-  /api/v1/tiktok/live:
-    $ref: './paths/tiktok.yaml#/liveSingle'
-  /api/v1/tiktok/live/batch:
-    $ref: './paths/tiktok.yaml#/liveBatch'
-  /api/v1/tiktok/live/products:
-    $ref: './paths/tiktok.yaml#/liveProducts'
-  /api/v1/tiktok/stores:
-    $ref: './paths/tiktok.yaml#/stores'
-  /api/v1/tiktok/stores/{handle}:
-    $ref: './paths/tiktok.yaml#/storeItem'
-  /api/v1/tiktok/stores/{handle}/refresh:
-    $ref: './paths/tiktok.yaml#/storeRefresh'
-  /api/v1/tiktok/sessions:
-    $ref: './paths/tiktok.yaml#/sessions'
-  /api/v1/tiktok/sessions/{id}:
-    $ref: './paths/tiktok.yaml#/sessionItem'
 components:
   securitySchemes:
     ApiKeyAuth:

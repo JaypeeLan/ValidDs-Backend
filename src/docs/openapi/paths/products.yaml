@@ -176,9 +176,13 @@ detail:
 
 categories:
   get:
-    tags: [Products]
-    summary: List all L1 categories
-    description: Returns all top-level (L1) category names as a flat array.
+    tags: [Categories]
+    operationId: fetchCategories
+    summary: Fetch categories (L1)
+    description: |
+      Returns all top-level (L1) category names as a flat array.
+
+      Does **not** return products — use `GET /products` with `?category=` to filter the feed.
     responses:
       '200':
         description: Categories retrieved successfully
@@ -211,12 +215,15 @@ categories:
 
 subcategories:
   get:
-    tags: [Products]
-    summary: List L2 subcategories
+    tags: [Categories]
+    operationId: fetchSubcategories
+    summary: Fetch subcategories (L2)
     description: |
       Without `category`: returns an object mapping every L1 → its L2 subcategories.
 
       With `category`: returns a flat array of L2 subcategories for that specific L1.
+
+      Does **not** return products — use `GET /products` with `?subcategory=` to filter the feed.
     parameters:
       - name: category
         in: query
@@ -249,8 +256,9 @@ subcategories:
 
 taxonomy:
   get:
-    tags: [Products]
-    summary: Full category taxonomy (L1 → L2 → L3)
+    tags: [Categories]
+    operationId: fetchCategoryTaxonomy
+    summary: Fetch full category taxonomy (L1 → L2 → L3)
     description: |
       Returns the complete three-level category taxonomy.
 

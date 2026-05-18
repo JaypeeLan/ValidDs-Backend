@@ -153,3 +153,42 @@ Paginated waitlist signups (newest first) with summary stats.
 **Query:** `page` (default 1), `limit` (default 50, max 200), `q` (email substring), `source`, `from` / `to` (ISO-8601 `createdAt` bounds)
 
 **Response `data`:** `entries[]`, `pagination`, `stats` (`total`, `last7Days`, `last24Hours`)
+
+---
+
+## Operations (also in `/admin-docs` Swagger)
+
+### Jobs (`/api/v1/jobs/*`)
+
+Requires header **`X-API-Key: <INTERNAL_API_KEY>`** (not JWT).
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/jobs/status` | Timer state, last run times |
+| `POST` | `/jobs/product-refresh` | Trigger product refresh job |
+| `POST` | `/jobs/product-ingestion` | Trigger product ingestion |
+| `POST` | `/jobs/creative-ingestion` | Trigger creative ingestion |
+| `POST` | `/jobs/stale-cleanup` | Trigger stale cleanup |
+| `POST` | `/jobs/live-monitor-discover` | Trigger live monitor (no-op stub if watchlist removed) |
+
+`GET` on the `POST` paths returns **405** with a hint (for misconfigured cron jobs).
+
+### Ingestion
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `POST` | `/ingestion/trigger` | JWT | Pipeline currently disabled |
+
+### TikTok Live (admin JWT)
+
+Requires **admin** role (same JWT as `/admin/*`).
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/tiktok/live?handle=` | Ad-hoc live check for one handle |
+| `GET` | `/tiktok/live/batch?handles=` | Batch live check (max 10 handles) |
+| `GET` | `/tiktok/live/products?roomId=&handle=` | Product shelf for a live room |
+| `GET` | `/tiktok/sessions` | Paginated session history |
+| `GET` | `/tiktok/sessions/{id}` | Session detail |
+
+**User routes** (documented on **`/docs`**, not here): `GET /tiktok/live/discover`, `POST /tiktok/live/reconcile`.

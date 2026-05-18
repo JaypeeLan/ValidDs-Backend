@@ -114,19 +114,25 @@ export async function createApp(): Promise<Application> {
   // otherwise the global init script is overwritten and /docs shows the last-registered spec (admin).
   const [swaggerSpec, adminSwaggerSpec] = await Promise.all([getSwaggerSpec(), getAdminSwaggerSpec()]);
   const docsSwaggerUiOpts = {
-    customSiteTitle: 'ValidDs API Documentation',
+    customSiteTitle: 'ValidDs API — /docs',
     swaggerOptions: {
       persistAuthorization: true,
       filter: true,
       displayRequestDuration: true,
+      docExpansion: 'list',
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
     },
   };
   const adminSwaggerUiOpts = {
-    customSiteTitle: 'ValidDs Admin API',
+    customSiteTitle: 'ValidDs Admin & Ops — /admin-docs',
     swaggerOptions: {
       persistAuthorization: true,
       filter: true,
       displayRequestDuration: true,
+      docExpansion: 'list',
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
     },
   };
   app.use('/docs', swaggerUi.serveFiles(swaggerSpec, docsSwaggerUiOpts), swaggerUi.setup(swaggerSpec, docsSwaggerUiOpts));

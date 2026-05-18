@@ -2,9 +2,12 @@ import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { ProfileController } from './profile.controller';
-import { UpdateProfileSchema, AddBookmarkSchema } from './profile.validator';
+import { UpdateProfileSchema, AddBookmarkSchema, ContentRegionSchema } from './profile.validator';
 
 const router = Router();
+
+router.get('/content-region', requireAuth, ProfileController.getContentRegion);
+router.patch('/content-region', requireAuth, validate(ContentRegionSchema, 'body'), ProfileController.updateContentRegion);
 
 router.get('/', requireAuth, ProfileController.me);
 router.patch('/', requireAuth, validate(UpdateProfileSchema, 'body'), ProfileController.update);

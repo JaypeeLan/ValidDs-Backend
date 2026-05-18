@@ -8,7 +8,7 @@ COPY package*.json ./
 RUN npm ci --only=production=false
 
 # Copy source and compile
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.build.json .swcrc ./
 COPY src ./src
 RUN npm run build
 

@@ -1,0 +1,13 @@
+MarketCode:
+  type: string
+  description: |
+    Content region / MongoDB collection suffix. Products and creatives are stored in
+    per-market collections (e.g. `products_us`, `creatives_uk`).
+  enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+  example: US
+
+AdminCreativeSection:
+  type: string
+  description: Feed section for admin-created creatives (`POST /admin/creatives`).
+  enum: [store, affiliate, ads]
+  default: ads

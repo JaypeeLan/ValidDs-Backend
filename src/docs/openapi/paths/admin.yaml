@@ -33,14 +33,20 @@ health:
                       redisStatus: 'connected'
                       redisLatencyMs: 2
                     jobs:
+                      enabled: false
                       timers:
-                        productRefresh: true
-                        staleCleanup: true
-                        hashtagPipeline: true
+                        staleCleanup: false
+                        productIngestion: false
+                        creativeIngestion: false
+                        liveMonitorDiscover: false
+                      outcomes:
+                        productRefresh:
+                          running: false
+                          lastError: null
       '401':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
       '403':
-        $ref: '../components/schemas/Common.yaml#/UnauthorizedError'
+        $ref: '../components/responses/Standard.yaml#/ForbiddenResponse'
 
 analyticsUsers:
   get:
@@ -68,8 +74,9 @@ analyticsUsers:
                     newUsersToday: 12
                     usersByPlan:
                       free: 100
+                      explorer: 20
                       pro: 30
-                      validator: 24
+                      premium: 4
                     usersByStatus:
                       active: 140
                       suspended: 14
@@ -87,9 +94,8 @@ analyticsProducts:
         name: market
         required: false
         schema:
-          type: string
-          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
-        description: Filter analytics to a specific market. Omit for all markets.
+          $ref: '../components/schemas/Admin.yaml#/MarketCode'
+        description: Filter analytics to a specific market. Omit to aggregate all markets.
     responses:
       '200':
         description: Successful response
@@ -103,10 +109,29 @@ analyticsProducts:
                   example: true
                 data:
                   type: object
+                  properties:
+                    markets:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/Admin.yaml#/MarketCode'
+                    totalProducts:
+                      type: integer
+                    freshProducts24h:
+                      type: integer
+                    productsBySource:
+                      type: object
+                      additionalProperties:
+                        type: integer
+                    topCategories:
+                      type: object
+                      additionalProperties:
+                        type: integer
                   example:
+                    markets: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
                     totalProducts: 1205
                     freshProducts24h: 305
                     productsBySource:
+                      admin: 12
                       scarper: 1000
                     topCategories:
                       "Home & Kitchen": 400
@@ -128,9 +153,8 @@ analyticsCreatives:
         name: market
         required: false
         schema:
-          type: string
-          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
-        description: Filter analytics to a specific market. Omit for all markets.
+          $ref: '../components/schemas/Admin.yaml#/MarketCode'
+        description: Filter analytics to a specific market. Omit to aggregate all markets.
     responses:
       '200':
         description: Successful response
@@ -145,6 +169,10 @@ analyticsCreatives:
                 data:
                   type: object
                   properties:
+                    markets:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/Admin.yaml#/MarketCode'
                     totalCreatives:
                       type: integer
                       description: Number of creative documents in MongoDB
@@ -174,6 +202,7 @@ analyticsCreatives:
                         type: integer
                       description: Top 10 by categoryL1 (mirrors product taxonomy when set)
                   example:
+                    markets: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
                     totalCreatives: 800
                     totalVideos: 2100
                     freshCreatives24h: 40
@@ -218,7 +247,7 @@ users:
         name: plan
         schema:
           type: string
-          enum: [free, trial, pro, team, starter, validator, scale]
+          enum: [free, explorer, pro, premium]
       - in: query
         name: role
         schema:
@@ -254,7 +283,7 @@ users:
 userDelete:
   delete:
     summary: Delete User
-    description: Permanently delete a user account.
+    description: Permanently deletes a user account (hard delete). Admins cannot delete their own account.
     tags:
       - Admin
     security:
@@ -267,7 +296,11 @@ userDelete:
           type: string
     responses:
       '200':
-        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+        description: User deleted
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
 
 userStatusUpdate:
   patch:
@@ -297,7 +330,11 @@ userStatusUpdate:
                 enum: [active, suspended]
     responses:
       '200':
-        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+        description: User status updated
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
 
 products:
   get:
@@ -312,9 +349,8 @@ products:
         name: market
         required: true
         schema:
-          type: string
-          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
-        description: Market/region to query products from
+          $ref: '../components/schemas/Admin.yaml#/MarketCode'
+        description: Market collection to query (e.g. `products_us`)
       - in: query
         name: page
         schema:
@@ -359,6 +395,8 @@ products:
                 data:
                   type: object
                   properties:
+                    market:
+                      $ref: '../components/schemas/Admin.yaml#/MarketCode'
                     products:
                       type: array
                       items:
@@ -368,7 +406,9 @@ products:
 
   post:
     summary: Create Product
-    description: Manually add a product to a market collection.
+    description: |
+      Manually add a product to a market collection (`products_<market>`). Status is always set to `review`
+      with `validationStatus: pending` on create.
     tags:
       - Admin
     security:
@@ -379,20 +419,23 @@ products:
         application/json:
           schema:
             type: object
-            required: [market, title, categoryL1]
+            required: [market, title, categoryL1, externalId]
             properties:
               market:
-                type: string
-                enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+                $ref: '../components/schemas/Admin.yaml#/MarketCode'
               title:
                 type: string
+                minLength: 1
                 maxLength: 120
               categoryL1:
                 type: string
+                minLength: 1
               categoryL2:
                 type: string
-              categoryL3:
+              externalId:
                 type: string
+                minLength: 1
+                description: External product identifier (TikTok shop, manual SKU, etc.)
               description:
                 type: string
                 maxLength: 2000
@@ -401,18 +444,22 @@ products:
                 minimum: 0
               currency:
                 type: string
+                minLength: 3
+                maxLength: 3
                 default: USD
+              productUrl:
+                type: string
+                format: uri
+              shopName:
+                type: string
               primaryImageUrl:
                 type: string
                 format: uri
               source:
                 type: string
-                enum: [scarper, manual]
-                default: manual
-              status:
-                type: string
-                enum: [active, review, invalid]
-                default: review
+                minLength: 1
+                default: admin
+                description: Ingestion source label stored on the document
     responses:
       '201':
         description: Product created
@@ -427,6 +474,8 @@ products:
                 data:
                   type: object
                   properties:
+                    market:
+                      $ref: '../components/schemas/Admin.yaml#/MarketCode'
                     product:
                       $ref: '../components/schemas/Product.yaml'
 
@@ -449,12 +498,15 @@ productDelete:
         name: market
         required: true
         schema:
-          type: string
-          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+          $ref: '../components/schemas/Admin.yaml#/MarketCode'
         description: Market collection the product belongs to
     responses:
       '200':
-        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+        description: Product deleted
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
 
 creatives:
   post:
@@ -473,14 +525,15 @@ creatives:
             required: [market, externalVideoId]
             properties:
               market:
-                type: string
-                enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+                $ref: '../components/schemas/Admin.yaml#/MarketCode'
               externalVideoId:
                 type: string
+                minLength: 1
                 description: TikTok video ID
               productId:
                 type: string
-                description: MongoDB ObjectId of linked product (optional)
+                pattern: '^[0-9a-fA-F]{24}$'
+                description: Optional MongoDB ObjectId of linked product in the same market
               videoPlayUrl:
                 type: string
                 format: uri
@@ -491,10 +544,10 @@ creatives:
                 type: boolean
                 default: false
               section:
-                type: string
-                enum: [trending, top-ads, influencer-reviews, tutorials, viral-unboxings]
+                $ref: '../components/schemas/Admin.yaml#/AdminCreativeSection'
               creatorHandle:
                 type: string
+                description: Stored on `creator.handle` when provided
               description:
                 type: string
                 maxLength: 2000
@@ -512,6 +565,8 @@ creatives:
                 data:
                   type: object
                   properties:
+                    market:
+                      $ref: '../components/schemas/Admin.yaml#/MarketCode'
                     creative:
                       $ref: '../components/schemas/Creative.yaml'
 
@@ -534,12 +589,15 @@ creativeDelete:
         name: market
         required: true
         schema:
-          type: string
-          enum: [US, CA, MX, UK, AU, NZ, ES, DE, FR, IT]
+          $ref: '../components/schemas/Admin.yaml#/MarketCode'
         description: Market collection the creative belongs to
     responses:
       '200':
-        $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+        description: Creative deleted
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/SuccessResponse'
 
 transactions:
   get:

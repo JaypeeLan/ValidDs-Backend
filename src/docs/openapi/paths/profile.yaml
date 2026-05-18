@@ -20,6 +20,10 @@ get:
 patch:
   tags: [Profile]
   summary: Update user profile
+  description: |
+    Partial update (name, avatar, notifications, etc.).
+
+    To change market/region only, prefer **`PATCH /profile/content-region`** (see **Region** tag).
   security: [{ BearerAuth: [] }]
   requestBody:
     required: true
@@ -34,9 +38,10 @@ patch:
             avatarUrl: { type: string, format: uri }
             timezone: { type: string }
             locale: { type: string }
-            contentRegion: 
+            contentRegion:
               type: string
               enum: [US, CA, MX, UK, ES, DE, IT, FR, AU, NZ]
+              description: Prefer `PATCH /profile/content-region` — also accepted here for backward compatibility
             notifications:
               type: object
               properties:

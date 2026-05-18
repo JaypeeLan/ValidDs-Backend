@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { UpdateProfileInput, AddBookmarkInput } from './profile.validator';
+import { UpdateProfileInput, AddBookmarkInput, ContentRegionInput } from './profile.validator';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
 import { PLAN_LIMITS } from '../../models/user.model';
@@ -7,6 +7,28 @@ import { PLAN_LIMITS } from '../../models/user.model';
 export const ProfileController = {
   me(req: Request, res: Response): void {
     res.json(successResponse({ user: req.user!.toJSON() }, ResponseMessage.PROFILE_RETRIEVED, 200));
+  },
+
+  getContentRegion(req: Request, res: Response): void {
+    res.json(
+      successResponse(
+        { contentRegion: req.user!.contentRegion },
+        ResponseMessage.SUCCESS,
+        200,
+      ),
+    );
+  },
+
+  async updateContentRegion(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { contentRegion } = req.body as ContentRegionInput;
+      const user = req.user!;
+      user.contentRegion = contentRegion;
+      await user.save();
+      res.json(successResponse({ contentRegion: user.contentRegion }, ResponseMessage.UPDATED, 200));
+    } catch (err) {
+      next(err);
+    }
   },
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {

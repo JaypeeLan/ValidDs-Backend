@@ -1,0 +1,67 @@
+get:
+  tags: [Region]
+  operationId: getContentRegion
+  summary: Get current content region
+  description: Returns the user's selected market (`contentRegion`). Product and creative APIs use this to pick per-market collections.
+  security: [{ BearerAuth: [] }]
+  responses:
+    '200':
+      description: Current content region
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    required: [contentRegion]
+                    properties:
+                      contentRegion:
+                        type: string
+                        enum: [US, CA, MX, UK, ES, DE, IT, FR, AU, NZ]
+                        example: US
+    '401':
+      $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
+patch:
+  tags: [Region]
+  operationId: updateContentRegion
+  summary: Update content region
+  description: |
+    Sets the user's market (`contentRegion`). Allowed values: `US`, `CA`, `MX`, `UK`, `ES`, `DE`, `IT`, `FR`, `AU`, `NZ`.
+  security: [{ BearerAuth: [] }]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [contentRegion]
+          properties:
+            contentRegion:
+              type: string
+              enum: [US, CA, MX, UK, ES, DE, IT, FR, AU, NZ]
+              example: UK
+  responses:
+    '200':
+      description: Region updated
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    required: [contentRegion]
+                    properties:
+                      contentRegion:
+                        type: string
+                        enum: [US, CA, MX, UK, ES, DE, IT, FR, AU, NZ]
+    '400':
+      $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+    '401':
+      $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'

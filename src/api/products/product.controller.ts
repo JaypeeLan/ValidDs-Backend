@@ -118,7 +118,7 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
 
   if (product.primaryCreator) {
     item.primaryCreator = { ...(product.primaryCreator as object) } as ProductFeedItem['primaryCreator'];
-    normalizePrimaryCreatorOnProduct(item as Record<string, unknown>);
+    normalizePrimaryCreatorOnProduct(item as unknown as Record<string, unknown>);
   }
 
   return item;

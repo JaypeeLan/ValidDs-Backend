@@ -92,14 +92,19 @@ export const ShopifyService = {
 
   /**
    * Public Shopify signup URL — frontend redirects users here when they don't
-   * yet have a Shopify store. If SHOPIFY_PARTNER_REFERRAL_CODE is set, it is
-   * appended for partner attribution.
+   * yet have a Shopify store.
+   *
+   * When SHOPIFY_SIGNUP_URL is an Impact affiliate link (pxf.io), the referral
+   * code is appended as `sub_id` (Impact's tracking parameter).
+   * For the standard shopify.com signup, it's appended as `ref`.
    */
   getSignupUrl(): string {
     const base = env.SHOPIFY_SIGNUP_URL;
     if (!env.SHOPIFY_PARTNER_REFERRAL_CODE) return base;
     const sep = base.includes('?') ? '&' : '?';
-    return `${base}${sep}ref=${encodeURIComponent(env.SHOPIFY_PARTNER_REFERRAL_CODE)}`;
+    const isImpactLink = base.includes('pxf.io') || base.includes('impact.com');
+    const param = isImpactLink ? 'sub_id' : 'ref';
+    return `${base}${sep}${param}=${encodeURIComponent(env.SHOPIFY_PARTNER_REFERRAL_CODE)}`;
   },
 
   // ── OAuth ─────────────────────────────────────────────────────────────────

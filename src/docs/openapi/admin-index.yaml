@@ -7,6 +7,8 @@ info:
     **Multi-market:** Product and creative content is scoped by `market` (US, UK, …). List/delete use `?market=`; create passes `market` in the JSON body. Analytics accept optional `?market=` or aggregate all regions when omitted.
 
     Markdown reference: **`admin-docs/endpoints.md`**. Interactive UI: **`/admin-docs`**.
+
+    Includes **`/api/v1/admin/*`**, internal **`/jobs/*`** (API key), **`POST /ingestion/trigger`**, and TikTok operator routes (admin JWT).
   version: 1.0.0
   contact:
     name: ValidDs Support
@@ -18,9 +20,21 @@ servers:
   - url: https://validds-backend-g196.onrender.com
     description: Staging environment
 
+x-tagGroups:
+  - name: Platform admin
+    tags: [Admin]
+  - name: Operations
+    tags: [Jobs, Ingestion, TikTok Live (Admin)]
+
 tags:
   - name: Admin
     description: System health, analytics, user/product management, transactions, waitlist listing.
+  - name: Jobs
+    description: Background job triggers and status — requires **`X-API-Key`** (`INTERNAL_API_KEY`)
+  - name: Ingestion
+    description: Manual ingestion trigger (currently disabled)
+  - name: TikTok Live (Admin)
+    description: Ad-hoc live checks, live room product shelf, session GMV history — requires admin JWT
 
 paths:
   /api/v1/admin/health:
@@ -49,6 +63,30 @@ paths:
     $ref: ./paths/admin.yaml#/transactions
   /api/v1/admin/waitlist:
     $ref: ./paths/admin.yaml#/waitlist
+  /api/v1/ingestion/trigger:
+    $ref: ./paths/ingestion.yaml#/trigger
+  /api/v1/jobs/status:
+    $ref: ./paths/jobs.yaml#/status
+  /api/v1/jobs/product-refresh:
+    $ref: ./paths/jobs.yaml#/productRefresh
+  /api/v1/jobs/product-ingestion:
+    $ref: ./paths/jobs.yaml#/productIngestion
+  /api/v1/jobs/creative-ingestion:
+    $ref: ./paths/jobs.yaml#/creativeIngestion
+  /api/v1/jobs/stale-cleanup:
+    $ref: ./paths/jobs.yaml#/staleCleanup
+  /api/v1/jobs/live-monitor-discover:
+    $ref: ./paths/jobs.yaml#/liveMonitorDiscover
+  /api/v1/tiktok/live:
+    $ref: ./paths/tiktok.yaml#/liveSingle
+  /api/v1/tiktok/live/batch:
+    $ref: ./paths/tiktok.yaml#/liveBatch
+  /api/v1/tiktok/live/products:
+    $ref: ./paths/tiktok.yaml#/liveProducts
+  /api/v1/tiktok/sessions:
+    $ref: ./paths/tiktok.yaml#/sessions
+  /api/v1/tiktok/sessions/{id}:
+    $ref: ./paths/tiktok.yaml#/sessionItem
 
 components:
   securitySchemes:

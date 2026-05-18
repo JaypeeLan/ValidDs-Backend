@@ -31,7 +31,16 @@ Returns comprehensive data for a single product.
 **Path Parameters:** `id` (MongoDB ObjectId).
 
 ### `GET /products/categories`
-Returns a highly distinct array of existing categories.
+Returns all L1 category names (flat array). Does not return products.
+**Authentication:** Not required.
+**Response `data`:** `{ "categories": ["Beauty & Personal Care", ...] }`
+
+### `GET /products/subcategories`
+Returns L2 subcategories. Optional query `?category=<L1>` for a flat list; omit for full L1→L2 map.
+**Authentication:** Not required.
+
+### `GET /products/taxonomy`
+Full L1 → L2 → L3 taxonomy tree.
 **Authentication:** Not required.
 
 ---
@@ -84,6 +93,15 @@ Updates current user profile details (e.g. name, preferences).
 **Authentication:** Required.
 **Body:** `{ "name": "...", "contentRegion": "US|UK|CA|...", ... }` 
 *(Accepts standard fields like firstName, lastName, avatarUrl, timezone, and locale).*
+
+### `GET /profile/content-region`
+Returns `{ "contentRegion": "US" }` (user's market for product/creative data).
+**Authentication:** Required.
+
+### `PATCH /profile/content-region`
+Updates content region only.
+**Authentication:** Required.
+**Body:** `{ "contentRegion": "US" }` — one of `US`, `CA`, `MX`, `UK`, `ES`, `DE`, `IT`, `FR`, `AU`, `NZ`.
 
 ### `GET /profile/bookmarks`
 Gets all products saved by the user.

@@ -92,12 +92,6 @@ properties:
       engagementRate:
         type: number
         nullable: true
-      source:
-        type: string
-        example: TikTok
-      fetchedAt:
-        type: string
-        format: date-time
 
   section:
     type: string
@@ -113,6 +107,7 @@ properties:
   productDescription:
     type: string
     maxLength: 2000
+    description: Full product description — present on detail endpoint only, omitted from list responses.
 
   categoryL1:
     type: string
@@ -197,18 +192,54 @@ properties:
   productTotalSales:
     type: integer
     nullable: true
-    description: Denormalized from the parent product — lifetime total units sold.
+    description: Lifetime total units sold.
     example: 160000
+  productTotalGmv:
+    type: number
+    nullable: true
+    description: Lifetime GMV (price × totalSales).
+    example: 4800000
+  productPrice:
+    type: number
+    nullable: true
+    description: Current listing price of the product.
+    example: 29.99
+  productUrl:
+    type: string
+    format: uri
+    nullable: true
+    description: TikTok Shop product URL.
+  shopName:
+    type: string
+    nullable: true
+    description: TikTok Shop store name.
+    example: "GlowSkinUS"
   productPrimaryImageUrl:
     type: string
     format: uri
     nullable: true
-    description: Denormalized from the parent product — primary listing image.
+    description: Primary listing image.
   productSalesTrend:
     nullable: true
-    description: Denormalized from the parent product — sales trend (direction + rolling windows).
+    description: Sales trend over rolling windows.
     allOf:
       - $ref: ./MetricTrend.yaml#/MetricTrend
+  productTrend:
+    type: object
+    nullable: true
+    description: Trend score and direction for the parent product.
+    properties:
+      score:
+        type: number
+        example: 3.8
+      direction:
+        type: string
+        enum: [rising, peaked, saturating, stable, declining, emerging, viral, unknown]
+      isTrending:
+        type: boolean
+      reason:
+        type: string
+        nullable: true
 
   publishedAt:
     type: string

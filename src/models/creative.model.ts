@@ -115,8 +115,13 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     // Denormalized product snapshot — refreshed on every ingest
     productRating:          { type: Number, default: null },
     productTotalSales:      { type: Number, default: null },
+    productTotalGmv:        { type: Number, default: null },
+    productPrice:           { type: Number, default: null },
+    productUrl:             { type: String, default: null },
+    shopName:               { type: String, default: null },
     productPrimaryImageUrl: { type: String, default: null },
     productSalesTrend:      { type: Schema.Types.Mixed, default: null },
+    productTrend:           { type: Schema.Types.Mixed, default: null },
 
     publishedAt: { type: Date, required: true },
     ingestedAt:  { type: Date, required: true, default: Date.now },

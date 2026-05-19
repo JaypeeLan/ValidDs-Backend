@@ -29,18 +29,10 @@ export const CreativeService = {
       return { ...creator, avatarProxyUrl: avatarProxy(index, creator.avatarUrl) };
     };
 
-    const primaryVideo = {
-      isPrimary: true,
-      externalVideoId: creative.externalVideoId,
-      videoPlayUrl: creative.videoPlayUrl,
-      videoProxyUrl: videoProxy(0),
-      embedUrl: embedUrl(creative.externalVideoId),
-      thumbnailUrl: creative.thumbnailUrl,
-      thumbnailProxyUrl: thumbProxy(0, creative.thumbnailUrl),
-      creator: decorateCreator(creative.creator, 0),
-      metrics: creative.metrics,
-      topComments: creative.topComments || [],
-      publishedAt: creative.publishedAt,
+    const trimMetrics = (metrics: any) => {
+      if (!metrics) return metrics;
+      const { source: _s, fetchedAt: _f, ...rest } = metrics;
+      return rest;
     };
 
     const related = Array.isArray(creative.relatedVideos)
@@ -53,7 +45,7 @@ export const CreativeService = {
           thumbnailUrl: video.thumbnailUrl,
           thumbnailProxyUrl: thumbProxy(i + 1, video.thumbnailUrl),
           creator: decorateCreator(video.creator, i + 1),
-          metrics: video.metrics,
+          metrics: trimMetrics(video.metrics),
           topComments: video.topComments || [],
           publishedAt: video.publishedAt,
         }))
@@ -61,11 +53,11 @@ export const CreativeService = {
 
     return {
       ...creative,
-      videoProxyUrl: primaryVideo.videoProxyUrl,
-      embedUrl: primaryVideo.embedUrl,
-      thumbnailProxyUrl: primaryVideo.thumbnailProxyUrl,
-      creator: primaryVideo.creator,
-      allVideos: [primaryVideo, ...related],
+      videoProxyUrl: videoProxy(0),
+      embedUrl: embedUrl(creative.externalVideoId),
+      thumbnailProxyUrl: thumbProxy(0, creative.thumbnailUrl),
+      creator: decorateCreator(creative.creator, 0),
+      metrics: trimMetrics(creative.metrics),
       relatedVideos: related,
     } as Record<string, unknown>;
   },
@@ -132,7 +124,7 @@ export const CreativeService = {
     const sort = sortMap[sortBy] ?? sortMap.views;
 
     const [rawData, total] = await Promise.all([
-      creativeModel.find(query).sort(sort).skip(skip).limit(mLimit).lean(),
+      creativeModel.find(query, { productDescription: 0 }).sort(sort).skip(skip).limit(mLimit).lean(),
       creativeModel.countDocuments(query),
     ]);
     const data = rawData.map((doc) => this.formatWithAllVideos(doc));

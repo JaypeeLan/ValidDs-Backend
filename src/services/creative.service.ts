@@ -9,6 +9,61 @@ function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const PRODUCT_CREATIVE_LIMIT = 50;
+
+async function loadCreativesForProduct(
+  productId: string,
+  creativeModel: Model<ICreativeDocument>,
+  extraFilter: Record<string, unknown>,
+  limit = PRODUCT_CREATIVE_LIMIT,
+): Promise<Record<string, unknown>[]> {
+  if (!mongoose.isValidObjectId(productId)) return [];
+
+  const docs = await creativeModel
+    .find({
+      productId: new mongoose.Types.ObjectId(productId),
+      ...extraFilter,
+    })
+    .select({ productDescription: 0 })
+    .sort({ 'metrics.viewCount': -1 })
+    .limit(Math.min(Math.max(limit, 1), 100))
+    .lean();
+
+  return docs.map((doc) => CreativeService.formatWithAllVideos(doc));
+}
+
+/** All TikTok creatives for a product (`GET /products/:id` → `relatedVideos`). */
+export async function findCreativesByProductId(
+  productId: string,
+  creativeModel: Model<ICreativeDocument> = Creative,
+  limit = PRODUCT_CREATIVE_LIMIT,
+): Promise<Record<string, unknown>[]> {
+  return loadCreativesForProduct(productId, creativeModel, {}, limit);
+}
+
+/**
+ * Paid / top-ad creatives for a product (`GET /products/:id` → `relatedAds`).
+ * Matches `GET /creatives/top-ads` semantics scoped to one product.
+ */
+export async function findRelatedAdsByProductId(
+  productId: string,
+  creativeModel: Model<ICreativeDocument> = Creative,
+  limit = PRODUCT_CREATIVE_LIMIT,
+): Promise<Record<string, unknown>[]> {
+  return loadCreativesForProduct(
+    productId,
+    creativeModel,
+    {
+      $or: [
+        { section: 'top-ads' },
+        { isIndependentCreator: true },
+        { isAd: true },
+      ],
+    },
+    limit,
+  );
+}
+
 export const CreativeService = {
   formatWithAllVideos(input: any) {
     const creative = typeof input?.toObject === 'function' ? input.toObject() : input;
@@ -169,6 +224,9 @@ export const CreativeService = {
     if (!doc) return null;
     return this.formatWithAllVideos(doc);
   },
+
+  findByProductId: findCreativesByProductId,
+  findRelatedAdsByProductId,
 
   async refreshCreativeMedia(_creativeId?: string | mongoose.Types.ObjectId, _index = 0): Promise<boolean> {
       return false;

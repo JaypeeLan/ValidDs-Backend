@@ -30,6 +30,8 @@ Returns comprehensive data for a single product.
 **Authentication:** Not required.
 **Path Parameters:** `id` (MongoDB ObjectId).
 
+**Response `data`:** `product` (full detail), `relatedProducts` (up to 8 feed cards in the same category), `relatedVideos` (all creatives for this product), `relatedAds` (top-ad/paid creatives for this product), `freshness`.
+
 ### `GET /products/categories`
 Returns all L1 category names (flat array). Does not return products.
 **Authentication:** Not required.

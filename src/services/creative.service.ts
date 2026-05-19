@@ -132,7 +132,7 @@ export const CreativeService = {
     const sort = sortMap[sortBy] ?? sortMap.views;
 
     const [rawData, total] = await Promise.all([
-      creativeModel.find(query).sort(sort).skip(skip).limit(mLimit).populate('productId', 'title thumbnailUrl'),
+      creativeModel.find(query).sort(sort).skip(skip).limit(mLimit).lean(),
       creativeModel.countDocuments(query),
     ]);
     const data = rawData.map((doc) => this.formatWithAllVideos(doc));
@@ -144,7 +144,7 @@ export const CreativeService = {
     /** Market-specific Creative model from req.models.Creative. Defaults to global model (US). */
     creativeModel: Model<ICreativeDocument> = Creative,
   ) {
-    const doc = await creativeModel.findById(id).populate('productId', 'title thumbnailUrl');
+    const doc = await creativeModel.findById(id).lean();
     if (!doc) return null;
     return this.formatWithAllVideos(doc);
   },

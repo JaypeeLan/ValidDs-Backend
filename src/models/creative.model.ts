@@ -13,6 +13,8 @@ export type {
   ICreativeComment,
   ICreativeDocument,
   ICreatorProfile,
+  IMetricTrend,
+  IMetricTrendWindow,
   ISecondaryVideo,
   IVideoMetrics,
 } from '../types/creative.types.js';
@@ -109,6 +111,12 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     topComments: { type: [CreativeCommentSchema], default: [] },
 
     relatedVideos: { type: [SecondaryVideoSchema], default: [] },
+
+    // Denormalized product snapshot — refreshed on every ingest
+    productRating:          { type: Number, default: null },
+    productTotalSales:      { type: Number, default: null },
+    productPrimaryImageUrl: { type: String, default: null },
+    productSalesTrend:      { type: Schema.Types.Mixed, default: null },
 
     publishedAt: { type: Date, required: true },
     ingestedAt:  { type: Date, required: true, default: Date.now },

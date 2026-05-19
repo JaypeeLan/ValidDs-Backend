@@ -70,20 +70,6 @@ properties:
     type: string
     example: USD
 
-  priceHistory:
-    type: array
-    description: Historical price snapshots recorded at ingestion time.
-    items:
-      type: object
-      properties:
-        price:
-          type: number
-        currency:
-          type: string
-        recordedAt:
-          type: string
-          description: ISO date string (YYYY-MM-DD).
-
   suppliers:
     type: array
     description: Marketplace / supplier listings found for this product.

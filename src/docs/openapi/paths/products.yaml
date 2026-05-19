@@ -152,6 +152,12 @@ detail:
   get:
     tags: [Products]
     summary: Get product by ID
+    description: |
+      Returns the full product, same-category **related products** (feed card shape),
+      **related videos** (all TikTok creatives for this product), and **related ads**
+      (paid / top-ad creatives: `section=top-ads`, independent creator, or `isAd`).
+
+      `relatedVideos` and `relatedAds` use the `Creative` schema (proxy URLs + nested `relatedVideos` on each doc).
     parameters:
       - name: id
         in: path
@@ -169,8 +175,30 @@ detail:
                   properties:
                     data:
                       type: object
+                      required: [product, relatedProducts, relatedVideos, relatedAds, freshness]
                       properties:
-                        product: { $ref: '../components/schemas/Product.yaml' }
+                        product:
+                          $ref: '../components/schemas/Product.yaml'
+                        relatedProducts:
+                          type: array
+                          description: Up to 8 products in the same category (feed card shape).
+                          items:
+                            $ref: '../components/schemas/ProductFeedItem.yaml'
+                        relatedVideos:
+                          type: array
+                          description: TikTok creatives linked to this product (sorted by views).
+                          items:
+                            $ref: '../components/schemas/Creative.yaml'
+                        relatedAds:
+                          type: array
+                          description: |
+                            Top-ad / paid creatives for this product (`section=top-ads`, `isIndependentCreator`, or `isAd`).
+                            Subset of discovery ads; sorted by views.
+                          items:
+                            $ref: '../components/schemas/Creative.yaml'
+                        freshness:
+                          type: object
+                          description: Data freshness metadata for the product catalog.
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
 

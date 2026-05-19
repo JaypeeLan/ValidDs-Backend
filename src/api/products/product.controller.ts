@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { findCreativesByProductId, findRelatedAdsByProductId } from '../../services/creative.service';
 import { ProductService, getRelatedProducts } from '../../services/product.service';
 import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
@@ -289,9 +290,11 @@ export const ProductController = {
     try {
       const { id } = req.params;
 
-      const [{ product, freshness }, relatedDocs] = await Promise.all([
+      const [{ product, freshness }, relatedDocs, relatedVideos, relatedAds] = await Promise.all([
         ProductService.getById(id, req.models?.Product),
         getRelatedProducts(id, req.models?.Product),
+        findCreativesByProductId(id, req.models?.Creative),
+        findRelatedAdsByProductId(id, req.models?.Creative),
       ]);
 
       const [plain, ...relatedPlains] = await enrichProductsWithCreatorAvatars(
@@ -306,6 +309,8 @@ export const ProductController = {
           {
             product: formatProductResponse(plain as ProductLike),
             relatedProducts: relatedPlains.map(formatProductFeedItem),
+            relatedVideos,
+            relatedAds,
             freshness,
           },
           ResponseMessage.PRODUCT_RETRIEVED,

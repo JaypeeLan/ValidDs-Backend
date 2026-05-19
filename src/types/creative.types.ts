@@ -92,8 +92,14 @@ export interface ICreative {
   productRating?: number | null;
   /** Lifetime total units sold */
   productTotalSales?: number | null;
+  /** Lifetime GMV (price × totalSales) */
+  productTotalGmv?: number | null;
+  productPrice?: number | null;
+  productUrl?: string | null;
+  shopName?: string | null;
   productPrimaryImageUrl?: string | null;
   productSalesTrend?: IMetricTrend | null;
+  productTrend?: { score: number; direction: string; isTrending: boolean; reason?: string } | null;
   publishedAt: Date;
   ingestedAt: Date;
   createdAt: Date;

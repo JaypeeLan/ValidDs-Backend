@@ -23,6 +23,7 @@ export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
   totalGmv: 1,
   salesTrend: 1,
   shopName: 1,
+  shopUrl: 1,
   shopAvatarUrl: 1,
   lastIngestedAt: 1,
   discoverySections: 1,

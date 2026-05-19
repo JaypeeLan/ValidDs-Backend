@@ -48,6 +48,10 @@ properties:
     description: Sparkline data (e.g. 7-day windows).
   shopName:
     type: string
+  shopUrl:
+    type: string
+    format: uri
+    description: TikTok Shop / merchant storefront link.
   shopAvatarUrl:
     type: string
     format: uri

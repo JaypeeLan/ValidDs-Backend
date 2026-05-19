@@ -7,6 +7,8 @@ import type {
   IMetricTrendWindow,
   ISalesHistoryEntry,
   IRevenueHistoryEntry,
+  IPriceHistoryEntry,
+  IPriceTrend,
   IProductDocument,
   IProductModel,
   IProductReview,
@@ -26,6 +28,13 @@ export type {
   IProductSupplier,
   IProductSupplierShop,
   ITrend,
+  IMetricTrend,
+  IMetricTrendWindow,
+  ISalesHistoryEntry,
+  IRevenueHistoryEntry,
+  IPriceHistoryEntry,
+  IPriceTrend,
+  IPriceTrendWindow,
   PriceBand,
   ProductStatus,
   ProductType,
@@ -218,6 +227,23 @@ const RevenueHistoryEntrySchema = new Schema<IRevenueHistoryEntry>(
   { _id: false },
 );
 
+const PriceHistoryEntrySchema = new Schema<IPriceHistoryEntry>(
+  {
+    price:      { type: Number, required: true, min: 0 },
+    recordedAt: { type: Schema.Types.Mixed, required: true },
+  },
+  { _id: false },
+);
+
+const PriceTrendSchema = new Schema<IPriceTrend>(
+  {
+    direction:     { type: String, enum: ['up', 'down', 'stable'], required: true },
+    changePercent: { type: Number, required: true },
+    windows:       { type: [MetricTrendWindowSchema], default: [] },
+  },
+  { _id: false },
+);
+
 const RatingSourceSchema = new Schema(
   {
     platform:    { type: String },
@@ -266,6 +292,8 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     salesTrend:     { type: MetricTrendSchema, default: null },
     revenueHistory: { type: [RevenueHistoryEntrySchema], default: [] },
     revenueTrend:   { type: MetricTrendSchema, default: null },
+    priceHistory:   { type: [PriceHistoryEntrySchema], default: [] },
+    priceTrend:     { type: PriceTrendSchema, default: null },
 
     ratingSources: { type: [RatingSourceSchema], default: [] },
     discoverySections: [{ type: String }],

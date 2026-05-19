@@ -123,6 +123,7 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     totalGmv: (product as any).totalGmv,
     salesTrend: (product as any).salesTrend ?? null,
     shopName: (product as any).shopName,
+    shopUrl: (product as any).shopUrl,
     shopAvatarUrl: (product as any).shopAvatarUrl ?? null,
     lastIngestedAt: (product as any).lastIngestedAt,
     isTopAd: discoverySections.includes('top-ads'),

@@ -65,6 +65,8 @@ export interface ProductFeedItem {
   totalGmv?: number;
   salesTrend?: IMetricTrend | null;
   shopName?: string;
+  /** TikTok Shop / merchant storefront URL. */
+  shopUrl?: string;
   shopAvatarUrl?: string | null;
   lastIngestedAt: string | Date;
   isTopAd?: boolean;
@@ -216,6 +218,15 @@ export interface IRevenueHistoryEntry {
   recordedAt: Date | string;
 }
 
+export interface IPriceHistoryEntry {
+  price: number;
+  recordedAt: Date | string;
+}
+
+/** Windowed price change — same structure as `IMetricTrend` / sales & revenue trends. */
+export type IPriceTrend = IMetricTrend;
+export type IPriceTrendWindow = IMetricTrendWindow;
+
 // ── Main product interface ────────────────────────────────────────────────────
 
 export interface IProduct {
@@ -262,6 +273,8 @@ export interface IProduct {
   salesTrend?: IMetricTrend | null;
   revenueHistory?: IRevenueHistoryEntry[];
   revenueTrend?: IMetricTrend | null;
+  priceHistory?: IPriceHistoryEntry[];
+  priceTrend?: IPriceTrend | null;
 
   discoverySections?: string[];
   ratingSources?: Array<{

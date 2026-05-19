@@ -14,6 +14,13 @@ properties:
   primaryImageUrl:
     type: string
     format: uri
+    description: First image in `imageUrls` (card hero).
+  imageUrls:
+    type: array
+    description: All product image URLs for the card/gallery (primary first, deduped).
+    items:
+      type: string
+      format: uri
   price:
     type: number
   currency:

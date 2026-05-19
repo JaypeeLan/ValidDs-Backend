@@ -14,7 +14,7 @@
  */
 
 /** Bump when feed query semantics change so Redis does not serve stale empty/wrong slices. */
-const PRODUCT_FEED_CACHE_REVISION = 'v3';
+const PRODUCT_FEED_CACHE_REVISION = 'v4';
 
 export const CacheKeys = {
   // Product feed — varies by page + limit + filters

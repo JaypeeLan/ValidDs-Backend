@@ -13,6 +13,7 @@ const log = logger.child({ module: 'product-repository' });
 export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
   title: 1,
   primaryImageUrl: 1,
+  imageUrls: 1,
   price: 1,
   currency: 1,
   categoryL1: 1,

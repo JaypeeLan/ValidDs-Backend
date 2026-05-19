@@ -62,6 +62,25 @@ async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, 
 // Removed getProfileCountryCode — market is now determined by attachMarketModels middleware
 // which reads req.user.contentRegion and resolves req.models to the correct per-market collection.
 
+function collectProductImageUrls(product: Record<string, unknown>): string[] {
+  const primary =
+    typeof product.primaryImageUrl === 'string' ? product.primaryImageUrl.trim() : '';
+  const fromArray = Array.isArray(product.imageUrls)
+    ? product.imageUrls
+        .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+        .map((u) => u.trim())
+    : [];
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const url of [primary, ...fromArray]) {
+    if (url && !seen.has(url)) {
+      seen.add(url);
+      urls.push(url);
+    }
+  }
+  return urls;
+}
+
 function maxCompetitorScore(suppliers: unknown): number | null {
   if (!Array.isArray(suppliers)) return null;
   let max: number | null = null;
@@ -86,11 +105,13 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
   const discoverySections = Array.isArray((product as any).discoverySections)
     ? ((product as any).discoverySections as string[])
     : [];
+  const imageUrls = collectProductImageUrls(product as Record<string, unknown>);
 
   const item: ProductFeedItem = {
     id: String((product as any)._id ?? (product as any).id),
     title: String(product.title ?? ''),
-    primaryImageUrl: (product as any).primaryImageUrl,
+    primaryImageUrl: imageUrls[0] ?? (product as any).primaryImageUrl,
+    imageUrls,
     price: (product as any).price,
     currency: (product as any).currency,
     categoryL1: String((product as any).categoryL1 ?? ''),

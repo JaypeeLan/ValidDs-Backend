@@ -1,5 +1,18 @@
 import mongoose, { Document } from 'mongoose';
 
+// Mirrors IMetricTrend from product.types — kept local to avoid cross-model imports
+export interface IMetricTrendWindow {
+  label: string;
+  daysAgo: number;
+  value: number;
+}
+
+export interface IMetricTrend {
+  direction: 'up' | 'down' | 'stable';
+  changePercent: number;
+  windows: IMetricTrendWindow[];
+}
+
 export type CreativeSection =
   | 'top-ads'
   | 'trending'
@@ -75,6 +88,12 @@ export interface ICreative {
   hashtags: string[];
   topComments: ICreativeComment[];
   relatedVideos: ISecondaryVideo[];
+  /** Denormalized from the parent product — refreshed on every ingest so creatives can be queried standalone */
+  productRating?: number | null;
+  /** Lifetime total units sold */
+  productTotalSales?: number | null;
+  productPrimaryImageUrl?: string | null;
+  productSalesTrend?: IMetricTrend | null;
   publishedAt: Date;
   ingestedAt: Date;
   createdAt: Date;

@@ -189,6 +189,27 @@ properties:
           type: string
           format: date-time
 
+  productRating:
+    type: number
+    nullable: true
+    description: Denormalized from the parent product — star rating (0–5).
+    example: 4.6
+  productTotalSales:
+    type: integer
+    nullable: true
+    description: Denormalized from the parent product — lifetime total units sold.
+    example: 160000
+  productPrimaryImageUrl:
+    type: string
+    format: uri
+    nullable: true
+    description: Denormalized from the parent product — primary listing image.
+  productSalesTrend:
+    nullable: true
+    description: Denormalized from the parent product — sales trend (direction + rolling windows).
+    allOf:
+      - $ref: ./MetricTrend.yaml#/MetricTrend
+
   publishedAt:
     type: string
     format: date-time

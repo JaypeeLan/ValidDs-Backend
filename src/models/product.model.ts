@@ -3,9 +3,6 @@ import type {
   IAIIntelligence,
   IMarketingAnalysis,
   IPrimaryCreator,
-  IPriceHistoryEntry,
-  IPriceTrend,
-  IPriceTrendWindow,
   IMetricTrend,
   IMetricTrendWindow,
   ISalesHistoryEntry,
@@ -22,8 +19,6 @@ export type {
   IAIIntelligence,
   IMarketingAnalysis,
   IPrimaryCreator,
-  IPriceTrend,
-  IPriceTrendWindow,
   IProduct,
   IProductDocument,
   IProductModel,
@@ -103,6 +98,7 @@ const ProductSupplierSchema = new Schema<IProductSupplier>(
     checkedAt:        { type: Date },
     fetchedAt:        { type: Date },
     monthlyTraffic:          { type: Number, min: 0, default: null },
+    semrushRank:             { type: Number, min: 0, default: null },
     productUnitsSold:        { type: Number, min: 0, default: null },
     estimatedMonthlyRevenue: { type: Number, min: 0, default: null },
     revenueSource: {
@@ -188,33 +184,6 @@ const TrendSchema = new Schema<ITrend>(
   { _id: false },
 );
 
-const PriceTrendWindowSchema = new Schema<IPriceTrendWindow>(
-  {
-    label:   { type: String, enum: ['today', '7d', '14d', '30d', '60d', '90d'], required: true },
-    daysAgo: { type: Number, required: true },
-    price:   { type: Number, required: true, min: 0 },
-  },
-  { _id: false },
-);
-
-const PriceTrendSchema = new Schema<IPriceTrend>(
-  {
-    direction:     { type: String, enum: ['up', 'down', 'stable'], required: true },
-    changePercent: { type: Number, required: true },
-    windows:       { type: [PriceTrendWindowSchema], default: [] },
-  },
-  { _id: false },
-);
-
-const PriceHistoryEntrySchema = new Schema<IPriceHistoryEntry>(
-  {
-    price:      { type: Number, required: true, min: 0 },
-    currency:   { type: String, required: true },
-    recordedAt: { type: String, required: true },
-  },
-  { _id: false },
-);
-
 const MetricTrendWindowSchema = new Schema<IMetricTrendWindow>(
   {
     label:   { type: String, required: true },
@@ -284,9 +253,6 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     price:    { type: Number, min: 0 },
     currency: { type: String, default: 'USD' },
 
-    // priceTrend is computed on-read, not stored — omit from schema
-    priceHistory: { type: [PriceHistoryEntrySchema], default: [] },
-
     suppliers: { type: [ProductSupplierSchema], default: [] },
 
     rating:      { type: Number, min: 0, max: 5 },
@@ -320,9 +286,10 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     shopUrl:       { type: String },
     shopAvatarUrl: { type: String, default: null },
     shopFollowers: { type: Number, min: 0, default: 0 },
-    postUrl:       { type: String },
-    postCreatedAt: { type: String, default: null },
-    productUrl:    { type: String },
+    postUrl:            { type: String },
+    postCreatedAt:      { type: String, default: null },
+    productUrl:         { type: String },
+    relatedVideosCount: { type: Number, default: 0 },
 
     validationStatus: { type: String, required: true, default: 'pending' },
 

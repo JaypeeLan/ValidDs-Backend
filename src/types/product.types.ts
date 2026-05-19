@@ -128,8 +128,13 @@ export interface IProductSupplier {
   shop?: IProductSupplierShop | null;
   checkedAt?: Date;
   fetchedAt?: Date;
+  /** Monthly organic visits to the store domain (SEMrush) */
   monthlyTraffic?: number | null;
+  /** SEMrush global domain rank (lower = stronger) */
+  semrushRank?: number | null;
+  /** Units of this specific product sold at this competitor store */
   productUnitsSold?: number | null;
+  /** Estimated monthly revenue this competitor earns from this product */
   estimatedMonthlyRevenue?: number | null;
   revenueSource?: 'product-sales' | 'traffic-estimate' | null;
   competitorScore?: number | null;
@@ -183,29 +188,7 @@ export interface ITrend {
   calculatedAt: Date;
 }
 
-// ── Price trend ───────────────────────────────────────────────────────────────
 
-export interface IPriceTrendWindow {
-  label: 'today' | '7d' | '14d' | '30d' | '60d' | '90d';
-  daysAgo: number;
-  /** 0 when no historical data exists for this period */
-  price: number;
-}
-
-export interface IPriceTrend {
-  direction: 'up' | 'down' | 'stable';
-  /** Percentage change from oldest available window vs today, rounded to 1 decimal */
-  changePercent: number;
-  windows: IPriceTrendWindow[];
-}
-
-// ── Price history entry ───────────────────────────────────────────────────────
-
-export interface IPriceHistoryEntry {
-  price: number;
-  currency: string;
-  recordedAt: string;
-}
 
 // ── Sales / revenue trends (stored on product detail) ───────────────────────────
 
@@ -258,12 +241,6 @@ export interface IProduct {
   // Pricing
   price?: number;
   currency: string;
-
-  // Price trend (computed on-read from priceHistory)
-  priceTrend?: IPriceTrend | null;
-
-  // Price history (appended on each re-ingestion when price changes)
-  priceHistory?: IPriceHistoryEntry[];
 
   // Competitor suppliers (sorted by competitorScore desc)
   suppliers: IProductSupplier[];
@@ -320,6 +297,9 @@ export interface IProduct {
   /** ISO 8601 timestamp when the TikTok video was originally posted */
   postCreatedAt?: string | null;
   productUrl?: string;
+
+  /** Total number of creatives (ads + store posts) attached to this product */
+  relatedVideosCount?: number;
 
   // Creative counts (computed by enricher)
   creativeCounts?: {

@@ -7,6 +7,7 @@ import path from 'path';
 import { env } from './config/env.validation';
 import { requestLoggerMiddleware } from './middleware/request-logger.middleware';
 import { sanitizeMiddleware } from './middleware/sanitize.middleware';
+import { globalLimiter } from './middleware/rate-limit.middleware';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware';
 import { getAllowedOrigins } from './security/encryption';
 import { healthRouter } from './api/index';
@@ -34,6 +35,12 @@ import { handleStripeWebhook } from './api/webhooks/stripe.webhook.controller';
  */
 export async function createApp(): Promise<Application> {
   const app = express();
+
+  // Trust one hop of proxy headers (Render / nginx sit in front).
+  // This makes req.ip resolve to the real client IP from X-Forwarded-For
+  // instead of the load-balancer's address, which is required for correct
+  // per-IP rate limiting.
+  app.set('trust proxy', 1);
 
   // ── 1. Sentry request handler ─────────────────────────────────────────────
   if (env.NODE_ENV !== 'development') {
@@ -109,7 +116,10 @@ export async function createApp(): Promise<Application> {
   // ── 7. Sanitizer ──────────────────────────────────────────────────────────
   app.use(sanitizeMiddleware);
 
-  // ── 7.5 Swagger Documentation ─────────────────────────────────────────────
+  // ── 7.5 Global rate limiter ───────────────────────────────────────────────
+  app.use(globalLimiter);
+
+  // ── 7.7 Swagger Documentation ─────────────────────────────────────────────
   // Use `serveFiles` (not shared `serve`) so each mount gets its own swagger-ui-init.js;
   // otherwise the global init script is overwritten and /docs shows the last-registered spec (admin).
   const [swaggerSpec, adminSwaggerSpec] = await Promise.all([getSwaggerSpec(), getAdminSwaggerSpec()]);

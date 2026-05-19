@@ -452,6 +452,56 @@ export const ProductRepository = {
     return model.findById(id);
   },
 
+  /**
+   * Find related products for a given product.
+   * Strategy:
+   *   1. Same categoryL2 (subcategory), excluding current — up to 8 results.
+   *   2. If fewer than 8 found, backfill from same categoryL1, excluding already-found IDs.
+   * Sorted by trend score desc then totalSales desc.
+   */
+  async findRelated(
+    id: string,
+    categoryL1: string,
+    categoryL2: string | undefined,
+    limit = 8,
+    model: IProductModel = Product,
+  ): Promise<IProductDocument[]> {
+    if (!mongoose.isValidObjectId(id)) return [];
+
+    const objectId    = new mongoose.Types.ObjectId(id);
+    const baseFilter  = { _id: { $ne: objectId }, status: { $ne: 'archived' } };
+    const sort        = { 'trend.score': -1 as const, totalSales: -1 as const };
+    const projection  = PRODUCT_LISTING_FIELD_PROJECTION;
+
+    const results: IProductDocument[] = [];
+
+    // Pass 1 — same subcategory
+    if (categoryL2) {
+      const subcategoryResults = await model
+        .find({ ...baseFilter, categoryL2 })
+        .select(projection)
+        .sort(sort)
+        .limit(limit)
+        .lean() as unknown as IProductDocument[];
+      results.push(...subcategoryResults);
+    }
+
+    // Pass 2 — backfill from same top-level category if needed
+    if (results.length < limit) {
+      const seenIds = new Set([id, ...results.map((p) => String((p as any)._id))]);
+      const remaining = limit - results.length;
+      const categoryResults = await model
+        .find({ ...baseFilter, categoryL1, _id: { $nin: [...seenIds].map((sid) => new mongoose.Types.ObjectId(sid)) } })
+        .select(projection)
+        .sort(sort)
+        .limit(remaining)
+        .lean() as unknown as IProductDocument[];
+      results.push(...categoryResults);
+    }
+
+    return results;
+  },
+
   async getCategories(): Promise<string[]> {
     return [...PRODUCT_CATEGORIES];
   },

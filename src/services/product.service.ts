@@ -6,6 +6,7 @@ import { CacheService } from '../cache/cache.service';
 import { CacheKeys, CACHE_TTL } from '../cache/cache.keys';
 import { PaginatedResponse } from '../utils/pagination.util';
 import { NotFoundError } from '../middleware/error.middleware';
+import mongoose from 'mongoose';
 
 /**
  * Product Service
@@ -95,6 +96,35 @@ export const ProductService = {
 
   async getTaxonomy(): Promise<typeof CATEGORY_TAXONOMY> {
     return CATEGORY_TAXONOMY;
+  },
+
+  /**
+   * Get related products for a given product.
+   * Cached per product ID for 10 minutes.
+   */
+  async getRelated(
+    id: string,
+    productModel?: IProductModel,
+  ): Promise<IProductDocument[]> {
+    if (!mongoose.isValidObjectId(id)) return [];
+
+    const cacheKey = CacheKeys.productRelated(id);
+    return CacheService.getOrSet(
+      cacheKey,
+      CACHE_TTL.PRODUCT_RELATED,
+      async () => {
+        // Fetch the product to get its category
+        const product = await ProductRepository.findById(id, productModel);
+        if (!product) return [];
+        return ProductRepository.findRelated(
+          id,
+          product.categoryL1,
+          product.categoryL2,
+          8,
+          productModel,
+        );
+      },
+    ) as Promise<IProductDocument[]>;
   },
 
   /**

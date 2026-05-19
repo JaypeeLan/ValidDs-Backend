@@ -15,7 +15,87 @@ import mongoose from 'mongoose';
  * Controllers call this — never the repository directly.
  */
 
-export const ProductService = {
+/**
+ * Related products for a product detail page (cached).
+ */
+export async function getRelatedProducts(
+  id: string,
+  productModel?: IProductModel,
+): Promise<IProductDocument[]> {
+  if (!mongoose.isValidObjectId(id)) return [];
+
+  const cacheKey = CacheKeys.productRelated(id);
+  return CacheService.getOrSet(
+    cacheKey,
+    CACHE_TTL.PRODUCT_RELATED,
+    async () => {
+      const product = await ProductRepository.findById(id, productModel);
+      if (!product) return [];
+      return ProductRepository.findRelated(
+        id,
+        product.categoryL1,
+        product.categoryL2,
+        8,
+        productModel,
+      );
+    },
+  ) as Promise<IProductDocument[]>;
+}
+
+export type ProductServiceType = {
+  getFeed: (
+    filters: ProductFeedFilters,
+    productModel?: IProductModel,
+  ) => Promise<{
+    feed: PaginatedResponse<IProductDocument>;
+    freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
+  }>;
+  cleanupProducts: () => Promise<{
+    genericDeleted: number;
+    duplicatesDeleted: number;
+    lowViewsDeleted: number;
+  }>;
+  getById: (
+    id: string,
+    productModel?: IProductModel,
+  ) => Promise<{
+    product: IProductDocument;
+    freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
+  }>;
+  getCategories: () => Promise<string[]>;
+  getSubcategories: (category?: string) => Promise<Record<string, string[]> | string[]>;
+  getTaxonomy: () => Promise<typeof CATEGORY_TAXONOMY>;
+  getRelated: (id: string, productModel?: IProductModel) => Promise<IProductDocument[]>;
+  search: (
+    query: string,
+    category?: string[],
+    page?: number,
+    limit?: number,
+    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd' | 'sortBy'>,
+    productModel?: IProductModel,
+  ) => Promise<PaginatedResponse<IProductDocument>>;
+  keywordContext: (params: {
+    name: string;
+    timeFilter: 1 | 7 | 30 | 90 | 180;
+    sortOrder: 0 | 1;
+    country: string;
+    cursor: number;
+    matchExactly: boolean;
+  }) => Promise<{
+    keyword: string;
+    filters: {
+      timeFilter: 1 | 7 | 30 | 90 | 180;
+      sortOrder: 0 | 1;
+      country: string;
+      matchExactly: boolean;
+    };
+    pagination: { cursor: number; nextCursor: number | null };
+    suggestedHashtags: string[];
+    posts: Array<Record<string, unknown>>;
+  }>;
+};
+
+export const ProductService: ProductServiceType = {
 
   /**
    * Get the product feed with optional filters.
@@ -98,34 +178,7 @@ export const ProductService = {
     return CATEGORY_TAXONOMY;
   },
 
-  /**
-   * Get related products for a given product.
-   * Cached per product ID for 10 minutes.
-   */
-  async getRelated(
-    id: string,
-    productModel?: IProductModel,
-  ): Promise<IProductDocument[]> {
-    if (!mongoose.isValidObjectId(id)) return [];
-
-    const cacheKey = CacheKeys.productRelated(id);
-    return CacheService.getOrSet(
-      cacheKey,
-      CACHE_TTL.PRODUCT_RELATED,
-      async () => {
-        // Fetch the product to get its category
-        const product = await ProductRepository.findById(id, productModel);
-        if (!product) return [];
-        return ProductRepository.findRelated(
-          id,
-          product.categoryL1,
-          product.categoryL2,
-          8,
-          productModel,
-        );
-      },
-    ) as Promise<IProductDocument[]>;
-  },
+  getRelated: getRelatedProducts,
 
   /**
    * Full-text search across product titles, descriptions, and tags.

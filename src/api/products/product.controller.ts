@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ProductService } from '../../services/product.service';
+import { ProductService, getRelatedProducts } from '../../services/product.service';
 import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
@@ -291,7 +291,7 @@ export const ProductController = {
 
       const [{ product, freshness }, relatedDocs] = await Promise.all([
         ProductService.getById(id, req.models?.Product),
-        ProductService.getRelated(id, req.models?.Product),
+        getRelatedProducts(id, req.models?.Product),
       ]);
 
       const [plain, ...relatedPlains] = await enrichProductsWithCreatorAvatars(

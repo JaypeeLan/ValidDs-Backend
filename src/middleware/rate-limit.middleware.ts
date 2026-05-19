@@ -2,23 +2,34 @@ import rateLimit from 'express-rate-limit';
 import { env } from '../config/env.validation';
 
 /**
- * Rate limiting middleware using express-rate-limit.
+ * Rate limiting middleware using express-rate-limit (in-memory store).
  *
- * For V1, uses in-memory store (sufficient for single-instance deployment on Render free tier).
- * When scaling to multiple instances, swap the store for RedisStore:
- *
+ * For multi-instance deployments swap in RedisStore:
  *   import { RedisStore } from 'rate-limit-redis';
  *   store: new RedisStore({ sendCommand: (...args) => redisClient.call(...args) })
  *
- * Two limiters are provided:
- *   - globalLimiter:  applied to all routes
- *   - strictLimiter:  applied to sensitive routes (auth, key generation)
+ * Three limiters:
+ *   globalLimiter  — blanket safety net applied to all routes in app.ts
+ *   strictLimiter  — auth mutations, waitlist signup, expensive ingest endpoints
+ *   mediaLimiter   — TikTok CDN proxy streams (video + thumbnail); tighter per-minute window
  */
 
+const isDev  = env.NODE_ENV === 'development';
+const isTest = env.NODE_ENV === 'test';
+
+// Shared key generator — resolve real client IP.
+// Requires app.set('trust proxy', 1) in app.ts so that Express populates
+// req.ip from X-Forwarded-For (set by Render / nginx) rather than the
+// load-balancer address.
+const clientIp = (req: import('express').Request): string =>
+  req.ip ?? req.socket.remoteAddress ?? 'unknown';
+
+/** 100 req / 15 min — applied globally in app.ts before all routes */
 export const globalLimiter = rateLimit({
-  windowMs: env.RATE_LIMIT_WINDOW_MS,     // default: 15 minutes
-  max: env.RATE_LIMIT_MAX_REQUESTS,        // default: 100 requests per window
-  standardHeaders: true,                   // Return RateLimit-* headers
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  max: env.RATE_LIMIT_MAX_REQUESTS,
+  keyGenerator: clientIp,
+  standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
@@ -27,12 +38,14 @@ export const globalLimiter = rateLimit({
       message: 'Too many requests. Please try again later.',
     },
   },
-  skip: (req) => env.NODE_ENV === 'development' || env.NODE_ENV === 'test' || req.path === '/health' || req.path === '/ready',
+  skip: (req) => isDev || isTest || req.path === '/health' || req.path === '/ready',
 });
 
+/** 10 req / 15 min — auth mutations, waitlist, expensive POST operations */
 export const strictLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,   // 15 minutes
-  max: 10,                      // 10 attempts per window
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyGenerator: clientIp,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -42,5 +55,22 @@ export const strictLimiter = rateLimit({
       message: 'Too many attempts. Please try again later.',
     },
   },
-  skip: () => env.NODE_ENV === 'development' || env.NODE_ENV === 'test',
+  skip: () => isDev || isTest,
+});
+
+/** 30 req / 1 min — TikTok CDN proxy endpoints (video stream + thumbnail) */
+export const mediaLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: clientIp,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many media requests. Please slow down.',
+    },
+  },
+  skip: () => isDev || isTest,
 });

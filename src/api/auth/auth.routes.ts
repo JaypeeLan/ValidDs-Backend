@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AuthController } from './auth.controller';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
+import { strictLimiter } from '../../middleware/rate-limit.middleware';
 import {
   RegisterSchema,
   LoginSchema,
@@ -33,29 +34,31 @@ const router = Router();
 // ── Google OAuth ──────────────────────────────────────────────────────────────
 router.get('/google', AuthController.googleRedirect);
 router.get('/google/callback', AuthController.googleCallback);
-router.post('/google/token', validate(GoogleIdTokenSchema, 'body'), AuthController.googleIdToken);
+router.post('/google/token', strictLimiter, validate(GoogleIdTokenSchema, 'body'), AuthController.googleIdToken);
 
 // ── Local auth ────────────────────────────────────────────────────────────────
 router.post(
   '/register',
+  strictLimiter,
   validate(RegisterSchema, 'body'),
   AuthController.register
 );
 
 router.post(
   '/login',
+  strictLimiter,
   validate(LoginSchema, 'body'),
   AuthController.login
 );
 
-router.post('/email/send-code', requireAuth, AuthController.sendVerificationCode);
-router.post('/email/verify-code', validate(VerifyEmailCodeSchema, 'body'), AuthController.verifyEmailCode);
-router.post('/register/complete', validate(CompleteRegistrationSchema, 'body'), AuthController.completeRegistration);
+router.post('/email/send-code', strictLimiter, requireAuth, AuthController.sendVerificationCode);
+router.post('/email/verify-code', strictLimiter, validate(VerifyEmailCodeSchema, 'body'), AuthController.verifyEmailCode);
+router.post('/register/complete', strictLimiter, validate(CompleteRegistrationSchema, 'body'), AuthController.completeRegistration);
 
-router.post('/forgot-password', validate(ForgotPasswordSchema, 'body'), AuthController.forgotPassword);
-router.post('/reset-password', validate(ResetPasswordSchema, 'body'), AuthController.resetPassword);
+router.post('/forgot-password', strictLimiter, validate(ForgotPasswordSchema, 'body'), AuthController.forgotPassword);
+router.post('/reset-password', strictLimiter, validate(ResetPasswordSchema, 'body'), AuthController.resetPassword);
 
-router.post('/tiktok', validate(TikTokCodeSchema, 'body'), AuthController.tiktok);
+router.post('/tiktok', strictLimiter, validate(TikTokCodeSchema, 'body'), AuthController.tiktok);
 
 // ── Protected ────────────────────────────────────────────────────────────────
 router.get('/me', requireAuth, AuthController.me);

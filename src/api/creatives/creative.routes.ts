@@ -3,6 +3,7 @@ import { CreativeController } from './creative.controller';
 import { validate } from '../../middleware/validate.middleware';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { attachMarketModels } from '../../middleware/market.middleware';
+import { strictLimiter, mediaLimiter } from '../../middleware/rate-limit.middleware';
 import {
   CreativeListQuerySchema,
   CreativeTopAdsListQuerySchema,
@@ -29,6 +30,7 @@ router.use(attachMarketModels);
 
 router.post(
   '/ingest',
+  strictLimiter,
   requireAuth,
   validate(CreativeIngestBodySchema, 'body'),
   CreativeController.ingest
@@ -56,6 +58,7 @@ router.get(
 // `Referer`-required 403. Public so <video> tags can hit it directly.
 router.get(
   '/:id/video',
+  mediaLimiter,
   validate(CreativeIdParamSchema, 'params'),
   validate(CreativeStreamQuerySchema, 'query'),
   CreativeController.streamVideo
@@ -65,6 +68,7 @@ router.get(
 // `<img>` requests without a Referer).
 router.get(
   '/:id/thumbnail',
+  mediaLimiter,
   validate(CreativeIdParamSchema, 'params'),
   validate(CreativeThumbnailQuerySchema, 'query'),
   CreativeController.streamThumbnail

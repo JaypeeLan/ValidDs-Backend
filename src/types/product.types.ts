@@ -53,6 +53,8 @@ export interface ProductFeedItem {
   id: string;
   title: string;
   primaryImageUrl?: string;
+  /** All product image URLs (primary first, deduped). */
+  imageUrls: string[];
   price?: number;
   currency?: string;
   categoryL1: string;

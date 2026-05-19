@@ -123,11 +123,40 @@ export const CreativeService = {
     };
     const sort = sortMap[sortBy] ?? sortMap.views;
 
-    const [rawData, total] = await Promise.all([
-      creativeModel.find(query, { productDescription: 0 }).sort(sort).skip(skip).limit(mLimit).lean(),
-      creativeModel.countDocuments(query),
-    ]);
-    const data = rawData.map((doc) => this.formatWithAllVideos(doc));
+    // Deduplicate by productId: return one representative creative per product
+    // (the highest-viewed one). The other creatives for that product are already
+    // stored on relatedVideos so the frontend can show them in the detail view.
+    //
+    // Pipeline:
+    //  1. $match  — apply all filters
+    //  2. $sort   — best first so $first picks the highest-viewed creative
+    //  3. $group  — one doc per productId
+    //  4. $replaceRoot — promote the winner back to root
+    //  5. $sort   — re-sort the deduplicated set for consistent ordering
+    //  6. $facet  — paginate + count in one round-trip
+    const pipeline: Record<string, unknown>[] = [
+      { $match: query },
+      { $sort: sort },
+      { $group: { _id: { productId: '$productId', isIndependentCreator: '$isIndependentCreator' }, doc: { $first: '$$ROOT' } } },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $project: { productDescription: 0 } },
+      { $sort: sort },
+      {
+        $facet: {
+          data:  [{ $skip: skip }, { $limit: mLimit }],
+          total: [{ $count: 'count' }],
+        },
+      },
+    ];
+
+    const [result] = await creativeModel.aggregate(pipeline).exec() as [{
+      data: Record<string, unknown>[];
+      total: [{ count: number }] | [];
+    }];
+
+    const rawData = result?.data ?? [];
+    const total   = result?.total[0]?.count ?? 0;
+    const data    = rawData.map((doc) => this.formatWithAllVideos(doc));
     return { data, pagination: { total, page: Number(page), limit: mLimit, pages: Math.ceil(total / mLimit) } };
   },
 

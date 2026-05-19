@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ProductService } from '../../services/product.service';
+import { ProductService, getRelatedProducts } from '../../services/product.service';
 import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
@@ -288,14 +288,26 @@ export const ProductController = {
   async detail(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      const { product, freshness } = await ProductService.getById(id, req.models?.Product);
-      const [plain] = await enrichProductsWithCreatorAvatars(
-        await toPlainWithImages([product as unknown as ProductLike]),
+
+      const [{ product, freshness }, relatedDocs] = await Promise.all([
+        ProductService.getById(id, req.models?.Product),
+        getRelatedProducts(id, req.models?.Product),
+      ]);
+
+      const [plain, ...relatedPlains] = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages([
+          product as unknown as ProductLike,
+          ...relatedDocs as unknown as ProductLike[],
+        ]),
       );
 
       res.json(
         successResponse(
-          { product: formatProductResponse(plain as ProductLike), freshness },
+          {
+            product: formatProductResponse(plain as ProductLike),
+            relatedProducts: relatedPlains.map(formatProductFeedItem),
+            freshness,
+          },
           ResponseMessage.PRODUCT_RETRIEVED,
           200
         )

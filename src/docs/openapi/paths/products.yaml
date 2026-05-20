@@ -196,8 +196,6 @@ detail:
                             All other creatives for this product (`section` ≠ `trending`). Sorted by views.
                           items:
                             $ref: '../components/schemas/Creative.yaml'
-                          items:
-                            $ref: '../components/schemas/Creative.yaml'
                         freshness:
                           type: object
                           description: Data freshness metadata for the product catalog.

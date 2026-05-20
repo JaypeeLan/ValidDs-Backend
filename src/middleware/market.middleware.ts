@@ -7,9 +7,11 @@
  *
  * Falls back to 'US' if the user has no contentRegion or the value is invalid.
  *
- * Usage (apply after requireAuth in route files):
- *   router.use(requireAuth, attachMarketModels);
- *   router.get('/feed', ProductController.getFeed);
+ * Usage on routers with public + authenticated routes:
+ *   router.use(optionalAuth, attachMarketModels);
+ *
+ * `optionalAuth` must run first so `req.user.contentRegion` is loaded from the DB
+ * before models are resolved. Route-level `requireAuth` alone is too late.
  *
  * In controllers:
  *   const { Product } = req.models;
@@ -18,10 +20,11 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import { getMarketModels, type MarketModels } from '../models/market-models.factory';
-import { toMarketCode } from '../utils/markets';
+import { toMarketCode, type MarketCode } from '../utils/markets';
 
 export function attachMarketModels(req: Request, _res: Response, next: NextFunction): void {
   const market = toMarketCode(req.user?.contentRegion);
+  req.market = market;
   req.models = getMarketModels(market);
   next();
 }
@@ -33,6 +36,7 @@ export function attachMarketModels(req: Request, _res: Response, next: NextFunct
 declare global {
   namespace Express {
     interface Request {
+      market: MarketCode;
       models: MarketModels;
     }
   }

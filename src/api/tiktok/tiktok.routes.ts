@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { requireAuth, requireRole } from '../../middleware/auth.middleware';
+import { optionalAuth, requireAuth, requireRole } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
@@ -14,8 +14,7 @@ import { logger } from '../../logger';
 const log = logger.child({ module: 'tiktok-routes' });
 const router = Router();
 
-// Per-market `live_sessions_{market}` — same as products/creatives (defaults to US when unauthenticated).
-router.use(attachMarketModels);
+router.use(optionalAuth, attachMarketModels);
 
 /**
  * TikTok Routes

@@ -13,19 +13,21 @@
  * - No key collision bugs from typos
  */
 
+import type { MarketCode } from '../utils/markets';
+
 /** Bump when feed query semantics change so Redis does not serve stale empty/wrong slices. */
-const PRODUCT_FEED_CACHE_REVISION = 'v6';
+const PRODUCT_FEED_CACHE_REVISION = 'v7';
 
 export const CacheKeys = {
-  // Product feed — varies by page + limit + filters
-  productFeed: (page: number, limit: number, filters?: string) =>
-    `product:feed:${PRODUCT_FEED_CACHE_REVISION}:${page}:${limit}${filters ? `:${filters}` : ''}`,
+  // Product feed — varies by market + page + limit + filters
+  productFeed: (market: MarketCode, page: number, limit: number, filters?: string) =>
+    `product:feed:${PRODUCT_FEED_CACHE_REVISION}:${market}:${page}:${limit}${filters ? `:${filters}` : ''}`,
 
   // Individual product detail
-  productDetail: (id: string) => `product:detail:${id}`,
+  productDetail: (market: MarketCode, id: string) => `product:detail:${market}:${id}`,
 
   // Related products for a given product
-  productRelated: (id: string) => `product:related:${id}`,
+  productRelated: (market: MarketCode, id: string) => `product:related:${market}:${id}`,
 
   // Product categories
   productCategories: () => `product:categories`,

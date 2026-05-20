@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { CreativeController } from './creative.controller';
 import { validate } from '../../middleware/validate.middleware';
-import { requireAuth } from '../../middleware/auth.middleware';
+import { optionalAuth, requireAuth } from '../../middleware/auth.middleware';
 import { attachMarketModels } from '../../middleware/market.middleware';
 import { strictLimiter, mediaLimiter } from '../../middleware/rate-limit.middleware';
 import {
@@ -15,9 +15,7 @@ import {
 
 const router = Router();
 
-// attachMarketModels reads req.user?.contentRegion and sets req.models.
-// Falls back to US for unauthenticated requests.
-router.use(attachMarketModels);
+router.use(optionalAuth, attachMarketModels);
 
 /**
  * Creative Routes

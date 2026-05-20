@@ -12,11 +12,11 @@
 
 export const SUPPORTED_MARKETS = {
   US: { code: 'US', name: 'United States',  currency: 'USD', locale: 'en-US', tiktokShop: true  },
-  CA: { code: 'CA', name: 'Canada',         currency: 'CAD', locale: 'en-CA', tiktokShop: false },
-  MX: { code: 'MX', name: 'Mexico',         currency: 'MXN', locale: 'es-MX', tiktokShop: false },
+  CA: { code: 'CA', name: 'Canada',         currency: 'CAD', locale: 'en-CA', tiktokShop: true  },
+  MX: { code: 'MX', name: 'Mexico',         currency: 'MXN', locale: 'es-MX', tiktokShop: true  },
   UK: { code: 'UK', name: 'United Kingdom', currency: 'GBP', locale: 'en-GB', tiktokShop: true  },
   AU: { code: 'AU', name: 'Australia',      currency: 'AUD', locale: 'en-AU', tiktokShop: true  },
-  NZ: { code: 'NZ', name: 'New Zealand',    currency: 'NZD', locale: 'en-NZ', tiktokShop: false },
+  NZ: { code: 'NZ', name: 'New Zealand',    currency: 'NZD', locale: 'en-NZ', tiktokShop: true  },
   ES: { code: 'ES', name: 'Spain',          currency: 'EUR', locale: 'es-ES', tiktokShop: true  },
   DE: { code: 'DE', name: 'Germany',        currency: 'EUR', locale: 'de-DE', tiktokShop: true  },
   FR: { code: 'FR', name: 'France',         currency: 'EUR', locale: 'fr-FR', tiktokShop: true  },

@@ -7,7 +7,7 @@
  *   POST /tiktok/live/reconcile  → reconcileOpenLiveSessions()
  */
 
-import { LiveSession } from '../models/live-session.model';
+import { LiveSession, type ILiveSessionModel } from '../models/live-session.model';
 import { ScrapeCreatorsService, SCLiveResult } from './scrapecreators.service';
 import { logger } from '../logger';
 
@@ -54,8 +54,13 @@ export const LiveMonitorService = {
    * Read live sessions from MongoDB only (no ScrapeCreators). Use `reconcileOpenLiveSessions` via
    * `POST /tiktok/live/reconcile` to end stale rows first.
    */
-  async getCachedLiveDiscover(): Promise<CachedLiveDiscoverResult> {
-    const sessions = await LiveSession.find({ status: 'live' }).sort({ startedAt: -1 }).lean();
+  async getCachedLiveDiscover(
+    liveSessionModel: ILiveSessionModel = LiveSession,
+  ): Promise<CachedLiveDiscoverResult> {
+    const sessions = await liveSessionModel
+      .find({ status: 'live' })
+      .sort({ startedAt: -1 })
+      .lean();
 
     return {
       sessions: sessions as unknown as Array<Record<string, unknown>>,
@@ -71,8 +76,10 @@ export const LiveMonitorService = {
   /**
    * Re-verify every open `LiveSession` against ScrapeCreators; ends sessions the API reports as not live.
    */
-  async reconcileOpenLiveSessions(): Promise<string[]> {
-    const openDocs = await LiveSession.find({ status: 'live' });
+  async reconcileOpenLiveSessions(
+    liveSessionModel: ILiveSessionModel = LiveSession,
+  ): Promise<string[]> {
+    const openDocs = await liveSessionModel.find({ status: 'live' });
     if (openDocs.length === 0) return [];
 
     const uniqueHandles = [...new Set(openDocs.map((s) => s.handle))];

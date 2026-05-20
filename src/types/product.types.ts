@@ -151,6 +151,12 @@ export type IncomeLevel    = 'budget' | 'mid-range' | 'premium' | 'luxury';
 export type PurchaseIntent = 'impulse' | 'considered' | 'habitual' | 'gifting';
 export type ContentFormat  = 'tutorial' | 'lifestyle' | 'entertainment' | 'review' | 'comparison';
 
+export interface IMarketingAngle {
+  hook: string;       // opening line / emotional trigger
+  body: string;       // 1-2 sentence elaboration
+  target: string;     // who this angle speaks to
+}
+
 export interface IMarketingAnalysis {
   primaryGender: Gender;
   topAgeGroups: string[];
@@ -161,6 +167,7 @@ export interface IMarketingAnalysis {
   purchaseIntent: PurchaseIntent;
   contentFormat: ContentFormat;
   marketingInsight: string;
+  angles: IMarketingAngle[];
   analyzedAt: Date;
 }
 

@@ -1,5 +1,7 @@
 import { getRedisClient } from './redis.client';
 import { logger } from '../logger';
+import { env } from '../config/env.validation';
+import { CACHE_PREFIXES } from './cache.keys';
 
 const log = logger.child({ module: 'cache' });
 
@@ -15,13 +17,24 @@ const log = logger.child({ module: 'cache' });
  * - Prefix-based invalidation (clear all keys for an entity type)
  */
 
+/** Returns true when product caching is disabled and the key is a product cache key. */
+function isProductCacheDisabled(key: string): boolean {
+  return env.PRODUCT_CACHE_DISABLED && key.startsWith(CACHE_PREFIXES.PRODUCT);
+}
+
 export const CacheService = {
 
   /**
    * Get a cached value.
-   * Returns null on miss or error.
+   * Returns null on miss or error — also returns null when PRODUCT_CACHE_DISABLED=true
+   * and the key is a product:* key, forcing a fresh DB read every time.
    */
   async get<T>(key: string): Promise<T | null> {
+    if (isProductCacheDisabled(key)) {
+      log.debug('Product cache disabled — forced miss', { key });
+      return null;
+    }
+
     try {
       const redis = getRedisClient();
       const raw = await redis.get(key);
@@ -39,8 +52,14 @@ export const CacheService = {
 
   /**
    * Set a cached value with a TTL in seconds.
+   * No-op when PRODUCT_CACHE_DISABLED=true and the key is a product:* key.
    */
   async set<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
+    if (isProductCacheDisabled(key)) {
+      log.debug('Product cache disabled — skipping write', { key });
+      return;
+    }
+
     try {
       const redis = getRedisClient();
       await redis.setex(key, ttlSeconds, JSON.stringify(value));

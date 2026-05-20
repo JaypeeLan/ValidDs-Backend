@@ -14,7 +14,7 @@
  */
 
 /** Bump when feed query semantics change so Redis does not serve stale empty/wrong slices. */
-const PRODUCT_FEED_CACHE_REVISION = 'v5';
+const PRODUCT_FEED_CACHE_REVISION = 'v6';
 
 export const CacheKeys = {
   // Product feed — varies by page + limit + filters
@@ -64,9 +64,9 @@ export const CacheKeys = {
  * Adjust based on observed ingestion frequency and product requirements.
  */
 export const CACHE_TTL = {
-  PRODUCT_FEED: 300,       // 5 minutes — feeds refresh relatively often
-  PRODUCT_DETAIL: 600,     // 10 minutes — detail pages can be slightly staler
-  PRODUCT_RELATED: 600,    // 10 minutes — related products change only on re-ingest
+  PRODUCT_FEED: 60,        // 1 minute
+  PRODUCT_DETAIL: 60,      // 1 minute
+  PRODUCT_RELATED: 60,     // 1 minute
   PRODUCT_TREND: 180,      // 3 minutes — trend data changes quickly
   CATEGORIES: 3600,        // 1 hour — DB scans for distinct take time
   VIDEO_FEED: 300,         // 5 minutes

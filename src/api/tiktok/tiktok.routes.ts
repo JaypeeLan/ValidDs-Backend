@@ -5,6 +5,7 @@ import { validate } from '../../middleware/validate.middleware';
 import { successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
 import { ScrapeCreatorsService } from '../../services/scrapecreators.service';
+import { attachMarketModels } from '../../middleware/market.middleware';
 import { LiveMonitorService } from '../../services/live-monitor.service';
 import { TikTokWebcastService } from '../../services/tiktok-webcast.service';
 import { LiveSession } from '../../models/live-session.model';
@@ -12,6 +13,9 @@ import { logger } from '../../logger';
 
 const log = logger.child({ module: 'tiktok-routes' });
 const router = Router();
+
+// Per-market `live_sessions_{market}` — same as products/creatives (defaults to US when unauthenticated).
+router.use(attachMarketModels);
 
 /**
  * TikTok Routes
@@ -38,7 +42,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await LiveMonitorService.getCachedLiveDiscover();
+      const result = await LiveMonitorService.getCachedLiveDiscover(req.models.LiveSession);
 
       res.json(successResponse(
         result,
@@ -53,7 +57,7 @@ router.get(
 router.post(
   '/live/reconcile',
   requireAuth,
-  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!ScrapeCreatorsService.isConfigured()) {
         throw new AppError(
@@ -62,7 +66,7 @@ router.post(
           'SCRAPECREATORS_NOT_CONFIGURED',
         );
       }
-      const ended = await LiveMonitorService.reconcileOpenLiveSessions();
+      const ended = await LiveMonitorService.reconcileOpenLiveSessions(req.models.LiveSession);
       res.json(successResponse(
         { ended },
         ended.length === 0
@@ -184,6 +188,7 @@ router.get(
 /** GET /tiktok/sessions */
 router.get('/sessions', requireAuth, requireRole('admin'), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const LiveSessionModel = req.models.LiveSession;
     const handle  = req.query.handle  ? String(req.query.handle).replace(/^@/, '').toLowerCase() : undefined;
     const status  = req.query.status  ? String(req.query.status)  : undefined;
     const page    = Math.max(1, Number(req.query.page)  || 1);
@@ -194,12 +199,12 @@ router.get('/sessions', requireAuth, requireRole('admin'), async (req: Request, 
     if (status === 'live' || status === 'ended') filter.status = status;
 
     const [sessions, total] = await Promise.all([
-      LiveSession.find(filter)
+      LiveSessionModel.find(filter)
         .sort({ startedAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
-      LiveSession.countDocuments(filter),
+      LiveSessionModel.countDocuments(filter),
     ]);
 
     res.json(successResponse(
@@ -213,7 +218,7 @@ router.get('/sessions', requireAuth, requireRole('admin'), async (req: Request, 
 /** GET /tiktok/sessions/:id */
 router.get('/sessions/:id', requireAuth, requireRole('admin'), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const session = await LiveSession.findById(req.params.id).lean();
+    const session = await req.models.LiveSession.findById(req.params.id).lean();
     if (!session) throw new AppError(404, 'Session not found', 'NOT_FOUND');
     res.json(successResponse(session, 'Session detail', 200));
   } catch (err) { next(err); }

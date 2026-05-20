@@ -20,8 +20,7 @@ export async function getSwaggerSpec(): Promise<object> {
     return bundledSpec;
   } catch (err) {
     log.error('Failed to bundle Swagger specification', err);
-    // Return a minimal spec so the app doesn't crash, but the error is logged
-    return { openapi: '3.0.0', info: { title: 'Error', version: '0.0.0' }, paths: {} };
+    throw err;
   }
 }
 
@@ -35,6 +34,6 @@ export async function getAdminSwaggerSpec(): Promise<object> {
     return bundledSpec;
   } catch (err) {
     log.error('Failed to bundle Admin Swagger specification', err);
-    return { openapi: '3.0.0', info: { title: 'Error', version: '0.0.0' }, paths: {} };
+    throw err;
   }
 }

@@ -7,6 +7,7 @@ import { CacheKeys, CACHE_TTL } from '../cache/cache.keys';
 import { PaginatedResponse } from '../utils/pagination.util';
 import { NotFoundError } from '../middleware/error.middleware';
 import mongoose from 'mongoose';
+import { DEFAULT_MARKET, type MarketCode } from '../utils/markets';
 
 /**
  * Product Service
@@ -21,10 +22,11 @@ import mongoose from 'mongoose';
 export async function getRelatedProducts(
   id: string,
   productModel?: IProductModel,
+  market: MarketCode = DEFAULT_MARKET,
 ): Promise<IProductDocument[]> {
   if (!mongoose.isValidObjectId(id)) return [];
 
-  const cacheKey = CacheKeys.productRelated(id);
+  const cacheKey = CacheKeys.productRelated(market, id);
   return CacheService.getOrSet(
     cacheKey,
     CACHE_TTL.PRODUCT_RELATED,
@@ -46,6 +48,7 @@ export type ProductServiceType = {
   getFeed: (
     filters: ProductFeedFilters,
     productModel?: IProductModel,
+    market?: MarketCode,
   ) => Promise<{
     feed: PaginatedResponse<IProductDocument>;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
@@ -58,6 +61,7 @@ export type ProductServiceType = {
   getById: (
     id: string,
     productModel?: IProductModel,
+    market?: MarketCode,
   ) => Promise<{
     product: IProductDocument;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
@@ -65,7 +69,7 @@ export type ProductServiceType = {
   getCategories: () => Promise<string[]>;
   getSubcategories: (category?: string) => Promise<Record<string, string[]> | string[]>;
   getTaxonomy: () => Promise<typeof CATEGORY_TAXONOMY>;
-  getRelated: (id: string, productModel?: IProductModel) => Promise<IProductDocument[]>;
+  getRelated: (id: string, productModel?: IProductModel, market?: MarketCode) => Promise<IProductDocument[]>;
   search: (
     query: string,
     category?: string[],
@@ -105,11 +109,13 @@ export const ProductService: ProductServiceType = {
     filters: ProductFeedFilters,
     /** Market-specific Product model from req.models.Product. Defaults to global model (US). */
     productModel?: IProductModel,
+    market: MarketCode = DEFAULT_MARKET,
   ): Promise<{
     feed: PaginatedResponse<IProductDocument>;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
   }> {
     const cacheKey = CacheKeys.productFeed(
+      market,
       filters.page ?? 1,
       filters.limit ?? 20,
       JSON.stringify({ ...filters, page: undefined, limit: undefined })
@@ -140,11 +146,12 @@ export const ProductService: ProductServiceType = {
     id: string,
     /** Market-specific Product model from req.models.Product. Defaults to global model (US). */
     productModel?: IProductModel,
+    market: MarketCode = DEFAULT_MARKET,
   ): Promise<{
     product: IProductDocument;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
   }> {
-    const cacheKey = CacheKeys.productDetail(id);
+    const cacheKey = CacheKeys.productDetail(market, id);
 
     const product = await CacheService.getOrSet(
       cacheKey,

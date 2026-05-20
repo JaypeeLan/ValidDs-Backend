@@ -266,7 +266,7 @@ export const ProductController = {
         page: query.page,
         limit: query.limit,
         sortBy: query.sortBy,
-      }, req.models?.Product);
+      }, req.models?.Product, req.market);
 
       const feedPlains = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages(feed.data as unknown as ProductLike[]),
@@ -292,8 +292,8 @@ export const ProductController = {
       const { id } = req.params;
 
       const [{ product, freshness }, relatedDocs, relatedVideos, relatedAds] = await Promise.all([
-        ProductService.getById(id, req.models?.Product),
-        getRelatedProducts(id, req.models?.Product),
+        ProductService.getById(id, req.models?.Product, req.market),
+        getRelatedProducts(id, req.models?.Product, req.market),
         findCreativesByProductId(id, req.models?.Creative),
         findRelatedAdsByProductId(id, req.models?.Creative),
       ]);

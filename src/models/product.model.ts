@@ -2,6 +2,7 @@ import mongoose, { Schema } from 'mongoose';
 import type {
   IAIIntelligence,
   IMarketingAnalysis,
+  IMarketingAngle,
   IPrimaryCreator,
   IMetricTrend,
   IMetricTrendWindow,
@@ -120,6 +121,15 @@ const ProductSupplierSchema = new Schema<IProductSupplier>(
   { _id: false },
 );
 
+const MarketingAngleSchema = new Schema<IMarketingAngle>(
+  {
+    hook:   { type: String, required: true },
+    body:   { type: String, required: true },
+    target: { type: String, required: true },
+  },
+  { _id: false },
+);
+
 const MarketingAnalysisSchema = new Schema<IMarketingAnalysis>(
   {
     primaryGender: {
@@ -147,6 +157,7 @@ const MarketingAnalysisSchema = new Schema<IMarketingAnalysis>(
       required: true,
     },
     marketingInsight: { type: String, required: true },
+    angles:           { type: [MarketingAngleSchema], default: [] },
     analyzedAt:       { type: Date, required: true },
   },
   { _id: false },

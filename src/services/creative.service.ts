@@ -1,7 +1,7 @@
 import { Creative, type ICreativeDocument } from '../models/creative.model';
 import type { Model } from 'mongoose';
 import { logger } from '../logger';
-import mongoose from 'mongoose';
+import mongoose, { type PipelineStage } from 'mongoose';
 
 const log = logger.child({ module: 'creative-service' });
 
@@ -145,12 +145,14 @@ export const CreativeService = {
     /** Market-specific Creative model from req.models.Creative. Defaults to global model (US). */
     creativeModel: Model<ICreativeDocument> = Creative,
   ) {
-    const { q, productId, section, isAd, region, minViews, hashtags, page = 1, limit = 20, sortBy = 'views', categoryL1, categoryL2, categoryL3 } = filters;
+    // `region` is intentionally unused here — the market-scoped collection
+    // (creatives_us, creatives_uk, …) is selected upstream by attachMarketModels,
+    // so filtering by creator.region inside the document is redundant and wrong.
+    const { q, productId, section, isAd, minViews, hashtags, page = 1, limit = 20, sortBy = 'views', categoryL1, categoryL2, categoryL3 } = filters;
     const query: any = {};
     if (productId) query.productId = productId;
     if (section) query.section = section;
     if (isAd !== undefined) query.isAd = isAd;
-    if (region) query['creator.region'] = region.toUpperCase();
     if (minViews) query['metrics.viewCount'] = { $gte: Number(minViews) };
     if (categoryL1) query.categoryL1 = categoryL1;
     if (categoryL2) query.categoryL2 = categoryL2;
@@ -178,7 +180,7 @@ export const CreativeService = {
     };
     const sort = sortMap[sortBy] ?? sortMap.views;
 
-    const pipeline: Record<string, unknown>[] = [
+    const pipeline: PipelineStage[] = [
       { $match: query },
       { $project: { productDescription: 0 } },
       { $sort: sort },

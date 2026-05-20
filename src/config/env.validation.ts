@@ -230,6 +230,9 @@ const envSchema = z.object({
   /** When false, in-process timers and manual `/jobs/*` triggers are no-ops. */
   ENABLE_BACKGROUND_JOBS: z.coerce.boolean().default(false),
 
+  /** Bypass Redis for all product:* cache keys — reads always miss, writes are no-ops. */
+  PRODUCT_CACHE_DISABLED: z.coerce.boolean().default(false),
+
 });
 
 export type Env = z.infer<typeof envSchema>;

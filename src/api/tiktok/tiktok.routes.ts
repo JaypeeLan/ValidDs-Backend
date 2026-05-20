@@ -57,7 +57,7 @@ router.get(
 router.post(
   '/live/reconcile',
   requireAuth,
-  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!ScrapeCreatorsService.isConfigured()) {
         throw new AppError(

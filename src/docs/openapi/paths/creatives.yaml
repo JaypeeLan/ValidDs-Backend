@@ -1,7 +1,9 @@
 creatives:
   get:
     summary: List all creatives
-    description: Retrieves a paginated list of creatives from across all products, with optional filtering.
+    description: |
+      Paginated creatives. When `section` is omitted, only `section=trending` is returned.
+      Pass `section` explicitly to query other sections. Use `GET /creatives/top-ads` for all creatives (no section default).
     tags:
       - Creatives
     security:
@@ -74,10 +76,10 @@ creatives:
 
 topAdsList:
   get:
-    summary: List top-ad creatives (independent creators)
+    summary: List all creatives (ads discovery)
     description: |
-      Returns creatives whose **primary** `creator.isIndependentCreator` is `true`.
-      This is separate from the legacy `section=top-ads` filter on `GET /api/v1/creatives`.
+      Returns creatives across **all** `section` values (no default `trending` filter).
+      Contrast with `GET /creatives`, which defaults to `section=trending` when `section` is omitted.
     tags:
       - Creatives
     security:

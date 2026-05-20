@@ -178,22 +178,8 @@ export const CreativeService = {
     };
     const sort = sortMap[sortBy] ?? sortMap.views;
 
-    // Deduplicate by productId: return one representative creative per product
-    // (the highest-viewed one). The other creatives for that product are already
-    // stored on relatedVideos so the frontend can show them in the detail view.
-    //
-    // Pipeline:
-    //  1. $match  — apply all filters
-    //  2. $sort   — best first so $first picks the highest-viewed creative
-    //  3. $group  — one doc per productId
-    //  4. $replaceRoot — promote the winner back to root
-    //  5. $sort   — re-sort the deduplicated set for consistent ordering
-    //  6. $facet  — paginate + count in one round-trip
     const pipeline: Record<string, unknown>[] = [
       { $match: query },
-      { $sort: sort },
-      { $group: { _id: { productId: '$productId', isIndependentCreator: '$isIndependentCreator' }, doc: { $first: '$$ROOT' } } },
-      { $replaceRoot: { newRoot: '$doc' } },
       { $project: { productDescription: 0 } },
       { $sort: sort },
       {

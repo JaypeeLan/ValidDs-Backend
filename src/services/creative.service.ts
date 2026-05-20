@@ -11,6 +11,15 @@ function escapeRegex(input: string): string {
 
 const PRODUCT_CREATIVE_LIMIT = 50;
 
+/** Trending TikTok creatives for a product (`relatedVideos`). */
+const PRODUCT_TRENDING_MATCH = { section: 'trending' };
+
+/** All non-trending creatives for a product (`relatedAds`) — mutually exclusive with trending. */
+const PRODUCT_NON_TRENDING_MATCH = { section: { $ne: 'trending' } };
+
+/** Default for `GET /creatives` when `section` query param is omitted. */
+export const DEFAULT_CREATIVES_LIST_MATCH = PRODUCT_TRENDING_MATCH;
+
 async function loadCreativesForProduct(
   productId: string,
   creativeModel: Model<ICreativeDocument>,
@@ -32,36 +41,22 @@ async function loadCreativesForProduct(
   return docs.map((doc) => CreativeService.formatWithAllVideos(doc));
 }
 
-/** All TikTok creatives for a product (`GET /products/:id` → `relatedVideos`). */
+/** Trending creatives for a product (`GET /products/:id` → `relatedVideos`). */
 export async function findCreativesByProductId(
   productId: string,
   creativeModel: Model<ICreativeDocument> = Creative,
   limit = PRODUCT_CREATIVE_LIMIT,
 ): Promise<Record<string, unknown>[]> {
-  return loadCreativesForProduct(productId, creativeModel, {}, limit);
+  return loadCreativesForProduct(productId, creativeModel, PRODUCT_TRENDING_MATCH, limit);
 }
 
-/**
- * Paid / top-ad creatives for a product (`GET /products/:id` → `relatedAds`).
- * Matches `GET /creatives/top-ads` semantics scoped to one product.
- */
+/** All non-trending creatives for a product (`GET /products/:id` → `relatedAds`). */
 export async function findRelatedAdsByProductId(
   productId: string,
   creativeModel: Model<ICreativeDocument> = Creative,
   limit = PRODUCT_CREATIVE_LIMIT,
 ): Promise<Record<string, unknown>[]> {
-  return loadCreativesForProduct(
-    productId,
-    creativeModel,
-    {
-      $or: [
-        { section: 'top-ads' },
-        { isIndependentCreator: true },
-        { isAd: true },
-      ],
-    },
-    limit,
-  );
+  return loadCreativesForProduct(productId, creativeModel, PRODUCT_NON_TRENDING_MATCH, limit);
 }
 
 export const CreativeService = {

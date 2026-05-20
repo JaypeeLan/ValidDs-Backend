@@ -154,10 +154,10 @@ detail:
     summary: Get product by ID
     description: |
       Returns the full product, same-category **related products** (feed card shape),
-      **related videos** (all TikTok creatives for this product), and **related ads**
-      (paid / top-ad creatives: `section=top-ads`, independent creator, or `isAd`).
+      **related videos** (`section=trending` only) and **related ads** (all other sections for this product).
 
-      `relatedVideos` and `relatedAds` use the `Creative` schema (proxy URLs + nested `relatedVideos` on each doc).
+      The two arrays are **mutually exclusive** by `section`.
+      Each item uses the `Creative` schema (proxy URLs + nested `relatedVideos` on each doc).
     parameters:
       - name: id
         in: path
@@ -186,14 +186,16 @@ detail:
                             $ref: '../components/schemas/ProductFeedItem.yaml'
                         relatedVideos:
                           type: array
-                          description: TikTok creatives linked to this product (sorted by views).
+                          description: |
+                            Creatives with `section=trending` for this product. Sorted by views.
                           items:
                             $ref: '../components/schemas/Creative.yaml'
                         relatedAds:
                           type: array
                           description: |
-                            Top-ad / paid creatives for this product (`section=top-ads`, `isIndependentCreator`, or `isAd`).
-                            Subset of discovery ads; sorted by views.
+                            All other creatives for this product (`section` ≠ `trending`). Sorted by views.
+                          items:
+                            $ref: '../components/schemas/Creative.yaml'
                           items:
                             $ref: '../components/schemas/Creative.yaml'
                         freshness:

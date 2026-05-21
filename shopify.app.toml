@@ -2,26 +2,15 @@
 
 client_id = "dcb83292758ad41ea2f7126ee70b18e8"
 name = "validds-main"
-application_url = "https://validds-backend-g196.onrender.com"
+application_url = "https://validds-backend-g196.onrender.com/shopify/app"
 embedded = false
 
 [webhooks]
 api_version = "2026-04"
 
-  [[webhooks.subscriptions]]
-  uri = "/api/v1/webhooks/shopify"
-  topics = [
-  "app/uninstalled",
-  "customers/data_request",
-  "customers/redact",
-  "shop/redact"
-]
-
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_products,write_products"
-optional_scopes = [ ]
-use_legacy_install_flow = true
+optional_scopes = []
 
 [auth]
 redirect_urls = [

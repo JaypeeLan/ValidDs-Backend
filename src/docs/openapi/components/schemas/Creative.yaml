@@ -9,18 +9,17 @@ required:
   - metrics
   - section
   - isIndependentCreator
-  - publishedAt
+  - hashtags
 properties:
   _id:
     type: string
-    description: MongoDB document ID (alias of `id`).
-    example: 60b9b3b3e2b4f9a0c8b2c1d3
+    deprecated: true
+    description: Legacy alias; API responses use `id`.
   id:
     type: string
     example: 60b9b3b3e2b4f9a0c8b2c1d3
   productId:
     type: string
-    nullable: true
     example: 60b9b3b3e2b4f9a0c8b2c1d4
   externalVideoId:
     type: string
@@ -28,7 +27,9 @@ properties:
   embedUrl:
     type: string
     format: uri
-    description: Permanent TikTok embed URL (https://www.tiktok.com/embed/v2/<id>). Use this — CDN play URLs expire.
+    description: |
+      Permanent TikTok embed URL (`https://www.tiktok.com/embed/v2/<id>`).
+      Use in an `<iframe>` when CDN proxy playback is unavailable or expired.
   tiktokPostUrl:
     type: string
     format: uri
@@ -37,77 +38,46 @@ properties:
     type: string
     format: uri
     nullable: true
-
-  isAd:
-    type: boolean
-    description: Whether this creative is a paid advertisement (top-ads).
-    default: false
-
-  creator:
-    type: object
-    nullable: true
-    required: [handle, followers, verified, tiktokPostUrl, isIndependentCreator]
-    properties:
-      handle:
-        type: string
-        example: "@naturalglow"
-      displayName:
-        type: string
-      bio:
-        type: string
-      avatarUrl:
-        type: string
-        format: uri
-      followers:
-        type: integer
-        example: 48200
-      following:
-        type: integer
-      totalLikes:
-        type: integer
-      region:
-        type: string
-        example: US
-      verified:
-        type: boolean
-      tiktokPostUrl:
-        type: string
-        format: uri
-      isIndependentCreator:
-        type: boolean
-        description: When true this creator is an independent creator — surfaced in top-ads discovery.
-
-  metrics:
-    type: object
-    required: [viewCount, likeCount, commentCount, shareCount]
-    properties:
-      viewCount:
-        type: integer
-      likeCount:
-        type: integer
-      commentCount:
-        type: integer
-      shareCount:
-        type: integer
-      engagementRate:
-        type: number
-        nullable: true
+  videoProxyUrl:
+    type: string
+    description: |
+      Relative API path to stream the TikTok CDN MP4 (`GET /api/v1/creatives/{id}/video?index=0`).
+      Requires a stored CDN `videoPlayUrl`; returns 404 if missing, 410 if expired — then use `embedUrl`.
+    example: /api/v1/creatives/60b9b3b3e2b4f9a0c8b2c1d3/video?index=0
+  thumbnailProxyUrl:
+    type: string
+    description: Relative API path for proxied cover image (`GET .../thumbnail?index=0&kind=thumbnail`).
+    example: /api/v1/creatives/60b9b3b3e2b4f9a0c8b2c1d3/thumbnail?index=0&kind=thumbnail
 
   section:
     type: string
     enum: [top-ads, trending, influencer-reviews, tutorials, viral-unboxings]
+    description: |
+      API-facing section label. Ingestion stores inverted labels for the two main buckets:
+      API `trending` ↔ DB `top-ads` (default list ~462 US); API `top-ads` ↔ DB `trending` (~19).
 
   isIndependentCreator:
     type: boolean
-    description: Top-level mirror of creator.isIndependentCreator — set when the creator is not the brand/seller.
+    description: Top-level flag — creator is not the product brand/seller.
+  isPrimaryDiscovery:
+    type: boolean
+    description: True when this video was the primary discovery source for the product.
+  isAd:
+    type: boolean
+    nullable: true
+    description: True when the video is a paid advertisement.
+
+  creator:
+    $ref: ./CreativeCreator.yaml
+  metrics:
+    $ref: ./CreativeMetrics.yaml
 
   productName:
     type: string
-    description: Product name associated with this creative (from AI extraction).
   productDescription:
     type: string
     maxLength: 2000
-    description: Full product description — present on detail endpoint only, omitted from list responses.
+    description: Full product description — **detail** (`GET /creatives/{id}`) only; omitted from list/feed cards.
 
   categoryL1:
     type: string
@@ -131,119 +101,55 @@ properties:
   topComments:
     type: array
     items:
-      type: object
-      properties:
-        comment:
-          type: string
-        source:
-          type: string
-        likeCount:
-          type: integer
-        authorHandle:
-          type: string
-        collectedAt:
-          type: string
-          format: date-time
+      $ref: ./CreativeComment.yaml
 
   relatedVideos:
     type: array
-    description: Other TikTok videos for the same product (secondary creatives).
+    description: Other TikTok videos for the same product (secondary slots; `index` 1+ on media routes).
     items:
-      type: object
-      properties:
-        externalVideoId:
-          type: string
-        embedUrl:
-          type: string
-          format: uri
-        tiktokPostUrl:
-          type: string
-          format: uri
-        thumbnailUrl:
-          type: string
-          format: uri
-        creator:
-          type: object
-          properties:
-            handle: { type: string }
-            displayName: { type: string }
-            avatarUrl: { type: string, format: uri }
-            followers: { type: integer }
-            verified: { type: boolean }
-            tiktokPostUrl: { type: string, format: uri }
-            isIndependentCreator: { type: boolean }
-        metrics:
-          type: object
-          properties:
-            viewCount: { type: integer }
-            likeCount: { type: integer }
-            commentCount: { type: integer }
-            shareCount: { type: integer }
-            engagementRate: { type: number, nullable: true }
-        publishedAt:
-          type: string
-          format: date-time
+      $ref: ./CreativeSecondaryVideo.yaml
 
   productRating:
     type: number
     nullable: true
-    description: Denormalized from the parent product — star rating (0–5).
+    description: Denormalized parent product star rating (0–5).
     example: 4.6
   productTotalSales:
     type: integer
     nullable: true
-    description: Lifetime total units sold.
-    example: 160000
   productTotalGmv:
     type: number
     nullable: true
-    description: Lifetime GMV (price × totalSales).
-    example: 4800000
   productPrice:
     type: number
     nullable: true
-    description: Current listing price of the product.
-    example: 29.99
   productUrl:
     type: string
     format: uri
     nullable: true
-    description: TikTok Shop product URL.
   shopName:
     type: string
     nullable: true
-    description: TikTok Shop store name.
-    example: "GlowSkinUS"
+  shopAvatarUrl:
+    type: string
+    format: uri
+    nullable: true
   productPrimaryImageUrl:
     type: string
     format: uri
     nullable: true
-    description: Primary listing image.
   productSalesTrend:
     nullable: true
-    description: Sales trend over rolling windows.
+    description: Denormalized copy of the parent product's `salesTrend` (rolling sales windows).
     allOf:
       - $ref: ./MetricTrend.yaml#/MetricTrend
   productTrend:
-    type: object
-    nullable: true
-    description: Trend score and direction for the parent product.
-    properties:
-      score:
-        type: number
-        example: 3.8
-      direction:
-        type: string
-        enum: [rising, peaked, saturating, stable, declining, emerging, viral, unknown]
-      isTrending:
-        type: boolean
-      reason:
-        type: string
-        nullable: true
+    $ref: ./CreativeProductTrend.yaml
 
   publishedAt:
     type: string
     format: date-time
+    nullable: true
   ingestedAt:
     type: string
     format: date-time

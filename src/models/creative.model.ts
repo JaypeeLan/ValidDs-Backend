@@ -3,20 +3,28 @@ import type {
   ICreativeComment,
   ICreativeDocument,
   ICreatorProfile,
+  IMetricTrend,
+  IMetricTrendWindow,
   ISecondaryVideo,
   IVideoMetrics,
 } from '../types/creative.types.js';
 
 export type {
+  CreativeApiItem,
+  CreativeFeedItem,
   CreativeSection,
   ICreative,
   ICreativeComment,
   ICreativeDocument,
   ICreatorProfile,
+  ICreatorProfileApi,
   IMetricTrend,
   IMetricTrendWindow,
+  IProductTrendSnapshot,
   ISecondaryVideo,
+  ISecondaryVideoApi,
   IVideoMetrics,
+  IVideoMetricsApi,
 } from '../types/creative.types.js';
 
 // ── Sub-schemas ───────────────────────────────────────────────────────────────
@@ -27,13 +35,13 @@ const CreatorProfileSchema = new Schema<ICreatorProfile>(
     displayName:   { type: String },
     bio:           { type: String },
     avatarUrl:     { type: String },
-    followers:     { type: Number, required: true, min: 0, default: 0 },
+    followers:     { type: Number, min: 0, default: 0 },
     following:     { type: Number, min: 0 },
     totalLikes:    { type: Number, min: 0 },
     region:        { type: String },
     verified:      { type: Boolean, required: true, default: false },
     tiktokPostUrl: { type: String, required: true },
-    isIndependentCreator: { type: Boolean, default: false, index: true },
+    isIndependentCreator: { type: Boolean, default: false },
   },
   { _id: false },
 );
@@ -45,8 +53,8 @@ const VideoMetricsSchema = new Schema<IVideoMetrics>(
     commentCount:   { type: Number, required: true, default: 0, min: 0 },
     shareCount:     { type: Number, required: true, default: 0, min: 0 },
     engagementRate: { type: Number, default: null },
-    source:         { type: String, required: true, default: 'TikTok' },
-    fetchedAt:      { type: Date, required: true, default: Date.now },
+    source:         { type: String },
+    fetchedAt:      { type: Date },
   },
   { _id: false },
 );
@@ -58,6 +66,24 @@ const CreativeCommentSchema = new Schema<ICreativeComment>(
     likeCount:    { type: Number, min: 0 },
     authorHandle: { type: String },
     collectedAt:  { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
+const MetricTrendWindowSchema = new Schema<IMetricTrendWindow>(
+  {
+    label:   { type: String, required: true },
+    daysAgo: { type: Number, required: true, min: 0 },
+    value:   { type: Number, required: true, min: 0 },
+  },
+  { _id: false },
+);
+
+const MetricTrendSchema = new Schema<IMetricTrend>(
+  {
+    direction:     { type: String, enum: ['up', 'down', 'stable'], required: true },
+    changePercent: { type: Number, required: true },
+    windows:       { type: [MetricTrendWindowSchema], default: [] },
   },
   { _id: false },
 );
@@ -97,6 +123,8 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
       index: true,
     },
     isIndependentCreator: { type: Boolean, default: false, index: true },
+    isPrimaryDiscovery:   { type: Boolean, default: false },
+    isAd:                 { type: Boolean, default: null },
 
     productName:        { type: String },
     productDescription: { type: String, maxlength: 2000 },
@@ -119,12 +147,13 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     productPrice:           { type: Number, default: null },
     productUrl:             { type: String, default: null },
     shopName:               { type: String, default: null },
+    shopAvatarUrl:          { type: String, default: null },
     productPrimaryImageUrl: { type: String, default: null },
-    productSalesTrend:      { type: Schema.Types.Mixed, default: null },
+    productSalesTrend:      { type: MetricTrendSchema, default: null },
     productTrend:           { type: Schema.Types.Mixed, default: null },
 
-    publishedAt: { type: Date, required: true },
-    ingestedAt:  { type: Date, required: true, default: Date.now },
+    publishedAt: { type: Date },
+    ingestedAt:  { type: Date, default: Date.now },
   },
   { timestamps: true },
 );

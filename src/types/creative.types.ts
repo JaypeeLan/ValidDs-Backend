@@ -25,14 +25,14 @@ export interface ICreatorProfile {
   displayName?: string;
   bio?: string;
   avatarUrl?: string;
-  followers: number;
+  /** Optional — not present on older ingested records from main DB */
+  followers?: number;
   following?: number;
   totalLikes?: number;
   region?: string;
   verified: boolean;
   tiktokPostUrl: string;
-  /** When true, this creator is an independent creator — surfaced as a top ad for discovery */
-  isIndependentCreator: boolean;
+  isIndependentCreator?: boolean;
 }
 
 export interface IVideoMetrics {
@@ -42,8 +42,9 @@ export interface IVideoMetrics {
   shareCount: number;
   /** (likes + comments + shares) / views × 100 — null when views = 0 */
   engagementRate?: number | null;
-  source: string;
-  fetchedAt: Date;
+  /** Optional — not present on older ingested records */
+  source?: string;
+  fetchedAt?: Date;
 }
 
 export interface ICreativeComment {
@@ -60,6 +61,7 @@ export interface ISecondaryVideo {
   embedUrl: string;
   tiktokPostUrl: string;
   thumbnailUrl?: string;
+  videoPlayUrl?: string;
   creator: ICreatorProfile;
   metrics: IVideoMetrics;
   topComments: ICreativeComment[];
@@ -69,15 +71,21 @@ export interface ISecondaryVideo {
 export interface ICreative {
   productId: mongoose.Types.ObjectId;
   externalVideoId: string;
-  /** Permanent TikTok embed URL — use this instead of a CDN play URL which expires */
+  /** Permanent TikTok embed URL — use instead of CDN play URL which expires */
   embedUrl: string;
   tiktokPostUrl: string;
   thumbnailUrl?: string;
+  /** Legacy CDN play URL — optional; used by video proxy when present */
+  videoPlayUrl?: string;
   creator: ICreatorProfile;
   metrics: IVideoMetrics;
   section: CreativeSection;
   /** true when the creator is NOT the product's own brand/seller */
   isIndependentCreator: boolean;
+  /** true when this creative was the primary discovery source for the product */
+  isPrimaryDiscovery?: boolean;
+  /** true when the video is a paid ad */
+  isAd?: boolean;
   productName?: string;
   productDescription?: string;
   categoryL1?: string;
@@ -88,22 +96,97 @@ export interface ICreative {
   hashtags: string[];
   topComments: ICreativeComment[];
   relatedVideos: ISecondaryVideo[];
-  /** Denormalized from the parent product — refreshed on every ingest so creatives can be queried standalone */
+  /** Denormalized from the parent product — refreshed on every ingest */
   productRating?: number | null;
-  /** Lifetime total units sold */
   productTotalSales?: number | null;
-  /** Lifetime GMV (price × totalSales) */
   productTotalGmv?: number | null;
   productPrice?: number | null;
   productUrl?: string | null;
   shopName?: string | null;
+  shopAvatarUrl?: string | null;
   productPrimaryImageUrl?: string | null;
+  /** Denormalized copy of the parent product's `salesTrend` (MetricTrend windows). */
   productSalesTrend?: IMetricTrend | null;
   productTrend?: { score: number; direction: string; isTrending: boolean; reason?: string } | null;
-  publishedAt: Date;
-  ingestedAt: Date;
+  /** Optional — not present on older ingested records from main DB */
+  publishedAt?: Date;
+  ingestedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface ICreativeDocument extends ICreative, Document {}
+
+// ── API response shapes ───────────────────────────────────────────────────────
+
+export interface ICreatorProfileApi extends ICreatorProfile {
+  avatarProxyUrl?: string;
+}
+
+export interface IVideoMetricsApi {
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  engagementRate?: number | null;
+}
+
+export interface ISecondaryVideoApi extends ISecondaryVideo {
+  isPrimary: false;
+  videoProxyUrl?: string;
+  thumbnailProxyUrl?: string;
+  metrics: IVideoMetricsApi;
+  creator: ICreatorProfileApi;
+}
+
+export interface IProductTrendSnapshot {
+  score: number;
+  direction: string;
+  isTrending: boolean;
+  reason?: string;
+}
+
+/** Full creative — detail and product embeds. */
+export interface CreativeApiItem {
+  id: string;
+  productId: string;
+  externalVideoId: string;
+  embedUrl: string;
+  tiktokPostUrl: string;
+  thumbnailUrl?: string;
+  videoProxyUrl?: string;
+  thumbnailProxyUrl?: string;
+  creator: ICreatorProfileApi;
+  metrics: IVideoMetricsApi;
+  section: CreativeSection;
+  isIndependentCreator: boolean;
+  isPrimaryDiscovery?: boolean;
+  isAd?: boolean;
+  productName?: string;
+  productDescription?: string;
+  categoryL1?: string;
+  categoryL2?: string;
+  categoryL3?: string;
+  categoryPath?: string;
+  description?: string;
+  hashtags: string[];
+  topComments: ICreativeComment[];
+  relatedVideos: ISecondaryVideoApi[];
+  productRating?: number | null;
+  productTotalSales?: number | null;
+  productTotalGmv?: number | null;
+  productPrice?: number | null;
+  productUrl?: string | null;
+  shopName?: string | null;
+  shopAvatarUrl?: string | null;
+  productPrimaryImageUrl?: string | null;
+  productSalesTrend?: IMetricTrend | null;
+  productTrend?: IProductTrendSnapshot | null;
+  publishedAt?: Date | string;
+  ingestedAt?: Date | string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
+/** List cards — omits long `productDescription`. */
+export type CreativeFeedItem = Omit<CreativeApiItem, 'productDescription'>;

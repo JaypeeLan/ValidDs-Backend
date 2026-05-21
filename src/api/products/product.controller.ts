@@ -4,54 +4,62 @@ import { ProductService, getRelatedProducts } from '../../services/product.servi
 import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
-import type { ProductApiResponse, ProductFeedItem } from '../../types/product.types';
+import type {
+  IAIIntelligence,
+  IProduct,
+  IProductReview,
+  IProductSupplier,
+  IProductTrends,
+  ITrend,
+  ProductAiInsightResponse,
+  ProductApiResponse,
+  ProductFeedItem,
+} from '../../types/product.types';
 import {
   enrichProductsWithCreatorAvatars,
   normalizePrimaryCreatorOnProduct,
 } from '../../utils/product-response.util';
+import { resolveEngagementTrend } from '../../utils/product-trend.util';
 
 type ProductLike = Record<string, unknown> & {
-  aiIntelligence?: {
-    confidence?: number;
-    confidenceReason?: string;
-    buyingSentimentScore?: number;
-    buyingSentimentReason?: string;
-    marketingAnalysis?: Record<string, unknown> | null;
-    brand?: string;
-    niche?: string;
-    audience?: string[];
-    productType?: string;
-    priceBand?: string;
-    problemStatement?: string;
-    valueStatement?: string;
-    extractedAt?: string | Date;
-  };
-  trend?: {
-    direction?: string;
-    score?: number;
-    reason?: string;
-    isTrending?: boolean;
-  };
-  topVideos?: Array<{
-    videoId?: string;
-    url?: string;
-    playUrl?: string;
-    thumbnailUrl?: string;
-    viewCount?: number;
-    likeCount?: number;
-    commentCount?: number;
-    shareCount?: number;
-    creatorHandle?: string;
-    creatorDisplayName?: string;
-    creatorFollowers?: number;
-    creatorRegion?: string;
-    creatorVerified?: boolean;
-    creatorAvatarUrl?: string;
-    publishedAt?: string | Date;
-    isAd?: boolean;
-  }>;
+  aiIntelligence?: IAIIntelligence;
+  trends?: IProductTrends | null;
+  trend?: ITrend;
+  ratingSources?: IProduct['ratingSources'];
+  reviews?: IProductReview[];
+  suppliers?: IProductSupplier[];
+  creativeCounts?: IProduct['creativeCounts'];
   toObject?: () => Record<string, unknown>;
 };
+
+type ProductPlain = Record<string, unknown>;
+
+function toProductPlain(input: ProductLike): ProductPlain {
+  return typeof input.toObject === 'function' ? input.toObject() : { ...input };
+}
+
+function buildAiInsight(aiIntelligence: IAIIntelligence | undefined): ProductAiInsightResponse {
+  const ai = aiIntelligence ?? ({} as IAIIntelligence);
+  return {
+    confidence: {
+      score: ai.confidence,
+      reason: ai.confidenceReason,
+    },
+    buyingSentiment: {
+      score: ai.buyingSentimentScore,
+      reason: ai.buyingSentimentReason,
+    },
+    marketingAnalysis: ai.marketingAnalysis ?? null,
+    brand: ai.brand,
+    niche: ai.niche,
+    audience: ai.audience,
+    productType: ai.productType,
+    priceBand: ai.priceBand,
+    problemStatement: ai.problemStatement,
+    valueStatement: ai.valueStatement,
+    extractedAt: ai.extractedAt,
+  };
+}
 
 async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, unknown>[]> {
   return inputs.map((p) =>
@@ -94,48 +102,45 @@ function maxCompetitorScore(suppliers: unknown): number | null {
 
 /** Lean payload for discovery product cards (`GET /products`). */
 function formatProductFeedItem(input: ProductLike): ProductFeedItem {
-  const product = typeof input.toObject === 'function' ? input.toObject() : input;
-  const aiIntelligence = (product.aiIntelligence ?? {}) as NonNullable<ProductLike['aiIntelligence']>;
-  const trend = (product.trend ?? {}) as NonNullable<ProductLike['trend']>;
-  const ratingSources = Array.isArray((product as any).ratingSources) ? (product as any).ratingSources : [];
+  const product = toProductPlain(input);
+  const engagement = resolveEngagementTrend(product);
+  const ratingSources = Array.isArray(product.ratingSources) ? product.ratingSources : [];
   const derivedRating = deriveAverageRatingFromSources(ratingSources);
   const finalRating =
-    typeof (product as any).rating === 'number' && (product as any).rating > 0
-      ? (product as any).rating
-      : derivedRating;
-  const discoverySections = Array.isArray((product as any).discoverySections)
-    ? ((product as any).discoverySections as string[])
+    typeof product.rating === 'number' && product.rating > 0 ? product.rating : derivedRating;
+  const discoverySections = Array.isArray(product.discoverySections)
+    ? (product.discoverySections as string[])
     : [];
-  const imageUrls = collectProductImageUrls(product as Record<string, unknown>);
+  const imageUrls = collectProductImageUrls(product);
 
   const item: ProductFeedItem = {
-    id: String((product as any)._id ?? (product as any).id),
+    id: String(product._id ?? product.id),
     title: String(product.title ?? ''),
-    primaryImageUrl: imageUrls[0] ?? (product as any).primaryImageUrl,
+    primaryImageUrl: imageUrls[0] ?? (product.primaryImageUrl as string | undefined),
     imageUrls,
-    price: (product as any).price,
-    currency: (product as any).currency,
-    categoryL1: String((product as any).categoryL1 ?? ''),
-    categoryPath: (product as any).categoryPath,
+    price: product.price as number | undefined,
+    currency: product.currency as string | undefined,
+    categoryL1: String(product.categoryL1 ?? ''),
+    categoryPath: product.categoryPath as string | undefined,
     rating: finalRating,
     ratings: finalRating,
-    totalSales: (product as any).totalSales,
-    totalGmv: (product as any).totalGmv,
-    salesTrend: (product as any).salesTrend ?? null,
-    shopName: (product as any).shopName,
-    shopUrl: (product as any).shopUrl,
-    shopAvatarUrl: (product as any).shopAvatarUrl ?? null,
-    lastIngestedAt: (product as any).lastIngestedAt,
+    totalSales: product.totalSales as number | undefined,
+    totalGmv: product.totalGmv as number | undefined,
+    salesTrend: (product.salesTrend as ProductFeedItem['salesTrend']) ?? null,
+    shopName: product.shopName as string | undefined,
+    shopUrl: product.shopUrl as string | undefined,
+    shopAvatarUrl: (product.shopAvatarUrl as string | null | undefined) ?? null,
+    lastIngestedAt: product.lastIngestedAt as string | Date,
     isTopAd: discoverySections.includes('top-ads'),
-    competitionScore: maxCompetitorScore((product as any).suppliers),
+    competitionScore: maxCompetitorScore(product.suppliers),
     aiInsight: {
-      confidence: { score: aiIntelligence.confidence },
-      buyingSentiment: { score: aiIntelligence.buyingSentimentScore },
+      confidence: { score: product.aiIntelligence?.confidence },
+      buyingSentiment: { score: product.aiIntelligence?.buyingSentimentScore },
     },
     trend: {
-      score: trend.score,
-      direction: trend.direction,
-      isTrending: Boolean(trend.isTrending),
+      score: engagement.score,
+      direction: engagement.direction,
+      isTrending: engagement.isTrending,
     },
   };
 
@@ -148,51 +153,29 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
 }
 
 function formatProductResponse(input: ProductLike): ProductApiResponse {
-  const product = typeof input.toObject === 'function' ? input.toObject() : input;
-  const aiIntelligence = (product.aiIntelligence ?? {}) as NonNullable<ProductLike['aiIntelligence']>;
-  const trend = (product.trend ?? {}) as NonNullable<ProductLike['trend']>;
-  const ratingSources = Array.isArray((product as any).ratingSources) ? (product as any).ratingSources : [];
+  const product = toProductPlain(input);
+  const engagement = resolveEngagementTrend(product);
+  const ratingSources = Array.isArray(product.ratingSources) ? product.ratingSources : [];
   const derivedRating = deriveAverageRatingFromSources(ratingSources);
-  const finalRating = typeof (product as any).rating === 'number' && (product as any).rating > 0
-    ? (product as any).rating
-    : derivedRating;
-  const discoverySections = Array.isArray((product as any).discoverySections)
-    ? ((product as any).discoverySections as string[])
+  const finalRating =
+    typeof product.rating === 'number' && product.rating > 0 ? product.rating : derivedRating;
+  const discoverySections = Array.isArray(product.discoverySections)
+    ? (product.discoverySections as string[])
     : [];
 
   const response = {
     ...product,
     rating: finalRating,
     ratings: finalRating,
+    reviewCount: product.reviewCount,
     isTopAd: discoverySections.includes('top-ads'),
-    trend: {
-      ...trend,
-      isTrending: Boolean(trend.isTrending),
-      reason: trend.reason,
-    },
-    aiInsight: {
-      confidence: {
-        score: aiIntelligence.confidence,
-        reason: aiIntelligence.confidenceReason,
-      },
-      buyingSentiment: {
-        score: aiIntelligence.buyingSentimentScore,
-        reason: aiIntelligence.buyingSentimentReason,
-      },
-      marketingAnalysis: aiIntelligence.marketingAnalysis ?? null,
-      brand: aiIntelligence.brand,
-      niche: aiIntelligence.niche,
-      audience: aiIntelligence.audience,
-      productType: aiIntelligence.productType,
-      priceBand: aiIntelligence.priceBand,
-      problemStatement: aiIntelligence.problemStatement,
-      valueStatement: aiIntelligence.valueStatement,
-      extractedAt: aiIntelligence.extractedAt,
-    },
+    trend: engagement,
+    trends: product.trends ?? { engagement },
+    aiInsight: buildAiInsight(product.aiIntelligence as IAIIntelligence | undefined),
   } as Record<string, unknown>;
 
   delete response.aiIntelligence;
-  delete response.aiExtraction; // Cleanup legacy field if present
+  delete response.aiExtraction;
 
   normalizePrimaryCreatorOnProduct(response);
 

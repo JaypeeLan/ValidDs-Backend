@@ -29,9 +29,16 @@ export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
   discoverySections: 1,
   'aiIntelligence.confidence': 1,
   'aiIntelligence.buyingSentimentScore': 1,
+  'trends.engagement': 1,
   'trend.score': 1,
   'trend.direction': 1,
   'trend.isTrending': 1,
+  ratingSources: 1,
+  reviewCount: 1,
+  priceTrend: 1,
+  priceHistory: 1,
+  creativeCounts: 1,
+  relatedVideosCount: 1,
   'suppliers.competitorScore': 1,
   primaryCreator: 1,
 };
@@ -245,7 +252,7 @@ export interface ProductFeedFilters {
 /** Applies discovery-section rules to a Mongo filter (feed or text search). */
 const PRODUCT_SORT_MAP: Record<string, Record<string, 1 | -1>> = {
   gmv:         { totalGmv: -1, lastIngestedAt: -1 },
-  trendScore:  { 'trend.score': -1 },
+  trendScore:  { 'trends.engagement.score': -1, 'trend.score': -1 },
   views:       { viewCount: -1 },
   recent:      { lastIngestedAt: -1 },
   engagement:  { engagementRate: -1 },
@@ -342,8 +349,11 @@ export const ProductRepository = {
             // AI intelligence
             aiIntelligence: input.aiIntelligence,
 
-            // Trend
-            trend: input.trend,
+            // Trend (schema: trends.engagement)
+            trends: {
+              engagement: input.trend,
+              priceHistory: [],
+            },
 
             // Discovery
             discoverySections: input.discoverySections ?? [],
@@ -420,8 +430,28 @@ export const ProductRepository = {
 
     if (filters.category?.length)       query['categoryL1'] = { $in: filters.category };
     if (filters.subcategory?.length)    query['categoryL2'] = { $in: filters.subcategory };
-    if (filters.trendDirection)         query['trend.direction'] = filters.trendDirection;
-    if (filters.minTrendScore != null)  query['trend.score'] = { $gte: filters.minTrendScore };
+    if (filters.trendDirection) {
+      query.$and = [
+        ...((query.$and as unknown[]) ?? []),
+        {
+          $or: [
+            { 'trends.engagement.direction': filters.trendDirection },
+            { 'trend.direction': filters.trendDirection },
+          ],
+        },
+      ];
+    }
+    if (filters.minTrendScore != null) {
+      query.$and = [
+        ...((query.$and as unknown[]) ?? []),
+        {
+          $or: [
+            { 'trends.engagement.score': { $gte: filters.minTrendScore } },
+            { 'trend.score': { $gte: filters.minTrendScore } },
+          ],
+        },
+      ];
+    }
     if (filters.minViews != null)       query['viewCount'] = { $gte: filters.minViews };
     applyDiscoverySectionRules(query, { section: filters.section, isAd: filters.isAd });
 
@@ -471,7 +501,7 @@ export const ProductRepository = {
 
     const objectId    = new mongoose.Types.ObjectId(id);
     const baseFilter  = { _id: { $ne: objectId }, status: { $ne: 'archived' } };
-    const sort        = { 'trend.score': -1 as const, totalSales: -1 as const };
+    const sort        = { 'trends.engagement.score': -1 as const, 'trend.score': -1 as const, totalSales: -1 as const };
     const projection  = PRODUCT_LISTING_FIELD_PROJECTION;
 
     const results: IProductDocument[] = [];

@@ -1,0 +1,29 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "dcb83292758ad41ea2f7126ee70b18e8"
+name = "validds-main"
+application_url = "https://validds-backend-g196.onrender.com"
+embedded = false
+
+[webhooks]
+api_version = "2026-04"
+
+  [[webhooks.subscriptions]]
+  uri = "/api/v1/webhooks/shopify"
+  topics = [
+  "app/uninstalled",
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact"
+]
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_products,write_products"
+optional_scopes = [ ]
+use_legacy_install_flow = true
+
+[auth]
+redirect_urls = [
+  "https://validds-backend-g196.onrender.com/api/v1/stores/shopify/callback"
+]

@@ -5,6 +5,7 @@ import { StoreController } from './store.controller';
 import {
   ShopifyAddProductSchema,
   ShopifyCallbackQuerySchema,
+  ShopifyClaimSchema,
   ShopifyInstallQuerySchema,
 } from './store.validator';
 
@@ -37,6 +38,7 @@ router.get(
 );
 
 router.get('/shopify/status', requireAuth, StoreController.status);
+router.post('/shopify/claim', requireAuth, validate(ShopifyClaimSchema, 'body'), StoreController.claim);
 router.post('/shopify/disconnect', requireAuth, StoreController.disconnect);
 
 router.post(

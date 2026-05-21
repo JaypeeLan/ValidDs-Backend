@@ -14,6 +14,15 @@ export const ShopifyInstallQuerySchema = z.object({
   returnTo: z.string().url().optional(),
 });
 
+/** Partner App URL — Shopify sends `shop` (and often `host`, `hmac`, …). */
+export const ShopifyAppEntryQuerySchema = z.object({
+  shop: z.string().trim().min(1).max(200),
+}).passthrough();
+
+export const ShopifyClaimSchema = z.object({
+  shop: z.string().trim().min(1).max(200),
+});
+
 export const ShopifyCallbackQuerySchema = z.object({
   code: z.string().min(1, 'code is required'),
   hmac: z.string().min(1, 'hmac is required'),
@@ -33,5 +42,7 @@ export const ShopifyAddProductSchema = z.object({
 });
 
 export type ShopifyInstallQuery = z.infer<typeof ShopifyInstallQuerySchema>;
+export type ShopifyAppEntryQuery = z.infer<typeof ShopifyAppEntryQuerySchema>;
 export type ShopifyCallbackQuery = z.infer<typeof ShopifyCallbackQuerySchema>;
 export type ShopifyAddProductInput = z.infer<typeof ShopifyAddProductSchema>;
+export type ShopifyClaimInput = z.infer<typeof ShopifyClaimSchema>;

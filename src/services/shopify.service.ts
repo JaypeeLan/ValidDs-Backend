@@ -9,6 +9,7 @@ import {
   IUserDocument,
   User,
 } from '../models/user.model';
+import { ShopifyPendingConnection } from '../models/shopify-pending-connection.model';
 import { IProductDocument } from '../models/product.model';
 
 const log = logger.child({ module: 'shopify-service' });
@@ -45,6 +46,10 @@ export interface ShopifyOAuthState {
   shop: string;
   nonce: string;
 }
+
+export type ShopifyOAuthStateResult =
+  | { purpose: 'shopify_oauth'; userId: string; shop: string; nonce: string }
+  | { purpose: 'shopify_oauth_install'; shop: string; nonce: string };
 
 export interface ShopifyShopInfo {
   id?: number;
@@ -174,6 +179,48 @@ export const ShopifyService = {
   },
 
   /**
+   * Partner **App URL** entry — starts OAuth without a ValidDs JWT (App Store install check).
+   * Token is stored as pending until the user logs in and calls `claimPendingForUser`.
+   */
+  buildAppInstallAuthUrl(shop: string): { url: string; state: string } {
+    this.assertConfigured();
+
+    const normalized = this.normalizeShop(shop);
+    const nonce = crypto.randomBytes(16).toString('hex');
+
+    const state = signJWT({
+      sub: 'install-pending',
+      shop: normalized,
+      nonce,
+      purpose: 'shopify_oauth_install',
+    });
+
+    const params = new URLSearchParams({
+      client_id: env.SHOPIFY_API_KEY!,
+      scope: env.SHOPIFY_API_SCOPES,
+      redirect_uri: env.SHOPIFY_REDIRECT_URI!,
+      state,
+    });
+
+    const url = `https://${normalized}/admin/oauth/authorize?${params.toString()}`;
+    log.info('Shopify App URL OAuth redirect', { shop: normalized });
+    return { url, state };
+  },
+
+  /** Redirect target after OAuth — App Store expects a working app UI (your frontend). */
+  appUiRedirectUrl(query?: { status?: string; shop?: string; code?: string; message?: string }): string {
+    const base = `${env.FRONTEND_URL}/stores/shopify/callback`;
+    if (!query?.status) return base;
+    const params = new URLSearchParams();
+    if (query.status) params.set('status', query.status);
+    if (query.shop) params.set('shop', query.shop);
+    if (query.code) params.set('code', query.code);
+    if (query.message) params.set('message', query.message);
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
+  },
+
+  /**
    * Verify Shopify's HMAC signature on incoming OAuth callback query params.
    * Per Shopify docs: build a query string from all params EXCEPT `hmac` and
    * `signature`, sorted by key, then HMAC-SHA256 with the API secret.
@@ -207,11 +254,26 @@ export const ShopifyService = {
     return crypto.timingSafeEqual(a, b);
   },
 
+  /** Webhook HMAC — base64 digest of raw body (not the hex query-string OAuth HMAC). */
+  verifyWebhookHmac(rawBody: Buffer, hmacHeader: string | undefined): boolean {
+    this.assertConfigured();
+    if (!hmacHeader) return false;
+
+    const computed = crypto
+      .createHmac('sha256', env.SHOPIFY_API_SECRET!)
+      .update(rawBody)
+      .digest('base64');
+
+    const a = Buffer.from(computed, 'utf8');
+    const b = Buffer.from(hmacHeader, 'utf8');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  },
+
   /**
-   * Verify + decode the OAuth `state` parameter. Returns the original userId
-   * + shop, or throws if anything is off.
+   * Verify + decode the OAuth `state` parameter (logged-in or App URL install flow).
    */
-  verifyState(state: string, expectedShop: string): ShopifyOAuthState {
+  verifyOAuthState(state: string, expectedShop: string): ShopifyOAuthStateResult {
     const result = verifyJWT(state);
     if (!result.valid || !result.payload) {
       throw new AppError(
@@ -221,19 +283,33 @@ export const ShopifyService = {
       );
     }
     const payload = result.payload as Record<string, unknown>;
-    if (payload.purpose !== 'shopify_oauth') {
-      throw new AppError(400, 'Invalid OAuth state', 'SHOPIFY_INVALID_STATE');
-    }
-    const userId = typeof payload.sub === 'string' ? payload.sub : undefined;
     const shop = typeof payload.shop === 'string' ? payload.shop : undefined;
     const nonce = typeof payload.nonce === 'string' ? payload.nonce : undefined;
-    if (!userId || !shop || !nonce) {
+    if (!shop || !nonce) {
       throw new AppError(400, 'Invalid OAuth state', 'SHOPIFY_INVALID_STATE');
     }
     if (shop !== expectedShop) {
       throw new AppError(400, 'Shop mismatch in OAuth callback', 'SHOPIFY_SHOP_MISMATCH');
     }
-    return { userId, shop, nonce };
+
+    if (payload.purpose === 'shopify_oauth_install') {
+      return { purpose: 'shopify_oauth_install', shop, nonce };
+    }
+    if (payload.purpose === 'shopify_oauth') {
+      const userId = typeof payload.sub === 'string' ? payload.sub : undefined;
+      if (!userId) throw new AppError(400, 'Invalid OAuth state', 'SHOPIFY_INVALID_STATE');
+      return { purpose: 'shopify_oauth', userId, shop, nonce };
+    }
+    throw new AppError(400, 'Invalid OAuth state', 'SHOPIFY_INVALID_STATE');
+  },
+
+  /** @deprecated Use verifyOAuthState — kept for internal callers expecting userId. */
+  verifyState(state: string, expectedShop: string): ShopifyOAuthState {
+    const parsed = this.verifyOAuthState(state, expectedShop);
+    if (parsed.purpose !== 'shopify_oauth') {
+      throw new AppError(400, 'Invalid OAuth state', 'SHOPIFY_INVALID_STATE');
+    }
+    return { userId: parsed.userId, shop: parsed.shop, nonce: parsed.nonce };
   },
 
   /**
@@ -320,6 +396,75 @@ export const ShopifyService = {
     );
 
     return connection;
+  },
+
+  async savePendingConnection(
+    shop: string,
+    accessToken: string,
+    scope: string,
+    shopInfo: ShopifyShopInfo,
+  ): Promise<void> {
+    const enc = encrypt(accessToken);
+
+    await ShopifyPendingConnection.findOneAndUpdate(
+      { shop },
+      {
+        shop,
+        accessTokenCiphertext: enc.data,
+        accessTokenIv: enc.iv,
+        accessTokenAuthTag: enc.tag,
+        scope,
+        shopName: shopInfo.name,
+        shopEmail: shopInfo.email,
+        shopOwner: shopInfo.shop_owner,
+        shopCountry: shopInfo.country_name,
+        shopCurrency: shopInfo.currency,
+        installedAt: new Date(),
+      },
+      { upsert: true, new: true },
+    );
+  },
+
+  /** Attach a pending App-URL install to the logged-in ValidDs user. */
+  async claimPendingForUser(userId: string, shop: string): Promise<IShopifyConnection> {
+    const normalized = this.normalizeShop(shop);
+    const pending = await ShopifyPendingConnection.findOne({ shop: normalized });
+    if (!pending) {
+      throw new AppError(
+        404,
+        'No pending Shopify connection for this store. Connect from Shopify or try again.',
+        'SHOPIFY_PENDING_NOT_FOUND',
+      );
+    }
+
+    const connection: IShopifyConnection = {
+      shop: pending.shop,
+      accessTokenCiphertext: pending.accessTokenCiphertext,
+      accessTokenIv: pending.accessTokenIv,
+      accessTokenAuthTag: pending.accessTokenAuthTag,
+      scope: pending.scope,
+      shopName: pending.shopName,
+      shopEmail: pending.shopEmail,
+      shopOwner: pending.shopOwner,
+      shopCountry: pending.shopCountry,
+      shopCurrency: pending.shopCurrency,
+      installedAt: pending.installedAt,
+      lastSyncedAt: new Date(),
+    };
+
+    await User.updateOne({ _id: userId }, { $set: { shopifyConnection: connection } });
+    await ShopifyPendingConnection.deleteOne({ shop: normalized });
+    return connection;
+  },
+
+  async handleAppUninstalled(shop: string): Promise<void> {
+    const normalized = this.normalizeShop(shop);
+    await User.updateMany(
+      { 'shopifyConnection.shop': normalized },
+      { $unset: { shopifyConnection: '' } },
+    );
+    await ShopifyPendingConnection.deleteOne({ shop: normalized });
+    log.info('Shopify app uninstalled — connections cleared', { shop: normalized });
   },
 
   async disconnect(userId: string): Promise<void> {

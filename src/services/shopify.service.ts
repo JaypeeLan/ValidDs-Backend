@@ -213,8 +213,14 @@ export const ShopifyService = {
    * works when navigated to inside the SPA; accessed directly it returns 404
    * on Vercel (no rewrite rule for that path).
    */
-  appUiRedirectUrl(query?: { status?: string; shop?: string; code?: string; message?: string }): string {
-    // Normalise FRONTEND_URL: strip trailing slash so we can safely append "/"
+  appUiRedirectUrl(query?: {
+    status?: string;
+    shop?: string;
+    code?: string;
+    message?: string;
+    /** App-URL install without JWT — frontend should call POST /stores/shopify/claim */
+    pending?: boolean;
+  }): string {
     const origin = (env.FRONTEND_URL ?? '').replace(/\/$/, '');
     const base = `${origin}/`;
     const params = new URLSearchParams();
@@ -222,51 +228,9 @@ export const ShopifyService = {
     if (query?.shop) params.set('shop', query.shop);
     if (query?.code) params.set('code', query.code);
     if (query?.message) params.set('message', query.message);
+    if (query?.pending) params.set('shopify_pending', '1');
     const qs = params.toString();
     return qs ? `${base}?${qs}` : base;
-  },
-
-  /**
-   * Inline HTML page served after an App-URL / App-Store OAuth install.
-   * Shopify's "Immediately redirects to app UI" automated check expects the
-   * post-OAuth landing URL to return 200 with actual app content.
-   * We serve a minimal branded page that auto-forwards to the SPA after 2 s.
-   */
-  buildInstallSuccessPage(shop: string): string {
-    const appUrl = (env.FRONTEND_URL ?? '').replace(/\/$/, '') + `/?shopify_status=success&shop=${encodeURIComponent(shop)}`;
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Connected — ValidDs</title>
-  <style>
-    body { font-family: system-ui, sans-serif; display: flex; align-items: center;
-           justify-content: center; min-height: 100vh; margin: 0;
-           background: #f9fafb; color: #111827; }
-    .card { background: #fff; border-radius: 12px; padding: 48px 40px;
-            max-width: 420px; text-align: center;
-            box-shadow: 0 4px 24px rgba(0,0,0,.08); }
-    .icon { font-size: 48px; margin-bottom: 16px; }
-    h1 { font-size: 22px; font-weight: 700; margin: 0 0 8px; }
-    p  { color: #6b7280; margin: 0 0 24px; line-height: 1.5; }
-    a  { display: inline-block; background: #111827; color: #fff;
-         text-decoration: none; padding: 12px 28px; border-radius: 8px;
-         font-weight: 600; font-size: 15px; }
-    a:hover { background: #374151; }
-  </style>
-  <meta http-equiv="refresh" content="3;url=${appUrl}" />
-</head>
-<body>
-  <div class="card">
-    <div class="icon">✓</div>
-    <h1>Shopify store connected</h1>
-    <p>Your store <strong>${shop}</strong> has been linked to ValidDs.<br/>
-       Redirecting you to the app&hellip;</p>
-    <a href="${appUrl}">Open ValidDs →</a>
-  </div>
-</body>
-</html>`;
   },
 
   /**

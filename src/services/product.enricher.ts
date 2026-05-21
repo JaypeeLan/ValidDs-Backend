@@ -28,20 +28,36 @@ export const ProductEnricher = {
     log.info('Running Discovery 2.0 Enrichment', { product: extraction.productName });
 
     // 1. TeemDrop — supplier match
-    let supplier: { platform: string; productUrl?: string; price?: number; currency?: string; shippingDays?: number; moq?: number; checkedAt: Date } | null = null;
+    let supplier: import('../types/product.types').IProductSupplier | null = null;
     let supplierPrice: number | undefined;
     try {
       const match = await TeemDropService.findProductDetailByName(extraction.productName);
       if (match?.product) {
         const td = match.product;
         supplierPrice = td.productMinPrice ?? td.discountProductMinPrice ?? undefined;
+        const now = new Date();
         supplier = {
-          platform:    'TeemDrop',
-          productUrl:  undefined,            // TeemDrop detail API does not expose a public URL
-          price:       supplierPrice,
-          currency:    'USD',
-          shippingDays:undefined,
-          checkedAt:   new Date(),
+          source:                  'TeemDrop',
+          platform:                'TeemDrop',
+          externalId:              '',
+          title:                   extraction.productName,
+          productUrl:              '',
+          shareUrl:                '',
+          price:                   supplierPrice ?? null,
+          currency:                'USD',
+          rating:                  null,
+          totalRatings:            null,
+          totalReviews:            null,
+          availableForSale:        true,
+          moq:                     0,
+          shop:                    { name: null, url: null, rating: null },
+          checkedAt:               now,
+          fetchedAt:               now,
+          monthlyTraffic:          null,
+          productUnitsSold:        null,
+          estimatedMonthlyRevenue: null,
+          revenueSource:           null,
+          competitorScore:         null,
         };
       }
     } catch (err) {
@@ -149,28 +165,36 @@ export const ProductEnricher = {
 
       // Discovery origin
       primaryCreator: {
-        handle:        post.creatorHandle || 'unknown',
-        displayName:   post.creatorDisplayName,
-        bio:           post.creatorBio,
-        followers:     post.creatorFollowers,
-        following:     post.creatorFollowing,
-        totalLikes:    post.creatorTotalLikes,
-        region:        post.creatorRegion,
-        verified:      post.creatorVerified,
-        primaryImageUrl:  post.creatorAvatarUrl,
-        avatarUrl:        post.creatorAvatarUrl,
+        tiktokUserId:    post.creatorId ?? '',
+        handle:          post.creatorHandle || 'unknown',
+        displayName:     post.creatorDisplayName ?? '',
+        bio:             post.creatorBio ?? '',
+        followers:       post.creatorFollowers ?? 0,
+        following:       post.creatorFollowing ?? 0,
+        totalLikes:      post.creatorTotalLikes ?? 0,
+        region:          post.creatorRegion ?? '',
+        verified:        post.creatorVerified ?? false,
+        primaryImageUrl: post.creatorAvatarUrl ?? null,
+        avatarUrl:       post.creatorAvatarUrl ?? null,
         tiktokPostUrl,
       },
 
       // AI intelligence
       aiIntelligence: {
-        confidence:           extraction.extractionConfidence,
-        confidenceReason:     extraction.confidenceReason || 'AI extraction',
-        brand:                extraction.brand,
-        categoryKeywords:     extraction.categoryKeywords || [],
-        buyingSentimentScore: extraction.buyingSentimentScore,
-        buyingSentimentReason:extraction.buyingSentimentReason,
-        extractedAt:          new Date(),
+        confidence:            extraction.extractionConfidence,
+        confidenceReason:      extraction.confidenceReason || 'AI extraction',
+        brand:                 extraction.brand ?? '',
+        categoryKeywords:      extraction.categoryKeywords || [],
+        buyingSentimentScore:  extraction.buyingSentimentScore ?? 0,
+        buyingSentimentReason: extraction.buyingSentimentReason ?? '',
+        extractedAt:           new Date(),
+        niche:                 extraction.niche ?? '',
+        productType:           'unknown',
+        priceBand:             'mid-range',
+        audience:              extraction.audience ?? [],
+        problemStatement:      extraction.problemStatement ?? '',
+        valueStatement:        extraction.valueStatement ?? '',
+        marketingAnalysis:     null,
       },
 
       // Trend

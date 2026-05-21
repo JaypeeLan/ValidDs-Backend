@@ -35,7 +35,6 @@ PRODUCTS COLLECTION (main product records)
 - suppliers[].productUrl: Supplier listing URL (if available)
 - suppliers[].price: Supplier price
 - suppliers[].currency: Supplier currency
-- suppliers[].shippingDays: Supplier shipping estimate (if provided)
 - suppliers[].moq: Supplier minimum order quantity (if provided)
 - suppliers[].checkedAt: Time we checked supplier data
 

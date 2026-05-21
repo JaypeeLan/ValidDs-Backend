@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { Product, IProductDocument, IProductModel } from '../../models/product.model';
+import type { IProductSupplier } from '../../types/product.types';
 import { logger } from '../../logger';
 import { PRODUCT_CATEGORIES } from '../../api/products/product.constants';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
@@ -121,15 +122,7 @@ export interface EnrichedProductInput {
   // Pricing
   price?: number;
   currency: string;
-  suppliers?: Array<{
-    platform: string;
-    productUrl?: string;
-    price?: number;
-    currency?: string;
-    shippingDays?: number;
-    moq?: number;
-    checkedAt: Date;
-  }>;
+  suppliers?: IProductSupplier[];
 
   // Market evidence
   salesEvidence?: {
@@ -315,26 +308,29 @@ export const ProductRepository = {
             categoryPath: input.categoryPath,
 
             // Media
-            primaryImageUrl: input.primaryImageUrl,
-            imageUrls:       input.imageUrls,
-            ...(input.sourcePrimaryImageUrl !== undefined && { sourcePrimaryImageUrl: input.sourcePrimaryImageUrl }),
-            ...(input.sourceImageUrls       !== undefined && { sourceImageUrls:       input.sourceImageUrls }),
-            ...(input.imagesResolvedAt      !== undefined && { imagesResolvedAt:      input.imagesResolvedAt }),
+            primaryImageUrl: input.primaryImageUrl ?? null,
+            imageUrls:       input.imageUrls ?? [],
 
             // Pricing
-            price:     input.price,
+            price:     input.price ?? null,
             currency:  input.currency,
             suppliers: input.suppliers ?? [],
 
             // Market evidence
-            rating:        input.rating,
-            reviewCount:   input.reviewCount,
-            salesEvidence: input.salesEvidence,
+            rating:        input.rating ?? null,
+            reviewCount:   input.reviewCount ?? null,
             ratingSources: input.ratingSources ?? [],
-
-            // Social Proof
-            topComments: input.topComments ?? [],
-            reviews: input.reviews ?? [],
+            reviews:       (input.reviews ?? []).map((r) => ({
+              author:  null,
+              rating:  null,
+              content: r.text,
+              date:    null,
+              item:    null,
+              images:  [],
+            })),
+            totalSales: input.salesEvidence?.unitsSold ?? input.totalSale30d ?? 0,
+            totalGmv:   input.totalGmv ?? 0,
+            soldCount:  input.salesEvidence?.unitsSold ?? 0,
 
             // TikTok engagement
             viewCount:     input.viewCount,
@@ -357,27 +353,15 @@ export const ProductRepository = {
 
             // Discovery
             discoverySections: input.discoverySections ?? [],
-            relatedProducts:   input.relatedProducts ?? [],
             creativeCounts:    input.creativeCounts ?? { ads: 0, organic: 0, reviews: 0, total: 0 },
-
-            // Supplemental market metrics (conditionally included)
-            ...(input.region           !== undefined && { region:           input.region }),
-            ...(input.commissionRate   !== undefined && { commissionRate:   input.commissionRate }),
-            ...(input.totalSale30d     !== undefined && { totalSale30d:     input.totalSale30d }),
-            ...(input.totalSale7d      !== undefined && { totalSale7d:      input.totalSale7d }),
-            ...(input.totalGmv         !== undefined && { totalGmv:         input.totalGmv }),
-            ...(input.totalGmv30d      !== undefined && { totalGmv30d:      input.totalGmv30d }),
-            ...(input.totalCreators    !== undefined && { totalCreators:    input.totalCreators }),
-            ...(input.salesChannel     !== undefined && { salesChannel:     input.salesChannel }),
-            ...(input.freeShipping     !== undefined && { freeShipping:     input.freeShipping }),
-            ...(input.isManagedStore   !== undefined && { isManagedStore:   input.isManagedStore }),
+            market:            input.region ?? '',
 
             // Freshness
             lastIngestedAt:      new Date(),
             dataSourceUpdatedAt: input.collectedAt,
           },
         },
-        { upsert: true, new: true }
+        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
       );
 
       log.debug('Enriched product upserted', { videoId: input.videoId, title });

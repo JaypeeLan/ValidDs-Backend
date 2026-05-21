@@ -155,7 +155,7 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     publishedAt: { type: Date },
     ingestedAt:  { type: Date, default: Date.now },
   },
-  { timestamps: true },
+  { timestamps: true, strict: true },
 );
 
 // ── Indexes ───────────────────────────────────────────────────────────────────

@@ -132,7 +132,7 @@ function normalizeApifyItems(items: any[], handle: string): ShopProduct[] {
     // Skip creator profile cards (scrapeType=creator returns one profile card first)
     if (item.type === 'creator' || !item.productId) continue;
 
-    const soldCount = Number(item.salesVolume ?? item.soldLast30Days ?? item.sold_count ?? 0);
+    const soldCount = Number(item.salesVolume ?? item.sold_count ?? 0);
     const price     = Number(item.currentPrice ?? item.price ?? 0);
     const productId = String(item.productId || '');
     const title     = String(item.title || '');

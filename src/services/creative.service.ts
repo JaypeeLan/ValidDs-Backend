@@ -44,6 +44,7 @@ async function loadCreativesForProduct(
     .select({ productDescription: 0 })
     .sort({ 'metrics.viewCount': -1 })
     .limit(Math.min(Math.max(limit, 1), 100))
+    .maxTimeMS(15_000)
     .lean();
 
   return docs.map((doc) => formatCreativeFeedItem(doc));

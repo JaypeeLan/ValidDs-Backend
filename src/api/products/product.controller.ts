@@ -223,6 +223,7 @@ export const ProductController = {
 
         const searchPlains = await enrichProductsWithCreatorAvatars(
           await toPlainWithImages(results.data as unknown as ProductLike[]),
+          req.models?.Creative,
         );
         res.json(
           successResponse(
@@ -253,6 +254,7 @@ export const ProductController = {
 
       const feedPlains = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages(feed.data as unknown as ProductLike[]),
+        req.models?.Creative,
       );
       res.json(
         successResponse(
@@ -273,12 +275,14 @@ export const ProductController = {
   async detail(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
+      const productModel = req.models?.Product;
+      const creativeModel = req.models?.Creative;
 
       const [{ product, freshness }, relatedDocs, relatedVideos, relatedAds] = await Promise.all([
-        ProductService.getById(id, req.models?.Product, req.market),
-        getRelatedProducts(id, req.models?.Product, req.market),
-        findCreativesByProductId(id, req.models?.Creative),
-        findRelatedAdsByProductId(id, req.models?.Creative),
+        ProductService.getById(id, productModel, req.market),
+        getRelatedProducts(id, productModel, req.market),
+        findCreativesByProductId(id, creativeModel),
+        findRelatedAdsByProductId(id, creativeModel),
       ]);
 
       const [plain, ...relatedPlains] = await enrichProductsWithCreatorAvatars(
@@ -286,6 +290,7 @@ export const ProductController = {
           product as unknown as ProductLike,
           ...relatedDocs as unknown as ProductLike[],
         ]),
+        creativeModel,
       );
 
       res.json(
@@ -372,6 +377,7 @@ export const ProductController = {
         .map(p => p.productId as unknown as ProductLike);
       const savedPlains = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages(savedDocs),
+        req.models?.Creative,
       );
       const products = savedPlains.map(formatProductResponse);
 

@@ -1,5 +1,5 @@
-import mongoose from 'mongoose';
-import { Creative } from '../models/creative.model';
+import mongoose, { type Model } from 'mongoose';
+import { Creative, type ICreativeDocument } from '../models/creative.model';
 import type { IPrimaryCreator, IPrimaryCreatorApi } from '../types/product.types';
 
 export type CreatorAvatarEnrichment = {
@@ -73,6 +73,7 @@ export function normalizePrimaryCreatorOnProduct(
 /** Top creative per product (by views) that has a creator avatar URL. */
 export async function loadCreatorAvatarEnrichmentByProductId(
   productIds: string[],
+  creativeModel: Model<ICreativeDocument> = Creative,
 ): Promise<Map<string, CreatorAvatarEnrichment>> {
   const validIds = [
     ...new Set(
@@ -83,7 +84,7 @@ export async function loadCreatorAvatarEnrichmentByProductId(
 
   const objectIds = validIds.map((id) => new mongoose.Types.ObjectId(id));
 
-  const rows = await Creative.aggregate<{
+  const rows = await creativeModel.aggregate<{
     _id: mongoose.Types.ObjectId;
     creativeId: mongoose.Types.ObjectId;
     avatarUrl?: string;
@@ -102,7 +103,7 @@ export async function loadCreatorAvatarEnrichmentByProductId(
         avatarUrl: { $first: '$creator.avatarUrl' },
       },
     },
-  ]);
+  ]).option({ maxTimeMS: 15_000 });
 
   const map = new Map<string, CreatorAvatarEnrichment>();
   for (const row of rows) {
@@ -116,11 +117,13 @@ export async function loadCreatorAvatarEnrichmentByProductId(
 
 export async function enrichProductsWithCreatorAvatars(
   products: Record<string, unknown>[],
+  creativeModel: Model<ICreativeDocument> = Creative,
 ): Promise<Record<string, unknown>[]> {
   if (!products.length) return products;
 
   const enrichments = await loadCreatorAvatarEnrichmentByProductId(
     products.map((p) => String(p._id ?? '')),
+    creativeModel,
   );
 
   for (const product of products) {

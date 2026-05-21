@@ -480,7 +480,7 @@ export const ProductRepository = {
     model: IProductModel = Product,
   ): Promise<IProductDocument | null> {
     if (!mongoose.isValidObjectId(id)) return null;
-    return model.findById(id);
+    return model.findById(id).lean().maxTimeMS(15_000) as Promise<IProductDocument | null>;
   },
 
   /**

@@ -22,6 +22,23 @@ function isProductCacheDisabled(key: string): boolean {
   return env.PRODUCT_CACHE_DISABLED && key.startsWith(CACHE_PREFIXES.PRODUCT);
 }
 
+const REDIS_OP_TIMEOUT_MS = 4_000;
+
+async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Redis ${label} timed out after ${REDIS_OP_TIMEOUT_MS}ms`)),
+      REDIS_OP_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export const CacheService = {
 
   /**
@@ -37,7 +54,7 @@ export const CacheService = {
 
     try {
       const redis = getRedisClient();
-      const raw = await redis.get(key);
+      const raw = await withTimeout(redis.get(key), 'get');
 
       if (raw === null) {
         return null;
@@ -62,7 +79,7 @@ export const CacheService = {
 
     try {
       const redis = getRedisClient();
-      await redis.setex(key, ttlSeconds, JSON.stringify(value));
+      await withTimeout(redis.setex(key, ttlSeconds, JSON.stringify(value)), 'setex');
     } catch (err) {
       // Cache write failures are non-fatal — the request still succeeds
       log.warn('Cache set failed', { key, err: String(err) });
@@ -130,7 +147,8 @@ export const CacheService = {
     if (cached !== null) return cached;
 
     const value = await loader();
-    await CacheService.set(key, value, ttlSeconds);
+    // Do not block the response on a slow cache write.
+    void CacheService.set(key, value, ttlSeconds);
     return value;
   },
 };

@@ -40,7 +40,7 @@ tags:
   - name: Products
     description: Product feed and detail
   - name: Creatives
-    description: TikTok creative videos — list, top ads, and detail
+    description: TikTok creatives — list, top ads, detail, CDN video/thumbnail proxy, and embed URLs
   - name: Billing
     description: Stripe billing — public plan catalog, Checkout session creation, subscription state, and publishable key
   - name: Waitlist
@@ -95,8 +95,14 @@ paths:
     $ref: './paths/creatives.yaml#/creatives'
   /api/v1/creatives/top-ads:
     $ref: './paths/creatives.yaml#/topAdsList'
+  /api/v1/creatives/ingest:
+    $ref: './paths/creatives.yaml#/creativeIngest'
   /api/v1/creatives/{id}:
     $ref: './paths/creatives.yaml#/creativeDetail'
+  /api/v1/creatives/{id}/video:
+    $ref: './paths/creatives.yaml#/creativeStreamVideo'
+  /api/v1/creatives/{id}/thumbnail:
+    $ref: './paths/creatives.yaml#/creativeStreamThumbnail'
   /api/v1/billing/plans:
     $ref: './paths/billing.yaml#/listPlans'
   /api/v1/billing/stripe-config:
@@ -149,6 +155,10 @@ components:
       $ref: './components/schemas/MarketingAnalysis.yaml'
     Creative:
       $ref: './components/schemas/Creative.yaml'
+    CreativeSecondaryVideo:
+      $ref: './components/schemas/CreativeSecondaryVideo.yaml'
+    CreativeProductTrend:
+      $ref: './components/schemas/CreativeProductTrend.yaml'
     ShopifyPublicConnection:
       $ref: './components/schemas/Shopify.yaml#/ShopifyPublicConnection'
     ShopifyCreatedProduct:

@@ -1,0 +1,23 @@
+type: object
+required:
+  - viewCount
+  - likeCount
+  - commentCount
+  - shareCount
+properties:
+  viewCount:
+    type: integer
+    minimum: 0
+  likeCount:
+    type: integer
+    minimum: 0
+  commentCount:
+    type: integer
+    minimum: 0
+  shareCount:
+    type: integer
+    minimum: 0
+  engagementRate:
+    type: number
+    nullable: true
+    description: (likes + comments + shares) / views × 100; null when views = 0.

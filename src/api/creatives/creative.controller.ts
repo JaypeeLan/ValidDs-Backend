@@ -1,19 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
 import axios from 'axios';
-import { CreativeService, DEFAULT_CREATIVES_LIST_MATCH } from '../../services/creative.service';
+import { CreativeService, CREATIVE_TRENDING_MATCH, CREATIVE_TOP_ADS_MATCH } from '../../services/creative.service';
 import { CreativeListQuery, CreativeTopAdsListQuery, CreativeIngestBody } from './creative.validator';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { NotFoundError } from '../../middleware/error.middleware';
 import { Creative } from '../../models/creative.model';
+import {
+  pickCreativeStreamVideoUrl,
+  pickCreativeThumbnailUrl,
+} from '../../utils/creative-response.util';
 import { logger } from '../../logger';
 
 const log = logger.child({ module: 'creative-controller' });
-
-function pickVideoUrl(creative: any, index: number): string | undefined {
-  if (index <= 0) return creative?.videoPlayUrl || undefined;
-  const related = Array.isArray(creative?.relatedVideos) ? creative.relatedVideos : [];
-  return related[index - 1]?.videoPlayUrl || undefined;
-}
 
 // ── Lazy refresh dedupe ──────────────────────────────────────────────────────
 // When a stored TikTok CDN URL rejects our proxy request (signature expired),
@@ -45,17 +43,6 @@ function triggerLazyRefresh(creativeId: string, index: number, reason: string): 
     .catch((err) => log.warn('Lazy creative refresh failed', { creativeId, index, err: String(err) }));
 }
 
-function pickThumbnailUrl(
-  creative: any,
-  index: number,
-  kind: 'thumbnail' | 'avatar'
-): string | undefined {
-  const node = index <= 0 ? creative : (Array.isArray(creative?.relatedVideos) ? creative.relatedVideos[index - 1] : undefined);
-  if (!node) return undefined;
-  if (kind === 'avatar') return node.creator?.avatarUrl || undefined;
-  return node.thumbnailUrl || node.creator?.avatarUrl || undefined;
-}
-
 // Headers the TikTok CDN requires; without `Referer` the CDN returns 403.
 const TIKTOK_PROXY_HEADERS: Record<string, string> = {
   Referer: 'https://www.tiktok.com/',
@@ -73,7 +60,7 @@ export const CreativeController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as CreativeListQuery;
-      const listMatch = query.section ? undefined : DEFAULT_CREATIVES_LIST_MATCH;
+      const listMatch = query.section ? undefined : CREATIVE_TRENDING_MATCH;
       const result = await CreativeService.findCreatives(query, listMatch, req.models?.Creative);
 
       res.json(
@@ -89,13 +76,13 @@ export const CreativeController = {
   },
 
   /**
-   * Paginated creatives — all sections (no default trending filter).
+   * Paginated paid / top-ad creatives only.
    * GET /api/v1/creatives/top-ads
    */
   async listTopAds(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as CreativeTopAdsListQuery;
-      const result = await CreativeService.findCreatives(query, undefined, req.models?.Creative);
+      const result = await CreativeService.findCreatives(query, CREATIVE_TOP_ADS_MATCH, req.models?.Creative);
 
       res.json(
         successResponse(
@@ -155,10 +142,11 @@ export const CreativeController = {
       const indexRaw = req.query.index;
       const index = Number.isFinite(Number(indexRaw)) ? Math.max(0, Math.floor(Number(indexRaw))) : 0;
 
-      const creative = await Creative.findById(id).lean();
+      const creativeModel = req.models?.Creative ?? Creative;
+      const creative = await creativeModel.findById(id).lean();
       if (!creative) throw new NotFoundError('Creative not found');
 
-      const url = pickVideoUrl(creative, index);
+      const url = pickCreativeStreamVideoUrl(creative as Record<string, unknown>, index);
       if (!url) {
         res.status(404).json({ error: 'No playable video for this creative' });
         return;
@@ -222,10 +210,11 @@ export const CreativeController = {
       const index = Number.isFinite(Number(indexRaw)) ? Math.max(0, Math.floor(Number(indexRaw))) : 0;
       const kind = req.query.kind === 'avatar' ? 'avatar' : 'thumbnail';
 
-      const creative = await Creative.findById(id).lean();
+      const creativeModel = req.models?.Creative ?? Creative;
+      const creative = await creativeModel.findById(id).lean();
       if (!creative) throw new NotFoundError('Creative not found');
 
-      const url = pickThumbnailUrl(creative, index, kind);
+      const url = pickCreativeThumbnailUrl(creative as Record<string, unknown>, index, kind);
       if (!url) {
         res.status(404).json({ error: 'No image for this creative slot' });
         return;

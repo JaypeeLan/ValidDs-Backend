@@ -154,9 +154,9 @@ detail:
     summary: Get product by ID
     description: |
       Returns the full product, same-category **related products** (feed card shape),
-      **related videos** (`section=trending` only) and **related ads** (all other sections for this product).
+      **related videos** (commercial — non-ad creatives) and **related ads** (paid / top-ad only).
 
-      The two arrays are **mutually exclusive** by `section`.
+      The two arrays are **mutually exclusive**.
       Each item uses the `Creative` schema (proxy URLs + nested `relatedVideos` on each doc).
     parameters:
       - name: id
@@ -187,13 +187,13 @@ detail:
                         relatedVideos:
                           type: array
                           description: |
-                            Creatives with `section=trending` for this product. Sorted by views.
+                            Commercial (non-ad) creatives for this product. Sorted by views.
                           items:
                             $ref: '../components/schemas/Creative.yaml'
                         relatedAds:
                           type: array
                           description: |
-                            All other creatives for this product (`section` ≠ `trending`). Sorted by views.
+                            Top-ad / paid creatives for this product. Sorted by views.
                           items:
                             $ref: '../components/schemas/Creative.yaml'
                         freshness:

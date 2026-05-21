@@ -1,0 +1,41 @@
+type: object
+required:
+  - handle
+  - verified
+  - tiktokPostUrl
+properties:
+  handle:
+    type: string
+    example: "@naturalglow"
+  displayName:
+    type: string
+  bio:
+    type: string
+  avatarUrl:
+    type: string
+    format: uri
+    nullable: true
+  avatarProxyUrl:
+    type: string
+    description: API path for proxied avatar (`.../thumbnail?index=N&kind=avatar`).
+  followers:
+    type: integer
+    minimum: 0
+    description: Optional on older ingested records; may be omitted.
+  following:
+    type: integer
+    minimum: 0
+  totalLikes:
+    type: integer
+    minimum: 0
+  region:
+    type: string
+    example: US
+  verified:
+    type: boolean
+  tiktokPostUrl:
+    type: string
+    format: uri
+  isIndependentCreator:
+    type: boolean
+    description: When true, creator is not the product brand/seller.

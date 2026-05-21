@@ -1,163 +1,85 @@
 creatives:
   get:
-    summary: List all creatives
+    summary: List trending creatives
     description: |
-      Paginated creatives. When `section` is omitted, only `section=trending` is returned.
-      Pass `section` explicitly to query other sections. Use `GET /creatives/top-ads` for all creatives (no section default).
+      Paginated **trending** commercial videos (default, ~462 for US market).
+      Responses use API section labels (DB `top-ads` is returned as `trending`).
+      List items omit `productDescription`.
+
+      **Playback:** use `videoProxyUrl` with `GET /creatives/{id}/video` when a CDN URL exists;
+      otherwise embed via `embedUrl` in an iframe.
+
+      Market collection (`creatives_us`, `creatives_uk`, …) follows optional JWT content region.
     tags:
       - Creatives
-    security:
-      - bearerAuth: []
     parameters:
-      - name: page
-        in: query
-        schema:
-          type: integer
-          default: 1
-      - name: limit
-        in: query
-        schema:
-          type: integer
-          default: 20
-      - name: productId
-        in: query
-        description: Filter by parent product ID
-        schema:
-          type: string
-      - name: section
-        in: query
-        description: Filter by creative section
-        schema:
-          type: string
-          enum: [top-ads, trending, influencer-reviews, tutorials, viral-unboxings]
-      - name: isAd
-        in: query
-        description: Filter by ad status
-        schema:
-          type: boolean
-      - name: region
-        in: query
-        description: Filter by creator region (2-letter country code)
-        schema:
-          type: string
-      - name: minViews
-        in: query
-        description: Minimum number of views
-        schema:
-          type: integer
-      - name: sortBy
-        in: query
-        description: Sort criteria. Default `views` = highest view count first.
-        schema:
-          type: string
-          enum: [views, likes, recent, engagement]
-          default: views
+      - $ref: '#/components/creativeListParams/page'
+      - $ref: '#/components/creativeListParams/limit'
+      - $ref: '#/components/creativeListParams/q'
+      - $ref: '#/components/creativeListParams/productId'
+      - $ref: '#/components/creativeListParams/section'
+      - $ref: '#/components/creativeListParams/isAd'
+      - $ref: '#/components/creativeListParams/minViews'
+      - $ref: '#/components/creativeListParams/hashtags'
+      - $ref: '#/components/creativeListParams/sortBy'
+      - $ref: '#/components/creativeListParams/categoryL1'
+      - $ref: '#/components/creativeListParams/categoryL2'
+      - $ref: '#/components/creativeListParams/categoryL3'
     responses:
       '200':
         description: Success
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                data:
-                  type: object
-                  properties:
-                    data:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/Creative.yaml'
-                    pagination:
-                      $ref: '../components/schemas/Common.yaml#/Pagination'
-      '401':
-        description: Unauthorized
+              $ref: '#/components/schemas/CreativeListResponse'
+      '429':
+        $ref: '../components/responses/Standard.yaml#/TooManyRequestsResponse'
 
 topAdsList:
   get:
-    summary: List all creatives (ads discovery)
+    summary: List top-ad creatives
     description: |
-      Returns creatives across **all** `section` values (no default `trending` filter).
-      Contrast with `GET /creatives`, which defaults to `section=trending` when `section` is omitted.
+      Paid / top-ad bucket only (DB `trending`, API `section=top-ads`, ~19 for US).
+      Contrast with `GET /creatives` (trending bucket). Does not accept a `section` filter.
     tags:
       - Creatives
-    security:
-      - bearerAuth: []
     parameters:
-      - name: page
-        in: query
-        schema:
-          type: integer
-          default: 1
-      - name: limit
-        in: query
-        schema:
-          type: integer
-          default: 20
-      - name: productId
-        in: query
-        description: Filter by parent product ID
-        schema:
-          type: string
-      - name: isAd
-        in: query
-        description: Filter by ad status
-        schema:
-          type: boolean
-      - name: region
-        in: query
-        description: Filter by creator region (2-letter country code)
-        schema:
-          type: string
-      - name: minViews
-        in: query
-        description: Minimum number of views
-        schema:
-          type: integer
-      - name: sortBy
-        in: query
-        description: Sort criteria. Default `views` = highest view count first.
-        schema:
-          type: string
-          enum: [views, likes, recent, engagement]
-          default: views
+      - $ref: '#/components/creativeListParams/page'
+      - $ref: '#/components/creativeListParams/limit'
+      - $ref: '#/components/creativeListParams/q'
+      - $ref: '#/components/creativeListParams/productId'
+      - $ref: '#/components/creativeListParams/isAd'
+      - $ref: '#/components/creativeListParams/minViews'
+      - $ref: '#/components/creativeListParams/hashtags'
+      - $ref: '#/components/creativeListParams/sortBy'
+      - $ref: '#/components/creativeListParams/categoryL1'
+      - $ref: '#/components/creativeListParams/categoryL2'
+      - $ref: '#/components/creativeListParams/categoryL3'
     responses:
       '200':
         description: Success
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                data:
-                  type: object
-                  properties:
-                    data:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/Creative.yaml'
-                    pagination:
-                      $ref: '../components/schemas/Common.yaml#/Pagination'
-      '401':
-        description: Unauthorized
+              $ref: '#/components/schemas/CreativeListResponse'
+      '429':
+        $ref: '../components/responses/Standard.yaml#/TooManyRequestsResponse'
 
 creativeDetail:
   get:
     summary: Get creative details
-    description: Retrieves detailed information for a single creative by its MongoDB id.
+    description: |
+      Single creative by MongoDB id. Includes `productDescription` and full `relatedVideos` tree
+      with `videoProxyUrl` / `thumbnailProxyUrl` on each slot.
     tags:
       - Creatives
-    security:
-      - bearerAuth: []
     parameters:
       - name: id
         in: path
         required: true
         schema:
           type: string
+          pattern: '^[0-9a-fA-F]{24}$'
     responses:
       '200':
         description: Success
@@ -168,6 +90,8 @@ creativeDetail:
               properties:
                 success:
                   type: boolean
+                message:
+                  type: string
                 data:
                   type: object
                   properties:
@@ -175,5 +99,289 @@ creativeDetail:
                       $ref: '../components/schemas/Creative.yaml'
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
+creativeStreamVideo:
+  get:
+    summary: Stream creative video (CDN proxy)
+    description: |
+      Proxies the TikTok **CDN MP4** (`videoPlayUrl` on the document) through this API so browsers
+      can play it without TikTok's `Referer` 403. Supports HTTP `Range` for seeking.
+
+      **Not** the TikTok embed player — for that use `embedUrl` from the JSON payload in an iframe.
+
+      | Query | Slot |
+      |-------|------|
+      | `index=0` (default) | Primary video |
+      | `index=N` | `relatedVideos[N - 1]` |
+
+      Returns **404** when no CDN URL is stored; **410** `VIDEO_URL_EXPIRED` when the CDN signature expired.
+    tags:
+      - Creatives
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+      - name: index
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 50
+          default: 0
+        description: Video slot (0 = primary, 1+ = relatedVideos).
+    responses:
+      '200':
+        description: Video stream (full or partial content per Range)
+        content:
+          video/mp4:
+            schema:
+              type: string
+              format: binary
+        headers:
+          Accept-Ranges:
+            schema:
+              type: string
+          Content-Range:
+            schema:
+              type: string
+      '206':
+        description: Partial content (Range request)
+        content:
+          video/mp4:
+            schema:
+              type: string
+              format: binary
+      '404':
+        description: Creative not found or no CDN play URL for this slot
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+      '410':
+        description: CDN URL expired — use `embedUrl` from creative JSON
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [error, code]
+              properties:
+                error:
+                  type: string
+                code:
+                  type: string
+                  enum: [VIDEO_URL_EXPIRED]
+      '429':
+        $ref: '../components/responses/Standard.yaml#/TooManyRequestsResponse'
+
+creativeStreamThumbnail:
+  get:
+    summary: Stream creative thumbnail or avatar
+    description: |
+      Proxies TikTok CDN images with required `Referer` header.
+      Use `thumbnailProxyUrl` / `avatarProxyUrl` from creative JSON, or call directly.
+
+      `kind=thumbnail` — cover image; `kind=avatar` — creator profile photo.
+    tags:
+      - Creatives
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+      - name: index
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 50
+          default: 0
+      - name: kind
+        in: query
+        schema:
+          type: string
+          enum: [thumbnail, avatar]
+          default: thumbnail
+    responses:
+      '200':
+        description: Image bytes
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      '404':
+        description: Creative or image not found
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                code:
+                  type: string
+                  enum: [IMAGE_NOT_AVAILABLE]
+      '429':
+        $ref: '../components/responses/Standard.yaml#/TooManyRequestsResponse'
+
+creativeIngest:
+  post:
+    summary: Ingest creatives by keyword (disabled)
+    description: |
+      Standalone creative ingestion. **Currently disabled** — returns an error from the service layer.
+      Requires JWT.
+    tags:
+      - Creatives
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [keyword]
+            properties:
+              keyword:
+                type: string
+                minLength: 2
+                maxLength: 100
+              limit:
+                type: integer
+                minimum: 1
+                maximum: 50
+                default: 10
+              period:
+                type: integer
+                minimum: 1
+                maximum: 90
+                default: 30
+              country:
+                type: string
+                minLength: 2
+                maxLength: 2
+                default: us
+    responses:
+      '201':
+        description: Ingestion completed (when enabled)
       '401':
-        description: Unauthorized
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '503':
+        description: Ingestion disabled
+
+components:
+  creativeListParams:
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    q:
+      name: q
+      in: query
+      description: Search product name, description, caption, hashtags, creator handle, or video id.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 120
+    productId:
+      name: productId
+      in: query
+      description: Filter by parent product MongoDB id.
+      schema:
+        type: string
+        pattern: '^[0-9a-fA-F]{24}$'
+    section:
+      name: section
+      in: query
+      description: Filter by API section label (mapped to DB before query).
+      schema:
+        type: string
+        enum: [top-ads, trending, influencer-reviews, tutorials, viral-unboxings]
+    isAd:
+      name: isAd
+      in: query
+      schema:
+        type: boolean
+    minViews:
+      name: minViews
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+    hashtags:
+      name: hashtags
+      in: query
+      description: Filter creatives containing any of these hashtags (repeat param or comma-separated per client).
+      schema:
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+    sortBy:
+      name: sortBy
+      in: query
+      schema:
+        type: string
+        enum: [views, likes, recent, engagement]
+        default: views
+    categoryL1:
+      name: categoryL1
+      in: query
+      schema:
+        type: string
+    categoryL2:
+      name: categoryL2
+      in: query
+      schema:
+        type: string
+    categoryL3:
+      name: categoryL3
+      in: query
+      schema:
+        type: string
+
+  schemas:
+    CreativeListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '../components/schemas/Creative.yaml'
+            pagination:
+              $ref: '../components/schemas/Common.yaml#/Pagination'

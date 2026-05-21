@@ -1,0 +1,15 @@
+type: object
+nullable: true
+description: Denormalized parent-product trend snapshot on the creative.
+properties:
+  score:
+    type: number
+    example: 3.8
+  direction:
+    type: string
+    enum: [rising, peaked, saturating, stable, declining, emerging, viral, unknown]
+  isTrending:
+    type: boolean
+  reason:
+    type: string
+    nullable: true

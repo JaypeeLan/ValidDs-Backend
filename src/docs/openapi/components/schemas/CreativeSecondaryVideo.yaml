@@ -1,0 +1,47 @@
+type: object
+required:
+  - isPrimary
+  - externalVideoId
+  - embedUrl
+  - tiktokPostUrl
+  - creator
+  - metrics
+  - publishedAt
+properties:
+  isPrimary:
+    type: boolean
+    enum: [false]
+    description: Always `false` for slots in `relatedVideos`.
+  externalVideoId:
+    type: string
+    example: "7628237127481969943"
+  embedUrl:
+    type: string
+    format: uri
+    description: Permanent TikTok embed URL (`https://www.tiktok.com/embed/v2/<id>`).
+  tiktokPostUrl:
+    type: string
+    format: uri
+  thumbnailUrl:
+    type: string
+    format: uri
+    nullable: true
+  videoProxyUrl:
+    type: string
+    description: |
+      API path to stream the TikTok CDN MP4 through this server (requires stored `videoPlayUrl`).
+      Example `/api/v1/creatives/{creativeId}/video?index=1`.
+  thumbnailProxyUrl:
+    type: string
+    description: API path for proxied thumbnail (`.../thumbnail?index=N&kind=thumbnail`).
+  creator:
+    $ref: ./CreativeCreator.yaml
+  metrics:
+    $ref: ./CreativeMetrics.yaml
+  topComments:
+    type: array
+    items:
+      $ref: ./CreativeComment.yaml
+  publishedAt:
+    type: string
+    format: date-time

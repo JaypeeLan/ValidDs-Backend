@@ -10,19 +10,19 @@ export type ProductType     = 'evergreen' | 'trend-driven' | 'seasonal' | 'unkno
 // ── Sub-document interfaces ───────────────────────────────────────────────────
 
 export interface IPrimaryCreator {
-  tiktokUserId?: string;
+  tiktokUserId: string;
   handle: string;
-  displayName?: string;
-  bio?: string;
-  followers?: number;
-  following?: number;
-  totalLikes?: number;
-  region?: string;
-  verified?: boolean;
-  tiktokPostUrl?: string;
-  primaryImageUrl?: string | null;
+  displayName: string;
+  bio: string;
+  followers: number;
+  following: number;
+  totalLikes: number;
+  region: string;
+  verified: boolean;
+  tiktokPostUrl: string;
+  primaryImageUrl: string | null;
   /** Legacy alias — mirrored with primaryImageUrl on read/write. */
-  avatarUrl?: string | null;
+  avatarUrl: string | null;
 }
 
 /** `primaryCreator` after `formatProductResponse` (includes read-time proxy URL). */
@@ -31,12 +31,12 @@ export interface IPrimaryCreatorApi extends IPrimaryCreator {
 }
 
 export interface IProductReview {
-  author?: string | null;
-  rating?: number | null;
-  content?: string | null;
-  date?: string | null;
-  item?: string | null;
-  images?: string[];
+  author: string | null;
+  rating: number | null;
+  content: string | null;
+  date: string | null;
+  item: string | null;
+  images: string[];
 }
 
 export interface IProductSupplierShop {
@@ -46,31 +46,27 @@ export interface IProductSupplierShop {
 }
 
 export interface IProductSupplier {
-  source?: string;
-  platform?: string;
-  externalId?: string;
-  title?: string;
-  productUrl?: string;
-  shareUrl?: string;
-  price?: number | null;
-  onSale?: boolean;
-  currency?: string;
-  rating?: number | null;
-  totalRatings?: number | null;
-  totalReviews?: number | null;
-  soldLast30Days?: number | null;
-  availableForSale?: boolean;
-  shippingDays?: number;
-  moq?: number;
-  shop?: IProductSupplierShop | null;
-  checkedAt?: Date;
-  fetchedAt?: Date;
-  monthlyTraffic?: number | null;
-  semrushRank?: number | null;
-  productUnitsSold?: number | null;
-  estimatedMonthlyRevenue?: number | null;
-  revenueSource?: 'product-sales' | 'traffic-estimate' | null;
-  competitorScore?: number | null;
+  source: string;
+  platform: string;
+  externalId: string;
+  title: string;
+  productUrl: string;
+  shareUrl: string;
+  price: number | null;
+  currency: string;
+  rating: number | null;
+  totalRatings: number | null;
+  totalReviews: number | null;
+  availableForSale: boolean;
+  moq: number;
+  shop: IProductSupplierShop | null;
+  checkedAt: Date;
+  fetchedAt: Date;
+  monthlyTraffic: number | null;
+  productUnitsSold: number | null;
+  estimatedMonthlyRevenue: number | null;
+  revenueSource: 'product-sales' | 'traffic-estimate' | null;
+  competitorScore: number | null;
 }
 
 // ── Marketing analysis ────────────────────────────────────────────────────────
@@ -105,19 +101,18 @@ export interface IMarketingAnalysis {
 export interface IAIIntelligence {
   confidence: number;
   confidenceReason: string;
-  brand?: string;
-  buyingSentimentScore?: number;
-  buyingSentimentReason?: string;
+  brand: string;
+  buyingSentimentScore: number;
+  buyingSentimentReason: string;
   extractedAt: Date;
-  niche?: string;
+  niche: string;
   productType: ProductType;
-  priceBand?: PriceBand;
+  priceBand: PriceBand;
   audience: string[];
-  /** AI-extracted category keywords for search/tagging */
-  categoryKeywords?: string[];
-  problemStatement?: string;
-  valueStatement?: string;
-  marketingAnalysis?: IMarketingAnalysis | null;
+  categoryKeywords: string[];
+  problemStatement: string;
+  valueStatement: string;
+  marketingAnalysis: IMarketingAnalysis | null;
 }
 
 // ── Trend ─────────────────────────────────────────────────────────────────────
@@ -125,15 +120,15 @@ export interface IAIIntelligence {
 export interface ITrend {
   score: number;
   direction: TrendDirection;
-  reason?: string;
+  reason: string;
   isTrending: boolean;
   calculatedAt: Date;
 }
 
 /** Per-dimension trend signals stored on the product. */
 export interface IProductTrends {
-  engagement?: ITrend;
-  priceHistory?: IPriceHistoryEntry[];
+  engagement: ITrend | null;
+  priceHistory: IPriceHistoryEntry[];
 }
 
 // ── Sales / revenue / price trends ───────────────────────────────────────────
@@ -170,6 +165,14 @@ export type IPriceTrendWindow = IMetricTrendWindow;
 
 // ── Main product interface ────────────────────────────────────────────────────
 
+export interface IProductRatingSource {
+  platform: string;
+  rating: number | null;
+  reviewCount: number | null;
+  sourceUrl: string;
+  fetchedAt: Date | string;
+}
+
 export interface IProduct {
   // Identity
   externalId: string;
@@ -179,98 +182,91 @@ export interface IProduct {
   // Content
   title: string;
   normalizedTitle: string;
-  description?: string;
+  description: string;
   hashtags: string[];
 
   // Taxonomy
   categoryL1: string;
-  categoryL2?: string;
-  categoryL3?: string;
+  categoryL2: string;
+  categoryL3: string;
   categoryPath: string;
 
   // Media
-  primaryImageUrl?: string;
+  primaryImageUrl: string | null;
   imageUrls: string[];
 
   // Pricing
-  price?: number;
+  price: number | null;
   currency: string;
-  priceHistory?: IPriceHistoryEntry[];
-  priceTrend?: IPriceTrend | null;
+  priceHistory: IPriceHistoryEntry[];
+  priceTrend: IPriceTrend | null;
 
   // Competitor suppliers (sorted by competitorScore desc)
   suppliers: IProductSupplier[];
 
   // Market evidence
-  rating?: number;
-  reviewCount?: number;
+  rating: number | null;
+  reviewCount: number | null;
   reviews: IProductReview[];
-  ratingSources?: Array<{
-    platform?: string;
-    rating?: number;
-    reviewCount?: number;
-    sourceUrl?: string;
-    fetchedAt?: Date | string;
-  }>;
+  ratingSources: IProductRatingSource[];
 
   // Sales & GMV
-  soldCount?: number;
-  totalSales?: number;
-  totalGmv?: number;
-  salesHistory?: ISalesHistoryEntry[];
-  salesTrend?: IMetricTrend | null;
-  revenueHistory?: IRevenueHistoryEntry[];
-  revenueTrend?: IMetricTrend | null;
+  soldCount: number;
+  totalSales: number;
+  totalGmv: number;
+  salesHistory: ISalesHistoryEntry[];
+  salesTrend: IMetricTrend | null;
+  revenueHistory: IRevenueHistoryEntry[];
+  revenueTrend: IMetricTrend | null;
 
   // Store-level aggregates (sourced from TikTok Shop store profile)
-  storeGmv?: number;
-  storeTotalSales?: number;
+  storeGmv: number;
+  storeTotalSales: number;
 
   // TikTok engagement
   viewCount: number;
   likeCount: number;
   commentCount: number;
   shareCount: number;
-  engagementRate?: number | null;
+  engagementRate: number | null;
 
   // Creator
-  primaryCreator?: IPrimaryCreator;
+  primaryCreator: IPrimaryCreator | null;
 
   // AI
   aiIntelligence: IAIIntelligence;
 
   // Trend signals keyed by dimension
-  trends?: IProductTrends;
+  trends: IProductTrends | null;
 
   // Discovery
-  discoverySections?: string[];
+  discoverySections: string[];
 
   // Shop context
-  shopName?: string;
-  shopUrl?: string;
-  shopAvatarUrl?: string | null;
+  shopName: string;
+  shopUrl: string;
+  shopAvatarUrl: string | null;
   shopFollowers: number;
-  postUrl?: string;
-  postCreatedAt?: string | null;
-  /** ISO 8601 timestamp when the TikTok video was originally published */
-  publishedAt?: string | Date | null;
-  productUrl?: string;
+  postUrl: string;
+  postCreatedAt: string | null;
+  publishedAt: string | Date | null;
+  productUrl: string;
 
   // TikTok account context
-  accountHandle?: string;
-  accountKind?: string;
+  accountHandle: string;
+  accountKind: string;
 
   // Market
-  market?: string;
+  market: string;
 
   // Creative counts (computed by enricher)
-  relatedVideosCount?: number;
-  creativeCounts?: {
+  relatedVideosCount: number;
+  creativeCounts: {
     ads: number;
     organic: number;
     reviews: number;
     total: number;
-  };
+  } | null;
 
   // Validation
   validationStatus: string;

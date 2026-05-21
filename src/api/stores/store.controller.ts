@@ -139,10 +139,11 @@ export const StoreController = {
           shopInfo,
         );
         log.info('Shopify App URL install — pending link', { shop });
-        // Serve a branded HTML page directly so Shopify's "Immediately redirects
-        // to app UI" automated check sees real content (not a frontend 404).
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(200).send(ShopifyService.buildInstallSuccessPage(shop));
+        // Partner automated check: immediate HTTP redirect to app UI (not 200 HTML).
+        res.redirect(
+          302,
+          ShopifyService.appUiRedirectUrl({ status: 'success', shop, pending: true }),
+        );
         return;
       }
 

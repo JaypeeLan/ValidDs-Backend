@@ -95,8 +95,6 @@ properties:
         price:
           type: number
           nullable: true
-        onSale:
-          type: boolean
         currency:
           type: string
         rating:
@@ -108,13 +106,8 @@ properties:
         totalReviews:
           type: integer
           nullable: true
-        soldLast30Days:
-          type: integer
-          nullable: true
         availableForSale:
           type: boolean
-        shippingDays:
-          type: integer
         moq:
           type: integer
           description: Minimum order quantity.

@@ -79,7 +79,6 @@ export interface ShopifyScraperItem {
   price: number;
   currency: string;
   originalPrice: number | null;
-  onSale: boolean;
   // variantsCount: number;
   options: ShopifyScraperOption[];
   // variants: ShopifyScraperVariant[];
@@ -100,7 +99,6 @@ export interface ShopifyScraperItem {
   shopTotalReviews: number;
   shopAddress: string[] | null;
   shopContacts: ShopifyScraperContact[];
-  soldLast30Days: number | null;
   shopCount: number;
   universalProductId: string;
   scrapedAt: string;

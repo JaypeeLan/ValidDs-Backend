@@ -49,80 +49,79 @@ export type {
   ContentFormat,
 } from '../types/product.types.js';
 
+const STRICT_SUB = { _id: false, strict: true } as const;
+
 // ── Sub-schemas ───────────────────────────────────────────────────────────────
 
 const PrimaryCreatorSchema = new Schema<IPrimaryCreator>(
   {
-    tiktokUserId:    { type: String },
+    tiktokUserId:    { type: String, required: true, default: '' },
     handle:          { type: String, required: true },
-    displayName:     { type: String },
-    bio:             { type: String },
-    followers:       { type: Number, min: 0 },
-    following:       { type: Number, min: 0 },
-    totalLikes:      { type: Number, min: 0 },
-    region:          { type: String },
-    verified:        { type: Boolean, default: false },
-    tiktokPostUrl:   { type: String },
-    primaryImageUrl: { type: String, default: null },
-    avatarUrl:       { type: String, default: null },
+    displayName:     { type: String, required: true, default: '' },
+    bio:             { type: String, required: true, default: '' },
+    followers:       { type: Number, required: true, min: 0, default: 0 },
+    following:       { type: Number, required: true, min: 0, default: 0 },
+    totalLikes:      { type: Number, required: true, min: 0, default: 0 },
+    region:          { type: String, required: true, default: '' },
+    verified:        { type: Boolean, required: true, default: false },
+    tiktokPostUrl:   { type: String, required: true, default: '' },
+    primaryImageUrl: { type: String, required: true, default: null },
+    avatarUrl:       { type: String, required: true, default: null },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const ProductReviewSchema = new Schema<IProductReview>(
   {
-    author:  { type: String, default: null },
-    rating:  { type: Number, min: 0, max: 5, default: null },
-    content: { type: String, default: null },
-    date:    { type: String, default: null },
-    item:    { type: String, default: null },
-    images:  [{ type: String }],
+    author:  { type: String, required: true, default: null },
+    rating:  { type: Number, required: true, min: 0, max: 5, default: null },
+    content: { type: String, required: true, default: null },
+    date:    { type: String, required: true, default: null },
+    item:    { type: String, required: true, default: null },
+    images:  { type: [String], required: true, default: [] },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const ProductSupplierShopSchema = new Schema<IProductSupplierShop>(
   {
-    name:   { type: String, default: null },
-    url:    { type: String, default: null },
-    rating: { type: Number, min: 0, max: 5, default: null },
+    name:   { type: String, required: true, default: null },
+    url:    { type: String, required: true, default: null },
+    rating: { type: Number, required: true, min: 0, max: 5, default: null },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const ProductSupplierSchema = new Schema<IProductSupplier>(
   {
-    source:           { type: String },
-    platform:         { type: String },
-    externalId:       { type: String },
-    title:            { type: String },
-    productUrl:       { type: String },
-    shareUrl:         { type: String },
-    price:            { type: Number, min: 0, default: null },
-    onSale:           { type: Boolean, default: false },
-    currency:         { type: String, default: 'USD' },
-    rating:           { type: Number, min: 0, max: 5, default: null },
-    totalRatings:     { type: Number, min: 0, default: null },
-    totalReviews:     { type: Number, min: 0, default: null },
-    soldLast30Days:   { type: Number, min: 0, default: null },
-    availableForSale: { type: Boolean, default: true },
-    shippingDays:     { type: Number, min: 0 },
-    moq:              { type: Number, min: 0 },
-    shop:             { type: ProductSupplierShopSchema, default: null },
-    checkedAt:        { type: Date },
-    fetchedAt:        { type: Date },
-    monthlyTraffic:          { type: Number, min: 0, default: null },
-    semrushRank:             { type: Number, min: 0, default: null },
-    productUnitsSold:        { type: Number, min: 0, default: null },
-    estimatedMonthlyRevenue: { type: Number, min: 0, default: null },
+    source:                  { type: String, required: true },
+    platform:                { type: String, required: true },
+    externalId:              { type: String, required: true, default: '' },
+    title:                   { type: String, required: true, default: '' },
+    productUrl:              { type: String, required: true, default: '' },
+    shareUrl:                { type: String, required: true, default: '' },
+    price:                   { type: Number, required: true, min: 0, default: null },
+    currency:                { type: String, required: true, default: 'USD' },
+    rating:                  { type: Number, required: true, min: 0, max: 5, default: null },
+    totalRatings:            { type: Number, required: true, min: 0, default: null },
+    totalReviews:            { type: Number, required: true, min: 0, default: null },
+    availableForSale:        { type: Boolean, required: true, default: true },
+    moq:                     { type: Number, required: true, min: 0, default: 0 },
+    shop:                    { type: ProductSupplierShopSchema, required: true, default: null },
+    checkedAt:               { type: Date, required: true },
+    fetchedAt:               { type: Date, required: true },
+    monthlyTraffic:          { type: Number, required: true, min: 0, default: null },
+    productUnitsSold:        { type: Number, required: true, min: 0, default: null },
+    estimatedMonthlyRevenue: { type: Number, required: true, min: 0, default: null },
     revenueSource: {
       type: String,
       enum: ['product-sales', 'traffic-estimate', null],
+      required: true,
       default: null,
     },
-    competitorScore: { type: Number, min: 0, max: 100, default: null },
+    competitorScore: { type: Number, required: true, min: 0, max: 100, default: null },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const MarketingAngleSchema = new Schema<IMarketingAngle>(
@@ -131,7 +130,7 @@ const MarketingAngleSchema = new Schema<IMarketingAngle>(
     body:   { type: String, required: true },
     target: { type: String, required: true },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const MarketingAnalysisSchema = new Schema<IMarketingAnalysis>(
@@ -141,10 +140,10 @@ const MarketingAnalysisSchema = new Schema<IMarketingAnalysis>(
       enum: ['female', 'male', 'mixed', 'unisex'],
       required: true,
     },
-    topAgeGroups:      [{ type: String }],
-    topRegions:        [{ type: String }],
-    accessibilityTags: [{ type: String }],
-    lifestyleSegments: [{ type: String }],
+    topAgeGroups:      { type: [String], required: true, default: [] },
+    topRegions:        { type: [String], required: true, default: [] },
+    accessibilityTags: { type: [String], required: true, default: [] },
+    lifestyleSegments: { type: [String], required: true, default: [] },
     incomeLevel: {
       type: String,
       enum: ['budget', 'mid-range', 'premium', 'luxury'],
@@ -161,37 +160,40 @@ const MarketingAnalysisSchema = new Schema<IMarketingAnalysis>(
       required: true,
     },
     marketingInsight: { type: String, required: true },
-    angles:           { type: [MarketingAngleSchema], default: [] },
+    angles:           { type: [MarketingAngleSchema], required: true, default: [] },
     analyzedAt:       { type: Date, required: true },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const AIIntelligenceSchema = new Schema<IAIIntelligence>(
   {
     confidence:            { type: Number, required: true, min: 0, max: 100 },
     confidenceReason:      { type: String, required: true },
-    brand:                 { type: String },
-    buyingSentimentScore:  { type: Number, min: 0, max: 100 },
-    buyingSentimentReason: { type: String },
-    extractedAt:           { type: Date, default: Date.now },
-    niche:                 { type: String },
+    brand:                 { type: String, required: true, default: '' },
+    buyingSentimentScore:  { type: Number, required: true, min: 0, max: 100, default: 0 },
+    buyingSentimentReason: { type: String, required: true, default: '' },
+    extractedAt:           { type: Date, required: true, default: Date.now },
+    niche:                 { type: String, required: true, default: '' },
     productType: {
       type: String,
       enum: ['evergreen', 'trend-driven', 'seasonal', 'unknown'],
+      required: true,
       default: 'unknown',
     },
     priceBand: {
       type: String,
       enum: ['budget', 'mid-range', 'premium'],
+      required: true,
+      default: 'mid-range',
     },
-    audience:          [{ type: String }],
-    categoryKeywords:  [{ type: String }],
-    problemStatement:  { type: String },
-    valueStatement:    { type: String },
-    marketingAnalysis: { type: MarketingAnalysisSchema, default: null },
+    audience:          { type: [String], required: true, default: [] },
+    categoryKeywords:  { type: [String], required: true, default: [] },
+    problemStatement:  { type: String, required: true, default: '' },
+    valueStatement:    { type: String, required: true, default: '' },
+    marketingAnalysis: { type: MarketingAnalysisSchema, required: true, default: null },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const TrendSchema = new Schema<ITrend>(
@@ -200,13 +202,14 @@ const TrendSchema = new Schema<ITrend>(
     direction: {
       type: String,
       enum: ['rising', 'peaked', 'saturating', 'stable', 'declining', 'emerging', 'viral', 'unknown'],
+      required: true,
       default: 'unknown',
     },
-    reason:       { type: String },
-    isTrending:   { type: Boolean, default: false },
-    calculatedAt: { type: Date, default: Date.now },
+    reason:       { type: String, required: true, default: '' },
+    isTrending:   { type: Boolean, required: true, default: false },
+    calculatedAt: { type: Date, required: true, default: Date.now },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const MetricTrendWindowSchema = new Schema<IMetricTrendWindow>(
@@ -215,16 +218,16 @@ const MetricTrendWindowSchema = new Schema<IMetricTrendWindow>(
     daysAgo: { type: Number, required: true, min: 0 },
     value:   { type: Number, required: true, min: 0 },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const MetricTrendSchema = new Schema<IMetricTrend>(
   {
     direction:     { type: String, enum: ['up', 'down', 'stable'], required: true },
     changePercent: { type: Number, required: true },
-    windows:       { type: [MetricTrendWindowSchema], default: [] },
+    windows:       { type: [MetricTrendWindowSchema], required: true, default: [] },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const SalesHistoryEntrySchema = new Schema<ISalesHistoryEntry>(
@@ -232,7 +235,7 @@ const SalesHistoryEntrySchema = new Schema<ISalesHistoryEntry>(
     sales:      { type: Number, required: true, min: 0 },
     recordedAt: { type: Schema.Types.Mixed, required: true },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const RevenueHistoryEntrySchema = new Schema<IRevenueHistoryEntry>(
@@ -240,7 +243,7 @@ const RevenueHistoryEntrySchema = new Schema<IRevenueHistoryEntry>(
     revenue:    { type: Number, required: true, min: 0 },
     recordedAt: { type: Schema.Types.Mixed, required: true },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const PriceHistoryEntrySchema = new Schema<IPriceHistoryEntry>(
@@ -248,36 +251,45 @@ const PriceHistoryEntrySchema = new Schema<IPriceHistoryEntry>(
     price:      { type: Number, required: true, min: 0 },
     recordedAt: { type: Schema.Types.Mixed, required: true },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const PriceTrendSchema = new Schema<IPriceTrend>(
   {
     direction:     { type: String, enum: ['up', 'down', 'stable'], required: true },
     changePercent: { type: Number, required: true },
-    windows:       { type: [MetricTrendWindowSchema], default: [] },
+    windows:       { type: [MetricTrendWindowSchema], required: true, default: [] },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
 const RatingSourceSchema = new Schema(
   {
-    platform:    { type: String },
-    rating:      { type: Number, min: 0, max: 5 },
-    reviewCount: { type: Number, min: 0 },
-    sourceUrl:   { type: String },
-    fetchedAt:   { type: Date },
+    platform:    { type: String, required: true, default: '' },
+    rating:      { type: Number, required: true, min: 0, max: 5, default: null },
+    reviewCount: { type: Number, required: true, min: 0, default: null },
+    sourceUrl:   { type: String, required: true, default: '' },
+    fetchedAt:   { type: Date, required: true },
   },
-  { _id: false },
+  STRICT_SUB,
 );
 
-/** Per-dimension trend signals — keyed by dimension name. */
 const ProductTrendsSchema = new Schema<IProductTrends>(
   {
-    engagement:   { type: TrendSchema, default: null },
-    priceHistory: { type: [PriceHistoryEntrySchema], default: [] },
+    engagement:   { type: TrendSchema, required: true, default: null },
+    priceHistory: { type: [PriceHistoryEntrySchema], required: true, default: [] },
   },
-  { _id: false },
+  STRICT_SUB,
+);
+
+const CreativeCountsSchema = new Schema(
+  {
+    ads:     { type: Number, required: true, default: 0 },
+    organic: { type: Number, required: true, default: 0 },
+    reviews: { type: Number, required: true, default: 0 },
+    total:   { type: Number, required: true, default: 0 },
+  },
+  STRICT_SUB,
 );
 
 // ── Main schema ───────────────────────────────────────────────────────────────
@@ -287,97 +299,91 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     // Identity
     externalId: { type: String, required: true },
     source:     { type: String, required: true },
-    status:     { type: String, enum: ['active', 'review', 'invalid'], default: 'review', index: true },
+    status:     { type: String, enum: ['active', 'review', 'invalid'], required: true, default: 'review', index: true },
 
     // Content
     title:           { type: String, required: true, maxlength: 120 },
     normalizedTitle: { type: String, required: true, index: true },
-    description:     { type: String, maxlength: 2000 },
-    hashtags:        [{ type: String }],
+    description:     { type: String, required: true, default: '', maxlength: 2000 },
+    hashtags:        { type: [String], required: true, default: [] },
 
     // Taxonomy
     categoryL1:   { type: String, required: true, index: true },
-    categoryL2:   { type: String },
-    categoryL3:   { type: String },
+    categoryL2:   { type: String, required: true, default: '' },
+    categoryL3:   { type: String, required: true, default: '' },
     categoryPath: { type: String, required: true },
 
     // Media
-    primaryImageUrl: { type: String },
-    imageUrls:       [{ type: String }],
+    primaryImageUrl: { type: String, required: true, default: null },
+    imageUrls:       { type: [String], required: true, default: [] },
 
     // Pricing
-    price:        { type: Number, min: 0 },
-    currency:     { type: String, default: 'USD' },
-    priceHistory: { type: [PriceHistoryEntrySchema], default: [] },
-    priceTrend:   { type: PriceTrendSchema, default: null },
+    price:        { type: Number, required: true, min: 0, default: null },
+    currency:     { type: String, required: true, default: 'USD' },
+    priceHistory: { type: [PriceHistoryEntrySchema], required: true, default: [] },
+    priceTrend:   { type: PriceTrendSchema, required: true, default: null },
 
     // Competitor suppliers
-    suppliers: { type: [ProductSupplierSchema], default: [] },
+    suppliers: { type: [ProductSupplierSchema], required: true, default: [] },
 
     // Market evidence
-    rating:        { type: Number, min: 0, max: 5 },
-    reviewCount:   { type: Number, min: 1 },
-    reviews:       { type: [ProductReviewSchema], default: [] },
-    ratingSources: { type: [RatingSourceSchema], default: [] },
+    rating:        { type: Number, required: true, min: 0, max: 5, default: null },
+    reviewCount:   { type: Number, required: true, min: 0, default: null },
+    reviews:       { type: [ProductReviewSchema], required: true, default: [] },
+    ratingSources: { type: [RatingSourceSchema], required: true, default: [] },
 
     // Sales & GMV
-    soldCount:      { type: Number, min: 0 },
-    totalSales:     { type: Number, min: 0 },
-    totalGmv:       { type: Number, min: 0 },
-    salesHistory:   { type: [SalesHistoryEntrySchema], default: [] },
-    salesTrend:     { type: MetricTrendSchema, default: null },
-    revenueHistory: { type: [RevenueHistoryEntrySchema], default: [] },
-    revenueTrend:   { type: MetricTrendSchema, default: null },
+    soldCount:      { type: Number, required: true, min: 0, default: 0 },
+    totalSales:     { type: Number, required: true, min: 0, default: 0 },
+    totalGmv:       { type: Number, required: true, min: 0, default: 0 },
+    salesHistory:   { type: [SalesHistoryEntrySchema], required: true, default: [] },
+    salesTrend:     { type: MetricTrendSchema, required: true, default: null },
+    revenueHistory: { type: [RevenueHistoryEntrySchema], required: true, default: [] },
+    revenueTrend:   { type: MetricTrendSchema, required: true, default: null },
 
     // Store-level aggregates
-    storeGmv:       { type: Number, min: 0 },
-    storeTotalSales:{ type: Number, min: 0 },
+    storeGmv:        { type: Number, required: true, min: 0, default: 0 },
+    storeTotalSales: { type: Number, required: true, min: 0, default: 0 },
 
     // TikTok engagement
-    viewCount:      { type: Number, default: 0, min: 0 },
-    likeCount:      { type: Number, default: 0, min: 0 },
-    commentCount:   { type: Number, default: 0, min: 0 },
-    shareCount:     { type: Number, default: 0, min: 0 },
-    engagementRate: { type: Number, default: null },
+    viewCount:      { type: Number, required: true, default: 0, min: 0 },
+    likeCount:      { type: Number, required: true, default: 0, min: 0 },
+    commentCount:   { type: Number, required: true, default: 0, min: 0 },
+    shareCount:     { type: Number, required: true, default: 0, min: 0 },
+    engagementRate: { type: Number, required: true, default: null },
 
     // Creator
-    primaryCreator: { type: PrimaryCreatorSchema },
+    primaryCreator: { type: PrimaryCreatorSchema, required: true, default: null },
 
     // AI
     aiIntelligence: { type: AIIntelligenceSchema, required: true },
 
     // Trend signals
-    trends: { type: ProductTrendsSchema, default: null },
+    trends: { type: ProductTrendsSchema, required: true, default: null },
 
     // Discovery
-    discoverySections: [{ type: String }],
+    discoverySections: { type: [String], required: true, default: [] },
 
     // Shop context
-    shopName:      { type: String },
-    shopUrl:       { type: String },
-    shopAvatarUrl: { type: String, default: null },
-    shopFollowers: { type: Number, min: 0, default: 0 },
-    postUrl:       { type: String },
-    postCreatedAt: { type: String, default: null },
-    publishedAt:   { type: Schema.Types.Mixed, default: null },
-    productUrl:    { type: String },
+    shopName:      { type: String, required: true, default: '' },
+    shopUrl:       { type: String, required: true, default: '' },
+    shopAvatarUrl: { type: String, required: true, default: null },
+    shopFollowers: { type: Number, required: true, min: 0, default: 0 },
+    postUrl:       { type: String, required: true, default: '' },
+    postCreatedAt: { type: String, required: true, default: null },
+    publishedAt:   { type: Schema.Types.Mixed, required: true, default: null },
+    productUrl:    { type: String, required: true, default: '' },
 
     // TikTok account context
-    accountHandle: { type: String },
-    accountKind:   { type: String },
+    accountHandle: { type: String, required: true, default: '' },
+    accountKind:   { type: String, required: true, default: '' },
 
     // Market
-    market: { type: String },
+    market: { type: String, required: true, default: '' },
 
     // Creative counts
-    relatedVideosCount: { type: Number, default: 0 },
-    creativeCounts: {
-      type: new Schema(
-        { ads: Number, organic: Number, reviews: Number, total: Number },
-        { _id: false },
-      ),
-      default: null,
-    },
+    relatedVideosCount: { type: Number, required: true, default: 0 },
+    creativeCounts:     { type: CreativeCountsSchema, required: true, default: null },
 
     // Validation
     validationStatus: { type: String, required: true, default: 'pending' },
@@ -386,7 +392,7 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     lastIngestedAt:      { type: Date, required: true },
     dataSourceUpdatedAt: { type: Date, required: true },
   },
-  { timestamps: true },
+  { timestamps: true, strict: true },
 );
 
 // ── Indexes ───────────────────────────────────────────────────────────────────

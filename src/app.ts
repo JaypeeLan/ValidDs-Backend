@@ -16,6 +16,8 @@ import { Sentry } from './monitoring/sentry';
 import swaggerUi from 'swagger-ui-express';
 import { getAdminSwaggerSpec, getSwaggerSpec } from './docs/swagger.provider';
 import { handleStripeWebhook } from './api/webhooks/stripe.webhook.controller';
+import { handleShopifyWebhook } from './api/webhooks/shopify.webhook.controller';
+import { StoreController } from './api/stores/store.controller';
 
 /**
  * Creates and configures the Express application.
@@ -99,11 +101,16 @@ export async function createApp(): Promise<Application> {
     })
   );
 
-  // ── 4. Stripe webhook (raw body required for signature verification) ──────
+  // ── 4. Webhooks (raw body required for signature verification) ────────────
   app.post(
     `/api/${env.API_VERSION}/webhooks/stripe`,
     express.raw({ type: 'application/json' }),
     handleStripeWebhook
+  );
+  app.post(
+    `/api/${env.API_VERSION}/webhooks/shopify`,
+    express.raw({ type: 'application/json' }),
+    handleShopifyWebhook
   );
 
   // ── 5. Body parsers ───────────────────────────────────────────────────────
@@ -153,6 +160,9 @@ export async function createApp(): Promise<Application> {
   );
 
   // ── 8. Routes ─────────────────────────────────────────────────────────────
+  // Partner App URL — set in Shopify Partners → Configuration → App URL
+  app.get('/shopify/app', StoreController.appEntry);
+
   // Serve local products export used by internal frontend tooling.
   app.get('/products.json', async (_req, res, next) => {
     try {

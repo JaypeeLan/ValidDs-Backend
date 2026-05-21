@@ -226,16 +226,27 @@ See **`docs/endpoints.md`** § Shopify for full request/response detail.
 
 ---
 
-## Going to Production
+## Going to Production (public distribution)
 
-When you're ready to expose the integration to real merchants outside your dev stores:
+**Partner Dashboard → Configuration**
 
-1. In the Partner Dashboard, open your app's **Distribution** tab.
-2. Choose **Public distribution** (anyone can install via a Shopify install link) or **Custom distribution** (only a fixed list of stores).
-3. For **Public**, you'll be guided through Shopify's app review process — they check that your scopes match your actual usage, your privacy policy is published, and HTTPS is enforced.
-4. Submit for review. Review usually takes 5–10 business days.
+| Setting | Value |
+|---------|--------|
+| **App URL** | `https://<api-host>/shopify/app` |
+| **Allowed redirection URL** | `https://<api-host>/api/v1/stores/shopify/callback` |
 
-If you only need ValidDs users to connect their own stores (i.e. the typical SaaS use case), **Custom distribution** is faster and avoids review entirely.
+**Partner Dashboard → Webhooks** — single endpoint, HMAC verified:
+
+`https://<api-host>/api/v1/webhooks/shopify`
+
+Subscribe: `customers/data_request`, `customers/redact`, `shop/redact`, `app/uninstalled`
+
+**Two connect paths**
+
+1. **App Store / Shopify Admin install** → hits App URL → OAuth → pending token → user signs into ValidDs → `POST /api/v1/stores/shopify/claim` with `{ shop }`.
+2. **ValidDs UI (domain + connect)** → `GET /api/v1/stores/shopify/install?shop=...` (JWT) → OAuth → token saved on user immediately.
+
+After deploy, click **Run** on Distribution automated checks.
 
 ---
 

@@ -9,7 +9,9 @@ import { toMarketCode } from '../../utils/markets';
 import { ShopifyService } from '../../services/shopify.service';
 import {
   ShopifyAddProductInput,
+  ShopifyAppEntryQuery,
   ShopifyCallbackQuery,
+  ShopifyClaimInput,
   ShopifyInstallQuery,
 } from './store.validator';
 
@@ -25,6 +27,28 @@ const log = logger.child({ module: 'store-controller' });
  *  POST  /api/v1/stores/shopify/products  → Push a ValidDs product to Shopify
  */
 export const StoreController = {
+
+  /**
+   * GET /shopify/app — Partner **App URL** (public distribution install checks).
+   * Immediately redirects to Shopify OAuth (no ValidDs JWT required).
+   */
+  appEntry(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const query = req.query as unknown as ShopifyAppEntryQuery;
+      ShopifyService.assertConfigured();
+
+      const shop = ShopifyService.normalizeShop(query.shop);
+
+      if (query.hmac && !ShopifyService.verifyHmac(req.query as Record<string, string | string[] | undefined>)) {
+        throw new AppError(400, 'Invalid HMAC on App URL request', 'SHOPIFY_INVALID_HMAC');
+      }
+
+      const { url } = ShopifyService.buildAppInstallAuthUrl(shop);
+      res.redirect(302, url);
+    } catch (err) {
+      next(err);
+    }
+  },
 
   /**
    * GET /api/v1/stores/shopify/install
@@ -102,25 +126,33 @@ export const StoreController = {
         throw new AppError(400, 'Invalid HMAC on Shopify callback', 'SHOPIFY_INVALID_HMAC');
       }
 
-      const state = ShopifyService.verifyState(query.state, shop);
+      const oauthState = ShopifyService.verifyOAuthState(query.state, shop);
 
       const tokenRes = await ShopifyService.exchangeCodeForToken(shop, query.code);
       const shopInfo = await ShopifyService.fetchShopInfo(shop, tokenRes.access_token);
+
+      if (oauthState.purpose === 'shopify_oauth_install') {
+        await ShopifyService.savePendingConnection(
+          shop,
+          tokenRes.access_token,
+          tokenRes.scope,
+          shopInfo,
+        );
+        log.info('Shopify App URL install — pending link', { shop });
+        res.redirect(ShopifyService.appUiRedirectUrl({ status: 'success', shop }));
+        return;
+      }
+
       await ShopifyService.saveConnection(
-        state.userId,
+        oauthState.userId,
         shop,
         tokenRes.access_token,
         tokenRes.scope,
-        shopInfo
+        shopInfo,
       );
 
-      log.info('Shopify store connected', { userId: state.userId, shop });
-
-      const frontendBase = env.FRONTEND_URL;
-      const target =
-        `${frontendBase}/stores/shopify/callback` +
-        `?status=success&shop=${encodeURIComponent(shop)}`;
-      res.redirect(target);
+      log.info('Shopify store connected', { userId: oauthState.userId, shop });
+      res.redirect(ShopifyService.appUiRedirectUrl({ status: 'success', shop }));
     } catch (err) {
       // If anything goes wrong, redirect the user back to the frontend with
       // an error indicator instead of dumping a stack trace in the browser.
@@ -129,14 +161,36 @@ export const StoreController = {
       const code = err instanceof AppError ? err.code ?? 'SHOPIFY_ERROR' : 'SHOPIFY_ERROR';
       log.warn('Shopify callback failed', { message, code });
       try {
-        const frontendBase = env.FRONTEND_URL;
         res.redirect(
-          // `${frontendBase}/stores/shopify/callback?status=error&code=${encodeURIComponent(code)}&message=${encodeURIComponent(message)}`
-          `${frontendBase}`
+          ShopifyService.appUiRedirectUrl({
+            status: 'error',
+            code,
+            message,
+          }),
         );
       } catch {
         next(err);
       }
+    }
+  },
+
+  /**
+   * POST /api/v1/stores/shopify/claim
+   * Links a pending App-URL OAuth install to the logged-in user.
+   */
+  async claim(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { shop } = req.body as ShopifyClaimInput;
+      const connection = await ShopifyService.claimPendingForUser(String(req.user!._id), shop);
+      res.json(
+        successResponse(
+          { connection: ShopifyService.publicConnectionView(connection) },
+          ResponseMessage.UPDATED,
+          200,
+        ),
+      );
+    } catch (err) {
+      next(err);
     }
   },
 

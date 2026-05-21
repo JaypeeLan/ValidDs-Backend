@@ -140,31 +140,22 @@ export const ProductService: ProductServiceType = {
   },
 
   /**
-   * Get a single product by its MongoDB ID.
+   * Get a single product by its MongoDB ID (always from MongoDB — no Redis cache).
    */
   async getById(
     id: string,
     /** Market-specific Product model from req.models.Product. Defaults to global model (US). */
     productModel?: IProductModel,
-    market: MarketCode = DEFAULT_MARKET,
+    _market: MarketCode = DEFAULT_MARKET,
   ): Promise<{
     product: IProductDocument;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
   }> {
-    const cacheKey = CacheKeys.productDetail(market, id);
-
-    const product = await CacheService.getOrSet(
-      cacheKey,
-      CACHE_TTL.PRODUCT_DETAIL,
-      async () => {
-        const p = await ProductRepository.findById(id, productModel);
-        if (!p) throw new NotFoundError('Product');
-        return p;
-      }
-    );
+    const product = await ProductRepository.findById(id, productModel);
+    if (!product) throw new NotFoundError('Product');
 
     const freshness = await FreshnessService.getResponseMetadata('product');
-    return { product: product as IProductDocument, freshness };
+    return { product, freshness };
   },
 
   /**

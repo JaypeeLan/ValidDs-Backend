@@ -44,6 +44,8 @@ export function getRedisClient(): Redis {
     lazyConnect: false,
     enableReadyCheck: true,
     connectTimeout: 10000,
+    /** Prevent hung product-detail requests when Redis is slow/unreachable in production. */
+    commandTimeout: 5000,
   });
 
   redisClient.on('connect', () => {

@@ -567,17 +567,21 @@ export const ProductRepository = {
   },
 
   async cleanupBadProducts(): Promise<{ genericDeleted: number; duplicatesDeleted: number; lowViewsDeleted: number }> {
-    // Remove products with generic/empty titles
-    const genericResult = await Product.deleteMany({ status: { $ne: 'archived' }, normalizedTitle: { $in: ['', 'unknown product'] } });
+    const genericResult = await Product.deleteMany({
+      status: { $ne: 'archived' },
+      normalizedTitle: { $in: ['', 'unknown product'] },
+    });
 
-    // Remove products with very low views that have been around > 14 days
     const cutoff = new Date(Date.now() - 14 * 86_400_000);
-    const lowViewsResult = await Product.deleteMany({ viewCount: { $lt: 100 }, createdAt: { $lt: cutoff } });
+    const lowViewsResult = await Product.deleteMany({
+      viewCount: { $lt: 100 },
+      createdAt: { $lt: cutoff },
+    });
 
     return {
-      genericDeleted:    genericResult.deletedCount,
+      genericDeleted: genericResult.deletedCount,
       duplicatesDeleted: 0,
-      lowViewsDeleted:   lowViewsResult.deletedCount,
+      lowViewsDeleted: lowViewsResult.deletedCount,
     };
   },
 };

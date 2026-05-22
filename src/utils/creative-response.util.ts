@@ -188,11 +188,21 @@ export function formatCreativeForApi(
     topComments: Array.isArray(creative.topComments)
       ? (creative.topComments as ICreativeComment[])
       : [],
-    relatedVideos: Array.isArray(creative.relatedVideos)
-      ? (creative.relatedVideos as ISecondaryVideo[]).map((v, i) =>
-          formatSecondaryVideo(v, i + 1, baseUrl),
-        )
-      : [],
+    relatedVideos: (() => {
+      const primaryId = externalVideoId.trim();
+      const raw = Array.isArray(creative.relatedVideos)
+        ? (creative.relatedVideos as ISecondaryVideo[])
+        : [];
+      const seen = new Set<string>(primaryId ? [primaryId] : []);
+      const slots: ISecondaryVideo[] = [];
+      for (const v of raw) {
+        const vid = String(v.externalVideoId ?? '').trim();
+        if (!vid || seen.has(vid)) continue;
+        seen.add(vid);
+        slots.push(v);
+      }
+      return slots.map((v, i) => formatSecondaryVideo(v, i + 1, baseUrl));
+    })(),
     productRating: creative.productRating as number | null | undefined,
     productTotalSales: creative.productTotalSales as number | null | undefined,
     productTotalGmv: creative.productTotalGmv as number | null | undefined,
@@ -218,8 +228,9 @@ export function formatCreativeForApi(
 
 export function formatCreativeFeedItem(input: unknown): CreativeFeedItem {
   const full = formatCreativeForApi(input, { includeProductDescription: false });
-  const { productDescription: _pd, ...feed } = full;
-  return feed;
+  const { productDescription: _pd, relatedVideos: _rv, ...feed } = full;
+  // List endpoints return one card per creative doc; nested slots are detail-only.
+  return { ...feed, relatedVideos: [] };
 }
 
 /** CDN URL for video proxy — not the embed URL. */

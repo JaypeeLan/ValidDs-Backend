@@ -40,9 +40,6 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
-    "clear-db": "ts-node scripts/clear-db.ts",
-    "ingest-products": "ts-node scripts/ingest-products.ts",
-    "ingest-creatives": "ts-node scripts/ingest-creatives.ts",
     "make-admin": "ts-node src/scripts/make-admin.ts",
     "tester:ui": "node tools/backend-tester/server.js",
     "frontend:react": "node tools/full-frontend/server.js"

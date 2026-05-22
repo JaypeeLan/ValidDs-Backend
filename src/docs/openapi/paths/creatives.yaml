@@ -4,7 +4,8 @@ creatives:
     description: |
       Paginated **trending** commercial videos (default, ~462 for US market).
       Responses use API section labels (DB `top-ads` is returned as `trending`).
-      List items omit `productDescription`.
+      List items omit `productDescription` and nested `relatedVideos` (one card per TikTok video;
+      duplicate `externalVideoId` rows collapse to the highest-ranked match).
 
       **Playback:** use `videoProxyUrl` with `GET /creatives/{id}/video` when a CDN URL exists;
       otherwise embed via `embedUrl` in an iframe.

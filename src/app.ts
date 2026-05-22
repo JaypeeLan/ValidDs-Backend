@@ -162,6 +162,7 @@ export async function createApp(): Promise<Application> {
   // ── 8. Routes ─────────────────────────────────────────────────────────────
   // Partner App URL — set in Shopify Partners → Configuration → App URL
   app.get('/shopify/app', StoreController.appEntry);
+  app.get('/shopify/connected', StoreController.installConnected);
 
   // Serve local products export used by internal frontend tooling.
   app.get('/products.json', async (_req, res, next) => {

@@ -233,6 +233,58 @@ export const ShopifyService = {
     return qs ? `${base}?${qs}` : base;
   },
 
+  /** Public API origin (same host as Partner App URL / OAuth callback). */
+  publicApiOrigin(): string {
+    const uri = env.SHOPIFY_REDIRECT_URI ?? '';
+    const match = uri.match(/^(https?:\/\/[^/]+)/i);
+    return match?.[1] ?? '';
+  },
+
+  /**
+   * Post-install landing on the **API host** (`/shopify/connected`).
+   * Partner "redirect to app UI" checks follow Application URL domain; we show
+   * branded HTML here then forward to the SPA at FRONTEND_URL.
+   */
+  installConnectedUrl(shop: string): string {
+    const origin = this.publicApiOrigin();
+    const params = new URLSearchParams({
+      shopify_status: 'success',
+      shop,
+      shopify_pending: '1',
+    });
+    return `${origin}/shopify/connected?${params.toString()}`;
+  },
+
+  buildInstallConnectedPage(shop: string): string {
+    const appUrl = this.appUiRedirectUrl({ status: 'success', shop, pending: true });
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ValidDs — Shopify connected</title>
+  <meta http-equiv="refresh" content="2;url=${appUrl}" />
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center;
+           min-height: 100vh; margin: 0; background: #f9fafb; color: #111827; }
+    .card { background: #fff; border-radius: 12px; padding: 48px 40px; max-width: 420px; text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+    h1 { font-size: 22px; font-weight: 700; margin: 0 0 8px; }
+    p  { color: #6b7280; margin: 0 0 24px; line-height: 1.5; }
+    a  { display: inline-block; background: #111827; color: #fff; text-decoration: none;
+         padding: 12px 28px; border-radius: 8px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Shopify store connected</h1>
+    <p>Store <strong>${shop}</strong> is linked. Opening ValidDs&hellip;</p>
+    <a href="${appUrl}">Continue to ValidDs</a>
+  </div>
+</body>
+</html>`;
+  },
+
   /**
    * Verify Shopify's HMAC signature on incoming OAuth callback query params.
    * Per Shopify docs: build a query string from all params EXCEPT `hmac` and

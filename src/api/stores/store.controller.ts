@@ -32,6 +32,23 @@ export const StoreController = {
    * GET /shopify/app — Partner **App URL** (public distribution install checks).
    * Immediately redirects to Shopify OAuth (no ValidDs JWT required).
    */
+  /**
+   * GET /shopify/connected — post-OAuth landing (200 HTML on API host).
+   */
+  installConnected(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const shop = typeof req.query.shop === 'string' ? req.query.shop : '';
+      if (!shop) {
+        res.redirect(302, ShopifyService.appUiRedirectUrl({ status: 'error', message: 'Missing shop' }));
+        return;
+      }
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(ShopifyService.buildInstallConnectedPage(shop));
+    } catch (err) {
+      next(err);
+    }
+  },
+
   appEntry(req: Request, res: Response, next: NextFunction): void {
     try {
       const query = req.query as unknown as ShopifyAppEntryQuery;
@@ -139,11 +156,8 @@ export const StoreController = {
           shopInfo,
         );
         log.info('Shopify App URL install — pending link', { shop });
-        // Partner automated check: immediate HTTP redirect to app UI (not 200 HTML).
-        res.redirect(
-          302,
-          ShopifyService.appUiRedirectUrl({ status: 'success', shop, pending: true }),
-        );
+        // Land on API host first (same domain as App URL), then SPA — Partner install checks.
+        res.redirect(302, ShopifyService.installConnectedUrl(shop));
         return;
       }
 

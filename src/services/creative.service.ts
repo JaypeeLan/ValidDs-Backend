@@ -36,16 +36,24 @@ async function loadCreativesForProduct(
 ): Promise<CreativeFeedItem[]> {
   if (!mongoose.isValidObjectId(productId)) return [];
 
-  const docs = await creativeModel
-    .find({
-      productId: new mongoose.Types.ObjectId(productId),
-      ...extraFilter,
-    })
-    .select({ productDescription: 0 })
-    .sort({ 'metrics.viewCount': -1 })
-    .limit(Math.min(Math.max(limit, 1), 100))
-    .maxTimeMS(15_000)
-    .lean();
+  const mLimit = Math.min(Math.max(limit, 1), 100);
+  const docs = (await creativeModel
+    .aggregate([
+      {
+        $match: {
+          productId: new mongoose.Types.ObjectId(productId),
+          ...extraFilter,
+        },
+      },
+      { $sort: { 'metrics.viewCount': -1, publishedAt: -1 } },
+      { $group: { _id: '$externalVideoId', doc: { $first: '$$ROOT' } } },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { 'metrics.viewCount': -1, publishedAt: -1 } },
+      { $limit: mLimit },
+      { $project: { productDescription: 0 } },
+    ])
+    .option({ maxTimeMS: 15_000 })
+    .exec()) as Record<string, unknown>[];
 
   return docs.map((doc) => formatCreativeFeedItem(doc));
 }
@@ -152,8 +160,13 @@ export const CreativeService = {
     };
     const sort = sortMap[String(sortBy)] ?? sortMap.views;
 
+    // One row per TikTok video (externalVideoId). Multiple docs per product stay;
+    // duplicate video ids are collapsed to the highest-ranked doc ($first after $sort).
     const pipeline: PipelineStage[] = [
       { $match: query },
+      { $sort: sort },
+      { $group: { _id: '$externalVideoId', doc: { $first: '$$ROOT' } } },
+      { $replaceRoot: { newRoot: '$doc' } },
       { $project: { productDescription: 0 } },
       { $sort: sort },
       {

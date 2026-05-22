@@ -15,14 +15,29 @@ function pickUrl(...vals: unknown[]): string | undefined {
   return undefined;
 }
 
+/** Ingestion / upsert payloads may omit creator fields the schema defaults on write. */
+export type PrimaryCreatorStorageInput = Partial<IPrimaryCreator> &
+  Pick<IPrimaryCreator, 'handle'> & {
+    tiktokPostUrl?: string;
+  };
+
 /** Normalize creator avatar fields before persisting to MongoDB. */
 export function normalizePrimaryCreatorForStorage(
-  creator: IPrimaryCreator,
+  creator: PrimaryCreatorStorageInput,
 ): IPrimaryCreator {
   const primaryImageUrl =
     pickUrl(creator.primaryImageUrl, creator.avatarUrl) ?? null;
   return {
-    ...creator,
+    tiktokUserId: creator.tiktokUserId ?? '',
+    handle: creator.handle,
+    displayName: creator.displayName ?? '',
+    bio: creator.bio ?? '',
+    followers: creator.followers ?? 0,
+    following: creator.following ?? 0,
+    totalLikes: creator.totalLikes ?? 0,
+    region: creator.region ?? '',
+    verified: creator.verified ?? false,
+    tiktokPostUrl: creator.tiktokPostUrl ?? '',
     primaryImageUrl,
     avatarUrl: primaryImageUrl,
   };
@@ -54,15 +69,15 @@ export function normalizePrimaryCreatorOnProduct(
 
   const apiCreator: IPrimaryCreatorApi = {
     handle: typeof pc.handle === 'string' ? pc.handle : '',
-    displayName: typeof pc.displayName === 'string' ? pc.displayName : undefined,
-    bio: typeof pc.bio === 'string' ? pc.bio : undefined,
-    tiktokUserId: typeof pc.tiktokUserId === 'string' ? pc.tiktokUserId : undefined,
-    followers: typeof pc.followers === 'number' ? pc.followers : undefined,
-    following: typeof pc.following === 'number' ? pc.following : undefined,
-    totalLikes: typeof pc.totalLikes === 'number' ? pc.totalLikes : undefined,
-    region: typeof pc.region === 'string' ? pc.region : undefined,
-    verified: typeof pc.verified === 'boolean' ? pc.verified : undefined,
-    tiktokPostUrl: typeof pc.tiktokPostUrl === 'string' ? pc.tiktokPostUrl : undefined,
+    displayName: typeof pc.displayName === 'string' ? pc.displayName : '',
+    bio: typeof pc.bio === 'string' ? pc.bio : '',
+    tiktokUserId: typeof pc.tiktokUserId === 'string' ? pc.tiktokUserId : '',
+    followers: typeof pc.followers === 'number' ? pc.followers : 0,
+    following: typeof pc.following === 'number' ? pc.following : 0,
+    totalLikes: typeof pc.totalLikes === 'number' ? pc.totalLikes : 0,
+    region: typeof pc.region === 'string' ? pc.region : '',
+    verified: typeof pc.verified === 'boolean' ? pc.verified : false,
+    tiktokPostUrl: typeof pc.tiktokPostUrl === 'string' ? pc.tiktokPostUrl : '',
     primaryImageUrl,
     avatarUrl: primaryImageUrl,
     ...(avatarProxyUrl ? { avatarProxyUrl } : {}),

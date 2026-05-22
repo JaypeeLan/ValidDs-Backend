@@ -55,24 +55,6 @@ Copy `.env.example` to `.env` in the root directory.
    ```
 4. Verify the system is healthy via `GET http://localhost:3000/api/v1/health`
 
-**Triggering Ingestion Locally:**
-To safely trigger an ingestion run without hitting the API, use the dedicated
-per-resource scripts:
-
-```bash
-# Full daily product sweep (all configured regions + cleanup)
-npm run ingest-products
-
-# Single region top-up
-npm run ingest-products -- --region=US
-
-# Creative ingestion (500 new videos — mirrors the 12 h cron)
-npm run ingest-creatives
-
-# Refresh signed TikTok CDN URLs on every creative already in the DB
-npm run ingest-creatives -- --refresh
-```
-
 ---
 
 ## 4. Deployment Assumptions

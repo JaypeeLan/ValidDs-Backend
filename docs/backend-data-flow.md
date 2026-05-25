@@ -178,7 +178,7 @@ The `stack` field in the error log shows the exact file and line number where th
 | `ValidationError` | Mongoose schema mismatch | model schema or repository update shape |
 | `ZodError` | Request body/query failed validation | controller Zod schema |
 | `MongoServerError / 11000` | Duplicate key on upsert | repository — check unique index field |
-| `AxiosError` | External API call failed (EnsembleData, TeemDrop, etc.) | service layer |
+| `AxiosError` | External API call failed (TeemDrop, Stripe, etc.) | service layer |
 | `JsonWebTokenError` | Bad or expired JWT | `auth.middleware.ts` |
 
 ---
@@ -260,6 +260,6 @@ src/models/<feature>.model.ts               ← Mongoose schema
 | `src/middleware/sanitize.middleware.ts` | NoSQL injection + XSS prevention |
 | `src/config/env.validation.ts` | Zod schema for all env vars — crashes on startup if invalid |
 | `src/jobs/index.ts` | Background job scheduler (product ingestion, creative ingestion, stale cleanup) |
-| `src/ingestion/ensemble/ensemble.client.ts` | EnsembleData client — used for creator enrichment |
+| `src/ingestion/orchestrator.ts` | Ingestion orchestrator (currently disabled) |
 | `src/freshness/freshness.service.ts` | Tracks when data was last updated |
 | `src/monitoring/alerts.ts` | Webhook/Sentry alert triggers |

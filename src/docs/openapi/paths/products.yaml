@@ -202,6 +202,111 @@ detail:
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
 
+relatedProducts:
+  get:
+    tags: [Products]
+    summary: Related products for a product
+    description: |
+      Same-category related products (feed card shape). Same data as `relatedProducts` on
+      `GET /products/{id}` without loading the full product payload.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
+    responses:
+      '200':
+        description: Related products retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [relatedProducts]
+                      properties:
+                        relatedProducts:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/ProductFeedItem.yaml'
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
+relatedVideos:
+  get:
+    tags: [Products]
+    summary: Related videos (non-ad) for a product
+    description: |
+      Commercial TikTok creatives linked to this product (DB `top-ads`, API `trending` bucket).
+      Mutually exclusive with `relatedAds`. Sorted by view count descending.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    responses:
+      '200':
+        description: Related videos retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [relatedVideos]
+                      properties:
+                        relatedVideos:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/Creative.yaml'
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
+relatedAds:
+  get:
+    tags: [Products]
+    summary: Related ads for a product
+    description: |
+      Paid / top-ad creatives for this product (DB `trending`, API `top-ads` bucket).
+      Mutually exclusive with `relatedVideos`. Sorted by view count descending.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    responses:
+      '200':
+        description: Related ads retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [relatedAds]
+                      properties:
+                        relatedAds:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/Creative.yaml'
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
 categories:
   get:
     tags: [Categories]

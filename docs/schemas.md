@@ -16,7 +16,8 @@ One document per product surfaced through ingestion/enrichment (TikTok-aligned c
 | Media | `primaryImageUrl`, `imageUrls[]`, and related source/timestamp fields when present |
 | Pricing | `price`, `currency`, `suppliers[]` |
 | Market | `rating`, `reviewCount`, `salesEvidence`, `ratingSources[]` |
-| Reviews | `reviews[]` — snippets from extraction and other sources |
+| Reviews | `reviews[]` — TikTok Shop uses `name` + `review`; AI extraction uses `author` + `content` |
+| Suppliers | `suppliers[]` — `source`, optional `platform`, `onSale`, `soldLast30Days`, Shopify App + Amazon rows |
 | Social | `topComments[]` — TikTok-style comment snippets when captured |
 | Engagement | `viewCount`, `likeCount`, `commentCount`, `shareCount`, `engagementRate` |
 | Creator | `primaryCreator` — handle, display name, TikTok URLs, followers when known |
@@ -43,7 +44,7 @@ One document per TikTok video tied to a product (`productId`).
 | Creator | `creator` (tiktokUserId, handle, displayName, followers, verified, tiktokPostUrl, …) |
 | Metrics | `metrics` (views, likes, comments, shares, engagementRate, source, fetchedAt) |
 | Classification | `section` (`top-ads` \| `trending` \| `influencer-reviews` \| `tutorials` \| `viral-unboxings`), `isAd` |
-| Copy | `productName`, `productDescription`, `description` (legacy), `hashtags[]`, `topComments[]` |
+| Copy | `productName`, `productDescription`, `description`, `angle`, `hashtags[]`, `topComments[]` |
 | Related | `relatedVideos[]` (nested creator, metrics, topComments, publishedAt) |
 | Timing | `publishedAt`, `ingestedAt`, `createdAt`, `updatedAt` |
 

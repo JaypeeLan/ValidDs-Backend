@@ -61,5 +61,15 @@ export const ProductKeywordContextQuerySchema = z.object({
   matchExactly: z.coerce.boolean().default(false),
 });
 
+export const ProductIdParamSchema = z.object({
+  id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid product ID format'),
+});
+
+/** Optional cap for related creative lists on a product. */
+export const ProductRelatedCreativesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
 export type ProductFeedQuery  = z.infer<typeof ProductFeedQuerySchema>;
 export type ProductKeywordContextQuery = z.infer<typeof ProductKeywordContextQuerySchema>;
+export type ProductRelatedCreativesQuery = z.infer<typeof ProductRelatedCreativesQuerySchema>;

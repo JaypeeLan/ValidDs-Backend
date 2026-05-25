@@ -171,7 +171,7 @@ Runs TikTok live discovery: ScrapeCreators live checks on **active watchlist han
 ## 6. Ingestion Endpoints (`/ingestion`)
 
 ### `POST /ingestion/trigger`
-Fires an asynchronous backend pipeline to scrape Social platforms (e.g. TikTok) via EnsembleData and enrich newly discovered products.
+Fires an asynchronous backend pipeline to discover social posts (e.g. TikTok) and enrich newly discovered products. Ingestion is currently disabled until sources are wired into the orchestrator.
 Wait times depend on downstream AI providers (DeepSeek, OpenAI).
 **Authentication:** Required (Admin or elevated internal keys).
 

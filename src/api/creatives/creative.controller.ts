@@ -1,6 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import axios from 'axios';
-import { CreativeService, CREATIVE_TRENDING_MATCH, CREATIVE_TOP_ADS_MATCH } from '../../services/creative.service';
+import {
+  CreativeService,
+  CREATIVE_TRENDING_MATCH,
+  CREATIVE_TOP_ADS_MATCH,
+  findRelatedVideosByCreativeId,
+} from '../../services/creative.service';
 import { CreativeListQuery, CreativeTopAdsListQuery, CreativeIngestBody } from './creative.validator';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { NotFoundError } from '../../middleware/error.middleware';
@@ -100,6 +105,27 @@ export const CreativeController = {
    * Retrieves detailed information for a single creative.
    * GET /api/v1/creatives/:id
    */
+  async relatedVideos(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const relatedVideos = await findRelatedVideosByCreativeId(id, req.models?.Creative);
+
+      if (relatedVideos === null) {
+        throw new NotFoundError('Creative not found');
+      }
+
+      res.json(
+        successResponse(
+          { relatedVideos },
+          ResponseMessage.CREATIVES_RETRIEVED,
+          200,
+        ),
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async detail(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;

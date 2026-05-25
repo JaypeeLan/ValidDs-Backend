@@ -139,7 +139,7 @@ describe('Products Endpoints', () => {
     await Product.create({
       // Identity
       externalId: 'vid_primary_1',
-      source: 'ensemble',
+      source: 'tiktok',
       status: 'active',
 
       // Content

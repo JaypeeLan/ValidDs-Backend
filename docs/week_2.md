@@ -8,7 +8,7 @@ Week 2 focused on finalizing the TikTok data ingestion pipeline, improving syste
 ## Key Achievements
 
 ### 1. Ingestion & Data Quality
-*   **EnsembleData & Creative Center Integration**: Completed the TikTok data acquisition path. The orchestrator now successfully collects trending ads, videos, hashtags, and keywords via internal scrapers and EnsembleData.
+*   **TikTok data acquisition**: Completed the TikTok ingestion path. The orchestrator collected trending ads, videos, hashtags, and keywords via internal scrapers and third-party TikTok APIs.
 *   **Authenticity Scoring**: Implemented a scoring mechanism to evaluate the quality and reliability of ingested product data.
 *   **Job Optimization**: Cleaned up the `product-refresh` background job and improved orchestrator stability by resolving import issues and unused logic.
 

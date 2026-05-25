@@ -9,20 +9,21 @@ export type ProductType     = 'evergreen' | 'trend-driven' | 'seasonal' | 'unkno
 
 // ── Sub-document interfaces ───────────────────────────────────────────────────
 
+/** Stored shape — sparse on TikTok Shop rows; normalized on write via `normalizePrimaryCreatorForStorage`. */
 export interface IPrimaryCreator {
-  tiktokUserId: string;
   handle: string;
-  displayName: string;
-  bio: string;
-  followers: number;
-  following: number;
-  totalLikes: number;
-  region: string;
-  verified: boolean;
-  tiktokPostUrl: string;
-  primaryImageUrl: string | null;
+  tiktokUserId?: string;
+  displayName?: string;
+  bio?: string;
+  followers?: number;
+  following?: number;
+  totalLikes?: number;
+  region?: string;
+  verified?: boolean;
+  tiktokPostUrl?: string;
+  primaryImageUrl?: string | null;
   /** Legacy alias — mirrored with primaryImageUrl on read/write. */
-  avatarUrl: string | null;
+  avatarUrl?: string | null;
 }
 
 /** `primaryCreator` after `formatProductResponse` (includes read-time proxy URL). */
@@ -31,9 +32,15 @@ export interface IPrimaryCreatorApi extends IPrimaryCreator {
 }
 
 export interface IProductReview {
-  author: string | null;
+  /** TikTok Shop review author (ingested as `name`). */
+  name?: string | null;
+  /** AI / legacy extraction author. */
+  author?: string | null;
   rating: number | null;
-  content: string | null;
+  /** TikTok Shop review body (ingested as `review`). */
+  review?: string | null;
+  /** AI / legacy extraction body. */
+  content?: string | null;
   date: string | null;
   item: string | null;
   images: string[];
@@ -47,21 +54,24 @@ export interface IProductSupplierShop {
 
 export interface IProductSupplier {
   source: string;
-  platform: string;
+  /** Omitted on Shopify App competitor rows — defaults to `source` on read. */
+  platform?: string;
   externalId: string;
   title: string;
   productUrl: string;
   shareUrl: string;
   price: number | null;
   currency: string;
+  onSale?: boolean;
   rating: number | null;
   totalRatings: number | null;
   totalReviews: number | null;
+  soldLast30Days?: number | null;
   availableForSale: boolean;
-  moq: number;
+  moq?: number;
   shop: IProductSupplierShop | null;
-  checkedAt: Date;
-  fetchedAt: Date;
+  checkedAt?: Date | string;
+  fetchedAt: Date | string;
   monthlyTraffic: number | null;
   productUnitsSold: number | null;
   estimatedMonthlyRevenue: number | null;
@@ -120,7 +130,7 @@ export interface IAIIntelligence {
 export interface ITrend {
   score: number;
   direction: TrendDirection;
-  reason: string;
+  reason?: string;
   isTrending: boolean;
   calculatedAt: Date;
 }

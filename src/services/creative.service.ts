@@ -1,5 +1,5 @@
 import { Creative, type ICreativeDocument } from '../models/creative.model';
-import type { CreativeFeedItem } from '../types/creative.types';
+import type { CreativeFeedItem, ISecondaryVideoApi } from '../types/creative.types';
 import type { Model } from 'mongoose';
 import { logger } from '../logger';
 import mongoose, { type PipelineStage } from 'mongoose';
@@ -74,6 +74,17 @@ export async function findRelatedAdsByProductId(
   limit = PRODUCT_CREATIVE_LIMIT,
 ): Promise<CreativeFeedItem[]> {
   return loadCreativesForProduct(productId, creativeModel, CREATIVE_TOP_ADS_MATCH, limit);
+}
+
+/** Embedded secondary videos on a creative document (`GET /creatives/:id/related-videos`). */
+export async function findRelatedVideosByCreativeId(
+  creativeId: string,
+  creativeModel: Model<ICreativeDocument> = Creative,
+): Promise<ISecondaryVideoApi[] | null> {
+  const doc = await creativeModel.findById(creativeId).lean();
+  if (!doc) return null;
+  const formatted = formatCreativeForApi(doc, { includeProductDescription: false });
+  return formatted.relatedVideos ?? [];
 }
 
 export const CreativeService = {

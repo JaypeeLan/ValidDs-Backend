@@ -24,6 +24,7 @@ import {
   normalizePrimaryCreatorOnProduct,
 } from '../../utils/product-response.util';
 import { resolveEngagementTrend } from '../../utils/product-trend.util';
+import { resolveBuyingSentimentLabel, type SentimentLabel } from '../../utils/sentiment.util';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: IAIIntelligence;
@@ -42,8 +43,25 @@ function toProductPlain(input: ProductLike): ProductPlain {
   return typeof input.toObject === 'function' ? input.toObject() : { ...input };
 }
 
+function resolveStoredSentimentLabel(ai: IAIIntelligence): SentimentLabel {
+  const fromAi = ai.buyingSentimentLabel;
+  if (fromAi === 'positive' || fromAi === 'neutral' || fromAi === 'negative') return fromAi;
+  const fromMa = ai.marketingAnalysis?.sentimentLabel;
+  if (fromMa === 'positive' || fromMa === 'neutral' || fromMa === 'negative') return fromMa;
+  return resolveBuyingSentimentLabel(ai.buyingSentimentScore);
+}
+
 function buildAiInsight(aiIntelligence: IAIIntelligence | undefined): ProductAiInsightResponse {
   const ai = aiIntelligence ?? ({} as IAIIntelligence);
+  const sentimentLabel = resolveStoredSentimentLabel(ai);
+  const marketingAnalysis = ai.marketingAnalysis
+    ? {
+        ...ai.marketingAnalysis,
+        sentimentLabel:
+          ai.marketingAnalysis.sentimentLabel ??
+          sentimentLabel,
+      }
+    : null;
   return {
     confidence: {
       score: ai.confidence,
@@ -52,8 +70,9 @@ function buildAiInsight(aiIntelligence: IAIIntelligence | undefined): ProductAiI
     buyingSentiment: {
       score: ai.buyingSentimentScore,
       reason: ai.buyingSentimentReason,
+      label: sentimentLabel,
     },
-    marketingAnalysis: ai.marketingAnalysis ?? null,
+    marketingAnalysis,
     brand: ai.brand,
     niche: ai.niche,
     audience: ai.audience,
@@ -139,7 +158,12 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     competitionScore: maxCompetitorScore(product.suppliers),
     aiInsight: {
       confidence: { score: product.aiIntelligence?.confidence },
-      buyingSentiment: { score: product.aiIntelligence?.buyingSentimentScore },
+      buyingSentiment: product.aiIntelligence
+        ? {
+            score: product.aiIntelligence.buyingSentimentScore,
+            label: resolveStoredSentimentLabel(product.aiIntelligence as IAIIntelligence),
+          }
+        : { score: undefined, label: 'neutral' as SentimentLabel },
     },
     trend: {
       score: engagement.score,

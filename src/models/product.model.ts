@@ -164,6 +164,11 @@ const MarketingAnalysisSchema = new Schema<IMarketingAnalysis>(
       required: true,
     },
     marketingInsight: { type: String, required: true },
+    sentimentLabel: {
+      type: String,
+      enum: ['positive', 'neutral', 'negative'],
+      default: null,
+    },
     angles:           { type: [MarketingAngleSchema], required: true, default: [] },
     analyzedAt:       { type: Date, required: true },
   },
@@ -177,6 +182,11 @@ const AIIntelligenceSchema = new Schema<IAIIntelligence>(
     brand:                 { type: String, required: true, default: '' },
     buyingSentimentScore:  { type: Number, required: true, min: 0, max: 100, default: 0 },
     buyingSentimentReason: { type: String, required: true, default: '' },
+    buyingSentimentLabel: {
+      type: String,
+      enum: ['positive', 'neutral', 'negative'],
+      default: null,
+    },
     extractedAt:           { type: Date, required: true, default: Date.now },
     niche:                 { type: String, required: true, default: '' },
     productType: {

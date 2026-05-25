@@ -301,6 +301,10 @@ properties:
             maximum: 100
           reason:
             type: string
+          label:
+            type: string
+            enum: [positive, neutral, negative]
+            description: Human-readable demand/sentiment bucket derived from score when not stored.
       marketingAnalysis:
         allOf:
           - $ref: ./MarketingAnalysis.yaml

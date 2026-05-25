@@ -1,0 +1,16 @@
+type: object
+required:
+  - hook
+  - body
+  - target
+properties:
+  hook:
+    type: string
+    description: Short ad hook or opening line.
+    example: Stop buying expensive gifts that don't fit!
+  body:
+    type: string
+    description: Supporting copy for the angle.
+  target:
+    type: string
+    description: Audience this angle is aimed at.

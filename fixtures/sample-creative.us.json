@@ -1,0 +1,48 @@
+{
+  "_comment": "Trimmed from creatives_us — same product, trending section with relatedVideos.",
+  "externalVideoId": "7581034692779068685",
+  "section": "top-ads",
+  "embedUrl": "https://www.tiktok.com/embed/v2/7581034692779068685",
+  "tiktokPostUrl": "https://www.tiktok.com/@baileyenterprise2/video/7581034692779068685",
+  "isIndependentCreator": true,
+  "isAd": true,
+  "isPrimaryDiscovery": false,
+  "angle": "tiktokmademebuyit holiday haul bracelet",
+  "description": null,
+  "publishedAt": null,
+  "creator": {
+    "handle": "baileyenterprise2",
+    "displayName": "Virginia affiliate marketing",
+    "followers": 16100,
+    "verified": false,
+    "tiktokPostUrl": "https://www.tiktok.com/@baileyenterprise2/video/7581034692779068685"
+  },
+  "metrics": {
+    "viewCount": 68400,
+    "likeCount": 221,
+    "commentCount": 6,
+    "shareCount": 58
+  },
+  "relatedVideos": [
+    {
+      "externalVideoId": "7541074416650800415",
+      "embedUrl": "https://www.tiktok.com/embed/v2/7541074416650800415",
+      "tiktokPostUrl": "https://www.tiktok.com/@tinadavidboutique/video/7541074416650800415",
+      "videoPlayUrl": null,
+      "creator": { "handle": "tinadavidboutique", "verified": false, "tiktokPostUrl": "https://www.tiktok.com/@tinadavidboutique/video/7541074416650800415" },
+      "metrics": { "viewCount": 54800, "likeCount": 379, "commentCount": 15, "shareCount": 11 },
+      "topComments": [],
+      "publishedAt": "1970-01-01T00:00:00.000Z"
+    }
+  ],
+  "productTrend": {
+    "score": 4.35,
+    "direction": "rising",
+    "isTrending": true
+  },
+  "productSalesTrend": {
+    "direction": "rising",
+    "changePercent": 0,
+    "windows": []
+  }
+}

@@ -90,7 +90,7 @@ describe('Creatives Endpoints', () => {
     const product = await Product.create({
       title: 'Test Product',
       externalId: 'ext_1',
-      source: 'ensemble'
+      source: 'tiktok'
     });
     productId = (product._id as any).toString();
 

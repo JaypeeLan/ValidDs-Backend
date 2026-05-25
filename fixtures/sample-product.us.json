@@ -1,0 +1,50 @@
+{
+  "_comment": "Trimmed from products_us — Heart-Shaped Bow Pendant Bracelet (active).",
+  "externalId": "1730925283680948443",
+  "source": "tiktok",
+  "status": "active",
+  "title": "Heart-Shaped Bow Pendant Bracelet",
+  "normalizedTitle": "heart-shaped bow pendant bracelet",
+  "validationStatus": "valid",
+  "primaryCreator": {
+    "handle": "user9630959842675",
+    "displayName": "CL1OP SHOP",
+    "followers": 2426,
+    "verified": false,
+    "tiktokPostUrl": "https://www.tiktok.com/@user9630959842675/video/7563220417402506551",
+    "avatarUrl": "https://example.com/avatar.webp"
+  },
+  "reviews": [
+    {
+      "name": "Maria Flores",
+      "rating": 5,
+      "review": "So pretty can be a cute gift for a niece or granddaughter",
+      "date": "2025-10-23T20:13:19.309Z",
+      "images": [],
+      "item": "Item: white"
+    }
+  ],
+  "suppliers": [
+    {
+      "source": "shopify",
+      "externalId": "1369028",
+      "title": "ALEX AND ANI",
+      "price": 38,
+      "onSale": false,
+      "currency": "USD",
+      "availableForSale": true,
+      "fetchedAt": "2026-05-20T18:28:28.346Z"
+    }
+  ],
+  "trends": {
+    "engagement": {
+      "score": 4.35,
+      "direction": "rising",
+      "isTrending": true,
+      "calculatedAt": "2026-05-20T10:05:14.636Z"
+    }
+  },
+  "soldCount": 1349,
+  "totalSales": 1349,
+  "totalGmv": 17523.51
+}

@@ -92,7 +92,8 @@ export interface ICreative {
   categoryL2?: string;
   categoryL3?: string;
   categoryPath?: string;
-  description?: string;
+  description?: string | null;
+  angle?: string | null;
   hashtags: string[];
   topComments: ICreativeComment[];
   relatedVideos: ISecondaryVideo[];
@@ -108,8 +109,7 @@ export interface ICreative {
   /** Denormalized copy of the parent product's `salesTrend` (MetricTrend windows). */
   productSalesTrend?: IMetricTrend | null;
   productTrend?: { score: number; direction: string; isTrending: boolean; reason?: string } | null;
-  /** Optional — not present on older ingested records from main DB */
-  publishedAt?: Date;
+  publishedAt?: Date | string | null;
   ingestedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -168,7 +168,8 @@ export interface CreativeApiItem {
   categoryL2?: string;
   categoryL3?: string;
   categoryPath?: string;
-  description?: string;
+  description?: string | null;
+  angle?: string | null;
   hashtags: string[];
   topComments: ICreativeComment[];
   relatedVideos: ISecondaryVideoApi[];
@@ -182,7 +183,7 @@ export interface CreativeApiItem {
   productPrimaryImageUrl?: string | null;
   productSalesTrend?: IMetricTrend | null;
   productTrend?: IProductTrendSnapshot | null;
-  publishedAt?: Date | string;
+  publishedAt?: Date | string | null;
   ingestedAt?: Date | string;
   createdAt?: Date | string;
   updatedAt?: Date | string;

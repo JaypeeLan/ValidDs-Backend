@@ -8,7 +8,7 @@ This document explains exactly how the backend ingestion pipeline acts when depe
 
 The entire pipeline revolves around the Orchestrator logic. Because we scrape external social platforms and rely upon heavy AI models, failure is treated as a routine expectation instead of an anomaly.
 
-### Data Acquisition Failures (EnsembleData / TikTok)
+### Data Acquisition Failures (TikTok / ingestion)
 - **Timeouts/Empty Responses**: Trigger automatic retries internally within the source integrations (`fetch` with explicit `AbortSignal` timeout handling). 
 - **Endpoint Failures**: If scraping data completely fails midway, the Orchestrator skips the specific entity/post and prevents it from overwriting healthy data in MongoDB, letting the product remain accessible via the `cache` or last known healthy DB snapshot.
 

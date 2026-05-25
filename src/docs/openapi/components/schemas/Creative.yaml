@@ -92,7 +92,13 @@ properties:
   description:
     type: string
     maxLength: 2000
+    nullable: true
     description: Video caption / description.
+  angle:
+    type: string
+    nullable: true
+    description: Marketing hook or hashtag theme label from ingestion.
+    example: Gift for someone special
   hashtags:
     type: array
     items:

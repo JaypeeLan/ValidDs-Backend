@@ -101,6 +101,44 @@ creativeDetail:
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
 
+creativeRelatedVideos:
+  get:
+    summary: Related videos on a creative
+    description: |
+      Secondary video slots stored on the creative document (`relatedVideos`), with proxy URLs
+      for playback. Does not include the primary video (`index=0` on `GET /creatives/{id}/video`).
+    tags:
+      - Creatives
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+    responses:
+      '200':
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                data:
+                  type: object
+                  required: [relatedVideos]
+                  properties:
+                    relatedVideos:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/CreativeSecondaryVideo.yaml'
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
 creativeStreamVideo:
   get:
     summary: Stream creative video (CDN proxy)

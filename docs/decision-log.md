@@ -197,10 +197,10 @@ Currently, all product enrichment (pricing, high-quality images) relies solely o
 ## DL-016 — Ingestion: Exploring Alternate TikTok Data Providers
 
 **Date:** 2026-04-10
-**Decision:** Begin exploration of alternative TikTok data providers to supplement/backup EnsembleData.
+**Decision:** Begin exploration of alternative TikTok data providers to supplement the primary feed.
 
 **Reasoning:**
-After shifting to an EnsembleData-only architecture to remove reliance on fragile undocumented Creative Center scraping, EnsembleData has become a single point of failure for our primary data feed. Exploring secondary TikTok data providers ensures we can implement the Orchestrator Fallback pattern originally designed for the platform, drastically reducing the risk of a full ingestion outage if EnsembleData changes its API or pricing.
+After removing reliance on fragile undocumented Creative Center scraping, the primary TikTok provider became a single point of failure. Exploring secondary providers supports the orchestrator fallback pattern and reduces outage risk if the primary API changes or is unavailable.
 
 ## DL-017 — Ingestion: 3-Level TikTok Shop Taxonomy Migration
 
@@ -234,13 +234,13 @@ SearchApi provides the same Google Shopping and Google Product engines at compet
 
 ---
 
-## DL-022 — Creator Enrichment: EnsembleData Keyword Search
+## DL-022 — Creator Enrichment: TikTok Keyword Search
 
 **Date:** 2026-04-21  
-**Decision:** Use EnsembleData (e.g. keyword / post / hashtag flows) to resolve a real TikTok creator and engagement for a product when the primary post metadata is insufficient.
+**Decision:** Use TikTok keyword/post flows to resolve a real creator and engagement when primary post metadata is insufficient. **Superseded:** external keyword provider removed; enrichment uses stored metadata and AI.
 
 **Reasoning:**
-Shop/catalog-oriented rows often point at a seller, not the creator of the viral TikTok. EnsembleData can supply the creator block (`primaryCreator`), working video URLs, and follower stats when those endpoints are enabled in the ingestion path.
+Shop/catalog-oriented rows often point at a seller, not the creator of the viral TikTok. A keyword search provider can supply the `primaryCreator` block, working video URLs, and follower stats when that path is enabled in ingestion.
 
 ---
 

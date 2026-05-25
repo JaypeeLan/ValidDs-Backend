@@ -11,7 +11,7 @@ This Markdown file supplements **`week_4.docx`**. It lists sources that changed 
 ## Ingestion / data
 
 - **SearchAPI** mapping (shopping / inline shopping).
-- **EnsembleData** parsing fixes (`data` array, `aweme_info`).
+- **TikTok post parsing** fixes (`data` array, `aweme_info`).
 - **Cleanup**: low-view filter, post-ingestion cleanup, duplicate/generic title deletion.
 
 ## Ops

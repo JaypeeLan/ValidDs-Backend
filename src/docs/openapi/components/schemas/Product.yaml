@@ -81,7 +81,13 @@ properties:
           example: amazon
         platform:
           type: string
+          description: Marketplace label; omitted on Shopify App rows (use `source`).
           example: Amazon
+        onSale:
+          type: boolean
+        soldLast30Days:
+          type: integer
+          nullable: true
         externalId:
           type: string
         title:
@@ -139,6 +145,7 @@ properties:
         checkedAt:
           type: string
           format: date-time
+          nullable: true
         fetchedAt:
           type: string
           format: date-time
@@ -170,11 +177,28 @@ properties:
     items:
       type: object
       properties:
-        author: { type: string, nullable: true }
+        name:
+          type: string
+          nullable: true
+          description: TikTok Shop reviewer display name.
+        author:
+          type: string
+          nullable: true
+          description: Legacy / AI extraction author.
         rating: { type: number, nullable: true }
-        content: { type: string, nullable: true }
+        review:
+          type: string
+          nullable: true
+          description: TikTok Shop review body.
+        content:
+          type: string
+          nullable: true
+          description: Legacy / AI extraction body.
         date: { type: string, nullable: true }
         item: { type: string, nullable: true }
+        images:
+          type: array
+          items: { type: string, format: uri }
 
   soldCount:
     type: integer
@@ -317,6 +341,7 @@ properties:
         enum: [rising, peaked, saturating, stable, declining, emerging, viral, unknown]
       reason:
         type: string
+        description: Optional narrative; omitted on some TikTok Shop rows.
       isTrending:
         type: boolean
       calculatedAt:

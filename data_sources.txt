@@ -10,15 +10,15 @@ PRODUCTS COLLECTION (main product records)
 ------------------------------------------------------------------------------
 
 1) Basic identity
-- externalId: TikTok video ID from EnsembleData (the discovery post ID)
-- source: Ingestion source label from our backend (for example "ensemble")
+- externalId: TikTok video ID from the discovery post
+- source: Ingestion source label from our backend (for example "tiktok")
 - status: Internal lifecycle state set by backend ("active", "archived", "stale")
 
 2) Product content
 - title: Product name extracted by AI from TikTok post + comments
 - normalizedTitle: Backend-normalized form of title (lowercase/cleaned) for dedupe/search
 - description: Product description extracted by AI
-- hashtags: Hashtags from the discovery TikTok post (EnsembleData)
+- hashtags: Hashtags from the discovery TikTok post
 
 3) Category
 - categoryL1, categoryL2, categoryL3: AI classification
@@ -60,7 +60,7 @@ PRODUCTS COLLECTION (main product records)
 - topComments[].likeCount: Likes on the comment
 - topComments[].authorHandle: Comment author handle (if available)
 - topComments[].sentiment: Sentiment label from backend logic ("positive", "neutral", "negative")
-- topComments[].source: Source label (currently EnsembleData/TikTok flow)
+- topComments[].source: Source label (TikTok flow)
 - topComments[].collectedAt: When comment was collected
 
 8) Discovery post engagement (TikTok)
@@ -71,7 +71,7 @@ PRODUCTS COLLECTION (main product records)
 - engagementRate: Calculated from post engagement metrics
 
 9) Discovery creator (the original TikTok creator)
-- primaryCreator.tiktokUserId: Creator ID from TikTok/EnsembleData (if available)
+- primaryCreator.tiktokUserId: Creator ID from TikTok (if available)
 - primaryCreator.handle: Creator username
 - primaryCreator.displayName: Creator display name
 - primaryCreator.bio: Creator bio/signature
@@ -149,7 +149,7 @@ CREATIVES COLLECTION (video creative records)
 - metrics.commentCount: Comment count
 - metrics.shareCount: Shares
 - metrics.engagementRate: Calculated engagement rate
-- metrics.source: Metric source label (currently EnsembleData)
+- metrics.source: Metric source label (TikTok when from post metrics)
 - metrics.fetchedAt: When these metrics were captured
 
 5) Creative classification and product context

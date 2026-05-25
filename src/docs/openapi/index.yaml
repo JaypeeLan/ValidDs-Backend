@@ -91,6 +91,12 @@ paths:
     $ref: './paths/products.yaml#/taxonomy'
   /api/v1/products/{id}:
     $ref: './paths/products.yaml#/detail'
+  /api/v1/products/{id}/related-products:
+    $ref: './paths/products.yaml#/relatedProducts'
+  /api/v1/products/{id}/related-videos:
+    $ref: './paths/products.yaml#/relatedVideos'
+  /api/v1/products/{id}/related-ads:
+    $ref: './paths/products.yaml#/relatedAds'
   /api/v1/creatives:
     $ref: './paths/creatives.yaml#/creatives'
   /api/v1/creatives/top-ads:
@@ -99,6 +105,8 @@ paths:
     $ref: './paths/creatives.yaml#/creativeIngest'
   /api/v1/creatives/{id}:
     $ref: './paths/creatives.yaml#/creativeDetail'
+  /api/v1/creatives/{id}/related-videos:
+    $ref: './paths/creatives.yaml#/creativeRelatedVideos'
   /api/v1/creatives/{id}/video:
     $ref: './paths/creatives.yaml#/creativeStreamVideo'
   /api/v1/creatives/{id}/thumbnail:

@@ -3,7 +3,12 @@ import { ProductController } from './product.controller';
 import { validate } from '../../middleware/validate.middleware';
 import { optionalAuth, requireAuth } from '../../middleware/auth.middleware';
 import { attachMarketModels } from '../../middleware/market.middleware';
-import { ProductFeedQuerySchema, ProductKeywordContextQuerySchema } from './product.validator';
+import {
+  ProductFeedQuerySchema,
+  ProductIdParamSchema,
+  ProductKeywordContextQuerySchema,
+  ProductRelatedCreativesQuerySchema,
+} from './product.validator';
 
 const router = Router();
 
@@ -14,6 +19,9 @@ const router = Router();
  * GET /products/keyword-context — public
  * GET /products/categories — public
  * GET /products/:id — product detail (public)
+ * GET /products/:id/related-products — same-category products (feed cards)
+ * GET /products/:id/related-videos — commercial (non-ad) creatives for this product
+ * GET /products/:id/related-ads — paid / top-ad creatives for this product
  * GET /products/saved — requires JWT (user bookmarks)
  */
 
@@ -37,7 +45,28 @@ router.get('/subcategories', ProductController.subcategories);
 router.get('/taxonomy',      ProductController.taxonomy);
 router.get('/saved', requireAuth, ProductController.saved);
 
-// :id must come last — otherwise static segments like "categories" match as an id
-router.get('/:id', ProductController.detail);
+router.get(
+  '/:id/related-products',
+  validate(ProductIdParamSchema, 'params'),
+  ProductController.relatedProducts,
+);
+router.get(
+  '/:id/related-videos',
+  validate(ProductIdParamSchema, 'params'),
+  validate(ProductRelatedCreativesQuerySchema, 'query'),
+  ProductController.relatedVideos,
+);
+router.get(
+  '/:id/related-ads',
+  validate(ProductIdParamSchema, 'params'),
+  validate(ProductRelatedCreativesQuerySchema, 'query'),
+  ProductController.relatedAds,
+);
+
+router.get(
+  '/:id',
+  validate(ProductIdParamSchema, 'params'),
+  ProductController.detail,
+);
 
 export default router;

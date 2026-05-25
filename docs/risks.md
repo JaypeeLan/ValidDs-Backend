@@ -8,13 +8,13 @@ Last updated: 2026-03-27
 
 ### R-001 — TikTok Data Access Risk
 **Severity:** Critical
-**Status:** In Progress — Mitigated via EnsembleData and Creative Center integrators
+**Status:** In Progress — Mitigated via third-party TikTok integrators when ingestion is enabled
 
 **Description:**
 TikTok's official API has strict access controls and is not publicly available for product/creator data at the level ValidDs needs. The primary data acquisition path is not yet confirmed.
 
 **Mitigation:**
-- Week 1: Confirmed EnsembleData and Creative Center (session) as primary data acquisition paths
+- Week 1: Confirmed third-party TikTok APIs and Creative Center (session) as primary data acquisition paths
 - Week 2: Implemented resilient orchestrator to handle source-specific failures and fallbacks
 - Ingestion layer is designed with a 3-source orchestrator precisely for this risk
 - If all API/data paths are blocked, a scraping-based fallback is possible but slower to implement

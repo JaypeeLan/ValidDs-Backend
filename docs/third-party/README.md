@@ -18,7 +18,6 @@ Each guide covers:
 |---|---|---|---|
 | **MongoDB Atlas** | Primary database | `MONGODB_URI`, `MONGODB_DB_NAME` | [mongodb-atlas.md](./mongodb-atlas.md) |
 | **Redis (Upstash)** | Cache | `REDIS_URL` | [redis.md](./redis.md) |
-| **EnsembleData** | TikTok creator enrichment (post & author data) | `ENSEMBLE_API_KEY` | — |
 | **TeemDrop** | Supplier catalog enrichment | `TEEMDROP_APP_KEY`, `TEEMDROP_APP_SECRET` | [teemdrop.md](./teemdrop.md) |
 | **Sentry** | Error tracking | `SENTRY_DSN` | [sentry.md](./sentry.md) |
 | **Render** | Cloud deployment | — | [render-deployment.md](./render-deployment.md) |
@@ -45,9 +44,8 @@ Sentry and Render are optional for local development.
 
 1. MongoDB Atlas
 2. Redis (e.g. Upstash)
-3. EnsembleData (for creator data, when using flows that need it)
-4. Render (deployment platform)
-5. Sentry (strongly recommended — otherwise no visibility into errors)
+3. Render (deployment platform)
+4. Sentry (strongly recommended — otherwise no visibility into errors)
 
 ---
 
@@ -58,7 +56,6 @@ Sentry and Render are optional for local development.
 | `MONGODB_URI` | MongoDB Atlas | Yes |
 | `MONGODB_DB_NAME` | MongoDB Atlas | Yes |
 | `REDIS_URL` | Redis | Yes |
-| `ENSEMBLE_API_KEY` | EnsembleData | Depends on feature set |
 | `TEEMDROP_APP_KEY` | TeemDrop | No |
 | `TEEMDROP_APP_SECRET` | TeemDrop | No |
 | `SENTRY_DSN` | Sentry | No (but recommended) |
@@ -69,13 +66,3 @@ Sentry and Render are optional for local development.
 | `SHOPIFY_REDIRECT_URI` | Shopify OAuth | No (Shopify store integration only) |
 
 See `.env.example` in the project root for the full list.
-
----
-
-## EnsembleData
-
-Used to find real TikTok creators who are promoting products surfaced by ingestion.
-
-Where applicable, the pipeline calls `EnsembleClient.searchKeywordFull()` with the product name to find recent TikTok posts. The top post by view count can supply the `primaryCreator` record (handle, displayName, bio, followers, avatarUrl, tiktokPostUrl) and engagement metrics.
-
-**Rate limit:** 2-second enforced delay between all requests.

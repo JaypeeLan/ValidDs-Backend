@@ -1,7 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { findCreativesByProductId, findRelatedAdsByProductId } from '../../services/creative.service';
 import { ProductService, getRelatedProducts } from '../../services/product.service';
-import { ProductFeedQuery, ProductKeywordContextQuery } from './product.validator';
+import {
+  ProductFeedQuery,
+  ProductKeywordContextQuery,
+  ProductRelatedCreativesQuery,
+} from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import type {
@@ -266,6 +270,79 @@ export const ProductController = {
           ResponseMessage.PRODUCTS_RETRIEVED,
           200
         )
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async relatedProducts(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const productModel = req.models?.Product;
+      const creativeModel = req.models?.Creative;
+
+      await ProductService.getById(id, productModel, req.market);
+      const relatedDocs = await getRelatedProducts(id, productModel, req.market);
+      const relatedPlains = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages(relatedDocs as unknown as ProductLike[]),
+        creativeModel,
+      );
+
+      res.json(
+        successResponse(
+          { relatedProducts: relatedPlains.map(formatProductFeedItem) },
+          ResponseMessage.PRODUCTS_RETRIEVED,
+          200,
+        ),
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async relatedVideos(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const query = req.query as unknown as ProductRelatedCreativesQuery;
+      const productModel = req.models?.Product;
+      const creativeModel = req.models?.Creative;
+
+      await ProductService.getById(id, productModel, req.market);
+      const relatedVideos = await findCreativesByProductId(
+        id,
+        creativeModel,
+        query.limit,
+      );
+
+      res.json(
+        successResponse(
+          { relatedVideos },
+          ResponseMessage.CREATIVES_RETRIEVED,
+          200,
+        ),
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async relatedAds(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const query = req.query as unknown as ProductRelatedCreativesQuery;
+      const productModel = req.models?.Product;
+      const creativeModel = req.models?.Creative;
+
+      await ProductService.getById(id, productModel, req.market);
+      const relatedAds = await findRelatedAdsByProductId(id, creativeModel, query.limit);
+
+      res.json(
+        successResponse(
+          { relatedAds },
+          ResponseMessage.CREATIVES_RETRIEVED,
+          200,
+        ),
       );
     } catch (err) {
       next(err);

@@ -34,7 +34,7 @@ Persistence: `ProductRepository.upsertEnrichedProduct()` keyed by **`externalId`
 
 ## Creative ingestion (when re-enabled)
 
-`CreativeService` is intended to attach TikTok videos to products via EnsembleData (and related flows). Scheduled runs and bulk scripts are described in `package.json` / `src/jobs/index.ts` when those paths are turned back on.
+`CreativeService` is intended to attach TikTok videos to products when external creative fetch is re-enabled. Scheduled runs are controlled in `src/jobs/index.ts`.
 
 ---
 
@@ -62,9 +62,6 @@ Manual triggers (require `X-API-Key` with `INTERNAL_API_KEY`):
 ## Environment variables (relevant)
 
 ```bash
-# EnsembleData — TikTok APIs (when ingestion/creatives are enabled)
-ENSEMBLE_API_KEY=your_token
-
 # TeemDrop — supplier catalog (optional)
 TEEMDROP_APP_KEY=your_key
 TEEMDROP_APP_SECRET=your_secret

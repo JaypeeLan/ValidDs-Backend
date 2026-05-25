@@ -23,6 +23,7 @@ router.use(optionalAuth, attachMarketModels);
  * GET /api/v1/creatives — List creatives (public discovery)
  * GET /api/v1/creatives/top-ads — Creatives from independent creators (top ads)
  * GET /api/v1/creatives/:id — Detail (public)
+ * GET /api/v1/creatives/:id/related-videos — embedded secondary videos on this creative
  * POST /api/v1/creatives/ingest — requires JWT
  */
 
@@ -44,6 +45,12 @@ router.get(
   '/',
   validate(CreativeListQuerySchema, 'query'),
   CreativeController.list
+);
+
+router.get(
+  '/:id/related-videos',
+  validate(CreativeIdParamSchema, 'params'),
+  CreativeController.relatedVideos,
 );
 
 router.get(

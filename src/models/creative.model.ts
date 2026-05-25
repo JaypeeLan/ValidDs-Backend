@@ -134,7 +134,8 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     categoryL3:   { type: String },
     categoryPath: { type: String },
 
-    description: { type: String, maxlength: 2000 },
+    description: { type: String, maxlength: 2000, default: null },
+    angle:       { type: String, default: null },
     hashtags:    [{ type: String }],
     topComments: { type: [CreativeCommentSchema], default: [] },
 
@@ -152,7 +153,7 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     productSalesTrend:      { type: MetricTrendSchema, default: null },
     productTrend:           { type: Schema.Types.Mixed, default: null },
 
-    publishedAt: { type: Date },
+    publishedAt: { type: Date, default: null },
     ingestedAt:  { type: Date, default: Date.now },
   },
   { timestamps: true, strict: true },

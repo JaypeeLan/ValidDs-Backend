@@ -605,7 +605,7 @@
                 }
               ]
             },
-            "description": "Pulls TikTok keyword context from EnsembleData full-search and returns suggested hashtags plus candidate videos."
+            "description": "Returns TikTok keyword context (suggested hashtags and candidate posts). Currently returns an empty stub until a data provider is wired in."
           },
           "response": [
             {

@@ -1,19 +1,147 @@
 {
-  "_comment": "Trimmed from products_us — Heart-Shaped Bow Pendant Bracelet (active).",
-  "externalId": "1730925283680948443",
+  "_id": "6a0d6b9806aa43f4f3d826e5",
   "source": "tiktok",
-  "status": "active",
-  "title": "Heart-Shaped Bow Pendant Bracelet",
+  "externalId": "1730925283680948443",
+  "accountHandle": "cl1opshop",
+  "accountKind": "store",
+  "aiIntelligence": {
+    "confidence": 85,
+    "confidenceReason": "TikTok Shop catalog — Bright Data product snapshot",
+    "brand": "CL1OP SHOP",
+    "buyingSentimentScore": 42,
+    "buyingSentimentReason": "Low engagement rate (0.4%) suggests weak impulse appeal despite decent sales.",
+    "extractedAt": "2026-05-20T10:05:14.636Z",
+    "niche": "heart-shaped jewelry",
+    "productType": "seasonal",
+    "priceBand": "budget",
+    "audience": [
+      "women",
+      "gift shoppers",
+      "accessory lovers"
+    ],
+    "problemStatement": "Finding an affordable, stylish gift that fits any wrist size.",
+    "valueStatement": "This adjustable heart-shaped bow pendant bracelet is a perfect, budget-friendly gift for birthdays or Christmas that adds a touch of elegance to any outfit.",
+    "marketingAnalysis": {
+      "primaryGender": "female",
+      "topAgeGroups": [
+        "18-24",
+        "25-34"
+      ],
+      "topRegions": [
+        "US",
+        "UK",
+        "Canada"
+      ],
+      "accessibilityTags": [
+        "none"
+      ],
+      "lifestyleSegments": [
+        "fashion enthusiast",
+        "gift shopper",
+        "accessory lover"
+      ],
+      "incomeLevel": "budget",
+      "purchaseIntent": "gifting",
+      "contentFormat": "lifestyle",
+      "marketingInsight": "Target young women with gift-focused content around holidays and birthdays. Use lifestyle shots showing the bracelet as a thoughtful, affordable present.",
+      "analyzedAt": "2026-05-20T10:05:20.720Z",
+      "angles": [
+        {
+          "hook": "Stop buying expensive gifts that don't fit!",
+          "body": "This adjustable bracelet expands to fit any wrist, so you never have to worry about sizing. Perfect for last-minute birthday or Christmas gifts.",
+          "target": "Gift shoppers tired of returns and sizing issues."
+        },
+        {
+          "hook": "How to look put-together in 5 seconds flat.",
+          "body": "Slip on this heart-shaped bow pendant bracelet and instantly elevate any outfit. It's the easiest way to add a touch of elegance without breaking the bank.",
+          "target": "Fashion enthusiasts who want quick style upgrades."
+        },
+        {
+          "hook": "The gift that says 'I thought of you' without saying a word.",
+          "body": "This delicate bracelet with a heart-shaped bow is a thoughtful, affordable present that shows you care. Ideal for birthdays, Christmas, or just because.",
+          "target": "Women looking for meaningful yet budget-friendly gifts."
+        },
+        {
+          "hook": "I found the perfect accessory for my tiny wrist (and yours too).",
+          "body": "With an adjustable length from 18.5 to 24 cm, this bracelet fits everyone. No more loose or tight bracelets – just a perfect fit every time.",
+          "target": "Women with smaller or larger wrists who struggle with standard sizes."
+        },
+        {
+          "hook": "Your morning routine just got a major upgrade.",
+          "body": "Add this heart-shaped bow bracelet to your daily jewelry stack for an instant confidence boost. It's the little touch that makes you feel ready to take on the day.",
+          "target": "Young women who love starting their day with a stylish accessory."
+        },
+        {
+          "hook": "Don't let your gift look cheap – this one looks way more expensive than it is.",
+          "body": "The elegant heart-shaped bow pendant gives this bracelet a high-end look at a budget price. Your recipient will never guess how little you paid.",
+          "target": "Budget-conscious shoppers who want to impress without overspending."
+        },
+        {
+          "hook": "The one accessory that works for every outfit – from gym to glam.",
+          "body": "Whether you're in athleisure or a cocktail dress, this bracelet adds a feminine touch. It's versatile enough for any scenario.",
+          "target": "Women with active lifestyles who want jewelry that transitions seamlessly."
+        },
+        {
+          "hook": "I used to stress about finding the perfect gift – not anymore.",
+          "body": "This adjustable bracelet solves the gift-giving dilemma: it's stylish, affordable, and fits everyone. Say goodbye to gift anxiety.",
+          "target": "Gift shoppers who feel overwhelmed by choices."
+        },
+        {
+          "hook": "Your friends will ask where you got this – and they'll be shocked by the price.",
+          "body": "The heart-shaped bow pendant is a conversation starter. When they find out it's budget-friendly, they'll want one too.",
+          "target": "Fashion-forward women who love sharing affordable finds."
+        },
+        {
+          "hook": "The secret to looking elegant without trying hard.",
+          "body": "Just add this bracelet to your wrist and let the heart-shaped bow do the talking. It's the effortless way to feel put-together.",
+          "target": "Women who want a simple, elegant accessory for daily wear."
+        }
+      ]
+    }
+  },
+  "categoryL1": "Fashion",
+  "categoryL2": "Jewellery",
+  "categoryL3": "Beaded Bracelet",
+  "categoryPath": "Fashion > Jewellery > Beaded Bracelet",
+  "commentCount": 15,
+  "createdAt": "2026-05-20T08:06:34.236Z",
+  "currency": "USD",
+  "dataSourceUpdatedAt": "2026-05-20T10:05:14.636Z",
+  "description": "Women's adjustable beaded bracelet with heart-shaped bow pendant. Expands 18.5-24.0cm. Suitable for birthdays and Christmas gifts.",
+  "engagementRate": 0.4,
+  "hashtags": [
+    "bracelet",
+    "braceletmaking",
+    "gifts",
+    "tiktok"
+  ],
+  "imageUrls": [
+    "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/c9813db2e9bb498a83420ae5ffe5a9e7~tplv-fhlh96nyum-crop-webp:800:800.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839",
+    "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/2fab25007008489c85cd084b47c561aa~tplv-fhlh96nyum-crop-webp:1200:1200.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839",
+    "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/4cb88095551f413e922bf1e815eebb19~tplv-fhlh96nyum-crop-webp:1200:1200.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839",
+    "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/ae0c586dea864644a5527b5c8a39b7a9~tplv-fhlh96nyum-crop-webp:1200:1200.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839",
+    "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/cbe0d04b3891485fa988fcc22b0bb25a~tplv-fhlh96nyum-crop-webp:1200:1200.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839",
+    "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/8a9d70d682834cd3a723e7dca136f0e6~tplv-fhlh96nyum-crop-webp:1200:1200.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839",
+    "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/fb7acd07010d483cbb7e880c41de00da~tplv-fhlh96nyum-crop-webp:1200:1200.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839"
+  ],
+  "lastIngestedAt": "2026-05-20T10:05:14.636Z",
+  "likeCount": 538,
   "normalizedTitle": "heart-shaped bow pendant bracelet",
-  "validationStatus": "valid",
+  "postCreatedAt": "2025-10-20T15:30:00.000Z",
+  "postUrl": "https://www.tiktok.com/@user9630959842675/video/7563220417402506551",
+  "price": 20.99,
   "primaryCreator": {
     "handle": "user9630959842675",
     "displayName": "CL1OP SHOP",
     "followers": 2426,
     "verified": false,
     "tiktokPostUrl": "https://www.tiktok.com/@user9630959842675/video/7563220417402506551",
-    "avatarUrl": "https://example.com/avatar.webp"
+    "avatarUrl": "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/c9813db2e9bb498a83420ae5ffe5a9e7~tplv-fhlh96nyum-crop-webp:800:800.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839"
   },
+  "primaryImageUrl": "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/c9813db2e9bb498a83420ae5ffe5a9e7~tplv-fhlh96nyum-crop-webp:800:800.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839",
+  "productUrl": "https://shop.tiktok.com/view/product/1730925283680948443",
+  "rating": 4.4,
+  "reviewCount": 195,
   "reviews": [
     {
       "name": "Maria Flores",
@@ -22,8 +150,48 @@
       "date": "2025-10-23T20:13:19.309Z",
       "images": [],
       "item": "Item: white"
+    },
+    {
+      "name": "Mitzey",
+      "rating": 5,
+      "review": "Look just like the picture the quality really nice. I love it.",
+      "date": "2025-06-01T12:41:25.156Z",
+      "images": [],
+      "item": "Item: white"
+    },
+    {
+      "name": "🌺**✨",
+      "rating": 5,
+      "review": "Love this bracelet highly recommend",
+      "date": "2025-11-22T19:55:52.145Z",
+      "images": [],
+      "item": "Item: white"
+    },
+    {
+      "name": "a**o",
+      "rating": 5,
+      "review": "Me encantó muy buena calidad excelente material\nY no se mancha con el agua",
+      "date": "2025-11-05T17:36:47.788Z",
+      "images": [],
+      "item": "Item: white"
+    },
+    {
+      "name": "moraganohe",
+      "rating": 5,
+      "review": "Muy muy linda y de buena calidad, super recomendada,  superó mis espectativas",
+      "date": "2025-11-24T08:26:34.886Z",
+      "images": [],
+      "item": "Item: white"
     }
   ],
+  "shareCount": 100,
+  "shopFollowers": 2426,
+  "shopName": "CL1OP SHOP",
+  "shopUrl": "https://shop.tiktok.com/us/store/cl1op-shop/7496014410639575259",
+  "soldCount": 1349,
+  "status": "active",
+  "storeGmv": 1156.11,
+  "storeTotalSales": 89,
   "suppliers": [
     {
       "source": "shopify",
@@ -32,19 +200,190 @@
       "price": 38,
       "onSale": false,
       "currency": "USD",
+      "shareUrl": "https://shop.app/m/alexandani?utm_source=shop_app",
+      "productUrl": "https://shop.app/m/alexandani?utm_source=validds",
+      "rating": 4.7704,
+      "totalRatings": 5557,
+      "totalReviews": 1344,
+      "soldLast30Days": null,
       "availableForSale": true,
-      "fetchedAt": "2026-05-20T18:28:28.346Z"
+      "shop": {
+        "name": "ALEX AND ANI",
+        "url": "https://www.alexandani.com?utm_source=shop_app",
+        "rating": 4.7704
+      },
+      "fetchedAt": "2026-05-20T18:28:28.346Z",
+      "monthlyTraffic": null,
+      "semrushRank": null,
+      "productUnitsSold": null,
+      "estimatedMonthlyRevenue": null,
+      "revenueSource": null,
+      "competitorScore": null
+    },
+    {
+      "source": "shopify",
+      "externalId": "130360",
+      "title": "Misty and Molly",
+      "price": 35900,
+      "onSale": false,
+      "currency": "USD",
+      "shareUrl": "https://shop.app/m/6t25r0vyzw?utm_source=shop_app",
+      "productUrl": "https://shop.app/m/6t25r0vyzw/products/sugar-heart-tennis-bracelet-copy?utm_source=validds",
+      "rating": 4.4962,
+      "totalRatings": 782,
+      "totalReviews": 234,
+      "soldLast30Days": null,
+      "availableForSale": true,
+      "shop": {
+        "name": "Misty and Molly",
+        "url": "https://mistyandmolly.com?utm_source=shop_app",
+        "rating": 4.4962
+      },
+      "fetchedAt": "2026-05-20T18:28:28.346Z",
+      "monthlyTraffic": null,
+      "semrushRank": null,
+      "productUnitsSold": null,
+      "estimatedMonthlyRevenue": null,
+      "revenueSource": null,
+      "competitorScore": null
+    },
+    {
+      "source": "shopify",
+      "externalId": "12348019",
+      "title": "Figi Jewels",
+      "price": 24.99,
+      "onSale": false,
+      "currency": "USD",
+      "shareUrl": "https://shop.app/m/fv0765y8qc?utm_source=shop_app",
+      "productUrl": "https://shop.app/m/fv0765y8qc?utm_source=validds",
+      "rating": 4.875,
+      "totalRatings": 8,
+      "totalReviews": 5,
+      "soldLast30Days": null,
+      "availableForSale": true,
+      "shop": {
+        "name": "Figi Jewels",
+        "url": "https://figijjewels.com?utm_source=shop_app",
+        "rating": 4.875
+      },
+      "fetchedAt": "2026-05-20T18:28:28.346Z",
+      "monthlyTraffic": null,
+      "semrushRank": null,
+      "productUnitsSold": null,
+      "estimatedMonthlyRevenue": null,
+      "revenueSource": null,
+      "competitorScore": null
+    },
+    {
+      "source": "shopify",
+      "externalId": "2307409",
+      "title": "edikted",
+      "price": 4.5,
+      "onSale": false,
+      "currency": "USD",
+      "shareUrl": "https://shop.app/m/edikted?utm_source=shop_app",
+      "productUrl": "https://shop.app/m/edikted?utm_source=validds",
+      "rating": 4.3121,
+      "totalRatings": 89403,
+      "totalReviews": 44522,
+      "soldLast30Days": null,
+      "availableForSale": true,
+      "shop": {
+        "name": "edikted",
+        "url": "https://edikted.com?utm_source=shop_app",
+        "rating": 4.3121
+      },
+      "fetchedAt": "2026-05-20T18:28:28.346Z",
+      "monthlyTraffic": null,
+      "semrushRank": null,
+      "productUnitsSold": null,
+      "estimatedMonthlyRevenue": null,
+      "revenueSource": null,
+      "competitorScore": null
+    },
+    {
+      "source": "shopify",
+      "externalId": "19595539",
+      "title": "Designature Newyork",
+      "price": 15,
+      "onSale": false,
+      "currency": "USD",
+      "shareUrl": "https://shop.app/m/cbty32768w?utm_source=shop_app",
+      "productUrl": "https://shop.app/m/cbty32768w/products/18-inch-heart-shaped-softball-pendant-chain-necklace?utm_source=validds",
+      "rating": null,
+      "totalRatings": 0,
+      "totalReviews": 0,
+      "soldLast30Days": null,
+      "availableForSale": true,
+      "shop": {
+        "name": "Designature Newyork",
+        "url": "https://designaturenyc.com?utm_source=shop_app",
+        "rating": null
+      },
+      "fetchedAt": "2026-05-20T18:28:28.346Z",
+      "monthlyTraffic": null,
+      "semrushRank": null,
+      "productUnitsSold": null,
+      "estimatedMonthlyRevenue": null,
+      "revenueSource": null,
+      "competitorScore": null
+    },
+    {
+      "source": "amazon",
+      "platform": "amazon",
+      "externalId": "B09B4X4NDF",
+      "title": "Test Amazon Link",
+      "productUrl": "https://www.amazon.com/dp/B09B4X4NDF",
+      "shareUrl": "https://www.amazon.com/dp/B09B4X4NDF",
+      "price": 12.99,
+      "currency": "USD",
+      "rating": 4.5,
+      "totalRatings": 100,
+      "totalReviews": 50,
+      "availableForSale": true,
+      "moq": 0,
+      "shop": null,
+      "checkedAt": "2026-05-22T20:04:31.446Z",
+      "fetchedAt": "2026-05-22T20:04:31.446Z",
+      "monthlyTraffic": null,
+      "productUnitsSold": null,
+      "estimatedMonthlyRevenue": null,
+      "revenueSource": null,
+      "competitorScore": null
     }
   ],
+  "title": "Heart-Shaped Bow Pendant Bracelet",
+  "totalGmv": 17523.51,
+  "totalSales": 1349,
   "trends": {
     "engagement": {
-      "score": 4.35,
+      "score": 4.345923817544245,
       "direction": "rising",
       "isTrending": true,
       "calculatedAt": "2026-05-20T10:05:14.636Z"
     }
   },
-  "soldCount": 1349,
-  "totalSales": 1349,
-  "totalGmv": 17523.51
+  "updatedAt": "2026-05-22T20:50:15.774Z",
+  "validationStatus": "valid",
+  "viewCount": 164100,
+  "shopAvatarUrl": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/822f7085ddb2406918438f9de6c21b2b~tplv-tiktokx-cropcenter:1080:1080.jpeg?dr=9640&refresh_token=9ac1680b&x-expires=1779440400&x-signature=5VQy7a1DSctLWOV5gw7fG6YBtMg%3D&t=4d5b0474&ps=13740610&shp=a5d48078&shcp=81f88b70&idc=useast8",
+  "revenueHistory": [
+    {
+      "revenue": 17523.51,
+      "recordedAt": "2026-05-20T08:06:34.236Z"
+    }
+  ],
+  "salesHistory": [
+    {
+      "sales": 1349,
+      "recordedAt": "2026-05-20T08:06:34.236Z"
+    }
+  ],
+  "priceHistory": [
+    {
+      "price": 20.99,
+      "recordedAt": "2026-05-22T12:00:00.000Z"
+    }
+  ],
+  "priceTrend": null
 }

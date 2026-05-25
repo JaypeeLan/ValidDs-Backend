@@ -82,6 +82,9 @@ properties:
             type: number
             minimum: 0
             maximum: 100
+          label:
+            type: string
+            enum: [positive, neutral, negative]
   trend:
     type: object
     properties:

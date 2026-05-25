@@ -183,7 +183,8 @@ export function formatCreativeForApi(
     categoryL2: creative.categoryL2 as string | undefined,
     categoryL3: creative.categoryL3 as string | undefined,
     categoryPath: creative.categoryPath as string | undefined,
-    description: creative.description as string | undefined,
+    description: (creative.description as string | null | undefined) ?? null,
+    angle: (creative.angle as string | null | undefined) ?? null,
     hashtags: Array.isArray(creative.hashtags) ? (creative.hashtags as string[]) : [],
     topComments: Array.isArray(creative.topComments)
       ? (creative.topComments as ICreativeComment[])

@@ -21,7 +21,7 @@ One document per product surfaced through ingestion/enrichment (TikTok-aligned c
 | Social | `topComments[]` — TikTok-style comment snippets when captured |
 | Engagement | `viewCount`, `likeCount`, `commentCount`, `shareCount`, `engagementRate` |
 | Creator | `primaryCreator` — handle, display name, TikTok URLs, followers when known |
-| AI | `aiIntelligence` — confidence, brand hints, sentiment, category keywords |
+| AI | `aiIntelligence` — confidence, brand hints, sentiment, `marketingAnalysis` (insight + `angles[]` hook/body/target) |
 | Trend | `trend` — score, direction, reason, `isTrending`, timestamps |
 | Discovery | `discoverySections[]`, `relatedProducts[]` when populated |
 | Creatives rollup | `creativeCounts` { ads, organic, reviews, total } |

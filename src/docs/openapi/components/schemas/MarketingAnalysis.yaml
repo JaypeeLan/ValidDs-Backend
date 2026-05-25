@@ -40,6 +40,15 @@ properties:
   marketingInsight:
     type: string
     description: Actionable positioning summary for ads and landing pages.
+  sentimentLabel:
+    type: string
+    enum: [positive, neutral, negative]
+    description: Buying-intent label for UI (also mirrored on `aiInsight.buyingSentiment.label`).
+  angles:
+    type: array
+    description: AI-generated ad angles (hook, body, target). Usually 10 per product; may be omitted on older rows.
+    items:
+      $ref: ./MarketingAngle.yaml
   analyzedAt:
     type: string
     format: date-time

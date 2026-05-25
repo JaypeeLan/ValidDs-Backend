@@ -1,4 +1,7 @@
 import { Document, Model } from 'mongoose';
+import type { SentimentLabel } from '../utils/sentiment.util.js';
+
+export type { SentimentLabel };
 
 // ── Primitive enums ───────────────────────────────────────────────────────────
 
@@ -102,7 +105,10 @@ export interface IMarketingAnalysis {
   purchaseIntent: PurchaseIntent;
   contentFormat: ContentFormat;
   marketingInsight: string;
-  angles: IMarketingAngle[];
+  /** Buying-intent label for cards (e.g. positive / neutral / negative). */
+  sentimentLabel?: SentimentLabel;
+  /** Usually populated by AI; omitted on a small set of legacy rows (defaults to `[]` on write). */
+  angles?: IMarketingAngle[];
   analyzedAt: Date;
 }
 
@@ -114,6 +120,8 @@ export interface IAIIntelligence {
   brand: string;
   buyingSentimentScore: number;
   buyingSentimentReason: string;
+  /** Optional persisted label; API falls back to score-derived label when omitted. */
+  buyingSentimentLabel?: SentimentLabel;
   extractedAt: Date;
   niche: string;
   productType: ProductType;
@@ -292,7 +300,7 @@ export interface IProduct {
 
 export interface ProductAiInsightResponse {
   confidence: { score?: number; reason?: string };
-  buyingSentiment: { score?: number; reason?: string };
+  buyingSentiment: { score?: number; reason?: string; label?: SentimentLabel };
   marketingAnalysis?: IMarketingAnalysis | null;
   brand?: string;
   niche?: string;
@@ -326,7 +334,7 @@ export interface ProductFeedItem {
   competitionScore?: number | null;
   aiInsight: {
     confidence: { score?: number };
-    buyingSentiment?: { score?: number };
+    buyingSentiment?: { score?: number; label?: SentimentLabel };
   };
   trend?: {
     score?: number;

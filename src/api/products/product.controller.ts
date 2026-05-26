@@ -238,15 +238,14 @@ export const ProductController = {
   async feed(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as ProductFeedQuery;
-      // Market is determined by attachMarketModels (req.models.Product → products_us, products_uk, etc.)
-      // The collection IS the market — no userRegion filter needed.
+      const filters = query._filters;
 
       if (query.q) {
-        const results = await ProductService.search(query.q, query.category, query.page, query.limit, {
-          section: query.section,
-          isAd: query.isAd,
-          sortBy: query.sortBy,
-        }, req.models?.Product);
+        const results = await ProductService.search(
+          query.q,
+          { ...filters, page: query.page, limit: query.limit },
+          req.models?.Product,
+        );
         const freshness = await FreshnessService.getResponseMetadata('product');
 
         const searchPlains = await enrichProductsWithCreatorAvatars(
@@ -267,18 +266,15 @@ export const ProductController = {
         return;
       }
 
-      const { feed, freshness } = await ProductService.getFeed({
-        category:    query.category,
-        subcategory: query.subcategory,
-        trendDirection: query.trendDirection,
-        minTrendScore: query.minTrendScore,
-        minViews: query.minViews,
-        isAd: query.isAd,
-        section: query.section,
-        page: query.page,
-        limit: query.limit,
-        sortBy: query.sortBy,
-      }, req.models?.Product, req.market);
+      const { feed, freshness } = await ProductService.getFeed(
+        {
+          ...filters,
+          page: query.page,
+          limit: query.limit,
+        },
+        req.models?.Product,
+        req.market,
+      );
 
       const feedPlains = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages(feed.data as unknown as ProductLike[]),

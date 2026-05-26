@@ -22,7 +22,8 @@ Returns a paginated list of products (full catalog by page). Supports optional f
 - `minViews` *(number, optional)*: Filter out products whose primary video has less than this amount of views.
 - `section` *(string, optional)*: Require a discovery section slug on the product (e.g. `top-ads`, `trending`, `viral`). See OpenAPI enum.
 - `isAd` *(boolean, optional)*: When `true`, same as the `top-ads` discovery bucket (`discoverySections` contains `top-ads`). When `false`, excludes that bucket.
-- `sortBy` *(string, optional)*: `gmv` (default, highest `totalGmv` first), `trendScore`, `views`, `recent`, `engagement`.
+- `feed` *(string, optional)*: Convenience UI tab selector: `discover` or `top-opportunities`. Only used when `sortBy` is omitted.
+- `sortBy` *(string, optional)*: `gmv`, `trendScore`, `views`, `recent`, `engagement`. If omitted, defaults depend on `feed` (`discover` → `recent`, `top-opportunities` → `gmv`, otherwise `gmv`).
 - `region` *(string, optional)*: Echoed in the response; defaults from the user profile when omitted.
 
 ### `GET /products/:id`
@@ -31,6 +32,9 @@ Returns comprehensive data for a single product.
 **Path Parameters:** `id` (MongoDB ObjectId).
 
 **Response `data`:** `product` (full detail), `relatedProducts` (up to 8 feed cards in the same category), `relatedVideos` (all creatives for this product), `relatedAds` (top-ad/paid creatives for this product), `freshness`.
+
+### `GET /products/:id/similar-products`
+Alias of `GET /products/:id/related-products`.
 
 ### `GET /products/categories`
 Returns all L1 category names (flat array). Does not return products.

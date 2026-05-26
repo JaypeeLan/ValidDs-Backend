@@ -178,8 +178,6 @@ const MarketingAnalysisSchema = new Schema<IMarketingAnalysis>(
 const ReviewSummarySchema = new Schema(
   {
     summary:     { type: String, required: true, default: '' },
-    pros:        { type: [String], required: true, default: [] },
-    cons:        { type: [String], required: true, default: [] },
     generatedAt: { type: Date, required: true, default: Date.now },
   },
   STRICT_SUB,

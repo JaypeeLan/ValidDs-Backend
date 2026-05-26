@@ -72,6 +72,7 @@ function buildAiInsight(aiIntelligence: IAIIntelligence | undefined): ProductAiI
       reason: ai.buyingSentimentReason,
       label: sentimentLabel,
     },
+    reviewSummary: ai.reviewSummary ?? null,
     marketingAnalysis,
     brand: ai.brand,
     niche: ai.niche,

@@ -175,6 +175,16 @@ const MarketingAnalysisSchema = new Schema<IMarketingAnalysis>(
   STRICT_SUB,
 );
 
+const ReviewSummarySchema = new Schema(
+  {
+    summary:     { type: String, required: true, default: '' },
+    pros:        { type: [String], required: true, default: [] },
+    cons:        { type: [String], required: true, default: [] },
+    generatedAt: { type: Date, required: true, default: Date.now },
+  },
+  STRICT_SUB,
+);
+
 const AIIntelligenceSchema = new Schema<IAIIntelligence>(
   {
     confidence:            { type: Number, required: true, min: 0, max: 100 },
@@ -187,6 +197,7 @@ const AIIntelligenceSchema = new Schema<IAIIntelligence>(
       enum: ['positive', 'neutral', 'negative'],
       default: null,
     },
+    reviewSummary:         { type: ReviewSummarySchema, required: true, default: null },
     extractedAt:           { type: Date, required: true, default: Date.now },
     niche:                 { type: String, required: true, default: '' },
     productType: {

@@ -72,10 +72,7 @@ export type ProductServiceType = {
   getRelated: (id: string, productModel?: IProductModel, market?: MarketCode) => Promise<IProductDocument[]>;
   search: (
     query: string,
-    category?: string[],
-    page?: number,
-    limit?: number,
-    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd' | 'sortBy'>,
+    filters: ProductFeedFilters,
     productModel?: IProductModel,
   ) => Promise<PaginatedResponse<IProductDocument>>;
   keywordContext: (params: {
@@ -183,14 +180,10 @@ export const ProductService: ProductServiceType = {
    */
   async search(
     query: string,
-    category?: string[],
-    page = 1,
-    limit = 20,
-    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd' | 'sortBy'>,
-    /** Market-specific Product model from req.models.Product. Defaults to global model (US). */
+    filters: ProductFeedFilters,
     productModel?: IProductModel,
   ): Promise<PaginatedResponse<IProductDocument>> {
-    return ProductRepository.search(query, category, page, limit, discovery, productModel);
+    return ProductRepository.search(query, filters, productModel);
   },
 
   async keywordContext(params: {

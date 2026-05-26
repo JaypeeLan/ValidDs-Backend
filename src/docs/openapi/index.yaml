@@ -93,6 +93,8 @@ paths:
     $ref: './paths/products.yaml#/detail'
   /api/v1/products/{id}/related-products:
     $ref: './paths/products.yaml#/relatedProducts'
+  /api/v1/products/{id}/similar-products:
+    $ref: './paths/products.yaml#/similarProducts'
   /api/v1/products/{id}/related-videos:
     $ref: './paths/products.yaml#/relatedVideos'
   /api/v1/products/{id}/related-ads:

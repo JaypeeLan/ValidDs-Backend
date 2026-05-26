@@ -27,7 +27,7 @@ feed:
             type: string
       - name: trendDirection
         in: query
-        schema: { type: string, enum: [rising, peaked, saturating, unknown] }
+        schema: { type: string, enum: [rising, peaked, saturating, emerging, unknown, declining, stable, viral] }
       - name: minTrendScore
         in: query
         schema: { type: number }
@@ -44,10 +44,96 @@ feed:
         schema:
           type: string
           enum: [top-ads, trending, top-rated, viral, influencer-reviews, tutorials, viral-unboxings]
+      - name: feed
+        in: query
+        required: false
+        description: |
+          UI convenience tab. When `sortBy` is omitted:
+          - `discover` defaults to `recent`
+          - `top-opportunities` defaults to `gmv-desc`
+        schema:
+          type: string
+          enum: [discover, top-opportunities]
       - name: sortBy
         in: query
-        description: Sort order for results. Default `gmv` sorts by `totalGmv` descending (highest first).
-        schema: { type: string, enum: [gmv, trendScore, views, recent, engagement], default: gmv }
+        description: |
+          Sort order. Use snake_case from the UI (`gmv_desc`, `units_sold_desc`, …).
+          Defaults depend on `feed` when omitted.
+        schema:
+          type: string
+          example: gmv_desc
+      - name: productKind
+        in: query
+        description: Product type filter — `hot` (momentum score) or `seasonal` (AI productType).
+        schema: { type: string, enum: [hot, seasonal] }
+      - name: productType
+        in: query
+        description: Alias of `productKind`.
+        schema: { type: string, enum: [hot, seasonal] }
+      - name: confidenceLevel
+        in: query
+        schema: { type: string, enum: [High, Medium, Low] }
+      - name: opportunityLevel
+        in: query
+        description: Filters engagement trend score (opportunity).
+        schema: { type: string, enum: [High, Medium, Low] }
+      - name: minPrice
+        in: query
+        schema: { type: number, minimum: 0 }
+      - name: maxPrice
+        in: query
+        schema: { type: number, minimum: 0 }
+      - name: minTotalGmv
+        in: query
+        schema: { type: number, minimum: 0 }
+      - name: maxTotalGmv
+        in: query
+        schema: { type: number, minimum: 0 }
+      - name: minUnitsSold
+        in: query
+        schema: { type: number, minimum: 0 }
+      - name: maxUnitsSold
+        in: query
+        schema: { type: number, minimum: 0 }
+      - name: minUnits
+        in: query
+        description: Alias of minUnitsSold (frontend).
+        schema: { type: number, minimum: 0 }
+      - name: maxUnits
+        in: query
+        description: Alias of maxUnitsSold (frontend).
+        schema: { type: number, minimum: 0 }
+      - name: minGmv
+        in: query
+        description: Alias of minTotalGmv (frontend).
+        schema: { type: number, minimum: 0 }
+      - name: maxGmv
+        in: query
+        description: Alias of maxTotalGmv (frontend).
+        schema: { type: number, minimum: 0 }
+      - name: minSales7d
+        in: query
+        description: Filter by salesTrend window at daysAgo=7 (when present on product).
+        schema: { type: number, minimum: 0 }
+      - name: maxSales7d
+        in: query
+        schema: { type: number, minimum: 0 }
+      - name: minGmv7d
+        in: query
+        description: Filter by revenueTrend window at daysAgo=7 (when present on product).
+        schema: { type: number, minimum: 0 }
+      - name: maxGmv7d
+        in: query
+        schema: { type: number, minimum: 0 }
+      - name: minConfidence
+        in: query
+        schema: { type: number, minimum: 0, maximum: 100 }
+      - name: minCompetitionScore
+        in: query
+        schema: { type: number, minimum: 0, maximum: 100 }
+      - name: maxCompetitionScore
+        in: query
+        schema: { type: number, minimum: 0, maximum: 100 }
       - name: subcategory
         in: query
         description: Filter by subcategory (L2). Pass multiple times or comma-separated for multi-select.
@@ -217,6 +303,39 @@ relatedProducts:
     responses:
       '200':
         description: Related products retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [relatedProducts]
+                      properties:
+                        relatedProducts:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/ProductFeedItem.yaml'
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
+similarProducts:
+  get:
+    tags: [Products]
+    summary: Similar products for a product
+    description: |
+      Alias of `GET /products/{id}/related-products` (feed card shape).
+      Excludes items with the same `normalizedTitle` as the current product.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
+    responses:
+      '200':
+        description: Similar products retrieved
         content:
           application/json:
             schema:

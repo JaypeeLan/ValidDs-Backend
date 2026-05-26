@@ -238,13 +238,69 @@ export interface ProductFeedFilters {
   isAd?: boolean;
   page?: number;
   limit?: number;
-  sortBy?: 'gmv' | 'trendScore' | 'views' | 'recent' | 'engagement';
+  sortBy?: 'gmv-desc' | 'gmv-asc' | 'units-desc' | 'units-asc' | 'trendScore' | 'views' | 'recent' | 'engagement';
+  minPrice?: number;
+  maxPrice?: number;
+  minTotalGmv?: number;
+  maxTotalGmv?: number;
+  minUnitsSold?: number;
+  maxUnitsSold?: number;
+  minConfidence?: number;
+  maxConfidence?: number;
+  minCompetitionScore?: number;
+  maxCompetitionScore?: number;
+  minOpportunityScore?: number;
+  maxOpportunityScore?: number;
+  /** hot = high engagement score / trending; seasonal = AI productType seasonal */
+  productKind?: 'hot' | 'seasonal';
+  minSales7d?: number;
+  maxSales7d?: number;
+  minGmv7d?: number;
+  maxGmv7d?: number;
   userRegion?: string;
+}
+
+const HOT_TREND_DIRECTIONS = ['rising', 'emerging', 'viral'] as const;
+
+function metricWindowValueAtDaysAgo(
+  field: 'salesTrend' | 'revenueTrend',
+  daysAgo: number,
+  min?: number,
+  max?: number,
+): Record<string, unknown> | null {
+  if (min == null && max == null) return null;
+  const valueFilter: Record<string, number> = {};
+  if (min != null) valueFilter.$gte = min;
+  if (max != null) valueFilter.$lte = max;
+  return {
+    [field]: {
+      windows: {
+        $elemMatch: {
+          daysAgo,
+          value: valueFilter,
+        },
+      },
+    },
+  };
+}
+
+function appendAnd(filter: Record<string, unknown>, clause: Record<string, unknown>): void {
+  const existing = filter.$and;
+  if (Array.isArray(existing)) {
+    existing.push(clause);
+  } else if (existing) {
+    filter.$and = [existing as Record<string, unknown>, clause];
+  } else {
+    filter.$and = [clause];
+  }
 }
 
 /** Applies discovery-section rules to a Mongo filter (feed or text search). */
 const PRODUCT_SORT_MAP: Record<string, Record<string, 1 | -1>> = {
-  gmv:         { totalGmv: -1, lastIngestedAt: -1 },
+  'gmv-desc':  { totalGmv: -1, lastIngestedAt: -1 },
+  'gmv-asc':   { totalGmv: 1, lastIngestedAt: -1 },
+  'units-desc':{ totalSales: -1, lastIngestedAt: -1 },
+  'units-asc': { totalSales: 1, lastIngestedAt: -1 },
   trendScore:  { 'trends.engagement.score': -1, 'trend.score': -1 },
   views:       { viewCount: -1 },
   recent:      { lastIngestedAt: -1 },
@@ -252,7 +308,7 @@ const PRODUCT_SORT_MAP: Record<string, Record<string, 1 | -1>> = {
 };
 
 function resolveProductSort(sortBy?: string): Record<string, 1 | -1> {
-  return PRODUCT_SORT_MAP[sortBy ?? 'gmv'] ?? PRODUCT_SORT_MAP.gmv;
+  return PRODUCT_SORT_MAP[sortBy ?? 'gmv-desc'] ?? PRODUCT_SORT_MAP['gmv-desc'];
 }
 
 function applyDiscoverySectionRules(
@@ -267,6 +323,104 @@ function applyDiscoverySectionRules(
   if (parts.length === 0) return;
   if (parts.length === 1) Object.assign(filter, parts[0]!);
   else filter.$and = parts;
+}
+
+/** Shared list/search filters (category, price, GMV, hot/seasonal, etc.). */
+function applyProductFeedFilters(
+  query: Record<string, unknown>,
+  filters: ProductFeedFilters,
+): void {
+  if (filters.category?.length) query['categoryL1'] = { $in: filters.category };
+  if (filters.subcategory?.length) query['categoryL2'] = { $in: filters.subcategory };
+  if (filters.minPrice != null || filters.maxPrice != null) {
+    query.price = {
+      ...(filters.minPrice != null ? { $gte: filters.minPrice } : {}),
+      ...(filters.maxPrice != null ? { $lte: filters.maxPrice } : {}),
+    };
+  }
+  if (filters.minTotalGmv != null || filters.maxTotalGmv != null) {
+    query.totalGmv = {
+      ...(filters.minTotalGmv != null ? { $gte: filters.minTotalGmv } : {}),
+      ...(filters.maxTotalGmv != null ? { $lte: filters.maxTotalGmv } : {}),
+    };
+  }
+  if (filters.minUnitsSold != null || filters.maxUnitsSold != null) {
+    query.totalSales = {
+      ...(filters.minUnitsSold != null ? { $gte: filters.minUnitsSold } : {}),
+      ...(filters.maxUnitsSold != null ? { $lte: filters.maxUnitsSold } : {}),
+    };
+  }
+  if (filters.minConfidence != null || filters.maxConfidence != null) {
+    query['aiIntelligence.confidence'] = {
+      ...(filters.minConfidence != null ? { $gte: filters.minConfidence } : {}),
+      ...(filters.maxConfidence != null ? { $lte: filters.maxConfidence } : {}),
+    };
+  }
+  if (filters.minOpportunityScore != null || filters.maxOpportunityScore != null) {
+    const scoreClause: Record<string, unknown> = {
+      ...(filters.minOpportunityScore != null ? { $gte: filters.minOpportunityScore } : {}),
+      ...(filters.maxOpportunityScore != null ? { $lte: filters.maxOpportunityScore } : {}),
+    };
+    appendAnd(query, {
+      $or: [
+        { 'trends.engagement.score': scoreClause },
+        { 'trend.score': scoreClause },
+      ],
+    });
+  }
+  if (filters.minCompetitionScore != null || filters.maxCompetitionScore != null) {
+    query['suppliers.competitorScore'] = {
+      ...(filters.minCompetitionScore != null ? { $gte: filters.minCompetitionScore } : {}),
+      ...(filters.maxCompetitionScore != null ? { $lte: filters.maxCompetitionScore } : {}),
+    };
+  }
+  if (filters.productKind === 'seasonal') {
+    query['aiIntelligence.productType'] = 'seasonal';
+  } else if (filters.productKind === 'hot') {
+    appendAnd(query, {
+      $or: [
+        { 'trends.engagement.score': { $gte: 70 } },
+        { 'trend.score': { $gte: 70 } },
+        { 'trends.engagement.isTrending': true },
+        { 'trend.isTrending': true },
+        { 'trends.engagement.direction': { $in: [...HOT_TREND_DIRECTIONS] } },
+        { 'trend.direction': { $in: [...HOT_TREND_DIRECTIONS] } },
+        { 'aiIntelligence.productType': 'trend-driven' },
+      ],
+    });
+  }
+  const sales7d = metricWindowValueAtDaysAgo(
+    'salesTrend',
+    7,
+    filters.minSales7d,
+    filters.maxSales7d,
+  );
+  if (sales7d) appendAnd(query, sales7d);
+  const gmv7d = metricWindowValueAtDaysAgo(
+    'revenueTrend',
+    7,
+    filters.minGmv7d,
+    filters.maxGmv7d,
+  );
+  if (gmv7d) appendAnd(query, gmv7d);
+  if (filters.trendDirection) {
+    appendAnd(query, {
+      $or: [
+        { 'trends.engagement.direction': filters.trendDirection },
+        { 'trend.direction': filters.trendDirection },
+      ],
+    });
+  }
+  if (filters.minTrendScore != null) {
+    appendAnd(query, {
+      $or: [
+        { 'trends.engagement.score': { $gte: filters.minTrendScore } },
+        { 'trend.score': { $gte: filters.minTrendScore } },
+      ],
+    });
+  }
+  if (filters.minViews != null) query['viewCount'] = { $gte: filters.minViews };
+  applyDiscoverySectionRules(query, { section: filters.section, isAd: filters.isAd });
 }
 
 // ── Repository ────────────────────────────────────────────────────────────────
@@ -412,32 +566,7 @@ export const ProductRepository = {
       }
     }
 
-    if (filters.category?.length)       query['categoryL1'] = { $in: filters.category };
-    if (filters.subcategory?.length)    query['categoryL2'] = { $in: filters.subcategory };
-    if (filters.trendDirection) {
-      query.$and = [
-        ...((query.$and as unknown[]) ?? []),
-        {
-          $or: [
-            { 'trends.engagement.direction': filters.trendDirection },
-            { 'trend.direction': filters.trendDirection },
-          ],
-        },
-      ];
-    }
-    if (filters.minTrendScore != null) {
-      query.$and = [
-        ...((query.$and as unknown[]) ?? []),
-        {
-          $or: [
-            { 'trends.engagement.score': { $gte: filters.minTrendScore } },
-            { 'trend.score': { $gte: filters.minTrendScore } },
-          ],
-        },
-      ];
-    }
-    if (filters.minViews != null)       query['viewCount'] = { $gte: filters.minViews };
-    applyDiscoverySectionRules(query, { section: filters.section, isAd: filters.isAd });
+    applyProductFeedFilters(query, filters);
 
     const sort = resolveProductSort(filters.sortBy);
 
@@ -523,22 +652,20 @@ export const ProductRepository = {
 
   async search(
     query: string,
-    category?: string[],
-    page = 1,
-    limit = 20,
-    discovery?: Pick<ProductFeedFilters, 'section' | 'isAd' | 'sortBy'>,
+    filters: ProductFeedFilters,
     /** Pass req.models.Product to query the correct market collection. Defaults to the global US model. */
     model: IProductModel = Product,
   ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
-    const skip    = (page - 1) * limit;
+    const page  = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
+    const skip  = (page - 1) * limit;
     const filter: Record<string, unknown> = {
       status: { $ne: 'archived' },
       $text: { $search: query },
     };
-    if (category?.length) filter['categoryL1'] = { $in: category };
-    if (discovery) applyDiscoverySectionRules(filter, discovery);
+    applyProductFeedFilters(filter, filters);
 
-    const sort = resolveProductSort(discovery?.sortBy);
+    const sort = resolveProductSort(filters.sortBy);
 
     const [data, total] = await Promise.all([
       model.find(filter, { score: { $meta: 'textScore' } })

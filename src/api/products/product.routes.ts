@@ -20,6 +20,7 @@ const router = Router();
  * GET /products/categories — public
  * GET /products/:id — product detail (public)
  * GET /products/:id/related-products — same-category products (feed cards)
+ * GET /products/:id/similar-products — alias for related-products (feed cards)
  * GET /products/:id/related-videos — commercial (non-ad) creatives for this product
  * GET /products/:id/related-ads — paid / top-ad creatives for this product
  * GET /products/saved — requires JWT (user bookmarks)
@@ -47,6 +48,11 @@ router.get('/saved', requireAuth, ProductController.saved);
 
 router.get(
   '/:id/related-products',
+  validate(ProductIdParamSchema, 'params'),
+  ProductController.relatedProducts,
+);
+router.get(
+  '/:id/similar-products',
   validate(ProductIdParamSchema, 'params'),
   ProductController.relatedProducts,
 );

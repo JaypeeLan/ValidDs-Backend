@@ -114,6 +114,13 @@ export interface IMarketingAnalysis {
 
 // ── AI Intelligence ───────────────────────────────────────────────────────────
 
+export interface IReviewSummary {
+  summary: string;
+  pros: string[];
+  cons: string[];
+  generatedAt: Date;
+}
+
 export interface IAIIntelligence {
   confidence: number;
   confidenceReason: string;
@@ -122,6 +129,8 @@ export interface IAIIntelligence {
   buyingSentimentReason: string;
   /** Optional persisted label; API falls back to score-derived label when omitted. */
   buyingSentimentLabel?: SentimentLabel;
+  /** Review-grounded summary generated from customer reviews. */
+  reviewSummary?: IReviewSummary | null;
   extractedAt: Date;
   niche: string;
   productType: ProductType;
@@ -301,6 +310,7 @@ export interface IProduct {
 export interface ProductAiInsightResponse {
   confidence: { score?: number; reason?: string };
   buyingSentiment: { score?: number; reason?: string; label?: SentimentLabel };
+  reviewSummary?: IReviewSummary | null;
   marketingAnalysis?: IMarketingAnalysis | null;
   brand?: string;
   niche?: string;

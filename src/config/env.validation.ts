@@ -15,6 +15,11 @@ const envSchema = z.object({
 
   // Security
   INTERNAL_API_KEY: z.string().min(32, 'API key must be at least 32 characters'),
+  /** Python scraper → POST /internal/ingest/* (`X-Ingest-Key` header). */
+  SCRAPER_INGEST_KEY: z.preprocess(
+    (val) => (val === '' || val === undefined ? 'change-me-scraper-ingest-key' : val),
+    z.string().min(8)
+  ),
   JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   ENCRYPTION_KEY: z.string().length(64, 'Encryption key must be 32 bytes (64 hex chars)'),

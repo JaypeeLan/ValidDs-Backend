@@ -122,6 +122,7 @@ export const CreativeService = {
     const {
       q,
       productId,
+      source,
       section,
       isAd,
       minViews,
@@ -135,6 +136,8 @@ export const CreativeService = {
     } = filters;
     const query: Record<string, unknown> = {};
     if (productId) query.productId = productId;
+    if (source === 'meta') query.externalVideoId = /^meta:/;
+    if (source === 'tiktok') query.externalVideoId = { $not: /^meta:/ };
     if (section) query.section = apiSectionToDb(String(section));
     if (isAd !== undefined) query.isAd = isAd;
     if (minViews) query['metrics.viewCount'] = { $gte: Number(minViews) };

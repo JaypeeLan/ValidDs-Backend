@@ -12,6 +12,7 @@ import { errorMiddleware, notFoundMiddleware } from './middleware/error.middlewa
 import { getAllowedOrigins } from './security/encryption';
 import { healthRouter } from './api/index';
 import apiRouter from './api/index';
+import internalRouter from './api/internal/internal.routes';
 import { Sentry } from './monitoring/sentry';
 import swaggerUi from 'swagger-ui-express';
 import { getAdminSwaggerSpec, getSwaggerSpec } from './docs/swagger.provider';
@@ -94,7 +95,7 @@ export async function createApp(): Promise<Application> {
         callback(new Error(`Origin ${origin} not allowed by CORS policy`));
       },
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Api-Key', 'X-Request-Id'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Api-Key', 'X-Ingest-Key', 'X-Request-Id'],
       exposedHeaders: ['X-Request-Id', 'RateLimit-Limit', 'RateLimit-Remaining'],
       credentials: true,
       maxAge: 86400, // Cache preflight for 24 hours
@@ -177,6 +178,9 @@ export async function createApp(): Promise<Application> {
 
   // Health checks at root level (not versioned — required by Render health check config)
   app.use('/', healthRouter);
+
+  // Scraper ingest (service-to-service, not versioned)
+  app.use('/internal', internalRouter);
 
   // All API routes under /api/v1
   app.use(`/api/${env.API_VERSION}`, apiRouter);

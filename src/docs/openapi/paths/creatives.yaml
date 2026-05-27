@@ -18,6 +18,7 @@ creatives:
       - $ref: '#/components/creativeListParams/limit'
       - $ref: '#/components/creativeListParams/q'
       - $ref: '#/components/creativeListParams/productId'
+      - $ref: '#/components/creativeListParams/source'
       - $ref: '#/components/creativeListParams/section'
       - $ref: '#/components/creativeListParams/isAd'
       - $ref: '#/components/creativeListParams/minViews'
@@ -49,6 +50,7 @@ topAdsList:
       - $ref: '#/components/creativeListParams/limit'
       - $ref: '#/components/creativeListParams/q'
       - $ref: '#/components/creativeListParams/productId'
+      - $ref: '#/components/creativeListParams/source'
       - $ref: '#/components/creativeListParams/isAd'
       - $ref: '#/components/creativeListParams/minViews'
       - $ref: '#/components/creativeListParams/hashtags'
@@ -356,6 +358,13 @@ components:
       schema:
         type: string
         pattern: '^[0-9a-fA-F]{24}$'
+    source:
+      name: source
+      in: query
+      description: Filter by creative source platform.
+      schema:
+        type: string
+        enum: [tiktok, meta]
     section:
       name: section
       in: query

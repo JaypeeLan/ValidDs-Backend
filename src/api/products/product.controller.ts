@@ -67,11 +67,6 @@ function buildAiInsight(aiIntelligence: IAIIntelligence | undefined): ProductAiI
       score: ai.confidence,
       reason: ai.confidenceReason,
     },
-    buyingSentiment: {
-      score: ai.buyingSentimentScore,
-      reason: ai.buyingSentimentReason,
-      label: sentimentLabel,
-    },
     reviewSummary: ai.reviewSummary ?? null,
     marketingAnalysis,
     brand: ai.brand,
@@ -159,12 +154,7 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     competitionScore: maxCompetitorScore(product.suppliers),
     aiInsight: {
       confidence: { score: product.aiIntelligence?.confidence },
-      buyingSentiment: product.aiIntelligence
-        ? {
-            score: product.aiIntelligence.buyingSentimentScore,
-            label: resolveStoredSentimentLabel(product.aiIntelligence as IAIIntelligence),
-          }
-        : { score: undefined, label: 'neutral' as SentimentLabel },
+      reviewSummary: product.aiIntelligence?.reviewSummary ?? null,
     },
     trend: {
       score: engagement.score,

@@ -5,6 +5,7 @@ export const CreativeListQuerySchema = z.object({
   limit:     z.coerce.number().min(1).max(100).default(20),
   q:         z.string().trim().min(1).max(120).optional(),
   productId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid productId format').optional(),
+  source:    z.enum(['tiktok', 'meta']).optional(),
   section:   z.enum(['top-ads', 'trending', 'influencer-reviews', 'tutorials', 'viral-unboxings']).optional(),
   isAd:      z.coerce.boolean().optional(),
   region:    z.string().regex(/^[a-zA-Z]{2}$/, 'Region must be a 2-letter country code').optional(),

@@ -89,7 +89,7 @@ const ProductSupplierShopSchema = new Schema<IProductSupplierShop>(
   {
     name:   { type: String, required: true, default: null },
     url:    { type: String, required: true, default: null },
-    rating: { type: Number, required: true, min: 0, max: 5, default: null },
+    rating: { type: Number, min: 0, max: 5, default: null },
   },
   STRICT_SUB,
 );
@@ -178,8 +178,6 @@ const MarketingAnalysisSchema = new Schema<IMarketingAnalysis>(
 const ReviewSummarySchema = new Schema(
   {
     summary:     { type: String, required: true, default: '' },
-    pros:        { type: [String], required: true, default: [] },
-    cons:        { type: [String], required: true, default: [] },
     generatedAt: { type: Date, required: true, default: Date.now },
   },
   STRICT_SUB,
@@ -191,7 +189,7 @@ const AIIntelligenceSchema = new Schema<IAIIntelligence>(
     confidenceReason:      { type: String, required: true },
     brand:                 { type: String, required: true, default: '' },
     buyingSentimentScore:  { type: Number, required: true, min: 0, max: 100, default: 0 },
-    buyingSentimentReason: { type: String, required: true, default: '' },
+    buyingSentimentReason: { type: String, default: '' },
     buyingSentimentLabel: {
       type: String,
       enum: ['positive', 'neutral', 'negative'],

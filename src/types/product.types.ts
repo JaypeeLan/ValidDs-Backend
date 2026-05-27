@@ -116,8 +116,6 @@ export interface IMarketingAnalysis {
 
 export interface IReviewSummary {
   summary: string;
-  pros: string[];
-  cons: string[];
   generatedAt: Date;
 }
 
@@ -309,7 +307,6 @@ export interface IProduct {
 
 export interface ProductAiInsightResponse {
   confidence: { score?: number; reason?: string };
-  buyingSentiment: { score?: number; reason?: string; label?: SentimentLabel };
   reviewSummary?: IReviewSummary | null;
   marketingAnalysis?: IMarketingAnalysis | null;
   brand?: string;
@@ -344,7 +341,7 @@ export interface ProductFeedItem {
   competitionScore?: number | null;
   aiInsight: {
     confidence: { score?: number };
-    buyingSentiment?: { score?: number; label?: SentimentLabel };
+    reviewSummary?: IReviewSummary | null;
   };
   trend?: {
     score?: number;

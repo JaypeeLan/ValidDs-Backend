@@ -10,6 +10,7 @@ import {
   CREATIVE_TRENDING_MATCH,
   formatCreativeFeedItem,
   formatCreativeForApi,
+  creativeAdDedupeAggregationStages,
 } from '../utils/creative-response.util';
 import {
   creativeRecencyPrioritySortSpec,
@@ -56,8 +57,7 @@ async function loadCreativesForProduct(
       },
       { $addFields: recencyTierAddFields() },
       { $sort: videoSort },
-      { $group: { _id: '$externalVideoId', doc: { $first: '$$ROOT' } } },
-      { $replaceRoot: { newRoot: '$doc' } },
+      ...(creativeAdDedupeAggregationStages() as PipelineStage[]),
       { $sort: videoSort },
       { $limit: mLimit },
       { $project: { productDescription: 0, _recencyTier: 0, _postDate: 0 } },
@@ -188,15 +188,12 @@ export const CreativeService = {
             sortKey === 'likes' ? 'likes' : sortKey === 'engagement' ? 'engagement' : 'views',
           );
 
-    // One row per TikTok video (externalVideoId). Multiple docs per product stay;
-    // duplicate video ids are collapsed to the highest-ranked doc ($first after $sort).
     const pipeline: PipelineStage[] = [
       { $match: query },
       ...(sortKey === 'recent' ? [] : [{ $addFields: recencyTierAddFields() }]),
       { $sort: sort },
-      { $group: { _id: '$externalVideoId', doc: { $first: '$$ROOT' } } },
-      { $replaceRoot: { newRoot: '$doc' } },
-      { $project: { productDescription: 0, _recencyTier: 0, _postDate: 0 } },
+      ...(creativeAdDedupeAggregationStages() as PipelineStage[]),
+      { $project: { productDescription: 0, _recencyTier: 0, _postDate: 0, adDedupeKey: 0 } },
       { $sort: sort },
       {
         $facet: {

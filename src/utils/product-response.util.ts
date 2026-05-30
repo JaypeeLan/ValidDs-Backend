@@ -107,7 +107,17 @@ export async function loadCreatorAvatarEnrichmentByProductId(
     {
       $match: {
         productId: { $in: objectIds },
-        'creator.avatarUrl': { $type: 'string', $nin: [null, ''] },
+        $or: [
+          { 'creator.avatarUrl': { $type: 'string', $regex: /^https:\/\// } },
+          { shopAvatarUrl: { $type: 'string', $regex: /^https:\/\// } },
+        ],
+      },
+    },
+    {
+      $addFields: {
+        displayAvatar: {
+          $ifNull: ['$creator.avatarUrl', '$shopAvatarUrl'],
+        },
       },
     },
     { $sort: { 'metrics.viewCount': -1 } },
@@ -115,7 +125,7 @@ export async function loadCreatorAvatarEnrichmentByProductId(
       $group: {
         _id: '$productId',
         creativeId: { $first: '$_id' },
-        avatarUrl: { $first: '$creator.avatarUrl' },
+        avatarUrl: { $first: '$displayAvatar' },
       },
     },
   ]).option({ maxTimeMS: 15_000 });

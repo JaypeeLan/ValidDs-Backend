@@ -96,6 +96,12 @@ export interface RawProductFeedQuery {
   minLikes?: number;
   minEngagementRate?: number;
   startDate?: string;
+  minCreatorGmv?: number;
+  maxCreatorGmv?: number;
+  minFollowers?: number;
+  maxFollowers?: number;
+  minCreatorLikes?: number;
+  maxCreatorLikes?: number;
 }
 
 /**
@@ -166,6 +172,12 @@ export function buildProductFeedFilters(raw: RawProductFeedQuery): ProductFeedFi
     minLikes: metrics.minLikes,
     minEngagementRate: metrics.minEngagementRate,
     startDate: metrics.startDate,
+    minCreatorGmv: metrics.minCreatorGmv,
+    maxCreatorGmv: metrics.maxCreatorGmv,
+    minFollowers: metrics.minFollowers,
+    maxFollowers: metrics.maxFollowers,
+    minCreatorLikes: metrics.minCreatorLikes,
+    maxCreatorLikes: metrics.maxCreatorLikes,
   };
 }
 

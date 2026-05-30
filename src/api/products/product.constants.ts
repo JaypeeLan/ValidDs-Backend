@@ -358,6 +358,8 @@ export const ALL_CATEGORY_PATHS: string[] = Object.entries(CATEGORY_TAXONOMY).fl
 export const PRODUCT_DISCOVERY_SECTIONS = [
   'top-ads',
   'trending',
+  'new-3d',
+  'new-7d',
   'top-rated',
   'viral',
   'influencer-reviews',

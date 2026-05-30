@@ -12,6 +12,10 @@ import {
   type RawProductFeedQuery,
 } from './product-feed-filters.util';
 import type { ProductFeedFilters } from '../../db/repositories/product.repository';
+import {
+  contentMetricFilterZodFields,
+  validateContentMetricRanges,
+} from '../../utils/content-feed-filters.util';
 
 const MultiStringSchema = (allowedValues?: string[]) =>
   z.union([z.string(), z.array(z.string())])
@@ -113,6 +117,7 @@ const ProductFeedQueryBaseSchema = z.object({
   maxSales7d: z.coerce.number().min(0).optional(),
   minGmv7d: z.coerce.number().min(0).optional(),
   maxGmv7d: z.coerce.number().min(0).optional(),
+  ...contentMetricFilterZodFields,
 });
 
 export const ProductFeedQuerySchema = ProductFeedQueryBaseSchema.superRefine((val, ctx) => {
@@ -158,6 +163,16 @@ export const ProductFeedQuerySchema = ProductFeedQueryBaseSchema.superRefine((va
   if (minU != null && maxU != null && minU > maxU) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['minUnits'], message: 'minUnits cannot exceed maxUnits' });
   }
+  validateContentMetricRanges(
+    {
+      minGmv: val.minGmv ?? val.minTotalGmv,
+      maxGmv: val.maxGmv ?? val.maxTotalGmv,
+      minUnits: minU,
+      maxUnits: maxU,
+      startDate: val.startDate,
+    },
+    ctx,
+  );
 }).transform((val): ProductFeedQuery => {
   const filters = buildProductFeedFilters(val as RawProductFeedQuery);
   return {

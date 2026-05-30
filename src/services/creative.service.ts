@@ -11,6 +11,14 @@ import {
   formatCreativeFeedItem,
   formatCreativeForApi,
 } from '../utils/creative-response.util';
+import {
+  creativeRecencyPrioritySortSpec,
+  recencyTierAddFields,
+} from '../utils/product-recency.util';
+import {
+  applyCreativeMetricFilters,
+  type ContentMetricFilters,
+} from '../utils/content-feed-filters.util';
 
 export {
   apiSectionToDb,
@@ -26,7 +34,7 @@ function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const PRODUCT_CREATIVE_LIMIT = 50;
+const PRODUCT_CREATIVE_LIMIT = 100;
 
 async function loadCreativesForProduct(
   productId: string,
@@ -37,6 +45,7 @@ async function loadCreativesForProduct(
   if (!mongoose.isValidObjectId(productId)) return [];
 
   const mLimit = Math.min(Math.max(limit, 1), 100);
+  const videoSort = creativeRecencyPrioritySortSpec('views');
   const docs = (await creativeModel
     .aggregate([
       {
@@ -45,12 +54,13 @@ async function loadCreativesForProduct(
           ...extraFilter,
         },
       },
-      { $sort: { 'metrics.viewCount': -1, publishedAt: -1 } },
+      { $addFields: recencyTierAddFields() },
+      { $sort: videoSort },
       { $group: { _id: '$externalVideoId', doc: { $first: '$$ROOT' } } },
       { $replaceRoot: { newRoot: '$doc' } },
-      { $sort: { 'metrics.viewCount': -1, publishedAt: -1 } },
+      { $sort: videoSort },
       { $limit: mLimit },
-      { $project: { productDescription: 0 } },
+      { $project: { productDescription: 0, _recencyTier: 0, _postDate: 0 } },
     ])
     .option({ maxTimeMS: 15_000 })
     .exec()) as Record<string, unknown>[];
@@ -133,6 +143,7 @@ export const CreativeService = {
       categoryL1,
       categoryL2,
       categoryL3,
+      _metricFilters,
     } = filters;
     const query: Record<string, unknown> = {};
     if (productId) query.productId = productId;
@@ -164,24 +175,28 @@ export const CreativeService = {
       Object.assign(query, extraMatch);
     }
 
+    const metricFilters = (_metricFilters as ContentMetricFilters | undefined) ?? {};
+    applyCreativeMetricFilters(query, metricFilters);
+
     const skip = (Number(page) - 1) * Number(limit);
     const mLimit = Number(limit);
-    const sortMap: Record<string, Record<string, 1 | -1>> = {
-      views: { 'metrics.viewCount': -1, publishedAt: -1 },
-      likes: { 'metrics.likeCount': -1, publishedAt: -1 },
-      engagement: { 'metrics.engagementRate': -1, publishedAt: -1 },
-      recent: { publishedAt: -1 },
-    };
-    const sort = sortMap[String(sortBy)] ?? sortMap.views;
+    const sortKey = String(sortBy);
+    const sort =
+      sortKey === 'recent'
+        ? { publishedAt: -1 as const }
+        : creativeRecencyPrioritySortSpec(
+            sortKey === 'likes' ? 'likes' : sortKey === 'engagement' ? 'engagement' : 'views',
+          );
 
     // One row per TikTok video (externalVideoId). Multiple docs per product stay;
     // duplicate video ids are collapsed to the highest-ranked doc ($first after $sort).
     const pipeline: PipelineStage[] = [
       { $match: query },
+      ...(sortKey === 'recent' ? [] : [{ $addFields: recencyTierAddFields() }]),
       { $sort: sort },
       { $group: { _id: '$externalVideoId', doc: { $first: '$$ROOT' } } },
       { $replaceRoot: { newRoot: '$doc' } },
-      { $project: { productDescription: 0 } },
+      { $project: { productDescription: 0, _recencyTier: 0, _postDate: 0 } },
       { $sort: sort },
       {
         $facet: {

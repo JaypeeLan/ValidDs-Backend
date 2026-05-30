@@ -4,6 +4,12 @@ import type { IProductSupplier } from '../../types/product.types';
 import { logger } from '../../logger';
 import { PRODUCT_CATEGORIES } from '../../api/products/product.constants';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
+import {
+  recencyPrioritySortSpec,
+  recencyTierAddFields,
+  usesRecencyPriorityWithGmv,
+} from '../../utils/product-recency.util';
+import { applyProductMetricFilters } from '../../utils/content-feed-filters.util';
 
 const log = logger.child({ module: 'product-repository' });
 
@@ -27,6 +33,8 @@ export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
   shopUrl: 1,
   shopAvatarUrl: 1,
   lastIngestedAt: 1,
+  publishedAt: 1,
+  postCreatedAt: 1,
   discoverySections: 1,
   'aiIntelligence.confidence': 1,
   'aiIntelligence.buyingSentimentScore': 1,
@@ -258,6 +266,9 @@ export interface ProductFeedFilters {
   minGmv7d?: number;
   maxGmv7d?: number;
   userRegion?: string;
+  minLikes?: number;
+  minEngagementRate?: number;
+  startDate?: Date;
 }
 
 const HOT_TREND_DIRECTIONS = ['rising', 'emerging', 'viral'] as const;
@@ -309,6 +320,79 @@ const PRODUCT_SORT_MAP: Record<string, Record<string, 1 | -1>> = {
 
 function resolveProductSort(sortBy?: string): Record<string, 1 | -1> {
   return PRODUCT_SORT_MAP[sortBy ?? 'gmv-desc'] ?? PRODUCT_SORT_MAP['gmv-desc'];
+}
+
+async function runProductFeedQuery(
+  model: IProductModel,
+  match: Record<string, unknown>,
+  filters: ProductFeedFilters,
+): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
+  const page = Math.max(1, filters.page ?? 1);
+  const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
+  const skip = (page - 1) * limit;
+  const sortBy = filters.sortBy ?? 'gmv-desc';
+
+  if (usesRecencyPriorityWithGmv(sortBy)) {
+    const sort = recencyPrioritySortSpec(sortBy);
+    const [facet] = await model
+      .aggregate([
+        { $match: match },
+        { $addFields: recencyTierAddFields() },
+        {
+          $facet: {
+            data: [
+              { $sort: sort },
+              { $skip: skip },
+              { $limit: limit },
+              { $project: { ...PRODUCT_LISTING_FIELD_PROJECTION, _recencyTier: 0, _postDate: 0 } },
+            ],
+            total: [{ $count: 'count' }],
+          },
+        },
+      ])
+      .option({ maxTimeMS: 30_000 })
+      .exec();
+
+    const data = (facet?.data ?? []) as unknown as IProductDocument[];
+    const total = facet?.total?.[0]?.count ?? 0;
+    const totalPages = Math.ceil(total / limit);
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  const sort = resolveProductSort(sortBy);
+  const [data, total] = await Promise.all([
+    model
+      .find(match)
+      .select(PRODUCT_LISTING_FIELD_PROJECTION)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    model.countDocuments(match),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  return {
+    data: data as unknown as IProductDocument[],
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+    },
+  };
 }
 
 function applyDiscoverySectionRules(
@@ -420,6 +504,11 @@ function applyProductFeedFilters(
     });
   }
   if (filters.minViews != null) query['viewCount'] = { $gte: filters.minViews };
+  applyProductMetricFilters(query, {
+    minLikes: filters.minLikes,
+    minEngagementRate: filters.minEngagementRate,
+    startDate: filters.startDate,
+  });
   applyDiscoverySectionRules(query, { section: filters.section, isAd: filters.isAd });
 }
 
@@ -536,10 +625,6 @@ export const ProductRepository = {
     /** Pass req.models.Product to query the correct market collection. Defaults to the global US model. */
     model: IProductModel = Product,
   ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
-    const page  = Math.max(1, filters.page ?? 1);
-    const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
-    const skip  = (page - 1) * limit;
-
     // Each market already has its own collection — no region filter needed when
     // a market-specific model is passed. The legacy `userRegion` filter still
     // applies when using the global model (single-collection fallback).
@@ -568,23 +653,7 @@ export const ProductRepository = {
 
     applyProductFeedFilters(query, filters);
 
-    const sort = resolveProductSort(filters.sortBy);
-
-    const [data, total] = await Promise.all([
-      model.find(query)
-        .select(PRODUCT_LISTING_FIELD_PROJECTION)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      model.countDocuments(query),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-    return {
-      data: data as unknown as IProductDocument[],
-      pagination: { page, limit, total, totalPages, hasNextPage: page < totalPages, hasPrevPage: page > 1 },
-    };
+    return runProductFeedQuery(model, query, filters);
   },
 
   async findById(
@@ -656,32 +725,13 @@ export const ProductRepository = {
     /** Pass req.models.Product to query the correct market collection. Defaults to the global US model. */
     model: IProductModel = Product,
   ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
-    const page  = Math.max(1, filters.page ?? 1);
-    const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
-    const skip  = (page - 1) * limit;
     const filter: Record<string, unknown> = {
       status: { $ne: 'archived' },
       $text: { $search: query },
     };
     applyProductFeedFilters(filter, filters);
 
-    const sort = resolveProductSort(filters.sortBy);
-
-    const [data, total] = await Promise.all([
-      model.find(filter, { score: { $meta: 'textScore' } })
-        .select(PRODUCT_LISTING_FIELD_PROJECTION)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      model.countDocuments(filter),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-    return {
-      data: data as unknown as IProductDocument[],
-      pagination: { page, limit, total, totalPages, hasNextPage: page < totalPages, hasPrevPage: page > 1 },
-    };
+    return runProductFeedQuery(model, filter, filters);
   },
 
   async markStaleProducts(olderThanMinutes = 10): Promise<number> {

@@ -1,6 +1,7 @@
 import { IProductDocument } from '../models/product.model';
 import { Creative } from '../models/creative.model';
 import { logger } from '../logger';
+import { postRecencyFlags } from '../utils/product-recency.util';
 
 const log = logger.child({ module: 'discovery-service' });
 
@@ -49,6 +50,11 @@ export const DiscoveryService = {
       if (viralCreatives >= 3 || (product.engagementRate || 0) > 10) {
         sections.add('viral');
       }
+
+      const postDate = product.publishedAt ?? product.postCreatedAt;
+      const { isNew3d, isNew7d } = postRecencyFlags(postDate);
+      if (isNew7d) sections.add('new-7d');
+      if (isNew3d) sections.add('new-3d');
 
       const result = Array.from(sections);
       log.debug(`Product ${product.title} categorized into: ${result.join(', ')}`);

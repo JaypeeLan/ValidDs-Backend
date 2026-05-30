@@ -34,6 +34,12 @@ creatives:
       - $ref: '#/components/creativeListParams/minUnits'
       - $ref: '#/components/creativeListParams/maxUnits'
       - $ref: '#/components/creativeListParams/startDate'
+      - $ref: '#/components/creativeListParams/minCreatorGmv'
+      - $ref: '#/components/creativeListParams/maxCreatorGmv'
+      - $ref: '#/components/creativeListParams/minFollowers'
+      - $ref: '#/components/creativeListParams/maxFollowers'
+      - $ref: '#/components/creativeListParams/minCreatorLikes'
+      - $ref: '#/components/creativeListParams/maxCreatorLikes'
     responses:
       '200':
         description: Success
@@ -72,6 +78,12 @@ topAdsList:
       - $ref: '#/components/creativeListParams/minUnits'
       - $ref: '#/components/creativeListParams/maxUnits'
       - $ref: '#/components/creativeListParams/startDate'
+      - $ref: '#/components/creativeListParams/minCreatorGmv'
+      - $ref: '#/components/creativeListParams/maxCreatorGmv'
+      - $ref: '#/components/creativeListParams/minFollowers'
+      - $ref: '#/components/creativeListParams/maxFollowers'
+      - $ref: '#/components/creativeListParams/minCreatorLikes'
+      - $ref: '#/components/creativeListParams/maxCreatorLikes'
     responses:
       '200':
         description: Success
@@ -464,6 +476,36 @@ components:
       in: query
       description: Only videos published on or after this date (ISO `YYYY-MM-DD`).
       schema: { type: string, format: date, example: '2026-04-29' }
+    minCreatorGmv:
+      name: minCreatorGmv
+      in: query
+      description: Minimum parent product total GMV (`productTotalGmv`). Alias of `minGmv` when both are sent, the stricter bound applies.
+      schema: { type: number, minimum: 0 }
+    maxCreatorGmv:
+      name: maxCreatorGmv
+      in: query
+      description: Maximum parent product total GMV.
+      schema: { type: number, minimum: 0 }
+    minFollowers:
+      name: minFollowers
+      in: query
+      description: Minimum creator follower count (`creator.followers`).
+      schema: { type: integer, minimum: 0 }
+    maxFollowers:
+      name: maxFollowers
+      in: query
+      description: Maximum creator follower count.
+      schema: { type: integer, minimum: 0 }
+    minCreatorLikes:
+      name: minCreatorLikes
+      in: query
+      description: Minimum creator profile total likes (`creator.totalLikes`).
+      schema: { type: integer, minimum: 0 }
+    maxCreatorLikes:
+      name: maxCreatorLikes
+      in: query
+      description: Maximum creator profile total likes.
+      schema: { type: integer, minimum: 0 }
 
   schemas:
     CreativeListResponse:

@@ -36,13 +36,127 @@ export const CREATIVE_TRENDING_MATCH = { section: 'top-ads' as const };
 export const CREATIVE_TOP_ADS_MATCH = { section: 'trending' as const };
 export const CREATIVE_COMMERCIAL_MATCH = CREATIVE_TRENDING_MATCH;
 
+const TIKTOK_VIDEO_ID_RE = /(?:\/video\/|embed\/v2\/)(\d+)/i;
+
 type CreativePlain = Record<string, unknown>;
+
+/** Stable key for the same TikTok CDN photo (mirrors product image dedupe). */
+export function imageAssetKey(url: string): string {
+  const base = url.trim().split('?')[0]?.split('~tplv-')[0]?.toLowerCase() ?? '';
+  const m = base.match(/\/([a-f0-9]{32})(?:~|$)/i);
+  return m ? m[1] : base;
+}
+
+/**
+ * One key per distinct ad — not per product.
+ * Meta: same copy or same page+product+hero image without copy → one slot.
+ * TikTok: same post / aweme id.
+ */
+export function creativeAdDedupeKey(creative: Record<string, unknown>): string {
+  const ext = String(creative.externalVideoId ?? '').trim();
+  if (ext.startsWith('meta:')) {
+    const page = String(
+      creative.metaPageId ?? (creative.creator as Record<string, unknown> | undefined)?.handle ?? '',
+    )
+      .trim()
+      .toLowerCase();
+    const desc = String(creative.description ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+    if (desc.length >= 12) {
+      return `meta:text:${page}:${desc.slice(0, 240)}`;
+    }
+    const thumb = imageAssetKey(String(creative.thumbnailUrl ?? ''));
+    const pid = String(creative.productId ?? '');
+    if (page && thumb && pid) {
+      return `meta:visual:${page}:${pid}:${thumb}`;
+    }
+    return ext;
+  }
+
+  const post = String(creative.tiktokPostUrl ?? '');
+  const m = post.match(TIKTOK_VIDEO_ID_RE);
+  if (m) return `tiktok:${m[1]}`;
+  const embed = String(creative.embedUrl ?? '');
+  const em = embed.match(TIKTOK_VIDEO_ID_RE);
+  if (em) return `tiktok:${em[1]}`;
+  if (/^\d+$/.test(ext)) return `tiktok:${ext}`;
+  return ext || post;
+}
+
+/** Mongo stages: collapse duplicate ads (same video / same Meta copy or look-alike card). */
+export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
+  return [
+    {
+      $addFields: {
+        adDedupeKey: {
+          $cond: [
+            { $regexMatch: { input: '$externalVideoId', regex: '^meta:' } },
+            {
+              $let: {
+                vars: {
+                  desc: {
+                    $trim: { input: { $ifNull: ['$description', ''] } },
+                  },
+                  page: {
+                    $toLower: {
+                      $ifNull: ['$metaPageId', { $ifNull: ['$creator.handle', ''] }],
+                    },
+                  },
+                },
+                in: {
+                  $cond: [
+                    { $gte: [{ $strLenCP: '$$desc' }, 12] },
+                    {
+                      $concat: [
+                        'meta:text:',
+                        '$$page',
+                        ':',
+                        { $substrCP: ['$$desc', 0, 240] },
+                      ],
+                    },
+                    {
+                      $concat: [
+                        'meta:visual:',
+                        '$$page',
+                        ':',
+                        { $toString: '$productId' },
+                        ':',
+                        { $substrCP: [{ $ifNull: ['$thumbnailUrl', ''] }, 0, 120] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $concat: ['tiktok:', '$externalVideoId'] },
+          ],
+        },
+      },
+    },
+    { $group: { _id: '$adDedupeKey', doc: { $first: '$$ROOT' } } },
+    { $replaceRoot: { newRoot: '$doc' } },
+  ];
+}
 
 function pickUrl(...vals: unknown[]): string | undefined {
   for (const v of vals) {
     if (typeof v === 'string' && v.trim()) return v.trim();
   }
   return undefined;
+}
+
+/** Creator profile image on a creative doc (TikTok CDN or Meta shop avatar). */
+export function resolveCreatorAvatarUrl(creative: CreativePlain): string | undefined {
+  const creator = creative.creator as ICreatorProfile | undefined;
+  const ext = String(creative.externalVideoId ?? '');
+  const isMeta = ext.startsWith('meta:');
+  return pickUrl(
+    creator?.avatarUrl,
+    creative.shopAvatarUrl,
+    isMeta ? creative.productPrimaryImageUrl : undefined,
+  );
 }
 
 function resolveProductSalesTrend(raw: unknown): IMetricTrend | null {
@@ -101,14 +215,16 @@ function formatCreator(
   creator: ICreatorProfile | undefined,
   index: number,
   baseUrl?: string,
+  resolvedAvatarUrl?: string,
 ): ICreatorProfile & { avatarProxyUrl?: string } {
   const c = creator ?? ({ handle: '', verified: false, tiktokPostUrl: '' } as ICreatorProfile);
-  const avatarUrl = pickUrl(c.avatarUrl);
+  const avatarUrl = pickUrl(resolvedAvatarUrl, c.avatarUrl);
   const avatarProxyUrl =
     baseUrl && avatarUrl ? `${baseUrl}/thumbnail?index=${index}&kind=avatar` : undefined;
   return {
     ...c,
     isIndependentCreator: Boolean(c.isIndependentCreator),
+    ...(avatarUrl ? { avatarUrl } : {}),
     ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
   };
 }
@@ -160,6 +276,7 @@ export function formatCreativeForApi(
 
   const apiSection = dbSectionToApi(creative.section as string | undefined) ?? 'trending';
   const creator = creative.creator as ICreatorProfile | undefined;
+  const creatorAvatarUrl = resolveCreatorAvatarUrl(creative);
 
   const item: CreativeApiItem = {
     id,
@@ -170,7 +287,7 @@ export function formatCreativeForApi(
     thumbnailUrl: creative.thumbnailUrl as string | undefined,
     videoProxyUrl: baseUrl ? `${baseUrl}/video?index=0` : undefined,
     thumbnailProxyUrl: baseUrl && thumb ? `${baseUrl}/thumbnail?index=0&kind=thumbnail` : undefined,
-    creator: formatCreator(creator, 0, baseUrl),
+    creator: formatCreator(creator, 0, baseUrl, creatorAvatarUrl),
     metrics: formatMetrics(creative.metrics as IVideoMetrics | undefined),
     section: apiSection,
     isIndependentCreator: Boolean(
@@ -254,8 +371,8 @@ export function pickCreativeThumbnailUrl(
   kind: 'thumbnail' | 'avatar',
 ): string | undefined {
   if (index <= 0) {
+    if (kind === 'avatar') return resolveCreatorAvatarUrl(creative);
     const creator = creative.creator as ICreatorProfile | undefined;
-    if (kind === 'avatar') return pickUrl(creator?.avatarUrl);
     return pickUrl(creative.thumbnailUrl, creator?.avatarUrl);
   }
   const related = Array.isArray(creative.relatedVideos)

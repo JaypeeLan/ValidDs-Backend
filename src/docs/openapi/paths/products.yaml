@@ -123,6 +123,30 @@ feed:
         in: query
         description: Only posts on or after this date (ISO `YYYY-MM-DD`, UTC start of day).
         schema: { type: string, format: date, example: '2026-04-29' }
+      - name: minCreatorGmv
+        in: query
+        description: Minimum shop GMV for the product seller (`storeGmv`).
+        schema: { type: number, minimum: 0 }
+      - name: maxCreatorGmv
+        in: query
+        description: Maximum shop GMV (`storeGmv`).
+        schema: { type: number, minimum: 0 }
+      - name: minFollowers
+        in: query
+        description: Minimum `primaryCreator.followers`.
+        schema: { type: integer, minimum: 0 }
+      - name: maxFollowers
+        in: query
+        description: Maximum `primaryCreator.followers`.
+        schema: { type: integer, minimum: 0 }
+      - name: minCreatorLikes
+        in: query
+        description: Minimum `primaryCreator.totalLikes`.
+        schema: { type: integer, minimum: 0 }
+      - name: maxCreatorLikes
+        in: query
+        description: Maximum `primaryCreator.totalLikes`.
+        schema: { type: integer, minimum: 0 }
       - name: minSales7d
         in: query
         description: Filter by salesTrend window at daysAgo=7 (when present on product).

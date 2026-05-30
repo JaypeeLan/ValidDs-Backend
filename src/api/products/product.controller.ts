@@ -26,6 +26,7 @@ import {
 import { resolveEngagementTrend } from '../../utils/product-trend.util';
 import { resolveBuyingSentimentLabel, type SentimentLabel } from '../../utils/sentiment.util';
 import { postRecencyFlags } from '../../utils/product-recency.util';
+import { imageAssetKey } from '../../utils/creative-response.util';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: IAIIntelligence;
@@ -91,6 +92,21 @@ async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, 
 // Removed getProfileCountryCode — market is now determined by attachMarketModels middleware
 // which reads req.user.contentRegion and resolves req.models to the correct per-market collection.
 
+const NON_PRODUCT_IMAGE_RE =
+  /biz_tag=tt_video|sc=feed_cover|\/avt-|feed_cover|\/(?:logo|icon|badge|avatar|placeholder)/i;
+
+function isDisplayableProductImage(url: string): boolean {
+  const u = url.trim();
+  if (!u.startsWith('https://') || NON_PRODUCT_IMAGE_RE.test(u)) return false;
+  const dim = u.match(/(?:jpeg|webp|heic|png):(\d+):(\d+)/i);
+  if (dim) {
+    const w = Number(dim[1]);
+    const h = Number(dim[2]);
+    if (Math.max(w, h) < 280) return false;
+  }
+  return true;
+}
+
 function collectProductImageUrls(product: Record<string, unknown>): string[] {
   const primary =
     typeof product.primaryImageUrl === 'string' ? product.primaryImageUrl.trim() : '';
@@ -102,12 +118,13 @@ function collectProductImageUrls(product: Record<string, unknown>): string[] {
   const seen = new Set<string>();
   const urls: string[] = [];
   for (const url of [primary, ...fromArray]) {
-    if (url && !seen.has(url)) {
-      seen.add(url);
-      urls.push(url);
-    }
+    if (!url || !isDisplayableProductImage(url)) continue;
+    const key = imageAssetKey(url);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    urls.push(url);
   }
-  return urls;
+  return urls.slice(0, 12);
 }
 
 function maxCompetitorScore(suppliers: unknown): number | null {

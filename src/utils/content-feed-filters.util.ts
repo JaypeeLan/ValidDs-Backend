@@ -13,6 +13,13 @@ export interface ContentMetricFilters {
   maxUnits?: number;
   /** Inclusive lower bound on post date (UTC start of day for YYYY-MM-DD). */
   startDate?: Date;
+  /** Creator / shop GMV — creatives: `productTotalGmv`; products: `storeGmv`. */
+  minCreatorGmv?: number;
+  maxCreatorGmv?: number;
+  minFollowers?: number;
+  maxFollowers?: number;
+  minCreatorLikes?: number;
+  maxCreatorLikes?: number;
 }
 
 /** Zod fields — spread into product/creative list query schemas. */
@@ -31,6 +38,12 @@ export const contentMetricFilterZodFields = {
       if (!val) return undefined;
       return val;
     }),
+  minCreatorGmv: z.coerce.number().min(0).optional(),
+  maxCreatorGmv: z.coerce.number().min(0).optional(),
+  minFollowers: z.coerce.number().int().min(0).optional(),
+  maxFollowers: z.coerce.number().int().min(0).optional(),
+  minCreatorLikes: z.coerce.number().int().min(0).optional(),
+  maxCreatorLikes: z.coerce.number().int().min(0).optional(),
 };
 
 export function parseStartDateParam(raw?: string): Date | undefined {
@@ -50,6 +63,12 @@ export function buildContentMetricFilters(raw: {
   minUnits?: number;
   maxUnits?: number;
   startDate?: string;
+  minCreatorGmv?: number;
+  maxCreatorGmv?: number;
+  minFollowers?: number;
+  maxFollowers?: number;
+  minCreatorLikes?: number;
+  maxCreatorLikes?: number;
 }): ContentMetricFilters {
   const start = parseStartDateParam(raw.startDate);
   return {
@@ -60,6 +79,12 @@ export function buildContentMetricFilters(raw: {
     minUnits: raw.minUnits,
     maxUnits: raw.maxUnits,
     startDate: start,
+    minCreatorGmv: raw.minCreatorGmv,
+    maxCreatorGmv: raw.maxCreatorGmv,
+    minFollowers: raw.minFollowers,
+    maxFollowers: raw.maxFollowers,
+    minCreatorLikes: raw.minCreatorLikes,
+    maxCreatorLikes: raw.maxCreatorLikes,
   };
 }
 
@@ -129,13 +154,6 @@ export function applyCreativeMetricFilters(
     query['metrics.likeCount'] = { $gte: filters.minLikes };
   }
 
-  if (filters.minGmv != null || filters.maxGmv != null) {
-    query.productTotalGmv = {
-      ...(filters.minGmv != null ? { $gte: filters.minGmv } : {}),
-      ...(filters.maxGmv != null ? { $lte: filters.maxGmv } : {}),
-    };
-  }
-
   if (filters.minEngagementRate != null) {
     appendAnd(query, {
       $expr: {
@@ -157,6 +175,80 @@ export function applyCreativeMetricFilters(
   if (filters.startDate) {
     query.publishedAt = { $gte: filters.startDate };
   }
+
+  const gmvMin = [filters.minGmv, filters.minCreatorGmv].filter((n): n is number => n != null);
+  const gmvMax = [filters.maxGmv, filters.maxCreatorGmv].filter((n): n is number => n != null);
+  const productGmvMin = gmvMin.length ? Math.max(...gmvMin) : undefined;
+  const productGmvMax = gmvMax.length ? Math.min(...gmvMax) : undefined;
+  if (productGmvMin != null || productGmvMax != null) {
+    query.productTotalGmv = {
+      ...(productGmvMin != null ? { $gte: productGmvMin } : {}),
+      ...(productGmvMax != null ? { $lte: productGmvMax } : {}),
+    };
+  }
+
+  if (filters.minFollowers != null || filters.maxFollowers != null) {
+    query['creator.followers'] = {
+      ...(filters.minFollowers != null ? { $gte: filters.minFollowers } : {}),
+      ...(filters.maxFollowers != null ? { $lte: filters.maxFollowers } : {}),
+    };
+  }
+
+  if (filters.minCreatorLikes != null || filters.maxCreatorLikes != null) {
+    query['creator.totalLikes'] = {
+      ...(filters.minCreatorLikes != null ? { $gte: filters.minCreatorLikes } : {}),
+      ...(filters.maxCreatorLikes != null ? { $lte: filters.maxCreatorLikes } : {}),
+    };
+  }
+}
+
+/** Creator metrics on product documents (`primaryCreator`, `storeGmv`). */
+export function applyProductCreatorMetricFilters(
+  query: Record<string, unknown>,
+  filters: Pick<
+    ContentMetricFilters,
+    | 'minCreatorGmv'
+    | 'maxCreatorGmv'
+    | 'minFollowers'
+    | 'maxFollowers'
+    | 'minCreatorLikes'
+    | 'maxCreatorLikes'
+  >,
+): void {
+  if (filters.minCreatorGmv != null || filters.maxCreatorGmv != null) {
+    query.storeGmv = {
+      ...(filters.minCreatorGmv != null ? { $gte: filters.minCreatorGmv } : {}),
+      ...(filters.maxCreatorGmv != null ? { $lte: filters.maxCreatorGmv } : {}),
+    };
+  }
+  if (filters.minFollowers != null || filters.maxFollowers != null) {
+    query['primaryCreator.followers'] = {
+      ...(filters.minFollowers != null ? { $gte: filters.minFollowers } : {}),
+      ...(filters.maxFollowers != null ? { $lte: filters.maxFollowers } : {}),
+    };
+  }
+  if (filters.minCreatorLikes != null || filters.maxCreatorLikes != null) {
+    query['primaryCreator.totalLikes'] = {
+      ...(filters.minCreatorLikes != null ? { $gte: filters.minCreatorLikes } : {}),
+      ...(filters.maxCreatorLikes != null ? { $lte: filters.maxCreatorLikes } : {}),
+    };
+  }
+}
+
+function addRangeIssue(
+  ctx: z.RefinementCtx,
+  path: string,
+  min?: number,
+  max?: number,
+  label?: string,
+): void {
+  if (min != null && max != null && min > max) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [path],
+      message: `${label ?? path} minimum cannot exceed maximum`,
+    });
+  }
 }
 
 export function validateContentMetricRanges(
@@ -166,23 +258,20 @@ export function validateContentMetricRanges(
     minUnits?: number;
     maxUnits?: number;
     startDate?: string;
+    minCreatorGmv?: number;
+    maxCreatorGmv?: number;
+    minFollowers?: number;
+    maxFollowers?: number;
+    minCreatorLikes?: number;
+    maxCreatorLikes?: number;
   },
   ctx: z.RefinementCtx,
 ): void {
-  if (raw.minGmv != null && raw.maxGmv != null && raw.minGmv > raw.maxGmv) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['minGmv'],
-      message: 'minGmv cannot exceed maxGmv',
-    });
-  }
-  if (raw.minUnits != null && raw.maxUnits != null && raw.minUnits > raw.maxUnits) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['minUnits'],
-      message: 'minUnits cannot exceed maxUnits',
-    });
-  }
+  addRangeIssue(ctx, 'minGmv', raw.minGmv, raw.maxGmv, 'minGmv');
+  addRangeIssue(ctx, 'minUnits', raw.minUnits, raw.maxUnits, 'minUnits');
+  addRangeIssue(ctx, 'minCreatorGmv', raw.minCreatorGmv, raw.maxCreatorGmv, 'minCreatorGmv');
+  addRangeIssue(ctx, 'minFollowers', raw.minFollowers, raw.maxFollowers, 'minFollowers');
+  addRangeIssue(ctx, 'minCreatorLikes', raw.minCreatorLikes, raw.maxCreatorLikes, 'minCreatorLikes');
   if (raw.startDate && !parseStartDateParam(raw.startDate)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

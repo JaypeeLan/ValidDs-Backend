@@ -9,7 +9,10 @@ import {
   recencyTierAddFields,
   usesRecencyPriorityWithGmv,
 } from '../../utils/product-recency.util';
-import { applyProductMetricFilters } from '../../utils/content-feed-filters.util';
+import {
+  applyProductCreatorMetricFilters,
+  applyProductMetricFilters,
+} from '../../utils/content-feed-filters.util';
 
 const log = logger.child({ module: 'product-repository' });
 
@@ -269,6 +272,12 @@ export interface ProductFeedFilters {
   minLikes?: number;
   minEngagementRate?: number;
   startDate?: Date;
+  minCreatorGmv?: number;
+  maxCreatorGmv?: number;
+  minFollowers?: number;
+  maxFollowers?: number;
+  minCreatorLikes?: number;
+  maxCreatorLikes?: number;
 }
 
 const HOT_TREND_DIRECTIONS = ['rising', 'emerging', 'viral'] as const;
@@ -508,6 +517,14 @@ function applyProductFeedFilters(
     minLikes: filters.minLikes,
     minEngagementRate: filters.minEngagementRate,
     startDate: filters.startDate,
+  });
+  applyProductCreatorMetricFilters(query, {
+    minCreatorGmv: filters.minCreatorGmv,
+    maxCreatorGmv: filters.maxCreatorGmv,
+    minFollowers: filters.minFollowers,
+    maxFollowers: filters.maxFollowers,
+    minCreatorLikes: filters.minCreatorLikes,
+    maxCreatorLikes: filters.maxCreatorLikes,
   });
   applyDiscoverySectionRules(query, { section: filters.section, isAd: filters.isAd });
 }

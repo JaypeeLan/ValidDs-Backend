@@ -1,4 +1,9 @@
-import { parseStartDateParam } from '../src/utils/content-feed-filters.util';
+import {
+  applyCreativeMetricFilters,
+  applyProductCreatorMetricFilters,
+  buildContentMetricFilters,
+  parseStartDateParam,
+} from '../src/utils/content-feed-filters.util';
 
 describe('content-feed-filters.util', () => {
   it('parseStartDateParam accepts YYYY-MM-DD', () => {
@@ -8,5 +13,43 @@ describe('content-feed-filters.util', () => {
 
   it('parseStartDateParam rejects invalid', () => {
     expect(parseStartDateParam('not-a-date')).toBeUndefined();
+  });
+
+  it('buildContentMetricFilters includes creator metric fields', () => {
+    const f = buildContentMetricFilters({
+      minCreatorGmv: 1000,
+      maxCreatorGmv: 50000,
+      minFollowers: 10_000,
+      maxFollowers: 1_000_000,
+      minCreatorLikes: 50_000,
+      maxCreatorLikes: 5_000_000,
+    });
+    expect(f.minCreatorGmv).toBe(1000);
+    expect(f.maxFollowers).toBe(1_000_000);
+  });
+
+  it('applyCreativeMetricFilters maps creator fields to Mongo paths', () => {
+    const query: Record<string, unknown> = {};
+    applyCreativeMetricFilters(
+      query,
+      buildContentMetricFilters({
+        minCreatorGmv: 500,
+        minFollowers: 1000,
+        minCreatorLikes: 2000,
+      }),
+    );
+    expect(query.productTotalGmv).toEqual({ $gte: 500 });
+    expect(query['creator.followers']).toEqual({ $gte: 1000 });
+    expect(query['creator.totalLikes']).toEqual({ $gte: 2000 });
+  });
+
+  it('applyProductCreatorMetricFilters uses storeGmv and primaryCreator', () => {
+    const query: Record<string, unknown> = {};
+    applyProductCreatorMetricFilters(query, {
+      minCreatorGmv: 800,
+      maxFollowers: 500_000,
+    });
+    expect(query.storeGmv).toEqual({ $gte: 800 });
+    expect(query['primaryCreator.followers']).toEqual({ $lte: 500_000 });
   });
 });

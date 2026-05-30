@@ -27,6 +27,13 @@ creatives:
       - $ref: '#/components/creativeListParams/categoryL1'
       - $ref: '#/components/creativeListParams/categoryL2'
       - $ref: '#/components/creativeListParams/categoryL3'
+      - $ref: '#/components/creativeListParams/minLikes'
+      - $ref: '#/components/creativeListParams/minGmv'
+      - $ref: '#/components/creativeListParams/maxGmv'
+      - $ref: '#/components/creativeListParams/minEngagementRate'
+      - $ref: '#/components/creativeListParams/minUnits'
+      - $ref: '#/components/creativeListParams/maxUnits'
+      - $ref: '#/components/creativeListParams/startDate'
     responses:
       '200':
         description: Success
@@ -58,6 +65,13 @@ topAdsList:
       - $ref: '#/components/creativeListParams/categoryL1'
       - $ref: '#/components/creativeListParams/categoryL2'
       - $ref: '#/components/creativeListParams/categoryL3'
+      - $ref: '#/components/creativeListParams/minLikes'
+      - $ref: '#/components/creativeListParams/minGmv'
+      - $ref: '#/components/creativeListParams/maxGmv'
+      - $ref: '#/components/creativeListParams/minEngagementRate'
+      - $ref: '#/components/creativeListParams/minUnits'
+      - $ref: '#/components/creativeListParams/maxUnits'
+      - $ref: '#/components/creativeListParams/startDate'
     responses:
       '200':
         description: Success
@@ -415,6 +429,41 @@ components:
       in: query
       schema:
         type: string
+    minLikes:
+      name: minLikes
+      in: query
+      description: Minimum video likes (`metrics.likeCount`).
+      schema: { type: number, minimum: 0, example: 10000 }
+    minGmv:
+      name: minGmv
+      in: query
+      description: Minimum parent product total GMV (`productTotalGmv`).
+      schema: { type: number, minimum: 0, example: 1000 }
+    maxGmv:
+      name: maxGmv
+      in: query
+      description: Maximum parent product total GMV.
+      schema: { type: number, minimum: 0 }
+    minEngagementRate:
+      name: minEngagementRate
+      in: query
+      description: Minimum likes÷views as percent (e.g. `1` = 1%).
+      schema: { type: number, minimum: 0, maximum: 100, example: 1 }
+    minUnits:
+      name: minUnits
+      in: query
+      description: Minimum parent product units sold (`productTotalSales`).
+      schema: { type: number, minimum: 0 }
+    maxUnits:
+      name: maxUnits
+      in: query
+      description: Maximum parent product units sold.
+      schema: { type: number, minimum: 0 }
+    startDate:
+      name: startDate
+      in: query
+      description: Only videos published on or after this date (ISO `YYYY-MM-DD`).
+      schema: { type: string, format: date, example: '2026-04-29' }
 
   schemas:
     CreativeListResponse:

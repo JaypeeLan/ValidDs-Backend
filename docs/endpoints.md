@@ -20,6 +20,11 @@ Returns a paginated list of products (full catalog by page). Supports optional f
 - `trendDirection` *(string, optional)*: Filter by direction. Accepts `rising`, `peaked`, `saturating`, `unknown`.
 - `minTrendScore` *(number, optional)*: Filter items above a given trend momentum score (0-100).
 - `minViews` *(number, optional)*: Filter out products whose primary video has less than this amount of views.
+- `minLikes` *(number, optional)*: Minimum total likes on the source post (`likeCount`), e.g. `10000`.
+- `minGmv` / `maxGmv` *(number, optional)*: Filter by `totalGmv` (aliases: `minTotalGmv`, `maxTotalGmv`).
+- `minUnits` / `maxUnits` *(number, optional)*: Filter by `totalSales` (aliases: `minUnitsSold`, `maxUnitsSold`).
+- `minEngagementRate` *(number, optional)*: Minimum likes÷views ratio as a percent, e.g. `1` = 1%.
+- `startDate` *(string, optional)*: Only posts on or after this ISO date (`YYYY-MM-DD`), e.g. `2026-04-29`.
 - `section` *(string, optional)*: Require a discovery section slug on the product (e.g. `top-ads`, `trending`, `viral`). See OpenAPI enum.
 - `isAd` *(boolean, optional)*: When `true`, same as the `top-ads` discovery bucket (`discoverySections` contains `top-ads`). When `false`, excludes that bucket.
 - `feed` *(string, optional)*: Convenience UI tab selector: `discover` or `top-opportunities`. Only used when `sortBy` is omitted.

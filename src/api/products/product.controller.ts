@@ -25,6 +25,7 @@ import {
 } from '../../utils/product-response.util';
 import { resolveEngagementTrend } from '../../utils/product-trend.util';
 import { resolveBuyingSentimentLabel, type SentimentLabel } from '../../utils/sentiment.util';
+import { postRecencyFlags } from '../../utils/product-recency.util';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: IAIIntelligence;
@@ -131,6 +132,8 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     ? (product.discoverySections as string[])
     : [];
   const imageUrls = collectProductImageUrls(product);
+  const postDate = product.publishedAt ?? product.postCreatedAt;
+  const { isNew3d, isNew7d } = postRecencyFlags(postDate);
 
   const item: ProductFeedItem = {
     id: String(product._id ?? product.id),
@@ -150,6 +153,9 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     shopUrl: product.shopUrl as string | undefined,
     shopAvatarUrl: (product.shopAvatarUrl as string | null | undefined) ?? null,
     lastIngestedAt: product.lastIngestedAt as string | Date,
+    publishedAt: postDate as string | Date | null | undefined,
+    isNew3d,
+    isNew7d,
     isTopAd: discoverySections.includes('top-ads'),
     competitionScore: maxCompetitorScore(product.suppliers),
     aiInsight: {

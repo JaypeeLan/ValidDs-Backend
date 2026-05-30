@@ -111,6 +111,18 @@ feed:
         in: query
         description: Alias of maxTotalGmv (frontend).
         schema: { type: number, minimum: 0 }
+      - name: minLikes
+        in: query
+        description: Minimum total likes on the source TikTok post (`likeCount`).
+        schema: { type: number, minimum: 0, example: 10000 }
+      - name: minEngagementRate
+        in: query
+        description: Minimum likes÷views ratio as a percent (e.g. `1` = 1%).
+        schema: { type: number, minimum: 0, maximum: 100, example: 1 }
+      - name: startDate
+        in: query
+        description: Only posts on or after this date (ISO `YYYY-MM-DD`, UTC start of day).
+        schema: { type: string, format: date, example: '2026-04-29' }
       - name: minSales7d
         in: query
         description: Filter by salesTrend window at daysAgo=7 (when present on product).

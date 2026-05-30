@@ -337,6 +337,9 @@ export interface ProductFeedItem {
   shopUrl?: string;
   shopAvatarUrl?: string | null;
   lastIngestedAt: string | Date;
+  publishedAt?: string | Date | null;
+  isNew3d?: boolean;
+  isNew7d?: boolean;
   isTopAd?: boolean;
   competitionScore?: number | null;
   aiInsight: {

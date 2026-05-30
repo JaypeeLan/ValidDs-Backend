@@ -1,4 +1,5 @@
 import type { ProductFeedFilters } from '../../db/repositories/product.repository';
+import { buildContentMetricFilters } from '../../utils/content-feed-filters.util';
 
 /** Frontend L1 labels → backend `categoryL1` values. */
 export const FRONTEND_CATEGORY_TO_L1: Record<string, string> = {
@@ -92,6 +93,9 @@ export interface RawProductFeedQuery {
   maxSales7d?: number;
   minGmv7d?: number;
   maxGmv7d?: number;
+  minLikes?: number;
+  minEngagementRate?: number;
+  startDate?: string;
 }
 
 /**
@@ -128,6 +132,8 @@ export function buildProductFeedFilters(raw: RawProductFeedQuery): ProductFeedFi
       ? [raw.subcategory]
       : undefined;
 
+  const metrics = buildContentMetricFilters(raw);
+
   return {
     category: mapFrontendCategories(categoryList),
     subcategory: subcategoryList,
@@ -157,6 +163,9 @@ export function buildProductFeedFilters(raw: RawProductFeedQuery): ProductFeedFi
     maxSales7d: raw.maxSales7d,
     minGmv7d: raw.minGmv7d,
     maxGmv7d: raw.maxGmv7d,
+    minLikes: metrics.minLikes,
+    minEngagementRate: metrics.minEngagementRate,
+    startDate: metrics.startDate,
   };
 }
 

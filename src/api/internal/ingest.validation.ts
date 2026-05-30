@@ -9,6 +9,8 @@ const MIN_RELATED_VIDEOS = 0; // optional — angles may ship without related vi
 const MIN_PRODUCT_IMAGES = 3;
 const MAX_REVIEWS = 5;
 const MAX_POST_AGE_DAYS = 90;
+const MIN_SUPPLIERS = 1;
+
 
 function parseDate(value: unknown): Date | null {
   if (!value) return null;
@@ -52,9 +54,11 @@ export function validateProductForIngest(doc: Record<string, unknown>, market: M
   if (typeof desc !== 'string' || desc.trim().length < 50) {
     reasons.push('description too short (< 50 chars)');
   }
-  if (!doc.categoryL1 || !doc.categoryL2 || !doc.categoryL3) {
-    reasons.push('missing category levels');
-  }
+
+    if (!doc.categoryL1 || !doc.categoryL2 || !doc.categoryL3) {
+      reasons.push('missing category levels');
+    }
+
   if (!doc.shopName) reasons.push('missing shopName');
   const shopUrl = doc.shopUrl;
   if (typeof shopUrl !== 'string' || !shopUrl.startsWith('https://')) {
@@ -71,18 +75,22 @@ export function validateProductForIngest(doc: Record<string, unknown>, market: M
   }
 
   const rating = doc.rating;
-  if (typeof rating !== 'number' || rating < 3.5) {
-    reasons.push('rating must be >= 3.5');
-  }
+
+    if (typeof rating !== 'number' || rating < 3.5) {
+      reasons.push('rating must be >= 3.5');
+    }
+  
   const sold = doc.soldCount;
   if (typeof sold !== 'number' || sold < 1) {
     reasons.push('soldCount must be >= 1');
   }
 
   const images = doc.imageUrls;
-  if (!Array.isArray(images) || images.length < MIN_PRODUCT_IMAGES) {
-    reasons.push(`need at least ${MIN_PRODUCT_IMAGES} product images`);
-  }
+
+    if (!Array.isArray(images) || images.length < MIN_PRODUCT_IMAGES) {
+      reasons.push(`need at least ${MIN_PRODUCT_IMAGES} product images`);
+    }
+  
 
   const creator = (doc.primaryCreator ?? {}) as Record<string, unknown>;
   if (!creator.handle) reasons.push('creator.handle missing');
@@ -92,16 +100,20 @@ export function validateProductForIngest(doc: Record<string, unknown>, market: M
   }
 
   const views = doc.viewCount;
-  if (typeof views !== 'number' || views < 1000) {
-    reasons.push('viewCount must be >= 1000');
-  }
+
+    if (typeof views !== 'number' || views < 1000) {
+      reasons.push('viewCount must be >= 1000');
+    }
+  
 
   const reviews = doc.reviews;
-  if (!Array.isArray(reviews) || reviews.length === 0) {
-    reasons.push('need at least one review');
-  } else if (reviews.length > MAX_REVIEWS) {
-    reasons.push(`reviews must be capped at ${MAX_REVIEWS}`);
-  }
+
+    if (!Array.isArray(reviews) || reviews.length === 0) {
+      reasons.push('need at least one review');
+    } else if (reviews.length > MAX_REVIEWS) {
+      reasons.push(`reviews must be capped at ${MAX_REVIEWS}`);
+    }
+  
 
   const ai = (doc.aiIntelligence ?? {}) as Record<string, unknown>;
   const rs = (ai.reviewSummary ?? {}) as Record<string, unknown>;
@@ -113,15 +125,19 @@ export function validateProductForIngest(doc: Record<string, unknown>, market: M
       const text = String(row.content ?? row.review ?? row.text ?? '').trim();
       return text.length >= 8;
     });
-  if (hasReviewText && String(rs.summary ?? '').trim().length < 8) {
-    reasons.push('missing reviewSummary for products with review text');
-  }
 
-  for (const key of ['priceTrend', 'salesTrend', 'revenueTrend'] as const) {
-    if (!hasTrendCurrentWindow(doc[key])) {
-      reasons.push(`${key} missing current-month window (monthsAgo=0)`);
+    if (hasReviewText && String(rs.summary ?? '').trim().length < 8) {
+      reasons.push('missing reviewSummary for products with review text');
     }
-  }
+  
+
+
+    for (const key of ['priceTrend', 'salesTrend', 'revenueTrend'] as const) {
+      if (!hasTrendCurrentWindow(doc[key])) {
+        reasons.push(`${key} missing current-month window (monthsAgo=0)`);
+      }
+    }
+  
 
   const angles = ((ai.marketingAnalysis as Record<string, unknown> | undefined)?.angles ??
     []) as unknown[];
@@ -143,13 +159,17 @@ export function validateProductForIngest(doc: Record<string, unknown>, market: M
   }
 
   const storeGmv = doc.storeGmv;
-  if (typeof storeGmv !== 'number' || storeGmv <= 0) {
-    reasons.push('storeGmv must be > 0');
-  }
+
+    if (typeof storeGmv !== 'number' || storeGmv <= 0) {
+      reasons.push('storeGmv must be > 0');
+    }
+  
   const shopFollowers = doc.shopFollowers;
-  if (typeof shopFollowers !== 'number' || shopFollowers <= 0) {
-    reasons.push('shopFollowers must be > 0');
-  }
+
+    if (typeof shopFollowers !== 'number' || shopFollowers <= 0) {
+      reasons.push('shopFollowers must be > 0');
+    }
+  
   if (!doc.accountHandle) reasons.push('missing accountHandle');
   if (!doc.postCreatedAt) reasons.push('missing postCreatedAt');
 
@@ -159,9 +179,9 @@ export function validateProductForIngest(doc: Record<string, unknown>, market: M
   if (!doc.creativeCounts) reasons.push('missing creativeCounts');
 
   const suppliers = doc.suppliers;
-  if (!Array.isArray(suppliers) || suppliers.length < 4) {
+  if (!Array.isArray(suppliers) || suppliers.length < MIN_SUPPLIERS) {
     const n = Array.isArray(suppliers) ? suppliers.length : 0;
-    reasons.push(`need at least 4 suppliers (Shopify + Google Shopping); got ${n}`);
+    reasons.push(`need at least ${MIN_SUPPLIERS} suppliers (Shopify + Google Shopping); got ${n}`);
   }
 
   return reasons;
@@ -178,8 +198,16 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
 
   const postUrl = String(doc.tiktokPostUrl ?? '');
   if (isMeta) {
-    if (!postUrl.startsWith('https://') || !postUrl.includes('facebook.com/ads/archive')) {
-      reasons.push('tiktokPostUrl must be a Meta ad snapshot URL');
+    const lower = postUrl.toLowerCase();
+    if (!postUrl.startsWith('https://')) {
+      reasons.push('tiktokPostUrl must be https for Meta ads');
+    } else if (lower.includes('access_token=')) {
+      reasons.push('tiktokPostUrl must not contain access_token');
+    } else if (
+      !postUrl.includes('facebook.com/ads/library') &&
+      !postUrl.includes('facebook.com/ads/archive')
+    ) {
+      reasons.push('tiktokPostUrl must be a Meta Ad Library URL');
     }
   } else {
     if (!postUrl.includes('tiktok.com') || !postUrl.includes('/video/')) {
@@ -188,6 +216,9 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
   }
   const embed = String(doc.embedUrl ?? '');
   if (!embed.startsWith('https://')) reasons.push('embedUrl must be https');
+  if (isMeta && embed.toLowerCase().includes('access_token=')) {
+    reasons.push('embedUrl must not contain access_token');
+  }
 
   const thumb = String(doc.thumbnailUrl ?? '');
   if (!thumb.startsWith('https://') || thumb.includes('placehold.co')) {
@@ -210,7 +241,8 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
   }
 
   const creativeAge = postAgeRejection(doc.publishedAt, 'creative');
-  if (creativeAge) reasons.push(creativeAge);
+  // Meta Ad Library rows may reflect long-running campaigns; delivery filter is upstream.
+  if (creativeAge && !isMeta) reasons.push(creativeAge);
 
   const related = doc.relatedVideos;
   if (

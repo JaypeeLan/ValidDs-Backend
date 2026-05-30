@@ -36,11 +36,6 @@ export const CREATIVE_TRENDING_MATCH = { section: 'top-ads' as const };
 export const CREATIVE_TOP_ADS_MATCH = { section: 'trending' as const };
 export const CREATIVE_COMMERCIAL_MATCH = CREATIVE_TRENDING_MATCH;
 
-/** Facebook/Instagram Ad Library rows — excluded from product related ads/videos. */
-export const EXCLUDE_META_CREATIVES_MATCH = {
-  externalVideoId: { $not: /^meta:/ },
-} as const;
-
 type CreativePlain = Record<string, unknown>;
 
 function pickUrl(...vals: unknown[]): string | undefined {

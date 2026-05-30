@@ -19,7 +19,7 @@ function parsePublishedAt(value: unknown): Date | null {
 
 function mapReviews(reviews: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(reviews)) return [];
-  return reviews.slice(0, 5).map((r) => {
+  return reviews.slice(0, 10).map((r) => {
     if (!r || typeof r !== 'object') return { author: null, rating: null, content: null, date: null, item: null, images: [] };
     const row = r as Record<string, unknown>;
     const text = String(row.content ?? row.review ?? row.text ?? '').trim();

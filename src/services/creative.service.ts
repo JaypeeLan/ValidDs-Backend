@@ -8,7 +8,6 @@ import {
   CREATIVE_COMMERCIAL_MATCH,
   CREATIVE_TOP_ADS_MATCH,
   CREATIVE_TRENDING_MATCH,
-  EXCLUDE_META_CREATIVES_MATCH,
   formatCreativeFeedItem,
   formatCreativeForApi,
 } from '../utils/creative-response.util';
@@ -27,7 +26,6 @@ export {
   CREATIVE_COMMERCIAL_MATCH,
   CREATIVE_TOP_ADS_MATCH,
   CREATIVE_TRENDING_MATCH,
-  EXCLUDE_META_CREATIVES_MATCH,
 } from '../utils/creative-response.util';
 
 const log = logger.child({ module: 'creative-service' });
@@ -36,7 +34,7 @@ function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const PRODUCT_CREATIVE_LIMIT = 80;
+const PRODUCT_CREATIVE_LIMIT = 100;
 
 async function loadCreativesForProduct(
   productId: string,
@@ -53,7 +51,6 @@ async function loadCreativesForProduct(
       {
         $match: {
           productId: new mongoose.Types.ObjectId(productId),
-          ...EXCLUDE_META_CREATIVES_MATCH,
           ...extraFilter,
         },
       },
@@ -177,7 +174,6 @@ export const CreativeService = {
     if (extraMatch && Object.keys(extraMatch).length > 0) {
       Object.assign(query, extraMatch);
     }
-    Object.assign(query, EXCLUDE_META_CREATIVES_MATCH);
 
     const metricFilters = (_metricFilters as ContentMetricFilters | undefined) ?? {};
     applyCreativeMetricFilters(query, metricFilters);

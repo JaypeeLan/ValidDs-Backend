@@ -7,7 +7,7 @@ import { SUPPORTED_MARKETS, type MarketCode } from '../../utils/markets';
 
 const MIN_RELATED_VIDEOS = 0; // optional — angles may ship without related video slots
 const MIN_PRODUCT_IMAGES = 3;
-const MAX_REVIEWS = 5;
+const MAX_REVIEWS = 10;
 const MAX_POST_AGE_DAYS = 90;
 const MIN_SUPPLIERS = 1;
 

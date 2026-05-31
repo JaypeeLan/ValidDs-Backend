@@ -52,6 +52,9 @@ export async function connectMongo(): Promise<void> {
 
   } catch (err) {
     log.fatal('MongoDB connection failed', err);
+    if (process.env.NODE_ENV === 'test') {
+      throw err;
+    }
     process.exit(1);
   }
 }

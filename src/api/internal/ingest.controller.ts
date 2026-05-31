@@ -4,7 +4,7 @@ import { getMarketModels } from '../../models/market-models.factory';
 import { normalizeProductTitle } from '../../db/repositories/product.repository';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 import { toMarketCode, isValidMarket } from '../../utils/markets';
-import { validateCreativeForIngest, validateProductForIngest } from './ingest.validation';
+import { MAX_REVIEWS_INGEST, validateCreativeForIngest, validateProductForIngest } from './ingest.validation';
 import { normalizeCreativePayload, normalizeProductPayload } from './ingest.normalize';
 import { logger } from '../../logger';
 
@@ -19,7 +19,7 @@ function parsePublishedAt(value: unknown): Date | null {
 
 function mapReviews(reviews: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(reviews)) return [];
-  return reviews.slice(0, 10).map((r) => {
+  return reviews.slice(0, MAX_REVIEWS_INGEST).map((r) => {
     if (!r || typeof r !== 'object') return { author: null, rating: null, content: null, date: null, item: null, images: [] };
     const row = r as Record<string, unknown>;
     const text = String(row.content ?? row.review ?? row.text ?? '').trim();
@@ -79,14 +79,14 @@ export async function ingestProduct(req: Request, res: Response, next: NextFunct
       return;
     }
 
-    const reasons = validateProductForIngest(product, market);
+    const prepared = prepareProductDoc(product, market);
+    const reasons = validateProductForIngest(prepared, market);
     if (reasons.length > 0) {
       res.status(422).json({ reasons });
       return;
     }
 
     const { Product } = getMarketModels(market);
-    const prepared = prepareProductDoc(product, market);
     const externalId = String(prepared.externalId ?? '');
     const source = String(prepared.source ?? 'scrapecreators-shop');
 

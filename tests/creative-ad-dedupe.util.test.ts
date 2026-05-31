@@ -1,4 +1,4 @@
-import { creativeAdDedupeKey } from '../src/utils/creative-response.util.js';
+import { creativeAdDedupeKey } from '../src/utils/creative-response.util';
 
 describe('creativeAdDedupeKey', () => {
   it('collapses Meta ads with same copy on same page', () => {

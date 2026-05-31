@@ -25,8 +25,7 @@ export type PrimaryCreatorStorageInput = Partial<IPrimaryCreator> &
 export function normalizePrimaryCreatorForStorage(
   creator: PrimaryCreatorStorageInput,
 ): IPrimaryCreator {
-  const primaryImageUrl =
-    pickUrl(creator.primaryImageUrl, creator.avatarUrl) ?? null;
+  const primaryImageUrl = pickUrl(creator.primaryImageUrl, creator.avatarUrl) ?? '';
   return {
     tiktokUserId: creator.tiktokUserId ?? '',
     handle: creator.handle,

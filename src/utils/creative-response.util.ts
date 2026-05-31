@@ -1,5 +1,6 @@
 import type {
   CreativeApiItem,
+  CreativeCreatorFeedItem,
   CreativeFeedItem,
   CreativeSection,
   ICreativeComment,
@@ -349,6 +350,13 @@ export function formatCreativeFeedItem(input: unknown): CreativeFeedItem {
   const { productDescription: _pd, relatedVideos: _rv, ...feed } = full;
   // List endpoints return one card per creative doc; nested slots are detail-only.
   return { ...feed, relatedVideos: [] };
+}
+
+export function formatCreativeCreatorFeedItem(
+  input: unknown,
+  videoCount: number,
+): CreativeCreatorFeedItem {
+  return { ...formatCreativeFeedItem(input), videoCount: Math.max(0, videoCount) };
 }
 
 /** CDN URL for video proxy — not the embed URL. */

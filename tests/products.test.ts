@@ -1,6 +1,8 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { Server } from 'http';
 import http from 'http';
+import { minimalTestProduct } from './helpers/minimal-product.fixture';
+import { getSeededTestMarketModels } from './helpers/market-test-models';
 
 function httpJson(opts: {
   baseUrl: string;
@@ -44,27 +46,8 @@ describe('Products Endpoints', () => {
   let testToken: string;
 
   beforeAll(async () => {
-    process.env.NODE_ENV = 'development';
-    process.env.PORT = '0';
-    process.env.APP_NAME = 'validds-backend-test';
-    process.env.API_VERSION = 'v1';
-    process.env.INTERNAL_API_KEY = 'k'.repeat(32);
-    process.env.JWT_SECRET = 'x'.repeat(32);
-    process.env.JWT_EXPIRES_IN = '7d';
-    process.env.ENCRYPTION_KEY = 'a'.repeat(64);
-    process.env.CORS_ALLOWED_ORIGINS = 'http://localhost:3001';
-    process.env.MONGODB_DB_NAME = 'validds_test';
-    process.env.REDIS_URL = '';
-    process.env.SENTRY_DSN = '';
-    process.env.SENTRY_ENVIRONMENT = 'development';
-    process.env.SENTRY_TRACES_SAMPLE_RATE = '0';
+    process.env.NODE_ENV = 'test';
     process.env.LOG_LEVEL = 'error';
-    process.env.LOG_PRETTY = 'false';
-    process.env.RESEND_API_KEY = 're_test';
-    process.env.RESEND_FROM = 'ValidDs <noreply@validds.test>';
-    process.env.GOOGLE_CLIENT_ID = 'google-client-id';
-    process.env.TIKTOK_CLIENT_KEY = 'tiktok-client-key';
-    process.env.TIKTOK_CLIENT_SECRET = 'tiktok-client-secret';
 
     mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
     process.env.MONGODB_URI = mongo.getUri();
@@ -94,6 +77,7 @@ describe('Products Endpoints', () => {
       authProvider: 'local',
       status: 'active',
       plan: 'pro',
+      contentRegion: 'US',
     });
 
     const { signJWT } = await import('../src/security/jwt');
@@ -135,84 +119,81 @@ describe('Products Endpoints', () => {
   });
 
   it('GET /api/v1/products should return correctly formatted products and strip AI internals', async () => {
-    const { Product } = await import('../src/models/product.model');
-    await Product.create({
-      // Identity
-      externalId: 'vid_primary_1',
-      source: 'tiktok',
-      status: 'active',
-
-      // Content
-      title: 'Clip Hair Curler',
-      normalizedTitle: 'clip hair curler',
-      description: 'Sample product',
-      hashtags: ['beautyfinds'],
-
-      // Taxonomy
-      categoryL1: 'Beauty & Personal Care',
-      categoryL2: 'Hair Care',
-      categoryL3: 'Hair Styling Tools',
-      categoryPath: 'Beauty & Personal Care / Hair Care / Hair Styling Tools',
-
-      // Media
-      primaryImageUrl: 'https://example.com/image.jpg',
-      imageUrls: ['https://example.com/image.jpg'],
-
-      // Pricing
-      price: 24.99,
-      currency: 'USD',
-      suppliers: [],
-
-      // Market Evidence
-      ratingSources: [],
-      topComments: [],
-
-      // Engagement
-      viewCount: 120000,
-      likeCount: 12000,
-      commentCount: 900,
-      shareCount: 600,
-      engagementRate: 11.25,
-
-      // Creator
-      primaryCreator: {
-        handle: 'creator1',
-        displayName: 'Creator One',
-        followers: 500000,
-        region: 'US',
-        verified: true,
-        avatarUrl: 'https://example.com/creator1.jpg',
-        primaryImageUrl: 'https://example.com/creator1.jpg',
-        tiktokPostUrl: 'https://www.tiktok.com/@creator1/video/vid_primary_1',
-      },
-
-      // AI
-      aiIntelligence: {
-        confidence: 90,
-        confidenceReason: 'High confidence from clear product framing',
-        buyingSentimentScore: 88,
-        buyingSentimentReason: 'Comments ask where to buy',
-        extractedAt: new Date()
-      },
-
-      // Trend
-      trend: {
-        score: 84,
-        direction: 'rising',
-        reason: 'Strong cross-creator velocity',
-        isTrending: true,
-        calculatedAt: new Date()
-      },
-
-      // Counts
-      discoverySections: ['trending'],
-      relatedProducts: [],
-      creativeCounts: { ads: 0, organic: 2, reviews: 0, total: 2 },
-
-      // Freshness
-      dataSourceUpdatedAt: new Date(),
-      lastIngestedAt: new Date()
-    });
+    const { Product } = await getSeededTestMarketModels();
+    await Product.create(
+      minimalTestProduct({
+        externalId: 'vid_primary_1',
+        source: 'tiktok',
+        status: 'active',
+        title: 'Clip Hair Curler',
+        normalizedTitle: 'clip hair curler',
+        description: 'Sample product',
+        hashtags: ['beautyfinds'],
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Hair Care',
+        categoryL3: 'Hair Styling Tools',
+        categoryPath: 'Beauty & Personal Care / Hair Care / Hair Styling Tools',
+        primaryImageUrl: 'https://example.com/image.jpg',
+        imageUrls: ['https://example.com/image.jpg'],
+        price: 24.99,
+        viewCount: 120000,
+        likeCount: 12000,
+        commentCount: 900,
+        shareCount: 600,
+        engagementRate: 11.25,
+        primaryCreator: {
+          handle: 'creator1',
+          displayName: 'Creator One',
+          followers: 500000,
+          region: 'US',
+          verified: true,
+          avatarUrl: 'https://example.com/creator1.jpg',
+          primaryImageUrl: 'https://example.com/creator1.jpg',
+          tiktokPostUrl: 'https://www.tiktok.com/@creator1/video/vid_primary_1',
+        },
+        discoverySections: ['trending'],
+        trends: {
+          engagement: {
+            score: 5,
+            direction: 'rising',
+            reason: 'Strong cross-creator velocity',
+            isTrending: true,
+            calculatedAt: new Date(),
+          },
+          priceHistory: [],
+        },
+        creativeCounts: { ads: 0, organic: 2, reviews: 0, total: 2 },
+        aiIntelligence: {
+          confidence: 90,
+          confidenceReason: 'High confidence from clear product framing',
+          buyingSentimentScore: 88,
+          buyingSentimentReason: 'Comments ask where to buy',
+          brand: 'Test Brand',
+          extractedAt: new Date(),
+          niche: 'beauty',
+          productType: 'evergreen',
+          priceBand: 'mid-range',
+          audience: ['shoppers'],
+          categoryKeywords: [],
+          problemStatement: 'Test',
+          valueStatement: 'Test',
+          reviewSummary: { summary: 'Good', generatedAt: new Date() },
+          marketingAnalysis: {
+            primaryGender: 'unisex',
+            topAgeGroups: ['18-24'],
+            topRegions: ['US'],
+            accessibilityTags: [],
+            lifestyleSegments: [],
+            incomeLevel: 'mid-range',
+            purchaseIntent: 'considered',
+            contentFormat: 'review',
+            marketingInsight: 'Test',
+            angles: [],
+            analyzedAt: new Date(),
+          },
+        },
+      }),
+    );
 
     const res = await httpJson({
       baseUrl,
@@ -243,10 +224,10 @@ describe('Products Endpoints', () => {
     const res = await httpJson({
       baseUrl,
       method: 'GET',
-      path: '/api/v1/products/invalid_id',
+      path: '/api/v1/products/507f1f77bcf86cd799439011',
       token: testToken,
     });
-    // Expected to correctly handle and return 404 for invalid/missing items
+    // Valid ObjectId format but no matching product
     expect(res.status).toBe(404);
   });
 });

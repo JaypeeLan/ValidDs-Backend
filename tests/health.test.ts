@@ -1,19 +1,6 @@
+import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { Server } from 'http';
 import http from 'http';
-
-/**
- * Mock DB and Redis clients BEFORE importing the app.
- * Using jest.mock at the top level ensures all app modules get the mocked versions.
- */
-jest.mock('../src/db/client', () => ({
-  ...jest.requireActual('../src/db/client'),
-  getMongoStatus: () => 'connected',
-}));
-
-jest.mock('../src/cache/redis.client', () => ({
-  ...jest.requireActual('../src/cache/redis.client'),
-  getRedisStatus: () => 'ready',
-}));
 
 function httpJson(opts: {
   baseUrl: string;
@@ -45,23 +32,23 @@ function httpJson(opts: {
 
 describe('Health Endpoints', () => {
   jest.setTimeout(60000);
+  let mongo: MongoMemoryServer;
   let server: Server;
   let baseUrl: string;
+  let disconnectMongoFn: (() => Promise<void>) | null = null;
 
   beforeAll(async () => {
-    // Provide mandatory environment variables for validation
-    process.env.NODE_ENV = 'development';
-    process.env.PORT = '0';
-    process.env.APP_NAME = 'validds-backend-test';
-    process.env.API_VERSION = 'v1';
-    process.env.INTERNAL_API_KEY = 'k'.repeat(32);
-    process.env.JWT_SECRET = 'x'.repeat(32);
-    process.env.JWT_EXPIRES_IN = '7d';
-    process.env.ENCRYPTION_KEY = 'a'.repeat(64);
-    process.env.CORS_ALLOWED_ORIGINS = 'http://localhost:3001';
-    process.env.MONGODB_DB_NAME = 'validds_test';
-    process.env.MONGODB_URI = 'mongodb://localhost:27017/test';
-    process.env.REDIS_URL = 'redis://localhost:6379'; // Dummy URL for validation
+    mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
+    process.env.MONGODB_URI = mongo.getUri();
+
+    jest.resetModules();
+    const db = await import('../src/db/client');
+    await db.connectMongo();
+    disconnectMongoFn = db.disconnectMongo;
+
+    const redis = await import('../src/cache/redis.client');
+    jest.spyOn(redis, 'getRedisStatus').mockReturnValue('ready');
+
     const { createApp } = await import('../src/app');
     const app = await createApp();
     server = app.listen(0);
@@ -79,6 +66,8 @@ describe('Health Endpoints', () => {
     if (server) {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+    if (disconnectMongoFn) await disconnectMongoFn();
+    if (mongo) await mongo.stop();
   });
 
   it('GET /health should return 200 OK', async () => {

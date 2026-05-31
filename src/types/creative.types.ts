@@ -191,3 +191,8 @@ export interface CreativeApiItem {
 
 /** List cards — omits long `productDescription`. */
 export type CreativeFeedItem = Omit<CreativeApiItem, 'productDescription'>;
+
+/** `GET /creatives?groupBy=creator` — one row per creator handle with total video count. */
+export interface CreativeCreatorFeedItem extends CreativeFeedItem {
+  videoCount: number;
+}

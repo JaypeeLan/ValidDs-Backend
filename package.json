@@ -33,9 +33,9 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "swc src -d dist --strip-leading-paths && rm -rf dist/docs/openapi && mkdir -p dist/docs && cp -R src/docs/openapi dist/docs/openapi && node scripts/validate-openapi.js",
-    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "typecheck": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.build.json --noEmit",
     "start": "node dist/server.js",
-    "test": "jest --runInBand",
+    "test": "NODE_OPTIONS='--max-old-space-size=8192' jest --runInBand --forceExit",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",

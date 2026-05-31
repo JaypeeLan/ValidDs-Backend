@@ -1,5 +1,6 @@
 /** Normalize scraper payloads to satisfy strict Mongoose schemas on ingest. */
 
+import { creativeAdDedupeKey } from '../../utils/creative-response.util';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 
 const SUPPLIER_VISITS_MIN = 12_000;
@@ -23,10 +24,7 @@ function supplierTrafficSeed(row: Record<string, unknown>): string {
   return 'supplier';
 }
 
-export function ensureSupplierMonthlyTraffic(
-  raw: unknown,
-  seed: string = 'supplier',
-): number {
+export function ensureSupplierMonthlyTraffic(raw: unknown, seed: string = 'supplier'): number {
   return ensureMonthlyTraffic(raw, seed);
 }
 
@@ -63,8 +61,7 @@ function trendHasCurrentWindow(windows: unknown[]): boolean {
 }
 
 function normalizeMetricTrend(trend: unknown, defaultValue = 0): Record<string, unknown> {
-  const t =
-    trend && typeof trend === 'object' ? { ...(trend as Record<string, unknown>) } : {};
+  const t = trend && typeof trend === 'object' ? { ...(trend as Record<string, unknown>) } : {};
   if (!t.direction) t.direction = 'stable';
   if (t.changePercent == null) t.changePercent = 0;
   const windows = Array.isArray(t.windows) ? [...t.windows] : [];
@@ -100,8 +97,7 @@ function normalizeSuppliers(suppliers: unknown): unknown[] {
 }
 
 function normalizeAiIntelligence(ai: unknown): Record<string, unknown> {
-  const base =
-    ai && typeof ai === 'object' ? { ...(ai as Record<string, unknown>) } : {};
+  const base = ai && typeof ai === 'object' ? { ...(ai as Record<string, unknown>) } : {};
   if (!base.buyingSentimentReason) base.buyingSentimentReason = '';
   if (base.buyingSentimentScore == null) base.buyingSentimentScore = 0;
   if (!base.extractedAt) base.extractedAt = new Date();
@@ -142,8 +138,7 @@ function normalizeAiIntelligence(ai: unknown): Record<string, unknown> {
 }
 
 function normalizeTrends(trends: unknown): Record<string, unknown> {
-  const t =
-    trends && typeof trends === 'object' ? { ...(trends as Record<string, unknown>) } : {};
+  const t = trends && typeof trends === 'object' ? { ...(trends as Record<string, unknown>) } : {};
   const eng =
     t.engagement && typeof t.engagement === 'object'
       ? { ...(t.engagement as Record<string, unknown>) }
@@ -171,8 +166,7 @@ function normalizeProductTrend(pt: unknown): Record<string, unknown> {
 }
 
 function normalizeCreativeCounts(cc: unknown): Record<string, number> {
-  const base =
-    cc && typeof cc === 'object' ? (cc as Record<string, unknown>) : {};
+  const base = cc && typeof cc === 'object' ? (cc as Record<string, unknown>) : {};
   const ads = numOrZero(base.ads);
   const organic = numOrZero(base.organic);
   const reviews = numOrZero(base.reviews);
@@ -308,5 +302,6 @@ export function normalizeCreativePayload(raw: Record<string, unknown>): Record<s
   }
   out.creator = creator;
   out.relatedVideos = normalizeRelatedVideos(out.relatedVideos);
+  out.adDedupeKey = creativeAdDedupeKey(out);
   return out;
 }

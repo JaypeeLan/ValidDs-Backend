@@ -15,6 +15,26 @@ describe('creativeAdDedupeKey', () => {
     expect(a).toBe(b);
   });
 
+  it('collapses Meta ads that reuse the product hero even when copy differs', () => {
+    const thumb = 'https://p16-oec.example.com/tos/abc/490f42dc4905478abbfb2ed0de864999~tplv.jpeg';
+    const base = {
+      externalVideoId: 'meta:111',
+      metaPageId: 'page1',
+      productId: 'prod1',
+      description: 'Shop our setting spray today — limited time offer',
+      thumbnailUrl: thumb,
+      productPrimaryImageUrl: thumb,
+      creator: { handle: 'brand' },
+    };
+    const a = creativeAdDedupeKey(base);
+    const b = creativeAdDedupeKey({
+      ...base,
+      externalVideoId: 'meta:222',
+      description: 'Get flawless skin with our viral setting spray now',
+    });
+    expect(a).toBe(b);
+  });
+
   it('collapses Meta look-alike cards (same page, product, hero image, no copy)', () => {
     const thumb = 'https://p16-oec.example.com/tos/abc/490f42dc4905478abbfb2ed0de864999~tplv.jpeg';
     const base = {

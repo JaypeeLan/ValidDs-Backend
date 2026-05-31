@@ -3,6 +3,15 @@ import type { Config } from 'jest';
 const config: Config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  transform: {
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        isolatedModules: true,
+        diagnostics: false,
+      },
+    ],
+  },
   rootDir: '.',
   testMatch: ['<rootDir>/tests/**/*.test.ts'],
   moduleNameMapper: {
@@ -37,6 +46,7 @@ const config: Config = {
     },
   },
   coverageReporters: ['text', 'lcov', 'html'],
+  setupFiles: ['<rootDir>/tests/jest.env-setup.ts'],
   setupFilesAfterEnv: [],
   testTimeout: 30000,
   verbose: true,

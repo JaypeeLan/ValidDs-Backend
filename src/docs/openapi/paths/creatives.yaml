@@ -24,6 +24,7 @@ creatives:
       - $ref: '#/components/creativeListParams/minViews'
       - $ref: '#/components/creativeListParams/hashtags'
       - $ref: '#/components/creativeListParams/sortBy'
+      - $ref: '#/components/creativeListParams/groupBy'
       - $ref: '#/components/creativeListParams/categoryL1'
       - $ref: '#/components/creativeListParams/categoryL2'
       - $ref: '#/components/creativeListParams/categoryL3'
@@ -68,6 +69,7 @@ topAdsList:
       - $ref: '#/components/creativeListParams/minViews'
       - $ref: '#/components/creativeListParams/hashtags'
       - $ref: '#/components/creativeListParams/sortBy'
+      - $ref: '#/components/creativeListParams/groupBy'
       - $ref: '#/components/creativeListParams/categoryL1'
       - $ref: '#/components/creativeListParams/categoryL2'
       - $ref: '#/components/creativeListParams/categoryL3'
@@ -426,6 +428,16 @@ components:
         type: string
         enum: [views, likes, recent, engagement]
         default: views
+    groupBy:
+      name: groupBy
+      in: query
+      description: |
+        Collapse results to one row per creator. `creator` groups by `creator.handle`;
+        pagination `total` / `pages` count unique creators. Each item includes `videoCount`.
+        Response includes `groupBy: "creator"`.
+      schema:
+        type: string
+        enum: [creator]
     categoryL1:
       name: categoryL1
       in: query

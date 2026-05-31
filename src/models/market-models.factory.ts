@@ -37,6 +37,22 @@ export interface MarketModels {
 
 const _cache = new Map<MarketCode, MarketModels>();
 
+/** Drop cached market models (integration tests after `jest.resetModules()` / disconnect). */
+export function clearMarketModelsCache(): void {
+  for (const market of _cache.keys()) {
+    for (const name of [
+      `Product_${market}`,
+      `Creative_${market}`,
+      `LiveSession_${market}`,
+    ]) {
+      if (mongoose.models[name]) {
+        delete mongoose.models[name];
+      }
+    }
+  }
+  _cache.clear();
+}
+
 // ── Internal helper ───────────────────────────────────────────────────────────
 
 function getOrCreate<TDoc, TModel extends Model<TDoc>>(

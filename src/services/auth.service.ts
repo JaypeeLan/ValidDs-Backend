@@ -359,7 +359,7 @@ export const AuthService = {
 
   async startEmailRegistration(email: string): Promise<{ isNewUser: boolean }> {
     const normalizedEmail = email.toLowerCase();
-    let user = await User.findByEmail(normalizedEmail);
+    let user = await User.findOne({ email: normalizedEmail, status: 'active' }).select('+localAuth');
     let isNewUser = false;
 
     if (user) {

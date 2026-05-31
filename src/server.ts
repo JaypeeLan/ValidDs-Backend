@@ -127,7 +127,20 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 
+/** ts-node-dev can throw EPIPE when the parent restarts mid hot-reload (harmless). */
+function isBenignDevReloadError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code !== 'EPIPE') return false;
+  const stack = (err as Error).stack ?? '';
+  return env.NODE_ENV === 'development' && stack.includes('ts-node-dev');
+}
+
 process.on('uncaughtException', (err) => {
+  if (isBenignDevReloadError(err)) {
+    log.debug('Ignored ts-node-dev reload IPC error (EPIPE)');
+    return;
+  }
   log.fatal('Uncaught exception', err);
   process.exit(1);
 });

@@ -17,6 +17,7 @@ const CreativeListQueryBaseSchema = z.object({
   minViews:  z.coerce.number().min(0).optional(),
   hashtags:  z.union([z.string(), z.array(z.string())]).optional(),
   sortBy:    z.enum(['views', 'likes', 'recent', 'engagement']).default('views'),
+  groupBy:   z.enum(['creator']).optional(),
   categoryL1: z.string().optional(),
   categoryL2: z.string().optional(),
   categoryL3: z.string().optional(),

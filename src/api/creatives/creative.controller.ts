@@ -65,7 +65,8 @@ export const CreativeController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as CreativeListQuery;
-      const listMatch = query.section ? undefined : CREATIVE_TRENDING_MATCH;
+      const listMatch =
+        query.section || query.productId ? undefined : CREATIVE_TRENDING_MATCH;
       const result = await CreativeService.findCreatives(query, listMatch, req.models?.Creative);
 
       res.json(

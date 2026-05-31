@@ -1,5 +1,5 @@
 import { Creative, type ICreativeDocument } from '../models/creative.model';
-import type { CreativeFeedItem, ISecondaryVideoApi } from '../types/creative.types';
+import type { CreativeCreatorFeedItem, CreativeFeedItem, ISecondaryVideoApi } from '../types/creative.types';
 import type { Model } from 'mongoose';
 import { logger } from '../logger';
 import mongoose, { type PipelineStage } from 'mongoose';
@@ -9,6 +9,7 @@ import {
   CREATIVE_TOP_ADS_MATCH,
   CREATIVE_TRENDING_MATCH,
   formatCreativeFeedItem,
+  formatCreativeCreatorFeedItem,
   formatCreativeForApi,
   creativeAdDedupeAggregationStages,
 } from '../utils/creative-response.util';
@@ -57,10 +58,10 @@ async function loadCreativesForProduct(
       },
       { $addFields: recencyTierAddFields() },
       { $sort: videoSort },
-      ...(creativeAdDedupeAggregationStages() as PipelineStage[]),
+      ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
       { $sort: videoSort },
       { $limit: mLimit },
-      { $project: { productDescription: 0, _recencyTier: 0, _postDate: 0 } },
+      { $unset: ['productDescription', '_recencyTier', '_postDate'] },
     ])
     .option({ maxTimeMS: 15_000 })
     .exec()) as Record<string, unknown>[];
@@ -128,7 +129,11 @@ export const CreativeService = {
     filters: Record<string, unknown>,
     extraMatch?: Record<string, unknown>,
     creativeModel: Model<ICreativeDocument> = Creative,
-  ) {
+  ): Promise<{
+    data: CreativeFeedItem[] | CreativeCreatorFeedItem[];
+    pagination: { total: number; page: number; limit: number; pages: number };
+    groupBy?: 'creator';
+  }> {
     const {
       q,
       productId,
@@ -140,13 +145,18 @@ export const CreativeService = {
       page = 1,
       limit = 20,
       sortBy = 'views',
+      groupBy,
       categoryL1,
       categoryL2,
       categoryL3,
       _metricFilters,
     } = filters;
     const query: Record<string, unknown> = {};
-    if (productId) query.productId = productId;
+    if (productId) {
+      query.productId = mongoose.isValidObjectId(productId)
+        ? new mongoose.Types.ObjectId(productId)
+        : productId;
+    }
     if (source === 'meta') query.externalVideoId = /^meta:/;
     if (source === 'tiktok') query.externalVideoId = { $not: /^meta:/ };
     if (section) query.section = apiSectionToDb(String(section));
@@ -188,20 +198,55 @@ export const CreativeService = {
             sortKey === 'likes' ? 'likes' : sortKey === 'engagement' ? 'engagement' : 'views',
           );
 
-    const pipeline: PipelineStage[] = [
+    const baseStages: PipelineStage[] = [
       { $match: query },
       ...(sortKey === 'recent' ? [] : [{ $addFields: recencyTierAddFields() }]),
       { $sort: sort },
-      ...(creativeAdDedupeAggregationStages() as PipelineStage[]),
-      { $project: { productDescription: 0, _recencyTier: 0, _postDate: 0, adDedupeKey: 0 } },
+      ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
+      { $unset: ['productDescription', '_recencyTier', '_postDate', 'adDedupeKey'] },
       { $sort: sort },
-      {
-        $facet: {
-          data: [{ $skip: skip }, { $limit: mLimit }],
-          total: [{ $count: 'count' }],
-        },
-      },
     ];
+
+    const groupByCreator = groupBy === 'creator';
+    const pipeline: PipelineStage[] = groupByCreator
+      ? [
+          ...baseStages,
+          {
+            $match: {
+              'creator.handle': { $type: 'string', $regex: /\S/ },
+            },
+          },
+          {
+            $group: {
+              _id: { $toLower: { $trim: { input: '$creator.handle' } } },
+              creative: { $first: '$$ROOT' },
+              videoCount: { $sum: 1 },
+            },
+          },
+          {
+            $replaceRoot: {
+              newRoot: {
+                $mergeObjects: ['$creative', { videoCount: '$videoCount' }],
+              },
+            },
+          },
+          { $sort: sort },
+          {
+            $facet: {
+              data: [{ $skip: skip }, { $limit: mLimit }],
+              total: [{ $count: 'count' }],
+            },
+          },
+        ]
+      : [
+          ...baseStages,
+          {
+            $facet: {
+              data: [{ $skip: skip }, { $limit: mLimit }],
+              total: [{ $count: 'count' }],
+            },
+          },
+        ];
 
     const [result] = (await creativeModel.aggregate(pipeline).exec()) as [
       {
@@ -212,15 +257,24 @@ export const CreativeService = {
 
     const rawData = result?.data ?? [];
     const total = result?.total[0]?.count ?? 0;
-    const data = rawData.map((doc) => formatCreativeFeedItem(doc));
+    const data = groupByCreator
+      ? rawData.map((doc) => {
+          const { videoCount, ...creative } = doc;
+          return formatCreativeCreatorFeedItem(
+            creative,
+            typeof videoCount === 'number' ? videoCount : Number(videoCount) || 0,
+          );
+        })
+      : rawData.map((doc) => formatCreativeFeedItem(doc));
     return {
       data,
       pagination: {
         total,
         page: Number(page),
         limit: mLimit,
-        pages: Math.ceil(total / mLimit),
+        pages: Math.ceil(total / mLimit) || 0,
       },
+      ...(groupByCreator ? { groupBy: 'creator' as const } : {}),
     };
   },
 

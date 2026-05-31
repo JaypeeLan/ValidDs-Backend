@@ -151,6 +151,7 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
   const imageUrls = collectProductImageUrls(product);
   const postDate = product.publishedAt ?? product.postCreatedAt;
   const { isNew3d, isNew7d } = postRecencyFlags(postDate);
+  const ai = (input.aiIntelligence ?? product.aiIntelligence) as IAIIntelligence | undefined;
 
   const item: ProductFeedItem = {
     id: String(product._id ?? product.id),
@@ -176,8 +177,8 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     isTopAd: discoverySections.includes('top-ads'),
     competitionScore: maxCompetitorScore(product.suppliers),
     aiInsight: {
-      confidence: { score: product.aiIntelligence?.confidence },
-      reviewSummary: product.aiIntelligence?.reviewSummary ?? null,
+      confidence: { score: ai?.confidence },
+      reviewSummary: ai?.reviewSummary ?? null,
     },
     trend: {
       score: engagement.score,

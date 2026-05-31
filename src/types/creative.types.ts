@@ -62,6 +62,9 @@ export interface ISecondaryVideo {
   tiktokPostUrl: string;
   thumbnailUrl?: string;
   videoPlayUrl?: string;
+  videoS3Key?: string;
+  videoDownloadRequestedAt?: Date;
+  videoDownloadReadyAt?: Date;
   creator: ICreatorProfile;
   metrics: IVideoMetrics;
   topComments: ICreativeComment[];
@@ -77,6 +80,10 @@ export interface ICreative {
   thumbnailUrl?: string;
   /** Legacy CDN play URL — optional; used by video proxy when present */
   videoPlayUrl?: string;
+  /** S3 object key for Bright Data–downloaded MP4 (preferred for playback) */
+  videoS3Key?: string;
+  videoDownloadRequestedAt?: Date;
+  videoDownloadReadyAt?: Date;
   creator: ICreatorProfile;
   metrics: IVideoMetrics;
   section: CreativeSection;

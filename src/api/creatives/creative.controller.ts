@@ -6,14 +6,20 @@ import {
   CREATIVE_TOP_ADS_MATCH,
   findRelatedVideosByCreativeId,
 } from '../../services/creative.service';
-import { CreativeListQuery, CreativeTopAdsListQuery, CreativeIngestBody } from './creative.validator';
+import {
+  CreativeListQuery,
+  CreativeTopAdsListQuery,
+  CreativeIngestBody,
+} from './creative.validator';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { NotFoundError } from '../../middleware/error.middleware';
 import { Creative } from '../../models/creative.model';
 import {
   pickCreativeStreamVideoUrl,
   pickCreativeThumbnailUrl,
+  pickCreativeVideoS3Key,
 } from '../../utils/creative-response.util';
+import { getS3VideoObject, isS3VideoConfigured } from '../../utils/s3-video.util';
 import { logger } from '../../logger';
 
 const log = logger.child({ module: 'creative-controller' });
@@ -44,8 +50,9 @@ function triggerLazyRefresh(creativeId: string, index: number, reason: string): 
   const key = `${creativeId}:${index}`;
   if (!shouldTriggerRefresh(key)) return;
   log.info('Triggering lazy creative media refresh', { creativeId, index, reason });
-  void CreativeService.refreshCreativeMedia(creativeId, index)
-    .catch((err) => log.warn('Lazy creative refresh failed', { creativeId, index, err: String(err) }));
+  void CreativeService.refreshCreativeMedia(creativeId, index).catch((err) =>
+    log.warn('Lazy creative refresh failed', { creativeId, index, err: String(err) }),
+  );
 }
 
 // Headers the TikTok CDN requires; without `Referer` the CDN returns 403.
@@ -57,6 +64,37 @@ const TIKTOK_PROXY_HEADERS: Record<string, string> = {
   'Accept-Language': 'en-US,en;q=0.9',
 };
 
+async function fetchProxiedImage(url: string) {
+  return axios.get(url, {
+    headers: TIKTOK_PROXY_HEADERS,
+    responseType: 'stream',
+    timeout: 10_000,
+    validateStatus: (s) => s < 500,
+    maxRedirects: 5,
+  });
+}
+
+function pipeImageUpstream(
+  req: Request,
+  res: Response,
+  upstream: Awaited<ReturnType<typeof fetchProxiedImage>>,
+  id: string,
+): void {
+  const ct = upstream.headers['content-type'];
+  res.setHeader('Content-Type', typeof ct === 'string' ? ct : 'image/jpeg');
+  const cl = upstream.headers['content-length'];
+  if (typeof cl === 'string') res.setHeader('Content-Length', cl);
+  res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+  res.status(200);
+  req.on('close', () => upstream.data?.destroy?.());
+  upstream.data.on('error', (err: Error) => {
+    log.warn('Thumbnail stream error', { id, err: err.message });
+    if (!res.headersSent) res.status(502);
+    res.end();
+  });
+  upstream.data.pipe(res);
+}
+
 export const CreativeController = {
   /**
    * Retrieves a paginated list of creatives with filters.
@@ -65,17 +103,10 @@ export const CreativeController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as CreativeListQuery;
-      const listMatch =
-        query.section || query.productId ? undefined : CREATIVE_TRENDING_MATCH;
+      const listMatch = query.section || query.productId ? undefined : CREATIVE_TRENDING_MATCH;
       const result = await CreativeService.findCreatives(query, listMatch, req.models?.Creative);
 
-      res.json(
-        successResponse(
-          result,
-          ResponseMessage.CREATIVES_RETRIEVED,
-          200
-        )
-      );
+      res.json(successResponse(result, ResponseMessage.CREATIVES_RETRIEVED, 200));
     } catch (err) {
       next(err);
     }
@@ -88,15 +119,13 @@ export const CreativeController = {
   async listTopAds(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as CreativeTopAdsListQuery;
-      const result = await CreativeService.findCreatives(query, CREATIVE_TOP_ADS_MATCH, req.models?.Creative);
-
-      res.json(
-        successResponse(
-          result,
-          ResponseMessage.CREATIVES_RETRIEVED,
-          200
-        )
+      const result = await CreativeService.findCreatives(
+        query,
+        CREATIVE_TOP_ADS_MATCH,
+        req.models?.Creative,
       );
+
+      res.json(successResponse(result, ResponseMessage.CREATIVES_RETRIEVED, 200));
     } catch (err) {
       next(err);
     }
@@ -115,13 +144,7 @@ export const CreativeController = {
         throw new NotFoundError('Creative not found');
       }
 
-      res.json(
-        successResponse(
-          { relatedVideos },
-          ResponseMessage.CREATIVES_RETRIEVED,
-          200,
-        ),
-      );
+      res.json(successResponse({ relatedVideos }, ResponseMessage.CREATIVES_RETRIEVED, 200));
     } catch (err) {
       next(err);
     }
@@ -136,13 +159,7 @@ export const CreativeController = {
         throw new NotFoundError('Creative not found');
       }
 
-      res.json(
-        successResponse(
-          { creative },
-          ResponseMessage.CREATIVE_RETRIEVED,
-          200
-        )
-      );
+      res.json(successResponse({ creative }, ResponseMessage.CREATIVE_RETRIEVED, 200));
     } catch (err) {
       next(err);
     }
@@ -167,11 +184,40 @@ export const CreativeController = {
     try {
       const { id } = req.params;
       const indexRaw = req.query.index;
-      const index = Number.isFinite(Number(indexRaw)) ? Math.max(0, Math.floor(Number(indexRaw))) : 0;
+      const index = Number.isFinite(Number(indexRaw))
+        ? Math.max(0, Math.floor(Number(indexRaw)))
+        : 0;
 
       const creativeModel = req.models?.Creative ?? Creative;
       const creative = await creativeModel.findById(id).lean();
       if (!creative) throw new NotFoundError('Creative not found');
+
+      const s3Key = pickCreativeVideoS3Key(creative as Record<string, unknown>, index);
+      if (s3Key && isS3VideoConfigured()) {
+        const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined;
+        const s3Obj = await getS3VideoObject(s3Key, rangeHeader);
+        if (s3Obj) {
+          res.setHeader('Content-Type', s3Obj.contentType);
+          if (s3Obj.contentLength != null)
+            res.setHeader('Content-Length', String(s3Obj.contentLength));
+          if (s3Obj.contentRange) res.setHeader('Content-Range', s3Obj.contentRange);
+          if (s3Obj.acceptRanges) res.setHeader('Accept-Ranges', s3Obj.acceptRanges);
+          else res.setHeader('Accept-Ranges', 'bytes');
+          if (s3Obj.etag) res.setHeader('ETag', s3Obj.etag);
+          if (s3Obj.lastModified) res.setHeader('Last-Modified', s3Obj.lastModified.toUTCString());
+          res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+          res.status(s3Obj.statusCode);
+          req.on('close', () => s3Obj.body.destroy?.());
+          s3Obj.body.on('error', (err: Error) => {
+            log.warn('S3 video stream error', { id, err: err.message });
+            if (!res.headersSent) res.status(502);
+            res.end();
+          });
+          s3Obj.body.pipe(res);
+          return;
+        }
+        log.debug('S3 key configured but object missing', { id, s3Key });
+      }
 
       const url = pickCreativeStreamVideoUrl(creative as Record<string, unknown>, index);
       if (!url) {
@@ -201,7 +247,14 @@ export const CreativeController = {
         return;
       }
 
-      const passthrough = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'last-modified', 'etag'];
+      const passthrough = [
+        'content-type',
+        'content-length',
+        'content-range',
+        'accept-ranges',
+        'last-modified',
+        'etag',
+      ];
       for (const h of passthrough) {
         const v = upstream.headers[h];
         if (typeof v === 'string') res.setHeader(h, v);
@@ -234,49 +287,56 @@ export const CreativeController = {
     try {
       const { id } = req.params;
       const indexRaw = req.query.index;
-      const index = Number.isFinite(Number(indexRaw)) ? Math.max(0, Math.floor(Number(indexRaw))) : 0;
+      const index = Number.isFinite(Number(indexRaw))
+        ? Math.max(0, Math.floor(Number(indexRaw)))
+        : 0;
       const kind = req.query.kind === 'avatar' ? 'avatar' : 'thumbnail';
 
       const creativeModel = req.models?.Creative ?? Creative;
-      const creative = await creativeModel.findById(id).lean();
+      let creative = await creativeModel.findById(id).lean();
       if (!creative) throw new NotFoundError('Creative not found');
 
-      const url = pickCreativeThumbnailUrl(creative as Record<string, unknown>, index, kind);
+      let url = pickCreativeThumbnailUrl(creative as Record<string, unknown>, index, kind);
       if (!url) {
         res.status(404).json({ error: 'No image for this creative slot' });
         return;
       }
 
-      const upstream = await axios.get(url, {
-        headers: TIKTOK_PROXY_HEADERS,
-        responseType: 'stream',
-        timeout: 10_000,
-        validateStatus: (s) => s < 500,
-        maxRedirects: 5,
-      });
+      let upstream = await fetchProxiedImage(url);
 
       if (upstream.status >= 400) {
         upstream.data?.destroy?.();
-        triggerLazyRefresh(id, index, `thumbnail-${upstream.status}-${kind}`);
-        res.status(404).json({ error: 'Image not available', code: 'IMAGE_NOT_AVAILABLE' });
-        return;
+        log.debug('TikTok CDN rejected stored image URL', {
+          id,
+          index,
+          kind,
+          status: upstream.status,
+        });
+
+        const refreshed = await CreativeService.refreshCreativeMedia(id, index);
+        if (refreshed) {
+          creative = await creativeModel.findById(id).lean();
+          const freshUrl = creative
+            ? pickCreativeThumbnailUrl(creative as Record<string, unknown>, index, kind)
+            : undefined;
+          if (freshUrl) {
+            url = freshUrl;
+            upstream = await fetchProxiedImage(freshUrl);
+          }
+        }
+
+        if (upstream.status >= 400) {
+          upstream.data?.destroy?.();
+          triggerLazyRefresh(id, index, `thumbnail-${upstream.status}-${kind}`);
+          res.status(410).json({
+            error: 'Image URL has expired. A refresh has been triggered; retry shortly.',
+            code: 'IMAGE_URL_EXPIRED',
+          });
+          return;
+        }
       }
 
-      const ct = upstream.headers['content-type'];
-      res.setHeader('Content-Type', typeof ct === 'string' ? ct : 'image/jpeg');
-      const cl = upstream.headers['content-length'];
-      if (typeof cl === 'string') res.setHeader('Content-Length', cl);
-      // Thumbnails change rarely once a video is published — cache aggressively.
-      res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
-
-      res.status(200);
-      req.on('close', () => upstream.data?.destroy?.());
-      upstream.data.on('error', (err: Error) => {
-        log.warn('Thumbnail stream error', { id, err: err.message });
-        if (!res.headersSent) res.status(502);
-        res.end();
-      });
-      upstream.data.pipe(res);
+      pipeImageUpstream(req, res, upstream, id);
     } catch (err) {
       next(err);
     }
@@ -291,13 +351,7 @@ export const CreativeController = {
       const { keyword, limit, period, country } = req.body as CreativeIngestBody;
       const result = await CreativeService.ingestByKeyword(keyword, { limit, period, country });
 
-      res.status(201).json(
-        successResponse(
-          result,
-          ResponseMessage.CREATIVES_INGESTED,
-          201
-        )
-      );
+      res.status(201).json(successResponse(result, ResponseMessage.CREATIVES_INGESTED, 201));
     } catch (err) {
       next(err);
     }

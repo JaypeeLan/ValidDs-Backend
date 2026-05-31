@@ -38,13 +38,18 @@
     "test": "NODE_OPTIONS='--max-old-space-size=8192' jest --runInBand --forceExit",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "lint": "eslint src --ext .ts",
+    "lint": "eslint \"{src,tests,scripts}\" --ext .ts",
+    "lint:fix": "eslint \"{src,tests,scripts}\" --ext .ts --fix",
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
     "make-admin": "ts-node src/scripts/make-admin.ts",
     "tester:ui": "node tools/backend-tester/server.js",
-    "frontend:react": "node tools/full-frontend/server.js"
+    "frontend:react": "node tools/full-frontend/server.js",
+    "prepare": "husky",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1057.0",
     "@google/generative-ai": "^0.24.1",
     "@sentry/node": "^7.99.0",
     "apify-client": "^2.23.2",
@@ -83,11 +88,19 @@
     "@typescript-eslint/parser": "^6.19.1",
     "docx": "^9.6.1",
     "eslint": "^8.56.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
+    "lint-staged": "^17.0.6",
     "mongodb-memory-server": "^10.1.4",
+    "prettier": "^3.8.3",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.3"
+  },
+  "lint-staged": {
+    "*.{ts,js,cjs,mjs,json,yml,yaml,md}": "prettier --write",
+    "{src,tests,scripts}/**/*.ts": "eslint --fix"
   }
 }

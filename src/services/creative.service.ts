@@ -1,13 +1,20 @@
 import { Creative, type ICreativeDocument } from '../models/creative.model';
-import type { CreativeCreatorFeedItem, CreativeFeedItem, ISecondaryVideoApi } from '../types/creative.types';
+import { Product } from '../models/product.model';
+import type {
+  CreativeCreatorFeedItem,
+  CreativeFeedItem,
+  ISecondaryVideoApi,
+} from '../types/creative.types';
+import type { ICreatorProfile } from '../types/creative.types';
 import type { Model } from 'mongoose';
 import { logger } from '../logger';
 import mongoose, { type PipelineStage } from 'mongoose';
+import { ScrapeCreatorsService } from './scrapecreators.service';
+import type { AwemeMediaPatch } from '../utils/aweme-media.util';
 import {
   apiSectionToDb,
   CREATIVE_COMMERCIAL_MATCH,
   CREATIVE_TOP_ADS_MATCH,
-  CREATIVE_TRENDING_MATCH,
   formatCreativeFeedItem,
   formatCreativeCreatorFeedItem,
   formatCreativeForApi,
@@ -34,6 +41,117 @@ const log = logger.child({ module: 'creative-service' });
 
 function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function pickUrl(...vals: unknown[]): string | undefined {
+  for (const v of vals) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function slotPostUrl(slot: {
+  creator?: ICreatorProfile;
+  externalVideoId?: string;
+  tiktokPostUrl?: string;
+}): string | undefined {
+  const stored = pickUrl(slot.creator?.tiktokPostUrl, slot.tiktokPostUrl);
+  if (stored) return stored;
+  const awemeId = String(slot.externalVideoId ?? '').trim();
+  const handle = String(slot.creator?.handle ?? '')
+    .replace(/^@/, '')
+    .trim();
+  if (handle && awemeId && !awemeId.startsWith('meta:')) {
+    return `https://www.tiktok.com/@${handle}/video/${awemeId}`;
+  }
+  return undefined;
+}
+
+async function fetchOembedThumbnail(postUrl: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(postUrl)}`, {
+      signal: AbortSignal.timeout(10_000),
+      headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!res.ok) return undefined;
+    const data = (await res.json()) as { thumbnail_url?: string };
+    const url = data.thumbnail_url;
+    return typeof url === 'string' && url.startsWith('https://') ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function mergeCreatorPatch(
+  existing: ICreatorProfile | undefined,
+  patch: AwemeMediaPatch['creator'] | undefined,
+  avatarUrl?: string,
+): ICreatorProfile | undefined {
+  const base = existing ? { ...existing } : undefined;
+  const nextAvatar = pickUrl(avatarUrl, patch?.avatarUrl, base?.avatarUrl);
+  if (!nextAvatar && !patch) return base;
+  return {
+    handle: base?.handle ?? '',
+    verified: patch?.verified ?? base?.verified ?? false,
+    tiktokPostUrl: base?.tiktokPostUrl ?? '',
+    ...(base?.displayName ? { displayName: base.displayName } : {}),
+    ...(base?.bio ? { bio: base.bio } : {}),
+    ...(base?.region ? { region: base.region } : {}),
+    ...(base?.isIndependentCreator != null
+      ? { isIndependentCreator: base.isIndependentCreator }
+      : {}),
+    ...(nextAvatar ? { avatarUrl: nextAvatar } : {}),
+    ...(patch?.followers != null ? { followers: patch.followers } : {}),
+    ...(patch?.following != null ? { following: patch.following } : {}),
+    ...(patch?.totalLikes != null ? { totalLikes: patch.totalLikes } : {}),
+  };
+}
+
+function applyMediaPatch(
+  target: {
+    videoPlayUrl?: string;
+    thumbnailUrl?: string;
+    creator?: ICreatorProfile;
+  },
+  media: AwemeMediaPatch,
+  avatarUrl?: string,
+): boolean {
+  let changed = false;
+  if (media.videoPlayUrl && media.videoPlayUrl !== target.videoPlayUrl) {
+    target.videoPlayUrl = media.videoPlayUrl;
+    changed = true;
+  }
+  if (media.thumbnailUrl && media.thumbnailUrl !== target.thumbnailUrl) {
+    target.thumbnailUrl = media.thumbnailUrl;
+    changed = true;
+  }
+  const merged = mergeCreatorPatch(target.creator, media.creator, avatarUrl);
+  if (merged && JSON.stringify(merged) !== JSON.stringify(target.creator ?? {})) {
+    target.creator = merged;
+    changed = true;
+  }
+  return changed;
+}
+
+async function syncProductCreatorAvatar(
+  productId: mongoose.Types.ObjectId | string | undefined,
+  avatarUrl: string | undefined,
+): Promise<void> {
+  if (!avatarUrl || !productId || !mongoose.isValidObjectId(productId)) return;
+  await Product.updateOne(
+    { _id: productId },
+    {
+      $set: {
+        'primaryCreator.avatarUrl': avatarUrl,
+        'primaryCreator.primaryImageUrl': avatarUrl,
+      },
+    },
+  ).catch((err) => {
+    log.debug('Failed to sync product creator avatar', {
+      productId: String(productId),
+      err: String(err),
+    });
+  });
 }
 
 const PRODUCT_CREATIVE_LIMIT = 100;
@@ -278,10 +396,7 @@ export const CreativeService = {
     };
   },
 
-  async getCreativeById(
-    id: string,
-    creativeModel: Model<ICreativeDocument> = Creative,
-  ) {
+  async getCreativeById(id: string, creativeModel: Model<ICreativeDocument> = Creative) {
     const doc = await creativeModel.findById(id).lean();
     if (!doc) return null;
     return formatCreativeForApi(doc, { includeProductDescription: true });
@@ -291,16 +406,125 @@ export const CreativeService = {
   findRelatedAdsByProductId,
 
   async refreshCreativeMedia(
-    _creativeId?: string | mongoose.Types.ObjectId,
-    _index = 0,
+    creativeId: string | mongoose.Types.ObjectId,
+    index = 0,
   ): Promise<boolean> {
-    return false;
+    try {
+      const doc = await Creative.findById(creativeId);
+      if (!doc) return false;
+
+      const isRoot = index <= 0;
+      const slotIndex = isRoot ? -1 : index - 1;
+      const slot = isRoot ? doc : doc.relatedVideos?.[slotIndex];
+      if (!slot) {
+        log.debug('Creative refresh skipped: slot missing', {
+          creativeId: String(creativeId),
+          index,
+        });
+        return false;
+      }
+
+      const awemeId = String(slot.externalVideoId ?? '').trim();
+      const handle = String(slot.creator?.handle ?? '')
+        .replace(/^@/, '')
+        .trim();
+      const postUrl = slotPostUrl(slot);
+      const region = String(slot.creator?.region ?? 'US').trim() || 'US';
+
+      if (!handle && !postUrl) {
+        log.debug('Creative refresh skipped: no handle or post url', {
+          creativeId: String(creativeId),
+          index,
+        });
+        return false;
+      }
+
+      if (!ScrapeCreatorsService.isConfigured()) {
+        log.debug('Creative refresh skipped: ScrapeCreators not configured');
+        return false;
+      }
+
+      let media: AwemeMediaPatch | null = null;
+      if (handle && awemeId && !awemeId.startsWith('meta:')) {
+        media = await ScrapeCreatorsService.findAwemeMedia(handle, awemeId, { region });
+      }
+
+      const profile = handle ? await ScrapeCreatorsService.getUserInfo(handle) : null;
+      const profileAvatar = ScrapeCreatorsService.pickAvatarUrl(profile);
+
+      if (!media?.thumbnailUrl && postUrl) {
+        const oembedThumb = await fetchOembedThumbnail(postUrl);
+        if (oembedThumb) {
+          media = { ...(media ?? {}), thumbnailUrl: oembedThumb };
+        }
+      }
+
+      if (!media && !profileAvatar) return false;
+
+      const patch: AwemeMediaPatch = {
+        ...(media ?? {}),
+        ...(profileAvatar || media?.creator
+          ? {
+              creator: {
+                ...(media?.creator ?? {}),
+                ...(profileAvatar ? { avatarUrl: profileAvatar } : {}),
+              },
+            }
+          : {}),
+      };
+
+      let changed = false;
+      if (isRoot) {
+        changed = applyMediaPatch(doc, patch, profileAvatar);
+      } else {
+        const related = doc.relatedVideos?.[slotIndex];
+        if (!related) return false;
+        changed = applyMediaPatch(related, patch, profileAvatar);
+        if (changed) doc.markModified('relatedVideos');
+      }
+
+      if (!changed) return false;
+
+      await doc.save();
+
+      if (isRoot && profileAvatar) {
+        await syncProductCreatorAvatar(doc.productId, profileAvatar);
+      }
+
+      log.info('Creative media refreshed', {
+        creativeId: String(creativeId),
+        index,
+        awemeId: awemeId || undefined,
+        handle: handle || undefined,
+      });
+      return true;
+    } catch (err) {
+      log.warn('Failed to refresh creative media', {
+        creativeId: String(creativeId),
+        index,
+        err: String(err),
+      });
+      return false;
+    }
   },
 
   async refreshAllSlotsForCreative(
-    _creativeId: string | mongoose.Types.ObjectId,
+    creativeId: string | mongoose.Types.ObjectId,
   ): Promise<{ scanned: number; refreshed: number; slots: number }> {
-    return { scanned: 0, refreshed: 0, slots: 0 };
+    const doc = await Creative.findById(creativeId).lean();
+    if (!doc) return { scanned: 0, refreshed: 0, slots: 0 };
+
+    const slots = 1 + (Array.isArray(doc.relatedVideos) ? doc.relatedVideos.length : 0);
+    let refreshed = 0;
+    let scanned = 0;
+
+    for (let i = 0; i < slots; i += 1) {
+      scanned += 1;
+      const ok = await this.refreshCreativeMedia(creativeId, i);
+      if (ok) refreshed += 1;
+    }
+
+    return { scanned, refreshed, slots };
   },
 
   async ingestByKeyword(

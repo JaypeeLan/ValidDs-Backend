@@ -306,6 +306,18 @@ creativeStreamThumbnail:
                 code:
                   type: string
                   enum: [IMAGE_NOT_AVAILABLE]
+      '410':
+        description: TikTok CDN URL expired; refresh triggered — retry shortly
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                code:
+                  type: string
+                  enum: [IMAGE_URL_EXPIRED]
       '429':
         $ref: '../components/responses/Standard.yaml#/TooManyRequestsResponse'
 

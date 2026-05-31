@@ -48,28 +48,44 @@ export function imageAssetKey(url: string): string {
   return m ? m[1] : base;
 }
 
+function normalizeAdDescription(raw: unknown): string {
+  return String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/** Meta rows reuse the product hero when Ad Library has no image URL — cards look identical. */
+export function isMetaProductPlaceholderThumb(creative: Record<string, unknown>): boolean {
+  const thumb = imageAssetKey(String(creative.thumbnailUrl ?? ''));
+  const product = imageAssetKey(String(creative.productPrimaryImageUrl ?? ''));
+  return Boolean(thumb && product && thumb === product);
+}
+
 /**
  * One key per distinct ad — not per product.
- * Meta: same copy or same page+product+hero image without copy → one slot.
+ * Meta: same copy or same page+product+hero image → one slot (placeholder thumbs ignore copy).
  * TikTok: same post / aweme id.
  */
 export function creativeAdDedupeKey(creative: Record<string, unknown>): string {
   const ext = String(creative.externalVideoId ?? '').trim();
   if (ext.startsWith('meta:')) {
     const page = String(
-      creative.metaPageId ?? (creative.creator as Record<string, unknown> | undefined)?.handle ?? '',
+      creative.metaPageId ??
+        (creative.creator as Record<string, unknown> | undefined)?.handle ??
+        '',
     )
       .trim()
       .toLowerCase();
-    const desc = String(creative.description ?? '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, ' ');
+    const pid = String(creative.productId ?? '');
+    const thumb = imageAssetKey(String(creative.thumbnailUrl ?? ''));
+    if (isMetaProductPlaceholderThumb(creative) && page && thumb && pid) {
+      return `meta:visual:${page}:${pid}:${thumb}`;
+    }
+    const desc = normalizeAdDescription(creative.description);
     if (desc.length >= 12) {
       return `meta:text:${page}:${desc.slice(0, 240)}`;
     }
-    const thumb = imageAssetKey(String(creative.thumbnailUrl ?? ''));
-    const pid = String(creative.productId ?? '');
     if (page && thumb && pid) {
       return `meta:visual:${page}:${pid}:${thumb}`;
     }
@@ -86,54 +102,155 @@ export function creativeAdDedupeKey(creative: Record<string, unknown>): string {
   return ext || post;
 }
 
+/** Mongo expression: imageAssetKey(urlField) — mirrors imageAssetKey(). */
+function mongoImageAssetKeyExpr(urlExpr: unknown): Record<string, unknown> {
+  const base = {
+    $toLower: {
+      $let: {
+        vars: {
+          noQuery: { $arrayElemAt: [{ $split: [{ $ifNull: [urlExpr, ''] }, '?'] }, 0] },
+        },
+        in: { $arrayElemAt: [{ $split: ['$$noQuery', '~tplv-'] }, 0] },
+      },
+    },
+  };
+  const hashMatch = { $regexFind: { input: base, regex: '/([a-f0-9]{32})(?:~|$)' } };
+  return {
+    $let: {
+      vars: { base, hashMatch },
+      in: {
+        $cond: [
+          { $ne: ['$$hashMatch', null] },
+          { $arrayElemAt: ['$$hashMatch.captures', 0] },
+          '$$base',
+        ],
+      },
+    },
+  };
+}
+
+function mongoMetaAdDedupeKeyExpr(): Record<string, unknown> {
+  const page = {
+    $toLower: {
+      $trim: {
+        input: { $ifNull: ['$metaPageId', { $ifNull: ['$creator.handle', ''] }] },
+      },
+    },
+  };
+  const desc = {
+    $replaceAll: {
+      input: {
+        $toLower: { $trim: { input: { $ifNull: ['$description', ''] } } },
+      },
+      find: '  ',
+      replacement: ' ',
+    },
+  };
+  const thumb = mongoImageAssetKeyExpr('$thumbnailUrl');
+  const productThumb = mongoImageAssetKeyExpr('$productPrimaryImageUrl');
+  const pid = { $toString: '$productId' };
+  const visualKey = {
+    $concat: ['meta:visual:', page, ':', pid, ':', thumb],
+  };
+  return {
+    $let: {
+      vars: { page, desc, thumb, productThumb, pid, visualKey },
+      in: {
+        $cond: [
+          {
+            $and: [
+              { $ne: ['$$thumb', ''] },
+              { $ne: ['$$productThumb', ''] },
+              { $eq: ['$$thumb', '$$productThumb'] },
+            ],
+          },
+          '$$visualKey',
+          {
+            $cond: [
+              { $gte: [{ $strLenCP: '$$desc' }, 12] },
+              {
+                $concat: ['meta:text:', '$$page', ':', { $substrCP: ['$$desc', 0, 240] }],
+              },
+              {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ['$$page', ''] },
+                      { $ne: ['$$thumb', ''] },
+                      { $ne: ['$$pid', ''] },
+                    ],
+                  },
+                  '$$visualKey',
+                  '$externalVideoId',
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+}
+
 /** Mongo stages: collapse duplicate ads (same video / same Meta copy or look-alike card). */
 export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
+  const computedKey = {
+    $cond: [
+      { $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' } },
+      mongoMetaAdDedupeKeyExpr(),
+      {
+        $let: {
+          vars: {
+            postMatch: {
+              $regexFind: {
+                input: { $ifNull: ['$tiktokPostUrl', ''] },
+                regex: '(?:/video/|embed/v2/)(\\d+)',
+                options: 'i',
+              },
+            },
+            embedMatch: {
+              $regexFind: {
+                input: { $ifNull: ['$embedUrl', ''] },
+                regex: '(?:/video/|embed/v2/)(\\d+)',
+                options: 'i',
+              },
+            },
+          },
+          in: {
+            $cond: [
+              { $ne: ['$$postMatch', null] },
+              { $concat: ['tiktok:', { $arrayElemAt: ['$$postMatch.captures', 0] }] },
+              {
+                $cond: [
+                  { $ne: ['$$embedMatch', null] },
+                  { $concat: ['tiktok:', { $arrayElemAt: ['$$embedMatch.captures', 0] }] },
+                  {
+                    $cond: [
+                      {
+                        $regexMatch: {
+                          input: { $ifNull: ['$externalVideoId', ''] },
+                          regex: '^\\d+$',
+                        },
+                      },
+                      { $concat: ['tiktok:', '$externalVideoId'] },
+                      {
+                        $ifNull: ['$externalVideoId', { $ifNull: ['$tiktokPostUrl', ''] }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    ],
+  };
+
   return [
     {
       $addFields: {
-        adDedupeKey: {
-          $cond: [
-            { $regexMatch: { input: '$externalVideoId', regex: '^meta:' } },
-            {
-              $let: {
-                vars: {
-                  desc: {
-                    $trim: { input: { $ifNull: ['$description', ''] } },
-                  },
-                  page: {
-                    $toLower: {
-                      $ifNull: ['$metaPageId', { $ifNull: ['$creator.handle', ''] }],
-                    },
-                  },
-                },
-                in: {
-                  $cond: [
-                    { $gte: [{ $strLenCP: '$$desc' }, 12] },
-                    {
-                      $concat: [
-                        'meta:text:',
-                        '$$page',
-                        ':',
-                        { $substrCP: ['$$desc', 0, 240] },
-                      ],
-                    },
-                    {
-                      $concat: [
-                        'meta:visual:',
-                        '$$page',
-                        ':',
-                        { $toString: '$productId' },
-                        ':',
-                        { $substrCP: [{ $ifNull: ['$thumbnailUrl', ''] }, 0, 120] },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-            { $concat: ['tiktok:', '$externalVideoId'] },
-          ],
-        },
+        adDedupeKey: { $ifNull: ['$adDedupeKey', computedKey] },
       },
     },
     { $group: { _id: '$adDedupeKey', doc: { $first: '$$ROOT' } } },
@@ -248,7 +365,8 @@ function formatSecondaryVideo(
     thumbnailUrl: video.thumbnailUrl,
     videoPlayUrl: video.videoPlayUrl,
     videoProxyUrl: baseUrl ? `${baseUrl}/video?index=${index}` : undefined,
-    thumbnailProxyUrl: baseUrl && thumb ? `${baseUrl}/thumbnail?index=${index}&kind=thumbnail` : undefined,
+    thumbnailProxyUrl:
+      baseUrl && thumb ? `${baseUrl}/thumbnail?index=${index}&kind=thumbnail` : undefined,
     creator: formatCreator(video.creator, index, baseUrl),
     metrics: formatMetrics(video.metrics),
     topComments: video.topComments ?? [],
@@ -265,9 +383,10 @@ export function formatCreativeForApi(
   options: FormatCreativeOptions = {},
 ): CreativeApiItem {
   const raw = input as CreativePlain;
-  const creative = typeof (raw as { toObject?: () => CreativePlain }).toObject === 'function'
-    ? (raw as { toObject: () => CreativePlain }).toObject()
-    : raw;
+  const creative =
+    typeof (raw as { toObject?: () => CreativePlain }).toObject === 'function'
+      ? (raw as { toObject: () => CreativePlain }).toObject()
+      : raw;
 
   const id = String(creative._id ?? creative.id ?? '');
   const apiVersion = process.env.API_VERSION || 'v1';
@@ -291,9 +410,7 @@ export function formatCreativeForApi(
     creator: formatCreator(creator, 0, baseUrl, creatorAvatarUrl),
     metrics: formatMetrics(creative.metrics as IVideoMetrics | undefined),
     section: apiSection,
-    isIndependentCreator: Boolean(
-      creative.isIndependentCreator ?? creator?.isIndependentCreator,
-    ),
+    isIndependentCreator: Boolean(creative.isIndependentCreator ?? creator?.isIndependentCreator),
     isPrimaryDiscovery: creative.isPrimaryDiscovery as boolean | undefined,
     isAd: creative.isAd as boolean | undefined,
     productName: creative.productName as string | undefined,
@@ -347,9 +464,8 @@ export function formatCreativeForApi(
 
 export function formatCreativeFeedItem(input: unknown): CreativeFeedItem {
   const full = formatCreativeForApi(input, { includeProductDescription: false });
-  const { productDescription: _pd, relatedVideos: _rv, ...feed } = full;
   // List endpoints return one card per creative doc; nested slots are detail-only.
-  return { ...feed, relatedVideos: [] };
+  return { ...full, relatedVideos: [] };
 }
 
 export function formatCreativeCreatorFeedItem(
@@ -359,7 +475,17 @@ export function formatCreativeCreatorFeedItem(
   return { ...formatCreativeFeedItem(input), videoCount: Math.max(0, videoCount) };
 }
 
-/** CDN URL for video proxy — not the embed URL. */
+/** CDN URL for video proxy — not the embed URL. Falls back to TikTok CDN when no S3 key. */
+export function pickCreativeVideoS3Key(creative: CreativePlain, index: number): string | undefined {
+  if (index <= 0) {
+    return pickUrl(creative.videoS3Key);
+  }
+  const related = Array.isArray(creative.relatedVideos)
+    ? (creative.relatedVideos as ISecondaryVideo[])
+    : [];
+  return pickUrl(related[index - 1]?.videoS3Key);
+}
+
 export function pickCreativeStreamVideoUrl(
   creative: CreativePlain,
   index: number,

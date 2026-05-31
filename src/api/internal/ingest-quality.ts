@@ -13,7 +13,7 @@ export const BASELINE_INGEST = {
 /** Strict rules always enforced on product/creative ingest (scraper + backend). */
 export const INGEST_QUALITY = {
   MIN_UNITS_SOLD: 300,
-  MAX_POST_AGE_DAYS: 60,
+  MAX_POST_AGE_DAYS: 30,
   MIN_RELATED_VIDEOS: 3,
   MIN_MARKETING_ANGLES: 5,
   MIN_ANGLES_WITH_VIDEO: 2,

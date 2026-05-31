@@ -11,11 +11,10 @@ module.exports = {
     sourceType: 'module',
   },
   plugins: ['@typescript-eslint'],
-  extends: ['eslint:recommended'],
+  extends: ['eslint:recommended', 'prettier'],
   ignorePatterns: ['dist/', 'node_modules/', 'coverage/'],
   rules: {
     'no-unused-vars': 'off',
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
   },
 };
-

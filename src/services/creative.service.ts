@@ -32,6 +32,8 @@ import {
   applyCreativeMetricFilters,
   type ContentMetricFilters,
 } from '../utils/content-feed-filters.util';
+import { enrichCreativesWithResolvedVideoS3Keys } from './meta-video-s3-resolve.service';
+import { metaAdIdFromCreative } from '../utils/meta-video-s3.util';
 
 export {
   apiSectionToDb,
@@ -188,7 +190,8 @@ async function loadCreativesForProduct(
     .option({ maxTimeMS: 15_000 })
     .exec()) as Record<string, unknown>[];
 
-  return docs.map((doc) => formatCreativeFeedItem(doc));
+  const enriched = await enrichCreativesWithResolvedVideoS3Keys(docs, creativeModel);
+  return enriched.map((doc) => formatCreativeFeedItem(doc));
 }
 
 /** TikTok video id or Meta ad id → creative Mongo id for angle videoProxyUrl. */
@@ -201,7 +204,7 @@ export async function loadPlayableVideoIndexForProduct(
   const pid = new mongoose.Types.ObjectId(productId);
   const s3VideoFilter = { videoS3Key: { $exists: true, $nin: [null, ''] } };
 
-  const [tiktokDocs, metaDocs] = await Promise.all([
+  const [tiktokDocs, metaDocsRaw] = await Promise.all([
     creativeModel
       .find({
         productId: pid,
@@ -214,11 +217,21 @@ export async function loadPlayableVideoIndexForProduct(
       .find({
         productId: pid,
         externalVideoId: { $regex: /^meta:/ },
-        ...s3VideoFilter,
       })
-      .select({ externalVideoId: 1, metaAdLibraryUrl: 1, tiktokPostUrl: 1, embedUrl: 1 })
+      .select({
+        externalVideoId: 1,
+        metaAdId: 1,
+        metaAdLibraryUrl: 1,
+        tiktokPostUrl: 1,
+        embedUrl: 1,
+        videoS3Key: 1,
+      })
       .lean(),
   ]);
+  const metaDocs = await enrichCreativesWithResolvedVideoS3Keys(
+    metaDocsRaw as Record<string, unknown>[],
+    creativeModel,
+  );
 
   const index = new Map<string, string>();
   for (const doc of tiktokDocs) {
@@ -235,15 +248,21 @@ export async function loadPlayableVideoIndexForProduct(
   }
 
   for (const doc of metaDocs) {
+    const storedKey =
+      typeof doc.videoS3Key === 'string' && doc.videoS3Key.trim() ? doc.videoS3Key.trim() : '';
+    if (!storedKey) continue;
+
     const creativeId = String(doc._id);
+    const adId = metaAdIdFromCreative(doc as Record<string, unknown>);
+    if (adId) index.set(adId, creativeId);
     const ext = String(doc.externalVideoId ?? '').trim();
     const fromExt = extractMetaAdIdFromUrl(ext);
     if (fromExt) index.set(fromExt, creativeId);
     for (const field of [doc.metaAdLibraryUrl, doc.tiktokPostUrl, doc.embedUrl] as const) {
       const u = field;
       if (typeof u !== 'string' || !u.trim()) continue;
-      const adId = extractMetaAdIdFromUrl(u);
-      if (adId) index.set(adId, creativeId);
+      const idFromUrl = extractMetaAdIdFromUrl(u);
+      if (idFromUrl) index.set(idFromUrl, creativeId);
     }
   }
   return index;
@@ -437,15 +456,16 @@ export const CreativeService = {
 
     const rawData = result?.data ?? [];
     const total = result?.total[0]?.count ?? 0;
+    const enriched = await enrichCreativesWithResolvedVideoS3Keys(rawData, creativeModel);
     const data = groupByCreator
-      ? rawData.map((doc) => {
+      ? enriched.map((doc) => {
           const { videoCount, ...creative } = doc;
           return formatCreativeCreatorFeedItem(
             creative,
             typeof videoCount === 'number' ? videoCount : Number(videoCount) || 0,
           );
         })
-      : rawData.map((doc) => formatCreativeFeedItem(doc));
+      : enriched.map((doc) => formatCreativeFeedItem(doc));
     return {
       data,
       pagination: {
@@ -461,7 +481,11 @@ export const CreativeService = {
   async getCreativeById(id: string, creativeModel: Model<ICreativeDocument> = Creative) {
     const doc = await creativeModel.findById(id).lean();
     if (!doc) return null;
-    return formatCreativeForApi(doc, { includeProductDescription: true });
+    const [enriched] = await enrichCreativesWithResolvedVideoS3Keys(
+      [doc as Record<string, unknown>],
+      creativeModel,
+    );
+    return formatCreativeForApi(enriched ?? doc, { includeProductDescription: true });
   },
 
   findByProductId: findCreativesByProductId,

@@ -14,10 +14,8 @@ import {
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { NotFoundError } from '../../middleware/error.middleware';
 import { Creative } from '../../models/creative.model';
-import {
-  pickCreativeStreamVideoUrl,
-  pickCreativeVideoS3Key,
-} from '../../utils/creative-response.util';
+import { pickCreativeStreamVideoUrl } from '../../utils/creative-response.util';
+import { resolveCreativeVideoS3Key } from '../../services/meta-video-s3-resolve.service';
 import {
   collectThumbnailProxyCandidates,
   sendImagePlaceholder,
@@ -242,7 +240,11 @@ export const CreativeController = {
       const creative = await creativeModel.findById(id).lean();
       if (!creative) throw new NotFoundError('Creative not found');
 
-      const s3Key = pickCreativeVideoS3Key(creative as Record<string, unknown>, index);
+      const s3Key = await resolveCreativeVideoS3Key(
+        creative as Record<string, unknown>,
+        index,
+        creativeModel,
+      );
       if (s3Key && isS3VideoConfigured()) {
         const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined;
         const s3Obj = await getS3VideoObject(s3Key, rangeHeader);

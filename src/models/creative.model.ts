@@ -92,10 +92,8 @@ const MetricTrendSchema = new Schema<IMetricTrend>(
 const SecondaryVideoSchema = new Schema<ISecondaryVideo>(
   {
     externalVideoId: { type: String, required: true },
-    embedUrl: { type: String, required: true },
     tiktokPostUrl: { type: String, required: true },
     thumbnailUrl: { type: String },
-    videoPlayUrl: { type: String },
     videoS3Key: { type: String },
     videoDownloadRequestedAt: { type: Date },
     videoDownloadReadyAt: { type: Date },
@@ -114,10 +112,8 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
     externalVideoId: { type: String, required: true, unique: true },
 
-    embedUrl: { type: String, required: true },
     tiktokPostUrl: { type: String, required: true },
     thumbnailUrl: { type: String },
-    videoPlayUrl: { type: String },
     videoS3Key: { type: String },
     videoDownloadRequestedAt: { type: Date },
     videoDownloadReadyAt: { type: Date },
@@ -158,6 +154,7 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     productUrl: { type: String, default: null },
     shopName: { type: String, default: null },
     shopAvatarUrl: { type: String, default: null },
+    shopAvatarS3Key: { type: String, default: null },
     productPrimaryImageUrl: { type: String, default: null },
     productSalesTrend: { type: MetricTrendSchema, default: null },
     productTrend: { type: Schema.Types.Mixed, default: null },

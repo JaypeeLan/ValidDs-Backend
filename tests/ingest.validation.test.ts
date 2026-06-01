@@ -52,7 +52,7 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
     ],
     primaryCreator: {
       handle: 'creator1',
-      avatarUrl: 'https://example.com/c.jpg',
+      avatarS3Key: 'validds/creator-assets/avatars/us/creator1.jpg',
       tiktokPostUrl: 'https://www.tiktok.com/@creator1/video/1',
     },
     reviews: Array.from({ length: 10 }, (_, i) => ({
@@ -91,6 +91,14 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
 describe('validateProductForIngest', () => {
   it('accepts a fully valid product', () => {
     expect(validateProductForIngest(minimalProduct(), 'US')).toEqual([]);
+  });
+
+  it('rejects products priced below $10', () => {
+    const low = validateProductForIngest(minimalProduct({ price: 9.99 }), 'US');
+    expect(low).toContain('price must be >= $10');
+    expect(validateProductForIngest(minimalProduct({ price: 10 }), 'US')).not.toContain(
+      'price must be >= $10',
+    );
   });
 
   it('enforces baseline and strict soldCount', () => {
@@ -174,9 +182,9 @@ describe('validateCreativeForIngest', () => {
     externalVideoId: '123',
     productId: '507f1f77bcf86cd799439011',
     tiktokPostUrl: 'https://www.tiktok.com/@u/video/123',
-    embedUrl: 'https://www.tiktok.com/embed/v2/123',
+    videoS3Key: 'brightdata/tiktok-videos/123.mp4',
     thumbnailUrl: 'https://example.com/t.jpg',
-    creator: { handle: 'u', avatarUrl: 'https://example.com/a.jpg' },
+    creator: { handle: 'u', avatarS3Key: 'validds/creator-assets/avatars/us/u.jpg' },
     metrics: { viewCount: 5000 },
     publishedAt: now,
     productRating: 4.5,
@@ -188,25 +196,25 @@ describe('validateCreativeForIngest', () => {
     relatedVideos: [
       {
         externalVideoId: '2',
-        embedUrl: 'https://e/2',
         tiktokPostUrl: 'https://www.tiktok.com/@u/video/2',
-        creator: { handle: 'u' },
+        videoS3Key: 'brightdata/tiktok-videos/2.mp4',
+        creator: { handle: 'u', avatarS3Key: 'validds/creator-assets/avatars/us/u.jpg' },
         metrics: {},
         publishedAt: now,
       },
       {
         externalVideoId: '3',
-        embedUrl: 'https://e/3',
         tiktokPostUrl: 'https://www.tiktok.com/@u/video/3',
-        creator: { handle: 'u' },
+        videoS3Key: 'brightdata/tiktok-videos/3.mp4',
+        creator: { handle: 'u', avatarS3Key: 'validds/creator-assets/avatars/us/u.jpg' },
         metrics: {},
         publishedAt: now,
       },
       {
         externalVideoId: '4',
-        embedUrl: 'https://e/4',
         tiktokPostUrl: 'https://www.tiktok.com/@u/video/4',
-        creator: { handle: 'u' },
+        videoS3Key: 'brightdata/tiktok-videos/4.mp4',
+        creator: { handle: 'u', avatarS3Key: 'validds/creator-assets/avatars/us/u.jpg' },
         metrics: {},
         publishedAt: now,
       },
@@ -223,6 +231,7 @@ describe('validateCreativeForIngest', () => {
       externalVideoId: 'meta:123',
       productId: '507f1f77bcf86cd799439011',
       tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=123',
+      videoS3Key: 'brightdata/meta-videos/123.mp4',
       thumbnailUrl: 'https://example.com/t.jpg',
       creator: { handle: 'page', avatarUrl: 'https://example.com/a.jpg' },
       productRating: 4.0,
@@ -230,6 +239,20 @@ describe('validateCreativeForIngest', () => {
     expect(validateCreativeForIngest(meta)).toEqual(validateMetaCreativeForIngest(meta));
     expect(validateCreativeForIngest(meta)).not.toContain(
       `need at least ${INGEST_QUALITY.MIN_RELATED_VIDEOS} related videos`,
+    );
+  });
+
+  it('rejects Meta creatives without videoS3Key', () => {
+    const meta = {
+      externalVideoId: 'meta:123',
+      productId: '507f1f77bcf86cd799439011',
+      tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=123',
+      thumbnailUrl: 'https://example.com/t.jpg',
+      creator: { handle: 'page', avatarUrl: 'https://example.com/a.jpg' },
+      productRating: 4.0,
+    };
+    expect(validateMetaCreativeForIngest(meta)).toContain(
+      'videoS3Key required — Meta MP4 must be in S3 before ingest',
     );
   });
 });

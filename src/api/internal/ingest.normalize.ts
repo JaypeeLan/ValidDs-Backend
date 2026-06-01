@@ -313,8 +313,8 @@ function normalizeMetaCreativeUrls(out: Record<string, unknown>): void {
   if (!canonical) return;
 
   out.tiktokPostUrl = canonical;
-  out.embedUrl = canonical;
   out.metaAdLibraryUrl = canonical;
+  delete out.embedUrl;
   const creator =
     out.creator && typeof out.creator === 'object'
       ? { ...(out.creator as Record<string, unknown>) }

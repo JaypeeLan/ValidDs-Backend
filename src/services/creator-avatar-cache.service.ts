@@ -6,6 +6,7 @@ import { collectThumbnailProxyCandidates } from '../utils/creative-image-proxy.u
 import {
   creatorAvatarS3Key,
   downloadImageBuffer,
+  shopAvatarS3Key,
   TIKTOK_IMAGE_HEADERS,
 } from '../utils/creator-avatar.util';
 import { getS3Object, isS3Configured, putS3Object, s3ObjectExists } from '../utils/s3-video.util';
@@ -72,6 +73,57 @@ export async function ensureCreatorAvatarCached(input: {
   }
 
   return lastAvatarUrl ? { avatarUrl: lastAvatarUrl } : null;
+}
+
+/** Download shop logo to S3 (same bucket prefix as creator avatars). */
+export async function ensureShopAvatarCached(input: {
+  shopName: string;
+  sourceUrl?: string;
+  market?: string;
+  existingS3Key?: string;
+}): Promise<{ shopAvatarS3Key?: string } | null> {
+  const shopName = (input.shopName || '').trim();
+  const url = (input.sourceUrl || '').trim();
+  if (!shopName || !url.startsWith('https://')) return null;
+
+  const market = (input.market ?? 'US').toLowerCase();
+  const s3Key = input.existingS3Key?.trim() || shopAvatarS3Key(shopName, market);
+  if (!s3Key) return null;
+
+  if (isS3Configured() && (await s3ObjectExists(s3Key))) {
+    return { shopAvatarS3Key: s3Key };
+  }
+
+  const downloaded = await downloadImageBuffer(url, TIKTOK_IMAGE_HEADERS);
+  if (!downloaded) return null;
+
+  if (isS3Configured()) {
+    try {
+      await putS3Object(s3Key, downloaded.buffer, downloaded.contentType);
+      return { shopAvatarS3Key: s3Key };
+    } catch (err) {
+      log.warn('S3 shop avatar upload failed', { shopName, s3Key, err: String(err) });
+    }
+  }
+  return null;
+}
+
+export async function persistAllCreatorAvatarsOnCreative(
+  creativeId: string,
+  creativeModel: Model<ICreativeDocument>,
+  options: { market?: string } = {},
+): Promise<void> {
+  const doc = await creativeModel.findById(creativeId).select('relatedVideos').lean();
+  const relatedLen = Array.isArray((doc as { relatedVideos?: unknown[] } | null)?.relatedVideos)
+    ? (doc as { relatedVideos: unknown[] }).relatedVideos.length
+    : 0;
+  const slots = 1 + relatedLen;
+  for (let index = 0; index < slots; index += 1) {
+    await persistCreatorAvatarOnCreative(creativeId, creativeModel, {
+      market: options.market,
+      index,
+    });
+  }
 }
 
 function creatorFromSlot(doc: Record<string, unknown>, index: number): ICreatorProfile | undefined {

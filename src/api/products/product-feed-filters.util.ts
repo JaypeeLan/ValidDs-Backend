@@ -1,5 +1,5 @@
 import type { ProductFeedFilters } from '../../db/repositories/product.repository';
-import { INGEST_QUALITY, MIN_TOTAL_GMV } from '../internal/ingest-quality';
+import { INGEST_QUALITY, MIN_PRODUCT_PRICE, MIN_TOTAL_GMV } from '../internal/ingest-quality';
 import { buildContentMetricFilters } from '../../utils/content-feed-filters.util';
 
 /** Frontend L1 labels → backend `categoryL1` values. */
@@ -155,7 +155,7 @@ export function buildProductFeedFilters(raw: RawProductFeedQuery): ProductFeedFi
     limit: raw.limit,
     sortBy: effectiveSortBy,
     userRegion: raw.region,
-    minPrice: raw.minPrice,
+    minPrice: raw.minPrice ?? MIN_PRODUCT_PRICE,
     maxPrice: raw.maxPrice,
     minTotalGmv: raw.minTotalGmv ?? raw.minGmv ?? MIN_TOTAL_GMV,
     maxTotalGmv: raw.maxTotalGmv ?? raw.maxGmv,

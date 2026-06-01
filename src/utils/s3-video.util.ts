@@ -20,6 +20,12 @@ export function s3VideoPrefix(): string {
   return raw.replace(/^\/+|\/+$/g, '');
 }
 
+export function tiktokVideoMp4S3Key(videoId: string): string {
+  const id = String(videoId ?? '').trim();
+  if (!/^\d+$/.test(id)) return '';
+  return `${s3VideoPrefix()}/${id}.mp4`;
+}
+
 export function s3ImagePrefix(): string {
   const raw = envFirst('AWS_S3_IMAGE_PREFIX', 'S3_IMAGE_PREFIX') || 'validds/creator-assets';
   return raw.replace(/^\/+|\/+$/g, '');

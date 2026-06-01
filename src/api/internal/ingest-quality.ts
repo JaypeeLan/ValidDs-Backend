@@ -26,6 +26,8 @@ export const MIN_PRODUCT_IMAGES = 3;
 export const MAX_REVIEWS_INGEST = 25;
 export const MIN_PRODUCT_RATING = 3.5;
 export const MIN_VIEW_COUNT = 1000;
+/** Minimum list price (USD or market currency) for ingest and public feeds. */
+export const MIN_PRODUCT_PRICE = 10;
 /** Minimum product revenue (sold × price) for ingest and public feeds. */
 export const MIN_TOTAL_GMV = 1000;
 
@@ -171,6 +173,11 @@ export function strictProductQualityReasons(
   _market: MarketCode,
 ): string[] {
   const reasons: string[] = [];
+
+  const price = asFiniteNumber(doc.price);
+  if (price === null || price < MIN_PRODUCT_PRICE) {
+    reasons.push(`price must be >= $${MIN_PRODUCT_PRICE}`);
+  }
 
   const sold = asFiniteNumber(doc.soldCount);
   if (sold === null || sold < INGEST_QUALITY.MIN_UNITS_SOLD) {

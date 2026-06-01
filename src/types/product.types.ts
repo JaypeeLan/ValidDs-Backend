@@ -35,6 +35,8 @@ export interface IPrimaryCreator {
   primaryImageUrl?: string | null;
   /** Legacy alias — mirrored with primaryImageUrl on read/write. */
   avatarUrl?: string | null;
+  /** Stable S3 copy — served via avatar proxy, not TikTok CDN. */
+  avatarS3Key?: string | null;
 }
 
 /** `primaryCreator` after `formatProductResponse` (includes read-time proxy URL). */
@@ -101,10 +103,13 @@ export interface IMarketingAngle {
   hook: string;
   body: string;
   target: string;
+  /** TikTok post URL at ingest; API responses may replace with `videoProxyUrl`. */
+  videoUrl?: string;
   /** S3 video proxy — only when a product creative has `videoS3Key`. */
   videoProxyUrl?: string;
   /** Poster from the same creative as `videoProxyUrl`. */
   thumbnailProxyUrl?: string;
+  metaAdLibraryUrl?: string;
 }
 
 export interface IMarketingAnalysis {
@@ -283,6 +288,7 @@ export interface IProduct {
   shopName: string;
   shopUrl: string;
   shopAvatarUrl: string | null;
+  shopAvatarS3Key?: string | null;
   shopFollowers: number;
   postUrl: string;
   postCreatedAt: string | null;

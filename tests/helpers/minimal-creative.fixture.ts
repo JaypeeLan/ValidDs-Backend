@@ -3,18 +3,16 @@
 export function minimalTestCreative(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  const handle =
-    (overrides.creator as { handle?: string } | undefined)?.handle ?? 'creator';
-  const videoId =
-    (overrides.externalVideoId as string | undefined) ?? 'vid_test';
+  const handle = (overrides.creator as { handle?: string } | undefined)?.handle ?? 'creator';
+  const videoId = (overrides.externalVideoId as string | undefined) ?? 'vid_test';
   const postUrl =
     (overrides.tiktokPostUrl as string | undefined) ??
     `https://www.tiktok.com/@${handle}/video/${videoId}`;
 
   return {
     externalVideoId: videoId,
-    embedUrl: `https://www.tiktok.com/embed/v2/${videoId}`,
     tiktokPostUrl: postUrl,
+    videoS3Key: `brightdata/tiktok-videos/${videoId}.mp4`,
     section: 'top-ads',
     isAd: false,
     publishedAt: new Date(),
@@ -24,6 +22,7 @@ export function minimalTestCreative(
       region: 'US',
       verified: false,
       tiktokPostUrl: postUrl,
+      avatarS3Key: `validds/creator-assets/avatars/us/${handle}.jpg`,
       isIndependentCreator: false,
     },
     metrics: {

@@ -10,7 +10,15 @@ import {
   validateProductForIngest,
 } from './ingest.validation';
 import { normalizeCreativePayload, normalizeProductPayload } from './ingest.normalize';
-import { persistCreatorAvatarOnCreative } from '../../services/creator-avatar-cache.service';
+import { persistAllCreatorAvatarsOnCreative } from '../../services/creator-avatar-cache.service';
+import {
+  enrichCreativeShopAvatarForIngest,
+  enrichCreativeVideoS3ForIngest,
+  enrichProductMediaForIngest,
+  normalizeCreativeVideoIds,
+  stripExternalPlaybackUrls,
+  stripProductCdnAvatars,
+} from '../../services/ingest-media-s3.service';
 import { isProductHeroThumbnail } from '../../utils/creative-response.util';
 import { mergeMetricTrendSnapshots } from '../../utils/metric-trend-merge.util';
 import { extractTikTokVideoId } from '../../utils/tiktok-url.util';
@@ -141,6 +149,8 @@ export async function ingestProduct(
     }
 
     const prepared = prepareProductDoc(product, market);
+    await enrichProductMediaForIngest(prepared, market);
+    stripProductCdnAvatars(prepared);
     const reasons = validateProductForIngest(prepared, market);
     if (reasons.length > 0) {
       res.status(422).json({ reasons });
@@ -223,6 +233,11 @@ export async function ingestCreative(
       ingestedAt: new Date(),
     });
 
+    normalizeCreativeVideoIds(payload);
+    await enrichCreativeVideoS3ForIngest(payload);
+    await enrichCreativeShopAvatarForIngest(payload, market);
+    stripExternalPlaybackUrls(payload);
+
     const reasons = validateCreativeForIngest(payload);
     if (reasons.length > 0) {
       res.status(422).json({ reasons });
@@ -297,9 +312,11 @@ export async function ingestCreative(
       }
     }
 
-    void persistCreatorAvatarOnCreative(String(saved._id), Creative, { market }).catch((err) =>
-      log.warn('Avatar cache on ingest failed', { id: saved.id, err: String(err) }),
-    );
+    try {
+      await persistAllCreatorAvatarsOnCreative(String(saved._id), Creative, { market });
+    } catch (err) {
+      log.warn('Avatar cache on ingest failed', { id: saved.id, err: String(err) });
+    }
 
     log.info('Creative ingested', { market, externalVideoId, adDedupeKey, id: saved.id });
     res.status(200).json({ success: true, id: String(saved._id) });

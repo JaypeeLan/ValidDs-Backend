@@ -24,7 +24,17 @@ import { s3ImagePrefix } from './s3-video.util';
 export function creatorAvatarS3Key(handle: string, market = 'us'): string {
   const h = handle.replace(/^@/, '').trim().toLowerCase();
   if (!h) return '';
-  return `${s3ImagePrefix()}/avatars/${market}/${h}.jpg`;
+  return `${s3ImagePrefix()}/avatars/${market.toLowerCase()}/${h}.jpg`;
+}
+
+export function shopAvatarS3Key(shopName: string, market = 'us'): string {
+  const slug = shopName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  if (!slug) return '';
+  return `${s3ImagePrefix()}/shops/${market.toLowerCase()}/${slug}.jpg`;
 }
 
 /** Stable backend URL for creator profile images (S3 + refresh, not expiring CDN). */

@@ -59,8 +59,8 @@ export interface ICreativeComment {
 
 export interface ISecondaryVideo {
   externalVideoId: string;
-  /** Permanent TikTok embed URL (https://www.tiktok.com/embed/v2/<id>) — no CDN expiry */
-  embedUrl: string;
+  /** @deprecated Not stored on ingest — playback uses videoS3Key + API proxy */
+  embedUrl?: string;
   tiktokPostUrl: string;
   thumbnailUrl?: string;
   videoPlayUrl?: string;
@@ -76,8 +76,8 @@ export interface ISecondaryVideo {
 export interface ICreative {
   productId: mongoose.Types.ObjectId;
   externalVideoId: string;
-  /** Permanent TikTok embed URL — use instead of CDN play URL which expires */
-  embedUrl: string;
+  /** @deprecated Not stored on ingest — playback uses videoS3Key + API proxy */
+  embedUrl?: string;
   tiktokPostUrl: string;
   thumbnailUrl?: string;
   /** Legacy CDN play URL — optional; used by video proxy when present */
@@ -114,6 +114,7 @@ export interface ICreative {
   productUrl?: string | null;
   shopName?: string | null;
   shopAvatarUrl?: string | null;
+  shopAvatarS3Key?: string | null;
   productPrimaryImageUrl?: string | null;
   /** Denormalized copy of the parent product's `salesTrend` (MetricTrend windows). */
   productSalesTrend?: IMetricTrend | null;

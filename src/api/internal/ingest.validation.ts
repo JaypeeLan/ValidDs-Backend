@@ -17,6 +17,7 @@ import {
   hasTrendCurrentWindow,
   isMetaCreative,
   MIN_PRICE_HISTORY_MONTHS,
+  MIN_PRODUCT_PRICE,
   marketingAngleFieldReasons,
   marketingAngles,
   postAgeRejection,
@@ -29,6 +30,7 @@ export {
   INGEST_QUALITY,
   MAX_REVIEWS_INGEST,
   MIN_PRODUCT_IMAGES,
+  MIN_PRODUCT_PRICE,
 } from './ingest-quality';
 
 export function validateMetaCreativeForIngest(doc: Record<string, unknown>): string[] {
@@ -71,6 +73,11 @@ export function validateMetaCreativeForIngest(doc: Record<string, unknown>): str
     reasons.push(`productRating must be >= ${MIN_PRODUCT_RATING}`);
   }
 
+  const videoS3 = doc.videoS3Key;
+  if (typeof videoS3 !== 'string' || !videoS3.trim()) {
+    reasons.push('videoS3Key required — Meta MP4 must be in S3 before ingest');
+  }
+
   return reasons;
 }
 
@@ -109,8 +116,8 @@ export function validateProductForIngest(
   }
 
   const price = asFiniteNumber(doc.price);
-  if (price === null || price < 1) {
-    reasons.push('price must be >= $1');
+  if (price === null || price < MIN_PRODUCT_PRICE) {
+    reasons.push(`price must be >= $${MIN_PRODUCT_PRICE}`);
   }
 
   const wantCurrency = SUPPORTED_MARKETS[market].currency;
@@ -130,9 +137,9 @@ export function validateProductForIngest(
 
   const creator = (doc.primaryCreator ?? {}) as Record<string, unknown>;
   if (!creator.handle) reasons.push('creator.handle missing');
-  const avatar = creator.avatarUrl;
-  if (typeof avatar !== 'string' || !avatar.startsWith('https://')) {
-    reasons.push('creator.avatarUrl must be https');
+  const avatarS3 = creator.avatarS3Key;
+  if (typeof avatarS3 !== 'string' || !avatarS3.trim()) {
+    reasons.push('primaryCreator.avatarS3Key required — profile image must be in S3 before ingest');
   }
 
   const views = asFiniteNumber(doc.viewCount);
@@ -225,9 +232,6 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
     reasons.push('tiktokPostUrl must be a TikTok video URL');
   }
 
-  const embed = String(doc.embedUrl ?? '');
-  if (!embed.startsWith('https://')) reasons.push('embedUrl must be https');
-
   const thumb = String(doc.thumbnailUrl ?? '');
   if (!thumb.startsWith('https://') || thumb.includes('placehold.co')) {
     reasons.push('thumbnailUrl missing or placeholder');
@@ -235,9 +239,15 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
 
   const creator = (doc.creator ?? {}) as Record<string, unknown>;
   if (!creator.handle) reasons.push('creator.handle missing');
-  const cAvatar = creator.avatarUrl;
-  if (typeof cAvatar !== 'string' || !cAvatar.startsWith('https://')) {
-    reasons.push('creator.avatarUrl must be https');
+
+  const videoS3 = doc.videoS3Key;
+  if (typeof videoS3 !== 'string' || !videoS3.trim()) {
+    reasons.push('videoS3Key required — TikTok MP4 must be in S3 before ingest');
+  }
+
+  const avatarS3 = creator.avatarS3Key;
+  if (typeof avatarS3 !== 'string' || !avatarS3.trim()) {
+    reasons.push('creator.avatarS3Key required — profile image must be in S3 before ingest');
   }
 
   const metrics = (doc.metrics ?? {}) as Record<string, unknown>;

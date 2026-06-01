@@ -12,9 +12,57 @@ import {
 import { normalizeCreativePayload, normalizeProductPayload } from './ingest.normalize';
 import { persistCreatorAvatarOnCreative } from '../../services/creator-avatar-cache.service';
 import { isProductHeroThumbnail } from '../../utils/creative-response.util';
+import { mergeMetricTrendSnapshots } from '../../utils/metric-trend-merge.util';
+import { extractTikTokVideoId } from '../../utils/tiktok-url.util';
 import { logger } from '../../logger';
 
 const log = logger.child({ module: 'internal-ingest' });
+
+/** One organic primary-discovery video per product (matches product.postUrl when set). */
+async function resolvePrimaryDiscoveryFlag(
+  Creative: ReturnType<typeof getMarketModels>['Creative'],
+  Product: ReturnType<typeof getMarketModels>['Product'],
+  productId: Types.ObjectId,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const externalVideoId = String(payload.externalVideoId ?? '');
+  if (externalVideoId.startsWith('meta:')) {
+    payload.isPrimaryDiscovery = false;
+    return;
+  }
+
+  const product = await Product.findById(productId).select('postUrl').lean();
+  const canonicalVideoId = extractTikTokVideoId(String(product?.postUrl ?? ''));
+  const incomingVideoId =
+    extractTikTokVideoId(String(payload.tiktokPostUrl ?? '')) ?? externalVideoId;
+
+  const existingPrimary = await Creative.findOne({
+    productId,
+    isPrimaryDiscovery: true,
+    externalVideoId: { $not: /^meta:/ },
+  })
+    .select('_id externalVideoId tiktokPostUrl')
+    .lean();
+
+  if (!existingPrimary) {
+    payload.isPrimaryDiscovery = true;
+    return;
+  }
+
+  const existingId = String(existingPrimary.externalVideoId ?? '');
+  if (existingId === externalVideoId) {
+    payload.isPrimaryDiscovery = true;
+    return;
+  }
+
+  if (canonicalVideoId && incomingVideoId === canonicalVideoId) {
+    await Creative.updateOne({ _id: existingPrimary._id }, { $set: { isPrimaryDiscovery: false } });
+    payload.isPrimaryDiscovery = true;
+    return;
+  }
+
+  payload.isPrimaryDiscovery = false;
+}
 
 function parsePublishedAt(value: unknown): Date | null {
   if (!value) return null;
@@ -103,6 +151,22 @@ export async function ingestProduct(
     const externalId = String(prepared.externalId ?? '');
     const source = String(prepared.source ?? 'scrapecreators-shop');
 
+    const existing = await Product.findOne({ externalId, source }).lean();
+    if (existing) {
+      const sold = Number(prepared.soldCount ?? prepared.totalSales ?? 0) || 0;
+      const gmv = Number(prepared.totalGmv ?? prepared.storeGmv ?? 0) || 0;
+      prepared.salesTrend = mergeMetricTrendSnapshots(
+        prepared.salesTrend,
+        existing.salesTrend,
+        sold,
+      );
+      prepared.revenueTrend = mergeMetricTrendSnapshots(
+        prepared.revenueTrend,
+        existing.revenueTrend,
+        gmv,
+      );
+    }
+
     const saved = await Product.findOneAndUpdate(
       { externalId, source },
       { $set: prepared },
@@ -146,27 +210,35 @@ export async function ingestCreative(
       return;
     }
 
-    const reasons = validateCreativeForIngest(creative);
-    if (reasons.length > 0) {
-      res.status(422).json({ reasons });
-      return;
-    }
-
     const productId = String(creative.productId ?? '');
     if (!Types.ObjectId.isValid(productId)) {
       res.status(422).json({ reasons: ['invalid productId'] });
       return;
     }
 
-    const { Creative } = getMarketModels(market);
-    const externalVideoId = String(creative.externalVideoId ?? '');
     const published = parsePublishedAt(creative.publishedAt);
     const payload: Record<string, unknown> = normalizeCreativePayload({
       ...creative,
       productId: new Types.ObjectId(productId),
       ingestedAt: new Date(),
     });
+
+    const reasons = validateCreativeForIngest(payload);
+    if (reasons.length > 0) {
+      res.status(422).json({ reasons });
+      return;
+    }
+
+    const { Creative, Product } = getMarketModels(market);
+    const externalVideoId = String(payload.externalVideoId ?? '');
     if (published) payload.publishedAt = published;
+
+    await resolvePrimaryDiscoveryFlag(
+      Creative,
+      Product,
+      payload.productId as Types.ObjectId,
+      payload,
+    );
 
     const creator = (payload.creator ?? {}) as Record<string, unknown>;
     const bio = creator.bio;

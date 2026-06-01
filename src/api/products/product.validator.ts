@@ -18,13 +18,17 @@ import {
 } from '../../utils/content-feed-filters.util';
 
 const MultiStringSchema = (allowedValues?: string[]) =>
-  z.union([z.string(), z.array(z.string())])
+  z
+    .union([z.string(), z.array(z.string())])
     .optional()
     .transform((val) => {
       if (!val) return undefined;
       const items = Array.isArray(val)
         ? val.filter(Boolean)
-        : val.split(',').map((s) => s.trim()).filter(Boolean);
+        : val
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
       return items.length ? items : undefined;
     })
     .refine(
@@ -47,16 +51,16 @@ const CategorySchema = z
     if (!val) return undefined;
     const items = Array.isArray(val)
       ? val.filter(Boolean)
-      : val.split(',').map((s) => s.trim()).filter(Boolean);
+      : val
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
     return items.length ? items : undefined;
   })
   .refine(
     (items) => {
       if (!items) return true;
-      const allowed = new Set([
-        ...PRODUCT_CATEGORIES,
-        ...Object.keys(FRONTEND_CATEGORY_TO_L1),
-      ]);
+      const allowed = new Set([...PRODUCT_CATEGORIES, ...Object.keys(FRONTEND_CATEGORY_TO_L1)]);
       return items.every((v) => allowed.has(v));
     },
     { message: 'Invalid category' },
@@ -66,6 +70,15 @@ const LevelSchema = z.enum(['High', 'Medium', 'Low']);
 
 const ProductFeedQueryBaseSchema = z.object({
   q: z
+    .string()
+    .max(200)
+    .optional()
+    .transform((val) => {
+      if (val == null || val === '') return undefined;
+      const t = val.trim();
+      return t.length ? t : undefined;
+    }),
+  search: z
     .string()
     .max(200)
     .optional()
@@ -132,7 +145,8 @@ export const ProductFeedQuerySchema = ProductFeedQueryBaseSchema.superRefine((va
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['sortBy'],
-        message: 'For feed=discover use: recent, views, engagement, trendScore (or gmv/units for top-opportunities tab only)',
+        message:
+          'For feed=discover use: recent, views, engagement, trendScore (or gmv/units for top-opportunities tab only)',
       });
     }
   }
@@ -142,22 +156,35 @@ export const ProductFeedQuerySchema = ProductFeedQueryBaseSchema.superRefine((va
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['sortBy'],
-        message: 'For feed=top-opportunities use: gmv_desc, gmv_asc, units_sold_desc, units_sold_asc',
+        message:
+          'For feed=top-opportunities use: gmv_desc, gmv_asc, units_sold_desc, units_sold_asc',
       });
     }
   }
   if (val.minPrice != null && val.maxPrice != null && val.minPrice > val.maxPrice) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['minPrice'], message: 'minPrice cannot exceed maxPrice' });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['minPrice'],
+      message: 'minPrice cannot exceed maxPrice',
+    });
   }
   const minGmv = val.minTotalGmv ?? val.minGmv;
   const maxGmv = val.maxTotalGmv ?? val.maxGmv;
   if (minGmv != null && maxGmv != null && minGmv > maxGmv) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['minGmv'], message: 'minGmv cannot exceed maxGmv' });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['minGmv'],
+      message: 'minGmv cannot exceed maxGmv',
+    });
   }
   const minU = val.minUnitsSold ?? val.minUnits;
   const maxU = val.maxUnitsSold ?? val.maxUnits;
   if (minU != null && maxU != null && minU > maxU) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['minUnits'], message: 'minUnits cannot exceed maxUnits' });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['minUnits'],
+      message: 'minUnits cannot exceed maxUnits',
+    });
   }
   validateContentMetricRanges(
     {
@@ -170,9 +197,11 @@ export const ProductFeedQuerySchema = ProductFeedQueryBaseSchema.superRefine((va
     ctx,
   );
 }).transform((val): ProductFeedQuery => {
-  const filters = buildProductFeedFilters(val as RawProductFeedQuery);
+  const q = val.q ?? val.search;
+  const filters = buildProductFeedFilters({ ...(val as RawProductFeedQuery), q });
   return {
     ...val,
+    q,
     sortBy: filters.sortBy,
     _filters: filters,
   };
@@ -185,15 +214,14 @@ export type ProductFeedQuery = z.infer<typeof ProductFeedQueryBaseSchema> & {
 
 export const ProductKeywordContextQuerySchema = z.object({
   name: z.string().min(1, 'Keyword is required').max(200),
-  timeFilter: z.union([
-    z.literal(1),
-    z.literal(7),
-    z.literal(30),
-    z.literal(90),
-    z.literal(180),
-  ]).default(30),
+  timeFilter: z
+    .union([z.literal(1), z.literal(7), z.literal(30), z.literal(90), z.literal(180)])
+    .default(30),
   sortOrder: z.union([z.literal(0), z.literal(1)]).default(0),
-  country: z.string().regex(/^[a-zA-Z]{2}$/, 'Country must be a 2-letter code').optional(),
+  country: z
+    .string()
+    .regex(/^[a-zA-Z]{2}$/, 'Country must be a 2-letter code')
+    .optional(),
   cursor: z.coerce.number().min(0).default(0),
   matchExactly: z.coerce.boolean().default(false),
 });

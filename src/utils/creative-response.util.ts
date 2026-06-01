@@ -6,6 +6,7 @@ import type {
   CreativeSection,
   ICreativeComment,
   ICreatorProfile,
+  ICreatorProfileApi,
   IMetricTrend,
   IMetricTrendWindow,
   IProductTrendSnapshot,
@@ -378,7 +379,7 @@ function formatCreator(
   index: number,
   baseUrl?: string,
   resolvedAvatarUrl?: string,
-): ICreatorProfile & { avatarProxyUrl?: string } {
+): ICreatorProfileApi {
   const c = creator ?? ({ handle: '', verified: false, tiktokPostUrl: '' } as ICreatorProfile);
   const avatarUrl = pickUrl(resolvedAvatarUrl, c.avatarUrl);
   const avatarProxyUrl = buildCreatorAvatarProxyUrl(baseUrl, index, {
@@ -387,15 +388,14 @@ function formatCreator(
     handle: c.handle,
   });
   return {
-    ...c,
+    handle: c.handle ?? '',
+    displayName: c.displayName,
+    verified: Boolean(c.verified),
+    region: c.region,
     isIndependentCreator: Boolean(c.isIndependentCreator),
     ...(avatarUrl ? { avatarUrl } : {}),
     ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
   };
-}
-
-function embedUrlFor(videoId?: string): string | undefined {
-  return videoId ? `https://www.tiktok.com/embed/v2/${videoId}` : undefined;
 }
 
 function formatSecondaryVideo(
@@ -404,14 +404,12 @@ function formatSecondaryVideo(
   baseUrl?: string,
 ): CreativeApiItem['relatedVideos'][number] {
   const thumb = pickUrl(video.thumbnailUrl);
+  const playable = Boolean(pickUrl(video.videoS3Key));
   return {
     isPrimary: false,
     externalVideoId: video.externalVideoId,
-    embedUrl: pickUrl(video.embedUrl, embedUrlFor(video.externalVideoId))!,
-    tiktokPostUrl: video.tiktokPostUrl,
     thumbnailUrl: video.thumbnailUrl,
-    videoPlayUrl: video.videoPlayUrl,
-    videoProxyUrl: baseUrl ? `${baseUrl}/video?index=${index}` : undefined,
+    videoProxyUrl: playable && baseUrl ? `${baseUrl}/video?index=${index}` : undefined,
     thumbnailProxyUrl:
       baseUrl && thumb ? `${baseUrl}/thumbnail?index=${index}&kind=thumbnail` : undefined,
     creator: formatCreator(video.creator, index, baseUrl),
@@ -424,6 +422,11 @@ function formatSecondaryVideo(
 export type FormatCreativeOptions = {
   includeProductDescription?: boolean;
 };
+
+/** True when GET /creatives/:id/video streams from S3 (`videoS3Key` set). */
+export function creativeHasPlayableVideo(creative: CreativePlain, index = 0): boolean {
+  return Boolean(pickCreativeVideoS3Key(creative, index));
+}
 
 export function formatCreativeForApi(
   input: unknown,
@@ -440,6 +443,7 @@ export function formatCreativeForApi(
   const baseUrl = id ? `/api/${apiVersion}/creatives/${id}` : undefined;
   const externalVideoId = String(creative.externalVideoId ?? '');
   const thumb = pickUrl(creative.thumbnailUrl);
+  const playable = creativeHasPlayableVideo(creative, 0);
 
   const apiSection = dbSectionToApi(creative.section as string | undefined) ?? 'trending';
   const creator = creative.creator as ICreatorProfile | undefined;
@@ -449,10 +453,8 @@ export function formatCreativeForApi(
     id,
     productId: String(creative.productId ?? ''),
     externalVideoId,
-    embedUrl: pickUrl(creative.embedUrl, embedUrlFor(externalVideoId)) ?? '',
-    tiktokPostUrl: String(creative.tiktokPostUrl ?? ''),
     thumbnailUrl: creative.thumbnailUrl as string | undefined,
-    videoProxyUrl: baseUrl ? `${baseUrl}/video?index=0` : undefined,
+    videoProxyUrl: playable && baseUrl ? `${baseUrl}/video?index=0` : undefined,
     thumbnailProxyUrl: baseUrl && thumb ? `${baseUrl}/thumbnail?index=0&kind=thumbnail` : undefined,
     creator: formatCreator(creator, 0, baseUrl, creatorAvatarUrl),
     metrics: formatMetrics(creative.metrics as IVideoMetrics | undefined),

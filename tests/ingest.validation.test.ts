@@ -5,6 +5,20 @@ import {
   validateMetaCreativeForIngest,
   validateProductForIngest,
 } from '../src/api/internal/ingest.validation';
+import { MIN_TOTAL_GMV } from '../src/api/internal/ingest-quality';
+
+function priceTrendWithMonths(value: number, monthCount = 10) {
+  const windows = Array.from({ length: monthCount }, (_, i) => {
+    const monthsAgo = monthCount - 1 - i;
+    return {
+      label: `m-${monthsAgo}`,
+      daysAgo: monthsAgo,
+      monthsAgo,
+      value,
+    };
+  });
+  return { direction: 'stable' as const, changePercent: 0, windows };
+}
 
 function minimalProduct(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const now = new Date();
@@ -31,7 +45,11 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
     soldCount: 500,
     totalGmv: 10_000,
     viewCount: 5000,
-    imageUrls: ['https://example.com/1.jpg', 'https://example.com/2.jpg', 'https://example.com/3.jpg'],
+    imageUrls: [
+      'https://example.com/1.jpg',
+      'https://example.com/2.jpg',
+      'https://example.com/3.jpg',
+    ],
     primaryCreator: {
       handle: 'creator1',
       avatarUrl: 'https://example.com/c.jpg',
@@ -41,7 +59,7 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
       content: `Review number ${i} with enough text`,
       author: 'user',
     })),
-    priceTrend: metricWindow,
+    priceTrend: priceTrendWithMonths(20),
     salesTrend: metricWindow,
     revenueTrend: metricWindow,
     storeGmv: 5000,
@@ -54,11 +72,7 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
     productUrl: 'https://example.com/p',
     market: 'US',
     creativeCounts: { ads: 0, organic: 1, reviews: 0, total: 1 },
-    suppliers: [
-      { monthlyTraffic: 10_000 },
-      { monthlyTraffic: 20_000 },
-      { monthlyTraffic: 30_000 },
-    ],
+    suppliers: [{ monthlyTraffic: 10_000 }, { monthlyTraffic: 20_000 }, { monthlyTraffic: 30_000 }],
     aiIntelligence: {
       reviewSummary: { summary: 'Good product reviews overall' },
       marketingAnalysis: {
@@ -88,7 +102,9 @@ describe('validateProductForIngest', () => {
     expect(lowSold).not.toContain(`soldCount must be >= ${BASELINE_INGEST.MIN_SOLD_COUNT}`);
     expect(lowSold).toContain(`soldCount must be >= ${INGEST_QUALITY.MIN_UNITS_SOLD}`);
 
-    expect(validateProductForIngest(minimalProduct({ totalGmv: 100 }), 'US')).toEqual([]);
+    const lowGmv = validateProductForIngest(minimalProduct({ totalGmv: 100 }), 'US');
+    expect(lowGmv).toContain(`totalGmv must be >= ${MIN_TOTAL_GMV}`);
+    expect(validateProductForIngest(minimalProduct({ totalGmv: MIN_TOTAL_GMV }), 'US')).toEqual([]);
   });
 
   it('enforces reviews, angles, and suppliers', () => {
@@ -104,7 +120,9 @@ describe('validateProductForIngest', () => {
       }),
       'US',
     );
-    expect(fewAngles).toContain(`need at least ${INGEST_QUALITY.MIN_MARKETING_ANGLES} marketing angles`);
+    expect(fewAngles).toContain(
+      `need at least ${INGEST_QUALITY.MIN_MARKETING_ANGLES} marketing angles`,
+    );
 
     const badAngle = validateProductForIngest(
       minimalProduct({
@@ -123,20 +141,30 @@ describe('validateProductForIngest', () => {
       'US',
     );
     expect(
-      supplierReasons.some((r) => r.startsWith(`need at least ${INGEST_QUALITY.MIN_SUPPLIERS} suppliers`)),
+      supplierReasons.some((r) =>
+        r.startsWith(`need at least ${INGEST_QUALITY.MIN_SUPPLIERS} suppliers`),
+      ),
     ).toBe(true);
 
     const badTraffic = validateProductForIngest(
       minimalProduct({
-        suppliers: [
-          { monthlyTraffic: 0 },
-          { monthlyTraffic: 10_000 },
-          { monthlyTraffic: 20_000 },
-        ],
+        suppliers: [{ monthlyTraffic: 0 }, { monthlyTraffic: 10_000 }, { monthlyTraffic: 20_000 }],
       }),
       'US',
     );
     expect(badTraffic).toContain('supplier[0].monthlyTraffic must be > 0');
+
+    const shortPriceHistory = validateProductForIngest(
+      minimalProduct({
+        priceTrend: {
+          direction: 'stable',
+          changePercent: 0,
+          windows: [{ label: 'Now', daysAgo: 0, monthsAgo: 0, value: 20 }],
+        },
+      }),
+      'US',
+    );
+    expect(shortPriceHistory).toContain('priceTrend must have at least 10 months with price > 0');
   });
 });
 
@@ -158,9 +186,30 @@ describe('validateCreativeForIngest', () => {
       windows: [{ daysAgo: 0, value: 1 }],
     },
     relatedVideos: [
-      { externalVideoId: '2', embedUrl: 'https://e/2', tiktokPostUrl: 'https://www.tiktok.com/@u/video/2', creator: { handle: 'u' }, metrics: {}, publishedAt: now },
-      { externalVideoId: '3', embedUrl: 'https://e/3', tiktokPostUrl: 'https://www.tiktok.com/@u/video/3', creator: { handle: 'u' }, metrics: {}, publishedAt: now },
-      { externalVideoId: '4', embedUrl: 'https://e/4', tiktokPostUrl: 'https://www.tiktok.com/@u/video/4', creator: { handle: 'u' }, metrics: {}, publishedAt: now },
+      {
+        externalVideoId: '2',
+        embedUrl: 'https://e/2',
+        tiktokPostUrl: 'https://www.tiktok.com/@u/video/2',
+        creator: { handle: 'u' },
+        metrics: {},
+        publishedAt: now,
+      },
+      {
+        externalVideoId: '3',
+        embedUrl: 'https://e/3',
+        tiktokPostUrl: 'https://www.tiktok.com/@u/video/3',
+        creator: { handle: 'u' },
+        metrics: {},
+        publishedAt: now,
+      },
+      {
+        externalVideoId: '4',
+        embedUrl: 'https://e/4',
+        tiktokPostUrl: 'https://www.tiktok.com/@u/video/4',
+        creator: { handle: 'u' },
+        metrics: {},
+        publishedAt: now,
+      },
     ],
   };
 

@@ -1,5 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { findCreativesByProductId, findRelatedAdsByProductId } from '../../services/creative.service';
+import {
+  findCreativesByProductId,
+  findRelatedAdsByProductId,
+  loadPlayableVideoIndexForProduct,
+} from '../../services/creative.service';
 import { ProductService, getRelatedProducts } from '../../services/product.service';
 import {
   ProductFeedQuery,
@@ -23,10 +27,18 @@ import {
   enrichProductsWithCreatorAvatars,
   normalizePrimaryCreatorOnProduct,
 } from '../../utils/product-response.util';
+import {
+  enrichAnglesWithMetaVideoProxyUrls,
+  stripAngleExternalLinks,
+  enrichAnglesWithVideoProxyUrls,
+  normalizeMarketingAngleVideoUrls,
+  sortMarketingAnglesWithVideoFirst,
+  stripNonPlayableAngleVideoUrls,
+} from '../../utils/marketing-angles.util';
 import { resolveEngagementTrend } from '../../utils/product-trend.util';
 import { resolveBuyingSentimentLabel, type SentimentLabel } from '../../utils/sentiment.util';
 import { postRecencyFlags } from '../../utils/product-recency.util';
-import { imageAssetKey } from '../../utils/creative-response.util';
+import { formatCreativeFeedItem, imageAssetKey } from '../../utils/creative-response.util';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: IAIIntelligence;
@@ -53,15 +65,45 @@ function resolveStoredSentimentLabel(ai: IAIIntelligence): SentimentLabel {
   return resolveBuyingSentimentLabel(ai.buyingSentimentScore);
 }
 
-function buildAiInsight(aiIntelligence: IAIIntelligence | undefined): ProductAiInsightResponse {
+function metaViewerUrlsFromCreatives(creatives: unknown[]): string[] {
+  const urls: string[] = [];
+  for (const item of creatives) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const ext = String(row.externalVideoId ?? '');
+    if (!ext.startsWith('meta:')) continue;
+    for (const field of ['metaAdLibraryUrl', 'tiktokPostUrl', 'embedUrl'] as const) {
+      const u = row[field];
+      if (typeof u === 'string' && u.trim()) urls.push(u.trim());
+    }
+  }
+  return urls;
+}
+
+function buildAiInsight(
+  aiIntelligence: IAIIntelligence | undefined,
+  opts: {
+    metaViewerUrls?: string[];
+    playableVideoIndex?: Map<string, string>;
+    apiVersion?: string;
+  } = {},
+): ProductAiInsightResponse {
   const ai = aiIntelligence ?? ({} as IAIIntelligence);
   const sentimentLabel = resolveStoredSentimentLabel(ai);
+  const rawAngles = ai.marketingAnalysis?.angles ?? [];
+  const stripped = stripNonPlayableAngleVideoUrls(
+    normalizeMarketingAngleVideoUrls(rawAngles as Record<string, unknown>[]),
+  );
+  const apiVersion = opts.apiVersion ?? process.env.API_VERSION ?? 'v1';
+  const index = opts.playableVideoIndex ?? new Map();
+  const withProxy = enrichAnglesWithVideoProxyUrls(stripped, index, apiVersion);
+  const withMetaProxy = enrichAnglesWithMetaVideoProxyUrls(withProxy, index, apiVersion);
+  const angles = sortMarketingAnglesWithVideoFirst(stripAngleExternalLinks(withMetaProxy));
   const marketingAnalysis = ai.marketingAnalysis
     ? {
         ...ai.marketingAnalysis,
-        sentimentLabel:
-          ai.marketingAnalysis.sentimentLabel ??
-          sentimentLabel,
+        sentimentLabel: ai.marketingAnalysis.sentimentLabel ?? sentimentLabel,
+        angles,
       }
     : null;
   return {
@@ -83,9 +125,10 @@ function buildAiInsight(aiIntelligence: IAIIntelligence | undefined): ProductAiI
 }
 
 async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, unknown>[]> {
-  return inputs.map((p) =>
-    typeof p.toObject === 'function' ? p.toObject() : { ...p }
-  ) as Record<string, unknown>[];
+  return inputs.map((p) => (typeof p.toObject === 'function' ? p.toObject() : { ...p })) as Record<
+    string,
+    unknown
+  >[];
 }
 
 // Removed buildCreatorsVideos as 'topVideos' is deleted. It is now handled via the /creatives endpoint.
@@ -108,8 +151,7 @@ function isDisplayableProductImage(url: string): boolean {
 }
 
 function collectProductImageUrls(product: Record<string, unknown>): string[] {
-  const primary =
-    typeof product.primaryImageUrl === 'string' ? product.primaryImageUrl.trim() : '';
+  const primary = typeof product.primaryImageUrl === 'string' ? product.primaryImageUrl.trim() : '';
   const fromArray = Array.isArray(product.imageUrls)
     ? product.imageUrls
         .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
@@ -167,6 +209,7 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     totalSales: product.totalSales as number | undefined,
     totalGmv: product.totalGmv as number | undefined,
     salesTrend: (product.salesTrend as ProductFeedItem['salesTrend']) ?? null,
+    priceTrend: (product.priceTrend as ProductFeedItem['priceTrend']) ?? null,
     shopName: product.shopName as string | undefined,
     shopUrl: product.shopUrl as string | undefined,
     shopAvatarUrl: (product.shopAvatarUrl as string | null | undefined) ?? null,
@@ -188,14 +231,23 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
   };
 
   if (product.primaryCreator) {
-    item.primaryCreator = { ...(product.primaryCreator as object) } as ProductFeedItem['primaryCreator'];
+    item.primaryCreator = {
+      ...(product.primaryCreator as object),
+    } as ProductFeedItem['primaryCreator'];
     normalizePrimaryCreatorOnProduct(item as unknown as Record<string, unknown>);
   }
 
   return item;
 }
 
-function formatProductResponse(input: ProductLike): ProductApiResponse {
+function formatProductResponse(
+  input: ProductLike,
+  options: {
+    metaViewerUrls?: string[];
+    playableVideoIndex?: Map<string, string>;
+    apiVersion?: string;
+  } = {},
+): ProductApiResponse {
   const product = toProductPlain(input);
   const engagement = resolveEngagementTrend(product);
   const ratingSources = Array.isArray(product.ratingSources) ? product.ratingSources : [];
@@ -214,7 +266,7 @@ function formatProductResponse(input: ProductLike): ProductApiResponse {
     isTopAd: discoverySections.includes('top-ads'),
     trend: engagement,
     trends: product.trends ?? { engagement },
-    aiInsight: buildAiInsight(product.aiIntelligence as IAIIntelligence | undefined),
+    aiInsight: buildAiInsight(product.aiIntelligence as IAIIntelligence | undefined, options),
   } as Record<string, unknown>;
 
   delete response.aiIntelligence;
@@ -244,12 +296,11 @@ function deriveAverageRatingFromSources(sources: any[]): number | undefined {
 /**
  * Product Controller
  *
- * GET /api/v1/products — paginated list or full-text search (`q`); optional filters
+ * GET /api/v1/products — paginated list or relevance search (`q` / `search`); optional filters
  * GET /api/v1/products/:id — product detail
  */
 
 export const ProductController = {
-
   async feed(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as ProductFeedQuery;
@@ -275,8 +326,8 @@ export const ProductController = {
               freshness,
             },
             ResponseMessage.PRODUCTS_RETRIEVED,
-            200
-          )
+            200,
+          ),
         );
         return;
       }
@@ -303,8 +354,8 @@ export const ProductController = {
             freshness,
           },
           ResponseMessage.PRODUCTS_RETRIEVED,
-          200
-        )
+          200,
+        ),
       );
     } catch (err) {
       next(err);
@@ -344,19 +395,9 @@ export const ProductController = {
       const creativeModel = req.models?.Creative;
 
       await ProductService.getById(id, productModel, req.market);
-      const relatedVideos = await findCreativesByProductId(
-        id,
-        creativeModel,
-        query.limit,
-      );
+      const relatedVideos = await findCreativesByProductId(id, creativeModel, query.limit);
 
-      res.json(
-        successResponse(
-          { relatedVideos },
-          ResponseMessage.CREATIVES_RETRIEVED,
-          200,
-        ),
-      );
+      res.json(successResponse({ relatedVideos }, ResponseMessage.CREATIVES_RETRIEVED, 200));
     } catch (err) {
       next(err);
     }
@@ -372,13 +413,7 @@ export const ProductController = {
       await ProductService.getById(id, productModel, req.market);
       const relatedAds = await findRelatedAdsByProductId(id, creativeModel, query.limit);
 
-      res.json(
-        successResponse(
-          { relatedAds },
-          ResponseMessage.CREATIVES_RETRIEVED,
-          200,
-        ),
-      );
+      res.json(successResponse({ relatedAds }, ResponseMessage.CREATIVES_RETRIEVED, 200));
     } catch (err) {
       next(err);
     }
@@ -390,17 +425,19 @@ export const ProductController = {
       const productModel = req.models?.Product;
       const creativeModel = req.models?.Creative;
 
-      const [{ product, freshness }, relatedDocs, relatedVideos, relatedAds] = await Promise.all([
-        ProductService.getById(id, productModel, req.market),
-        getRelatedProducts(id, productModel, req.market),
-        findCreativesByProductId(id, creativeModel),
-        findRelatedAdsByProductId(id, creativeModel),
-      ]);
+      const [{ product, freshness }, relatedDocs, relatedVideos, relatedAds, playableVideoIndex] =
+        await Promise.all([
+          ProductService.getById(id, productModel, req.market),
+          getRelatedProducts(id, productModel, req.market),
+          findCreativesByProductId(id, creativeModel),
+          findRelatedAdsByProductId(id, creativeModel),
+          loadPlayableVideoIndexForProduct(id, creativeModel),
+        ]);
 
       const [plain, ...relatedPlains] = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages([
           product as unknown as ProductLike,
-          ...relatedDocs as unknown as ProductLike[],
+          ...(relatedDocs as unknown as ProductLike[]),
         ]),
         creativeModel,
       );
@@ -408,15 +445,19 @@ export const ProductController = {
       res.json(
         successResponse(
           {
-            product: formatProductResponse(plain as ProductLike),
+            product: formatProductResponse(plain as ProductLike, {
+              metaViewerUrls: metaViewerUrlsFromCreatives(relatedAds),
+              playableVideoIndex,
+              apiVersion: process.env.API_VERSION ?? 'v1',
+            }),
             relatedProducts: relatedPlains.map(formatProductFeedItem),
             relatedVideos,
             relatedAds,
             freshness,
           },
           ResponseMessage.PRODUCT_RETRIEVED,
-          200
-        )
+          200,
+        ),
       );
     } catch (err) {
       next(err);
@@ -427,17 +468,17 @@ export const ProductController = {
     try {
       const { id } = req.params;
       const { Creative } = await import('../../models/creative.model');
-      
+
       const creatives = await Creative.find({ productId: id })
         .sort({ 'metrics.viewCount': -1 })
         .limit(100);
 
       const creatorsMap = new Map<string, any>();
-      
+
       for (const doc of creatives) {
         const creative = doc.toObject();
         const handle = creative.creator?.handle || 'unknown';
-        
+
         if (!creatorsMap.has(handle)) {
           creatorsMap.set(handle, {
             ...creative.creator, // Now correctly spreads plain object fields
@@ -445,30 +486,27 @@ export const ProductController = {
             videos: [],
           });
         }
-        
+
         const existing = creatorsMap.get(handle);
-        existing.totalViews += (creative.metrics?.viewCount || 0);
-        
+        existing.totalViews += creative.metrics?.viewCount || 0;
+
+        const card = formatCreativeFeedItem(creative);
         existing.videos.push({
-          id: creative._id,
-          externalVideoId: creative.externalVideoId,
-          embedUrl: creative.embedUrl,
-          tiktokPostUrl: creative.tiktokPostUrl,
-          thumbnailUrl: creative.thumbnailUrl,
-          metrics: creative.metrics,
-          section: creative.section,
-          isIndependentCreator: creative.isIndependentCreator,
+          id: card.id,
+          externalVideoId: card.externalVideoId,
+          thumbnailUrl: card.thumbnailUrl,
+          thumbnailProxyUrl: card.thumbnailProxyUrl,
+          videoProxyUrl: card.videoProxyUrl,
+          metrics: card.metrics,
+          section: card.section,
+          isIndependentCreator: card.isIndependentCreator,
         });
       }
-      
+
       const groupedCreators = [...creatorsMap.values()].sort((a, b) => b.totalViews - a.totalViews);
 
       res.json(
-        successResponse(
-          { creators: groupedCreators },
-          'Creatives retrieved successfully',
-          200
-        )
+        successResponse({ creators: groupedCreators }, 'Creatives retrieved successfully', 200),
       );
     } catch (err) {
       next(err);
@@ -478,15 +516,21 @@ export const ProductController = {
   async saved(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
-        res.json(successResponse({ products: [], pagination: { total: 0, pages: 0, page: 1, limit: 20 } }, ResponseMessage.PRODUCTS_RETRIEVED, 200));
+        res.json(
+          successResponse(
+            { products: [], pagination: { total: 0, pages: 0, page: 1, limit: 20 } },
+            ResponseMessage.PRODUCTS_RETRIEVED,
+            200,
+          ),
+        );
         return;
       }
 
       // Populate savedProducts to get full product data
       const user = await req.user.populate('savedProducts.productId');
       const savedDocs = user.savedProducts
-        .filter(p => p.productId)
-        .map(p => p.productId as unknown as ProductLike);
+        .filter((p) => p.productId)
+        .map((p) => p.productId as unknown as ProductLike);
       const savedPlains = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages(savedDocs),
         req.models?.Creative,
@@ -495,13 +539,13 @@ export const ProductController = {
 
       res.json(
         successResponse(
-          { 
+          {
             products,
-            pagination: { total: products.length, pages: 1, page: 1, limit: products.length || 20 }
+            pagination: { total: products.length, pages: 1, page: 1, limit: products.length || 20 },
           },
           ResponseMessage.PRODUCTS_RETRIEVED,
-          200
-        )
+          200,
+        ),
       );
     } catch (err) {
       next(err);
@@ -545,13 +589,7 @@ export const ProductController = {
         country,
       });
 
-      res.json(
-        successResponse(
-          result,
-          ResponseMessage.SUCCESS,
-          200
-        )
-      );
+      res.json(successResponse(result, ResponseMessage.SUCCESS, 200));
     } catch (err) {
       next(err);
     }

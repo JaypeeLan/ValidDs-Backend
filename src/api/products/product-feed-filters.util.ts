@@ -1,4 +1,5 @@
 import type { ProductFeedFilters } from '../../db/repositories/product.repository';
+import { INGEST_QUALITY, MIN_TOTAL_GMV } from '../internal/ingest-quality';
 import { buildContentMetricFilters } from '../../utils/content-feed-filters.util';
 
 /** Frontend L1 labels → backend `categoryL1` values. */
@@ -68,6 +69,8 @@ export interface RawProductFeedQuery {
   limit?: number;
   region?: string;
   q?: string;
+  /** Frontend alias for `q` */
+  search?: string;
   /** hot = high momentum score; seasonal = AI productType seasonal */
   productKind?: ProductKindFilter;
   productType?: ProductKindFilter;
@@ -154,9 +157,9 @@ export function buildProductFeedFilters(raw: RawProductFeedQuery): ProductFeedFi
     userRegion: raw.region,
     minPrice: raw.minPrice,
     maxPrice: raw.maxPrice,
-    minTotalGmv: raw.minTotalGmv ?? raw.minGmv,
+    minTotalGmv: raw.minTotalGmv ?? raw.minGmv ?? MIN_TOTAL_GMV,
     maxTotalGmv: raw.maxTotalGmv ?? raw.maxGmv,
-    minUnitsSold: raw.minUnitsSold ?? raw.minUnits,
+    minUnitsSold: raw.minUnitsSold ?? raw.minUnits ?? INGEST_QUALITY.MIN_UNITS_SOLD,
     maxUnitsSold: raw.maxUnitsSold ?? raw.maxUnits,
     minConfidence: raw.minConfidence ?? confidenceBand.min,
     maxConfidence: raw.maxConfidence ?? confidenceBand.max,
@@ -181,14 +184,21 @@ export function buildProductFeedFilters(raw: RawProductFeedQuery): ProductFeedFi
   };
 }
 
-export function defaultSortOptionsForFeed(
-  feed?: 'discover' | 'top-opportunities',
-): string[] {
+export function defaultSortOptionsForFeed(feed?: 'discover' | 'top-opportunities'): string[] {
   if (feed === 'discover') {
     return ['recent', 'views', 'engagement', 'trendScore'];
   }
   if (feed === 'top-opportunities') {
     return ['gmv_desc', 'gmv_asc', 'units_sold_desc', 'units_sold_asc'];
   }
-  return ['gmv_desc', 'gmv_asc', 'units_sold_desc', 'units_sold_asc', 'recent', 'views', 'engagement', 'trendScore'];
+  return [
+    'gmv_desc',
+    'gmv_asc',
+    'units_sold_desc',
+    'units_sold_asc',
+    'recent',
+    'views',
+    'engagement',
+    'trendScore',
+  ];
 }

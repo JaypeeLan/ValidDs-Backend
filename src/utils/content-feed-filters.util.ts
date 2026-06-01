@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { INGEST_QUALITY, MIN_TOTAL_GMV } from '../api/internal/ingest-quality';
 
 export interface ContentMetricFilters {
   minLikes?: number;
@@ -49,9 +50,7 @@ export const contentMetricFilterZodFields = {
 export function parseStartDateParam(raw?: string): Date | undefined {
   if (!raw?.trim()) return undefined;
   const s = raw.trim();
-  const d = /^\d{4}-\d{2}-\d{2}$/.test(s)
-    ? new Date(`${s}T00:00:00.000Z`)
-    : new Date(s);
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00.000Z`) : new Date(s);
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
@@ -73,10 +72,10 @@ export function buildContentMetricFilters(raw: {
   const start = parseStartDateParam(raw.startDate);
   return {
     minLikes: raw.minLikes,
-    minGmv: raw.minGmv,
+    minGmv: raw.minGmv ?? MIN_TOTAL_GMV,
     maxGmv: raw.maxGmv,
     minEngagementRate: raw.minEngagementRate,
-    minUnits: raw.minUnits,
+    minUnits: raw.minUnits ?? INGEST_QUALITY.MIN_UNITS_SOLD,
     maxUnits: raw.maxUnits,
     startDate: start,
     minCreatorGmv: raw.minCreatorGmv,
@@ -107,10 +106,7 @@ export function likesPerViewsPercentExpr(
   return {
     $multiply: [
       {
-        $divide: [
-          likesField,
-          { $max: [viewsField, 1] },
-        ],
+        $divide: [likesField, { $max: [viewsField, 1] }],
       },
       100,
     ],
@@ -128,10 +124,7 @@ export function applyProductMetricFilters(
   if (filters.minEngagementRate != null) {
     appendAnd(query, {
       $expr: {
-        $gte: [
-          likesPerViewsPercentExpr('$likeCount', '$viewCount'),
-          filters.minEngagementRate,
-        ],
+        $gte: [likesPerViewsPercentExpr('$likeCount', '$viewCount'), filters.minEngagementRate],
       },
     });
   }
@@ -271,7 +264,13 @@ export function validateContentMetricRanges(
   addRangeIssue(ctx, 'minUnits', raw.minUnits, raw.maxUnits, 'minUnits');
   addRangeIssue(ctx, 'minCreatorGmv', raw.minCreatorGmv, raw.maxCreatorGmv, 'minCreatorGmv');
   addRangeIssue(ctx, 'minFollowers', raw.minFollowers, raw.maxFollowers, 'minFollowers');
-  addRangeIssue(ctx, 'minCreatorLikes', raw.minCreatorLikes, raw.maxCreatorLikes, 'minCreatorLikes');
+  addRangeIssue(
+    ctx,
+    'minCreatorLikes',
+    raw.minCreatorLikes,
+    raw.maxCreatorLikes,
+    'minCreatorLikes',
+  );
   if (raw.startDate && !parseStartDateParam(raw.startDate)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

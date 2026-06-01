@@ -128,7 +128,7 @@ export interface ICreativeDocument extends ICreative, Document {}
 
 // ── API response shapes ───────────────────────────────────────────────────────
 
-export interface ICreatorProfileApi extends ICreatorProfile {
+export interface ICreatorProfileApi extends Omit<ICreatorProfile, 'tiktokPostUrl'> {
   avatarProxyUrl?: string;
 }
 
@@ -140,12 +140,16 @@ export interface IVideoMetricsApi {
   engagementRate?: number | null;
 }
 
-export interface ISecondaryVideoApi extends ISecondaryVideo {
+export interface ISecondaryVideoApi {
   isPrimary: false;
+  externalVideoId: string;
+  thumbnailUrl?: string;
   videoProxyUrl?: string;
   thumbnailProxyUrl?: string;
   metrics: IVideoMetricsApi;
   creator: ICreatorProfileApi;
+  topComments: ICreativeComment[];
+  publishedAt: Date;
 }
 
 export interface IProductTrendSnapshot {
@@ -160,9 +164,8 @@ export interface CreativeApiItem {
   id: string;
   productId: string;
   externalVideoId: string;
-  embedUrl: string;
-  tiktokPostUrl: string;
   thumbnailUrl?: string;
+  /** S3 MP4 via GET this path — only set when `videoS3Key` exists in DB. */
   videoProxyUrl?: string;
   thumbnailProxyUrl?: string;
   creator: ICreatorProfileApi;

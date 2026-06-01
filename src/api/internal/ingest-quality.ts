@@ -3,6 +3,7 @@
  */
 
 import type { MarketCode } from '../../utils/markets';
+import { isTikTokPostUrl } from '../../utils/tiktok-url.util';
 
 /** Baseline rules from scraper validate_product_for_insert (pre–strict tier). */
 export const BASELINE_INGEST = {
@@ -25,6 +26,11 @@ export const MIN_PRODUCT_IMAGES = 3;
 export const MAX_REVIEWS_INGEST = 25;
 export const MIN_PRODUCT_RATING = 3.5;
 export const MIN_VIEW_COUNT = 1000;
+/** Minimum product revenue (sold × price) for ingest and public feeds. */
+export const MIN_TOTAL_GMV = 1000;
+
+/** Calendar months of price data required in priceTrend (matches scraper TREND_MONTH_COUNT). */
+export const MIN_PRICE_HISTORY_MONTHS = 10;
 
 export function asFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -56,6 +62,37 @@ export function postAgeRejection(
     return `${label}: older than ${maxDays} days`;
   }
   return null;
+}
+
+export function nonzeroPriceTrendMonths(trend: unknown): number {
+  if (!trend || typeof trend !== 'object') return 0;
+  const windows = (trend as { windows?: unknown[] }).windows;
+  if (!Array.isArray(windows)) return 0;
+  return windows.filter((w) => {
+    if (!w || typeof w !== 'object') return false;
+    const value = asFiniteNumber((w as { value?: unknown }).value);
+    return value !== null && value > 0;
+  }).length;
+}
+
+export function hasFullPriceHistory(doc: Record<string, unknown>): boolean {
+  if (nonzeroPriceTrendMonths(doc.priceTrend) >= MIN_PRICE_HISTORY_MONTHS) {
+    return true;
+  }
+  const ph = doc.priceHistory;
+  if (!Array.isArray(ph)) return false;
+  const months = new Set<string>();
+  for (const entry of ph) {
+    if (!entry || typeof entry !== 'object') continue;
+    const row = entry as { recordedAt?: unknown; price?: unknown };
+    const price = asFiniteNumber(row.price);
+    if (price === null || price <= 0) continue;
+    const raw = String(row.recordedAt ?? '')
+      .trim()
+      .slice(0, 7);
+    if (raw.length >= 7) months.add(raw);
+  }
+  return months.size >= MIN_PRICE_HISTORY_MONTHS;
 }
 
 export function hasTrendCurrentWindow(trend: unknown): boolean {
@@ -140,6 +177,11 @@ export function strictProductQualityReasons(
     reasons.push(`soldCount must be >= ${INGEST_QUALITY.MIN_UNITS_SOLD}`);
   }
 
+  const totalGmv = asFiniteNumber(doc.totalGmv);
+  if (totalGmv === null || totalGmv < MIN_TOTAL_GMV) {
+    reasons.push(`totalGmv must be >= ${MIN_TOTAL_GMV}`);
+  }
+
   const reviews = doc.reviews;
   if (!Array.isArray(reviews) || reviews.length < INGEST_QUALITY.MIN_REVIEWS) {
     reasons.push(`need at least ${INGEST_QUALITY.MIN_REVIEWS} reviews`);
@@ -151,11 +193,11 @@ export function strictProductQualityReasons(
   }
   const anglesWithVideo = angles.filter((a) => {
     const url = a.videoUrl;
-    return typeof url === 'string' && url.startsWith('https://');
+    return typeof url === 'string' && isTikTokPostUrl(url);
   }).length;
   if (anglesWithVideo < INGEST_QUALITY.MIN_ANGLES_WITH_VIDEO) {
     reasons.push(
-      `need at least ${INGEST_QUALITY.MIN_ANGLES_WITH_VIDEO} angles with https videoUrl`,
+      `need at least ${INGEST_QUALITY.MIN_ANGLES_WITH_VIDEO} angles with playable TikTok videoUrl`,
     );
   }
 

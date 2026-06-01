@@ -45,7 +45,12 @@ properties:
     allOf:
       - $ref: ./MetricTrend.yaml#/MetricTrend
     nullable: true
-    description: Sparkline data (e.g. 7-day windows).
+    description: Sales sparkline (rolling windows, e.g. units sold).
+  priceTrend:
+    allOf:
+      - $ref: ./MetricTrend.yaml#/MetricTrend
+    nullable: true
+    description: Price sparkline (monthly windows from Shopify finder / ingest).
   shopName:
     type: string
   shopUrl:

@@ -20,7 +20,7 @@ function httpJson(opts: {
         path: url.pathname + url.search,
         headers: {
           'Content-Type': 'application/json',
-          ...(opts.token ? { 'authorization': `Bearer ${opts.token}` } : {}),
+          ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}),
         },
       },
       (res) => {
@@ -30,7 +30,7 @@ function httpJson(opts: {
           const raw = Buffer.concat(chunks).toString('utf8');
           resolve({ status: res.statusCode ?? 0, text: raw });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -116,6 +116,44 @@ describe('Products Endpoints', () => {
     });
     // In-memory MongoDB text search can error if text index is missing; we only assert the route exists.
     expect(res.status).not.toBe(404);
+  });
+
+  it('GET /api/v1/products search ranks by relevance, not sortBy', async () => {
+    const { Product } = await getSeededTestMarketModels();
+    await Product.create([
+      minimalTestProduct({
+        externalId: 'search_high_gmv',
+        source: 'tiktok',
+        status: 'active',
+        title: 'Classic Adult Serum Volume',
+        normalizedTitle: 'classic adult serum volume',
+        description: 'Classic adult skincare',
+        categoryL1: 'Beauty & Personal Care',
+      }),
+      minimalTestProduct({
+        externalId: 'search_exact',
+        source: 'tiktok',
+        status: 'active',
+        title: 'Adult Classic Unfurgettable Lined Clogs',
+        normalizedTitle: 'adult classic unfurgettable lined clogs',
+        description: 'Crocs Classic Fuzzy lined clogs',
+        categoryL1: 'Shoes',
+        totalGmv: 1500,
+      }),
+    ]);
+    await Product.syncIndexes();
+
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: '/api/v1/products?q=Adult+Classic+Unfurgettable+Lined+Clogs&sortBy=gmv_desc&limit=12',
+      token: testToken,
+    });
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    const titles: string[] = body.data.products.map((p: { title: string }) => p.title);
+    expect(titles[0]).toBe('Adult Classic Unfurgettable Lined Clogs');
+    expect(titles).not.toContain('Classic Adult Serum Volume');
   });
 
   it('GET /api/v1/products should return correctly formatted products and strip AI internals', async () => {
@@ -205,15 +243,20 @@ describe('Products Endpoints', () => {
     expect(res.status).toBe(200);
     const parsed = JSON.parse(res.text);
     const firstProduct = parsed.data.products[0];
-    
+
     // Assert fields are returned cleanly
     expect(firstProduct.title).toBe('Clip Hair Curler');
-    expect(firstProduct.categoryPath).toBe('Beauty & Personal Care / Hair Care / Hair Styling Tools');
+    expect(firstProduct.categoryPath).toBe(
+      'Beauty & Personal Care / Hair Care / Hair Styling Tools',
+    );
     expect(firstProduct.primaryCreator.handle).toBe('creator1');
     expect(firstProduct.primaryCreator.primaryImageUrl).toBe('https://example.com/creator1.jpg');
     expect(firstProduct.primaryCreator.avatarUrl).toBe('https://example.com/creator1.jpg');
     expect(firstProduct.trend.isTrending).toBe(true);
-    
+    expect(firstProduct.priceTrend).toBeDefined();
+    expect(firstProduct.priceTrend?.windows?.length).toBeGreaterThan(0);
+    expect(firstProduct.salesTrend).toBeDefined();
+
     // Assert internal AI structure is shielded as formatted in controller
     expect(firstProduct.aiExtraction).toBeUndefined(); // Obsolete field shouldn't exist
     expect(firstProduct.aiInsight).toBeDefined(); // Controller standardizes it as aiInsight

@@ -1,6 +1,11 @@
 /** Normalize scraper payloads to satisfy strict Mongoose schemas on ingest. */
 
 import { creativeAdDedupeKey } from '../../utils/creative-response.util';
+import {
+  normalizeMarketingAngleVideoUrls,
+  sortMarketingAnglesWithVideoFirst,
+} from '../../utils/marketing-angles.util';
+import { normalizeMetaAdLibraryUrl } from '../../utils/meta-ad-url.util';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 
 const SUPPLIER_VISITS_MIN = 12_000;
@@ -132,6 +137,10 @@ function normalizeAiIntelligence(ai: unknown): Record<string, unknown> {
   if (!ma.contentFormat) ma.contentFormat = 'lifestyle';
   if (!ma.marketingInsight) ma.marketingInsight = '';
   if (!Array.isArray(ma.angles)) ma.angles = [];
+  else {
+    const angleRows = normalizeMarketingAngleVideoUrls(ma.angles as Record<string, unknown>[]);
+    ma.angles = sortMarketingAnglesWithVideoFirst(angleRows);
+  }
   if (!ma.analyzedAt) ma.analyzedAt = new Date();
   base.marketingAnalysis = ma;
   return base;
@@ -288,8 +297,35 @@ function normalizeRelatedVideos(related: unknown): unknown[] {
   });
 }
 
+function normalizeMetaCreativeUrls(out: Record<string, unknown>): void {
+  const ext = String(out.externalVideoId ?? '').trim();
+  const isMeta = out.platform === 'meta' || ext.startsWith('meta:');
+  if (!isMeta) return;
+
+  let canonical: string | null = null;
+  if (ext.startsWith('meta:')) {
+    canonical = normalizeMetaAdLibraryUrl(ext);
+  }
+  for (const field of ['metaAdLibraryUrl', 'tiktokPostUrl', 'embedUrl'] as const) {
+    const norm = normalizeMetaAdLibraryUrl(String(out[field] ?? ''));
+    if (norm) canonical = norm;
+  }
+  if (!canonical) return;
+
+  out.tiktokPostUrl = canonical;
+  out.embedUrl = canonical;
+  out.metaAdLibraryUrl = canonical;
+  const creator =
+    out.creator && typeof out.creator === 'object'
+      ? { ...(out.creator as Record<string, unknown>) }
+      : {};
+  creator.tiktokPostUrl = canonical;
+  out.creator = creator;
+}
+
 export function normalizeCreativePayload(raw: Record<string, unknown>): Record<string, unknown> {
   const out = { ...raw };
+  normalizeMetaCreativeUrls(out);
   const pt = normalizeProductTrend(raw.productTrend);
   if (pt) out.productTrend = pt;
   const creator =

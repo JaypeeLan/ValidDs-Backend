@@ -3,13 +3,13 @@ info:
   title: ValidDs Backend API
   description: |
     API documentation for ValidDs — TikTok product research and validation platform.
-    
+
     All endpoints are prefixed with `/api/v1` except for health checks.
-    
+
     ### Authentication
     - **API Key**: Required for internal/service-to-service communication.
     - **JWT**: Required for account-specific routes (auth, profile, saved products, **stores/Shopify**, ingestion). Product and creative **list/detail/search** are public unless noted on the operation.
-    
+
     **Admin & ops** (`/api/v1/admin/*`, `/jobs/*`, TikTok operator routes) → **`/admin-docs`** only.
 
     ### Quick reference
@@ -21,10 +21,12 @@ info:
     url: https://validds.com/support
 
 servers:
-  - url: http://localhost:3000
-    description: Local development
+  - url: /
+    description: Current host (e.g. localhost:4000 when running `npm run dev` — match PORT in .env)
+  - url: http://localhost:4000
+    description: Local development (default PORT in many .env files)
   - url: https://validds-backend-g196.onrender.com
-    description: Staging environment
+    description: Staging / production API
 
 tags:
   - name: Categories

@@ -6,7 +6,7 @@ required:
 properties:
   handle:
     type: string
-    example: "@naturalglow"
+    example: '@naturalglow'
   displayName:
     type: string
   bio:
@@ -17,7 +17,10 @@ properties:
     nullable: true
   avatarProxyUrl:
     type: string
-    description: API path for proxied avatar (`.../thumbnail?index=N&kind=avatar`).
+    description: |
+      Stable avatar URL — `GET /creatives/{id}/thumbnail?index=N&kind=avatar`.
+      Serves S3-cached image when available, else refreshes from TikTok and returns image bytes (not JSON).
+      Prefer this over `avatarUrl` in clients.
   followers:
     type: integer
     minimum: 0

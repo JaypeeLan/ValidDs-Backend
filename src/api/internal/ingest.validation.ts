@@ -3,8 +3,9 @@
  */
 
 import { SUPPORTED_MARKETS, type MarketCode } from '../../utils/markets';
+import { normalizeMetaAdLibraryUrl } from '../../utils/meta-ad-url.util';
+import { isTikTokPostUrl } from '../../utils/tiktok-url.util';
 import {
-  BASELINE_INGEST,
   INGEST_QUALITY,
   MAX_REVIEWS_INGEST,
   MIN_PRODUCT_IMAGES,
@@ -12,8 +13,10 @@ import {
   MIN_VIEW_COUNT,
   asFiniteNumber,
   baselineProductQualityReasons,
+  hasFullPriceHistory,
   hasTrendCurrentWindow,
   isMetaCreative,
+  MIN_PRICE_HISTORY_MONTHS,
   marketingAngleFieldReasons,
   marketingAngles,
   postAgeRejection,
@@ -34,16 +37,21 @@ export function validateMetaCreativeForIngest(doc: Record<string, unknown>): str
   if (!doc.externalVideoId) reasons.push('missing externalVideoId');
   if (!doc.productId) reasons.push('missing productId');
 
-  const url = String(doc.tiktokPostUrl ?? doc.embedUrl ?? '');
-  if (!url.startsWith('https://')) {
-    reasons.push('meta ad needs https Ad Library viewer URL');
-  } else if (url.toLowerCase().includes('access_token=')) {
-    reasons.push('meta ad URL must not contain access_token');
-  } else if (
-    !url.includes('facebook.com/ads/library') &&
-    !url.includes('facebook.com/ads/archive')
-  ) {
-    reasons.push('meta ad URL must be a Facebook Ad Library link');
+  const rawUrl = String(
+    doc.metaAdLibraryUrl ?? doc.tiktokPostUrl ?? doc.embedUrl ?? doc.externalVideoId ?? '',
+  );
+  const canonical =
+    normalizeMetaAdLibraryUrl(rawUrl) ??
+    normalizeMetaAdLibraryUrl(String(doc.externalVideoId ?? ''));
+  if (!canonical) {
+    reasons.push('meta ad needs https Ad Library viewer URL with numeric id');
+  } else {
+    if (rawUrl.toLowerCase().includes('access_token=')) {
+      reasons.push('meta ad URL must not contain access_token');
+    }
+    if (!canonical.includes('facebook.com/ads/library/?id=')) {
+      reasons.push('meta ad URL must be canonical Ad Library viewer link');
+    }
   }
 
   const thumb = String(doc.thumbnailUrl ?? '');
@@ -66,7 +74,10 @@ export function validateMetaCreativeForIngest(doc: Record<string, unknown>): str
   return reasons;
 }
 
-export function validateProductForIngest(doc: Record<string, unknown>, market: MarketCode): string[] {
+export function validateProductForIngest(
+  doc: Record<string, unknown>,
+  market: MarketCode,
+): string[] {
   const reasons: string[] = [];
 
   if (!doc.externalId) reasons.push('missing externalId');
@@ -155,12 +166,21 @@ export function validateProductForIngest(doc: Record<string, unknown>, market: M
     }
   }
 
+  if (!hasFullPriceHistory(doc)) {
+    reasons.push(`priceTrend must have at least ${MIN_PRICE_HISTORY_MONTHS} months with price > 0`);
+  }
+
   reasons.push(...marketingAngleFieldReasons(doc));
 
   for (const angle of marketingAngles(doc)) {
     const videoUrl = angle.videoUrl;
-    if (typeof videoUrl === 'string' && videoUrl && !videoUrl.startsWith('https://')) {
+    if (typeof videoUrl !== 'string' || !videoUrl) continue;
+    if (!videoUrl.startsWith('https://')) {
       reasons.push('angle videoUrl must be https when set');
+      continue;
+    }
+    if (!isTikTokPostUrl(videoUrl)) {
+      reasons.push('angle videoUrl must be a TikTok post URL for playable video');
     }
   }
 

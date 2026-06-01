@@ -15,6 +15,13 @@ describe('content-feed-filters.util', () => {
     expect(parseStartDateParam('not-a-date')).toBeUndefined();
   });
 
+  it('buildContentMetricFilters defaults minGmv and minUnits to ingest floors', () => {
+    expect(buildContentMetricFilters({}).minGmv).toBe(1000);
+    expect(buildContentMetricFilters({ minGmv: 500 }).minGmv).toBe(500);
+    expect(buildContentMetricFilters({}).minUnits).toBe(300);
+    expect(buildContentMetricFilters({ minUnits: 50 }).minUnits).toBe(50);
+  });
+
   it('buildContentMetricFilters includes creator metric fields', () => {
     const f = buildContentMetricFilters({
       minCreatorGmv: 1000,
@@ -33,7 +40,7 @@ describe('content-feed-filters.util', () => {
     applyCreativeMetricFilters(
       query,
       buildContentMetricFilters({
-        minCreatorGmv: 500,
+        minGmv: 500,
         minFollowers: 1000,
         minCreatorLikes: 2000,
       }),

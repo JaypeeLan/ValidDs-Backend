@@ -1,4 +1,9 @@
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import type { Readable } from 'stream';
 
 let _client: S3Client | null = null;
@@ -17,6 +22,11 @@ export function s3VideoBucket(): string {
 
 export function s3VideoPrefix(): string {
   const raw = envFirst('AWS_S3_VIDEO_PREFIX', 'S3_VIDEO_PREFIX') || 'brightdata/tiktok-videos';
+  return raw.replace(/^\/+|\/+$/g, '');
+}
+
+export function s3ImagePrefix(): string {
+  const raw = envFirst('AWS_S3_IMAGE_PREFIX', 'S3_IMAGE_PREFIX') || 'validds/creator-assets';
   return raw.replace(/^\/+|\/+$/g, '');
 }
 
@@ -54,9 +64,37 @@ export type S3VideoObject = {
   lastModified?: Date;
 };
 
+export async function s3ObjectExists(key: string): Promise<boolean> {
+  if (!key.trim() || !isS3VideoConfigured()) return false;
+  try {
+    await getS3Client().send(new HeadObjectCommand({ Bucket: s3VideoBucket(), Key: key }));
+    return true;
+  } catch (err) {
+    const code = (err as { name?: string }).name;
+    if (code === 'NoSuchKey' || code === 'NotFound' || code === 'NotFoundException') return false;
+    // Missing IAM for HeadObject — fall through to upload/read path instead of failing ingest.
+    if (code === 'AccessDenied' || code === 'Forbidden') return false;
+    throw err;
+  }
+}
+
+export async function putS3Object(key: string, body: Buffer, contentType: string): Promise<void> {
+  if (!key.trim() || !isS3VideoConfigured()) return;
+  await getS3Client().send(
+    new PutObjectCommand({
+      Bucket: s3VideoBucket(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      CacheControl: 'public, max-age=31536000, immutable',
+    }),
+  );
+}
+
 export async function getS3VideoObject(
   key: string,
   rangeHeader?: string,
+  defaultContentType = 'video/mp4',
 ): Promise<S3VideoObject | null> {
   if (!key.trim() || !isS3VideoConfigured()) return null;
 
@@ -74,7 +112,7 @@ export async function getS3VideoObject(
     return {
       body: response.Body as Readable,
       statusCode: rangeHeader && response.ContentRange ? 206 : 200,
-      contentType: response.ContentType || 'video/mp4',
+      contentType: response.ContentType || defaultContentType,
       contentLength: response.ContentLength,
       contentRange: response.ContentRange,
       acceptRanges: response.AcceptRanges,
@@ -83,7 +121,11 @@ export async function getS3VideoObject(
     };
   } catch (err) {
     const code = (err as { name?: string }).name;
-    if (code === 'NoSuchKey' || code === 'NotFound') return null;
+    if (code === 'NoSuchKey' || code === 'NotFound' || code === 'NotFoundException') return null;
     throw err;
   }
 }
+
+/** Alias for images and other cached assets in the same bucket. */
+export const getS3Object = getS3VideoObject;
+export const isS3Configured = isS3VideoConfigured;

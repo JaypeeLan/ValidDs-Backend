@@ -16,9 +16,21 @@ import { NotFoundError } from '../../middleware/error.middleware';
 import { Creative } from '../../models/creative.model';
 import {
   pickCreativeStreamVideoUrl,
-  pickCreativeThumbnailUrl,
   pickCreativeVideoS3Key,
 } from '../../utils/creative-response.util';
+import {
+  collectThumbnailProxyCandidates,
+  sendImagePlaceholder,
+} from '../../utils/creative-image-proxy.util';
+import {
+  pickCreatorAvatarS3Key,
+  TIKTOK_CDN_HEADERS,
+  TIKTOK_IMAGE_HEADERS,
+} from '../../utils/creator-avatar.util';
+import {
+  persistCreatorAvatarOnCreative,
+  streamCreatorAvatarFromS3,
+} from '../../services/creator-avatar-cache.service';
 import { getS3VideoObject, isS3VideoConfigured } from '../../utils/s3-video.util';
 import { logger } from '../../logger';
 
@@ -55,23 +67,61 @@ function triggerLazyRefresh(creativeId: string, index: number, reason: string): 
   );
 }
 
-// Headers the TikTok CDN requires; without `Referer` the CDN returns 403.
-const TIKTOK_PROXY_HEADERS: Record<string, string> = {
-  Referer: 'https://www.tiktok.com/',
-  'User-Agent':
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-  Accept: '*/*',
-  'Accept-Language': 'en-US,en;q=0.9',
-};
-
 async function fetchProxiedImage(url: string) {
   return axios.get(url, {
-    headers: TIKTOK_PROXY_HEADERS,
+    headers: TIKTOK_IMAGE_HEADERS,
     responseType: 'stream',
     timeout: 10_000,
     validateStatus: (s) => s < 500,
     maxRedirects: 5,
   });
+}
+
+async function streamFirstAvailableImage(
+  req: Request,
+  res: Response,
+  urls: string[],
+  creativeId: string,
+): Promise<boolean> {
+  for (const url of urls) {
+    let upstream: Awaited<ReturnType<typeof fetchProxiedImage>> | undefined;
+    try {
+      upstream = await fetchProxiedImage(url);
+      if (upstream.status < 400) {
+        pipeImageUpstream(req, res, upstream, creativeId);
+        return true;
+      }
+      upstream.data?.destroy?.();
+    } catch (err) {
+      upstream?.data?.destroy?.();
+      log.debug('Image proxy fetch failed', {
+        creativeId,
+        url: url.slice(0, 80),
+        err: String(err),
+      });
+    }
+  }
+  return false;
+}
+
+function pipeS3Image(
+  req: Request,
+  res: Response,
+  s3Obj: NonNullable<Awaited<ReturnType<typeof streamCreatorAvatarFromS3>>>,
+  id: string,
+): void {
+  res.setHeader('Content-Type', s3Obj.contentType);
+  if (s3Obj.contentLength != null) res.setHeader('Content-Length', String(s3Obj.contentLength));
+  res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+  res.setHeader('X-Image-Source', 's3');
+  res.status(s3Obj.statusCode);
+  req.on('close', () => s3Obj.body.destroy?.());
+  s3Obj.body.on('error', (err: Error) => {
+    log.warn('S3 image stream error', { id, err: err.message });
+    if (!res.headersSent) res.status(502);
+    res.end();
+  });
+  s3Obj.body.pipe(res);
 }
 
 function pipeImageUpstream(
@@ -225,7 +275,7 @@ export const CreativeController = {
         return;
       }
 
-      const headers: Record<string, string> = { ...TIKTOK_PROXY_HEADERS };
+      const headers: Record<string, string> = { ...TIKTOK_CDN_HEADERS };
       if (typeof req.headers.range === 'string') headers.Range = req.headers.range;
 
       const upstream = await axios.get(url, {
@@ -294,50 +344,80 @@ export const CreativeController = {
 
       const creativeModel = req.models?.Creative ?? Creative;
       let creative = await creativeModel.findById(id).lean();
-      if (!creative) throw new NotFoundError('Creative not found');
-
-      let url = pickCreativeThumbnailUrl(creative as Record<string, unknown>, index, kind);
-      if (!url) {
-        res.status(404).json({ error: 'No image for this creative slot' });
+      if (!creative) {
+        sendImagePlaceholder(res);
         return;
       }
 
-      let upstream = await fetchProxiedImage(url);
+      const plain = creative as Record<string, unknown>;
+      const market = req.market ?? 'US';
 
-      if (upstream.status >= 400) {
-        upstream.data?.destroy?.();
-        log.debug('TikTok CDN rejected stored image URL', {
-          id,
-          index,
-          kind,
-          status: upstream.status,
-        });
-
-        const refreshed = await CreativeService.refreshCreativeMedia(id, index);
-        if (refreshed) {
-          creative = await creativeModel.findById(id).lean();
-          const freshUrl = creative
-            ? pickCreativeThumbnailUrl(creative as Record<string, unknown>, index, kind)
-            : undefined;
-          if (freshUrl) {
-            url = freshUrl;
-            upstream = await fetchProxiedImage(freshUrl);
+      if (kind === 'avatar') {
+        const existingKey = pickCreatorAvatarS3Key(plain, index);
+        if (existingKey) {
+          const s3Obj = await streamCreatorAvatarFromS3(existingKey);
+          if (s3Obj) {
+            pipeS3Image(req, res, s3Obj, id);
+            return;
           }
         }
 
-        if (upstream.status >= 400) {
-          upstream.data?.destroy?.();
-          triggerLazyRefresh(id, index, `thumbnail-${upstream.status}-${kind}`);
-          res.status(410).json({
-            error: 'Image URL has expired. A refresh has been triggered; retry shortly.',
-            code: 'IMAGE_URL_EXPIRED',
-          });
+        const cached = await persistCreatorAvatarOnCreative(id, creativeModel, {
+          index,
+          market,
+        });
+        if (cached?.avatarS3Key) {
+          const s3Obj = await streamCreatorAvatarFromS3(cached.avatarS3Key);
+          if (s3Obj) {
+            pipeS3Image(req, res, s3Obj, id);
+            return;
+          }
+        }
+        if (
+          cached?.avatarUrl &&
+          (await streamFirstAvailableImage(req, res, [cached.avatarUrl], id))
+        ) {
           return;
         }
       }
 
-      pipeImageUpstream(req, res, upstream, id);
+      let urls = collectThumbnailProxyCandidates(plain, index, kind);
+      if (await streamFirstAvailableImage(req, res, urls, id)) {
+        if (kind === 'avatar') {
+          void persistCreatorAvatarOnCreative(id, creativeModel, { index, market });
+        }
+        return;
+      }
+
+      log.debug('Thumbnail CDN failed; refreshing media', { id, index, kind });
+      const refreshed = await CreativeService.refreshCreativeMedia(id, index, market);
+      if (refreshed) {
+        creative = await creativeModel.findById(id).lean();
+        if (creative) {
+          const refreshedPlain = creative as Record<string, unknown>;
+          if (kind === 'avatar') {
+            const s3Key = pickCreatorAvatarS3Key(refreshedPlain, index);
+            if (s3Key) {
+              const s3Obj = await streamCreatorAvatarFromS3(s3Key);
+              if (s3Obj) {
+                pipeS3Image(req, res, s3Obj, id);
+                return;
+              }
+            }
+          }
+          urls = collectThumbnailProxyCandidates(refreshedPlain, index, kind);
+          if (await streamFirstAvailableImage(req, res, urls, id)) return;
+        }
+      }
+
+      triggerLazyRefresh(id, index, `thumbnail-exhausted-${kind}`);
+      log.info('Serving placeholder image for creative thumbnail', { id, index, kind });
+      sendImagePlaceholder(res);
     } catch (err) {
+      if (!res.headersSent) {
+        sendImagePlaceholder(res);
+        return;
+      }
       next(err);
     }
   },

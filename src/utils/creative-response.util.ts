@@ -1,3 +1,4 @@
+import { buildCreatorAvatarProxyUrl } from './creator-avatar.util';
 import type {
   CreativeApiItem,
   CreativeCreatorFeedItem,
@@ -33,8 +34,16 @@ export function dbSectionToApi(section: string | undefined): CreativeSection | u
   return (DB_TO_API_SECTION[section as CreativeSection] ?? section) as CreativeSection;
 }
 
-export const CREATIVE_TRENDING_MATCH = { section: 'top-ads' as const };
-export const CREATIVE_TOP_ADS_MATCH = { section: 'trending' as const };
+/** TikTok UGC / shop videos — never Meta rows. */
+export const CREATIVE_TRENDING_MATCH = {
+  section: 'top-ads' as const,
+  externalVideoId: { $not: { $regex: /^meta:/ } },
+};
+/** Meta Ad Library creatives only — never TikTok video ids. */
+export const CREATIVE_TOP_ADS_MATCH = {
+  section: 'trending' as const,
+  externalVideoId: { $regex: /^meta:/ },
+};
 export const CREATIVE_COMMERCIAL_MATCH = CREATIVE_TRENDING_MATCH;
 
 const TIKTOK_VIDEO_ID_RE = /(?:\/video\/|embed\/v2\/)(\d+)/i;
@@ -277,13 +286,11 @@ export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
     ],
   };
 
+  // Always group by freshly computed keys. Stale stored `adDedupeKey` values
+  // (e.g. meta:visual:page:…) must not bypass product-card collapse for hero thumbnails.
   return [
-    {
-      $addFields: {
-        adDedupeKey: { $ifNull: ['$adDedupeKey', computedKey] },
-      },
-    },
-    { $group: { _id: '$adDedupeKey', doc: { $first: '$$ROOT' } } },
+    { $addFields: { _feedDedupeKey: computedKey } },
+    { $group: { _id: '$_feedDedupeKey', doc: { $first: '$$ROOT' } } },
     { $replaceRoot: { newRoot: '$doc' } },
   ];
 }
@@ -367,8 +374,11 @@ function formatCreator(
 ): ICreatorProfile & { avatarProxyUrl?: string } {
   const c = creator ?? ({ handle: '', verified: false, tiktokPostUrl: '' } as ICreatorProfile);
   const avatarUrl = pickUrl(resolvedAvatarUrl, c.avatarUrl);
-  const avatarProxyUrl =
-    baseUrl && avatarUrl ? `${baseUrl}/thumbnail?index=${index}&kind=avatar` : undefined;
+  const avatarProxyUrl = buildCreatorAvatarProxyUrl(baseUrl, index, {
+    avatarUrl,
+    avatarS3Key: c.avatarS3Key,
+    handle: c.handle,
+  });
   return {
     ...c,
     isIndependentCreator: Boolean(c.isIndependentCreator),

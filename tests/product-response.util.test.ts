@@ -68,6 +68,23 @@ describe('normalizePrimaryCreatorOnProduct', () => {
     );
   });
 
+  it('adds avatarProxyUrl from creativeId even when primaryImageUrl is missing', () => {
+    const product: Record<string, unknown> = {
+      primaryCreator: { handle: 'creator5' },
+    };
+    const enrichment: CreatorAvatarEnrichment = {
+      creativeId: '507f1f77bcf86cd799439099',
+    };
+
+    normalizePrimaryCreatorOnProduct(product, enrichment);
+
+    const pc = product.primaryCreator as Record<string, unknown>;
+    expect(pc.primaryImageUrl).toBeNull();
+    expect(pc.avatarProxyUrl).toBe(
+      '/api/v1/creatives/507f1f77bcf86cd799439099/thumbnail?index=0&kind=avatar',
+    );
+  });
+
   it('keeps stored primaryImageUrl over creative enrichment when both exist', () => {
     const product: Record<string, unknown> = {
       primaryCreator: {

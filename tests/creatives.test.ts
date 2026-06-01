@@ -21,7 +21,7 @@ function httpJson(opts: {
         path: url.pathname + url.search,
         headers: {
           'Content-Type': 'application/json',
-          ...(opts.token ? { 'Authorization': `Bearer ${opts.token}` } : {}),
+          ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
         },
       },
       (res) => {
@@ -31,7 +31,7 @@ function httpJson(opts: {
           const raw = Buffer.concat(chunks).toString('utf8');
           resolve({ status: res.statusCode ?? 0, text: raw });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -122,22 +122,48 @@ describe('Creatives Endpoints', () => {
     await Creative.create(
       minimalTestCreative({
         productId: product._id,
-        externalVideoId: 'vid_2',
+        externalVideoId: 'meta:9001',
         section: 'trending',
-        isAd: false,
+        isAd: true,
         publishedAt: new Date('2024-01-01'),
-        tiktokPostUrl: 'https://www.tiktok.com/@indie1/video/2',
+        embedUrl: 'https://www.facebook.com/ads/library/?id=9001',
+        tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=9001',
+        metaAdLibraryUrl: 'https://www.facebook.com/ads/library/?id=9001',
         creator: {
           tiktokUserId: 'u2',
           handle: 'indie1',
           displayName: 'Indie Creator',
           region: 'GB',
-          tiktokPostUrl: 'https://www.tiktok.com/@indie1/video/2',
+          tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=9001',
           isIndependentCreator: true,
         },
         metrics: {
           viewCount: 500,
           likeCount: 50,
+        },
+      }),
+    );
+
+    // TikTok row in wrong DB bucket — must not appear on GET /creatives/top-ads
+    await Creative.create(
+      minimalTestCreative({
+        productId: product._id,
+        externalVideoId: 'vid_2',
+        section: 'trending',
+        isAd: false,
+        publishedAt: new Date('2023-01-01'),
+        tiktokPostUrl: 'https://www.tiktok.com/@indie1/video/2',
+        creator: {
+          tiktokUserId: 'u2b',
+          handle: 'indie2',
+          displayName: 'Indie Two',
+          region: 'GB',
+          tiktokPostUrl: 'https://www.tiktok.com/@indie2/video/2',
+          isIndependentCreator: true,
+        },
+        metrics: {
+          viewCount: 100,
+          likeCount: 10,
         },
       }),
     );
@@ -187,22 +213,25 @@ describe('Creatives Endpoints', () => {
       baseUrl,
       method: 'GET',
       path: `/api/v1/creatives?groupBy=creator&productId=${productId}`,
-      token: testToken
+      token: testToken,
     });
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
     expect(body.success).toBe(true);
     expect(body.data.groupBy).toBe('creator');
-    expect(body.data.pagination.total).toBe(2);
-    const handles = body.data.data.map((c: { creator: { handle: string }; videoCount: number }) => ({
-      handle: c.creator.handle,
-      videoCount: c.videoCount,
-    }));
+    expect(body.data.pagination.total).toBe(3);
+    const handles = body.data.data.map(
+      (c: { creator: { handle: string }; videoCount: number }) => ({
+        handle: c.creator.handle,
+        videoCount: c.videoCount,
+      }),
+    );
     expect(handles).toEqual(
       expect.arrayContaining([
         { handle: 'cre1', videoCount: 2 },
         { handle: 'indie1', videoCount: 1 },
-      ])
+        { handle: 'indie2', videoCount: 1 },
+      ]),
     );
   });
 
@@ -211,7 +240,7 @@ describe('Creatives Endpoints', () => {
       baseUrl,
       method: 'GET',
       path: '/api/v1/creatives',
-      token: testToken
+      token: testToken,
     });
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
@@ -220,19 +249,23 @@ describe('Creatives Endpoints', () => {
     expect(ids).toEqual(['vid_1', 'vid_3']);
   });
 
-  it('GET /api/v1/creatives/top-ads should return only independent-creator creatives', async () => {
+  it('GET /api/v1/creatives/top-ads should return only Meta Ad Library creatives', async () => {
     const res = await httpJson({
       baseUrl,
       method: 'GET',
       path: '/api/v1/creatives/top-ads',
-      token: testToken
+      token: testToken,
     });
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
     expect(body.success).toBe(true);
     expect(body.data.data.length).toBe(1);
-    expect(body.data.data[0].externalVideoId).toBe('vid_2');
-    expect(body.data.data[0].creator.isIndependentCreator).toBe(true);
+    expect(body.data.data[0].externalVideoId).toBe('meta:9001');
+    expect(
+      body.data.data.every((c: { externalVideoId: string }) =>
+        c.externalVideoId.startsWith('meta:'),
+      ),
+    ).toBe(true);
   });
 
   it('GET /api/v1/creatives?section=top-ads should work', async () => {
@@ -240,7 +273,7 @@ describe('Creatives Endpoints', () => {
       baseUrl,
       method: 'GET',
       path: '/api/v1/creatives?section=top-ads',
-      token: testToken
+      token: testToken,
     });
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
@@ -252,7 +285,7 @@ describe('Creatives Endpoints', () => {
       baseUrl,
       method: 'GET',
       path: '/api/v1/creatives?section=trending',
-      token: testToken
+      token: testToken,
     });
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
@@ -265,7 +298,7 @@ describe('Creatives Endpoints', () => {
       baseUrl,
       method: 'GET',
       path: `/api/v1/creatives/${creativeId}`,
-      token: testToken
+      token: testToken,
     });
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
@@ -273,12 +306,12 @@ describe('Creatives Endpoints', () => {
   });
 
   it('GET /api/v1/creatives/:id should return 404 for missing', async () => {
-    const fakeId = creativeId.replace(/./, creativeId[0] === '0' ? '1' : '0'); 
+    const fakeId = creativeId.replace(/./, creativeId[0] === '0' ? '1' : '0');
     const res = await httpJson({
       baseUrl,
       method: 'GET',
       path: `/api/v1/creatives/${fakeId}`,
-      token: testToken
+      token: testToken,
     });
     expect(res.status).toBe(404);
   });

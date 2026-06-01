@@ -35,6 +35,7 @@ const CreatorProfileSchema = new Schema<ICreatorProfile>(
     displayName: { type: String },
     bio: { type: String },
     avatarUrl: { type: String },
+    avatarS3Key: { type: String },
     followers: { type: Number, min: 0, default: 0 },
     following: { type: Number, min: 0 },
     totalLikes: { type: Number, min: 0 },

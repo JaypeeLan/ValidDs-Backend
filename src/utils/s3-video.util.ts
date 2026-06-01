@@ -1,9 +1,4 @@
-import {
-  GetObjectCommand,
-  HeadObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { Readable } from 'stream';
 
 let _client: S3Client | null = null;
@@ -78,11 +73,18 @@ function isS3NotFoundOrDenied(err: unknown): boolean {
   );
 }
 
+/** Uses GetObject (byte range) — does not require s3:HeadObject on the IAM policy. */
 export async function s3ObjectExists(key: string): Promise<boolean> {
   if (!key.trim() || !isS3VideoConfigured()) return false;
   try {
-    await getS3Client().send(new HeadObjectCommand({ Bucket: s3VideoBucket(), Key: key }));
-    return true;
+    const response = await getS3Client().send(
+      new GetObjectCommand({
+        Bucket: s3VideoBucket(),
+        Key: key,
+        Range: 'bytes=0-0',
+      }),
+    );
+    return Boolean(response.Body);
   } catch (err) {
     if (isS3NotFoundOrDenied(err)) return false;
     throw err;
@@ -131,8 +133,7 @@ export async function getS3VideoObject(
       lastModified: response.LastModified,
     };
   } catch (err) {
-    const code = (err as { name?: string }).name;
-    if (code === 'NoSuchKey' || code === 'NotFound' || code === 'NotFoundException') return null;
+    if (isS3NotFoundOrDenied(err)) return null;
     throw err;
   }
 }

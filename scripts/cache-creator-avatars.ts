@@ -27,16 +27,32 @@ async function main(): Promise<void> {
     .cursor();
 
   let n = 0;
-  let ok = 0;
+  let s3Ok = 0;
+  let urlOk = 0;
+  let failed = 0;
   for await (const row of cursor) {
     if (limit > 0 && n >= limit) break;
     n += 1;
-    const r = await persistCreatorAvatarOnCreative(String(row._id), Creative, { market });
-    if (r?.avatarS3Key) ok += 1;
-    if (n % 25 === 0) console.log(`  ${n} processed, ${ok} cached to S3`);
+    try {
+      const r = await persistCreatorAvatarOnCreative(String(row._id), Creative, { market });
+      if (r?.avatarS3Key) s3Ok += 1;
+      else if (r?.avatarUrl) urlOk += 1;
+      else failed += 1;
+    } catch (err) {
+      failed += 1;
+      console.warn(`  skip ${row._id}:`, String(err));
+    }
+    if (n % 25 === 0) {
+      console.log(`  ${n} processed — S3: ${s3Ok}, URL only: ${urlOk}, failed: ${failed}`);
+    }
   }
 
-  console.log(`Done. ${ok}/${n} avatars cached to S3 for ${market}.`);
+  console.log(
+    `Done (${market}). ${n} processed — ${s3Ok} on S3, ${urlOk} CDN URL only, ${failed} failed.`,
+  );
+  if (s3Ok === 0 && n > 0) {
+    console.log('No S3 uploads — check IAM (see aws-s3-avatar-setup.txt at repo root).');
+  }
   await disconnectMongo();
 }
 

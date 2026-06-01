@@ -64,16 +64,27 @@ export type S3VideoObject = {
   lastModified?: Date;
 };
 
+function isS3NotFoundOrDenied(err: unknown): boolean {
+  const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+  const status = e?.$metadata?.httpStatusCode;
+  if (status === 403 || status === 404) return true;
+  const code = e?.name;
+  return (
+    code === 'NoSuchKey' ||
+    code === 'NotFound' ||
+    code === 'NotFoundException' ||
+    code === 'AccessDenied' ||
+    code === 'Forbidden'
+  );
+}
+
 export async function s3ObjectExists(key: string): Promise<boolean> {
   if (!key.trim() || !isS3VideoConfigured()) return false;
   try {
     await getS3Client().send(new HeadObjectCommand({ Bucket: s3VideoBucket(), Key: key }));
     return true;
   } catch (err) {
-    const code = (err as { name?: string }).name;
-    if (code === 'NoSuchKey' || code === 'NotFound' || code === 'NotFoundException') return false;
-    // Missing IAM for HeadObject — fall through to upload/read path instead of failing ingest.
-    if (code === 'AccessDenied' || code === 'Forbidden') return false;
+    if (isS3NotFoundOrDenied(err)) return false;
     throw err;
   }
 }

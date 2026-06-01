@@ -55,8 +55,11 @@ topAdsList:
   get:
     summary: List top-ad creatives
     description: |
-      Paid / top-ad bucket only (DB `trending`, API `section=top-ads`, ~19 for US).
+      Paid / top-ad bucket only (DB `trending`, API `section=top-ads`).
+      Meta ads and `isAd` TikTok rows; deduped by product hero / `adDedupeKey`.
       Contrast with `GET /creatives` (trending bucket). Does not accept a `section` filter.
+
+      **Images:** use `creator.avatarProxyUrl` (not raw `avatarUrl`) for profile photos.
     tags:
       - Creatives
     parameters:

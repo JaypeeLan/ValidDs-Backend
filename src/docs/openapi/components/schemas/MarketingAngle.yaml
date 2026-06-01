@@ -14,3 +14,11 @@ properties:
   target:
     type: string
     description: Audience this angle is aimed at.
+  videoProxyUrl:
+    type: string
+    description: S3-backed MP4 proxy when a product creative matches this angle (TikTok or Meta).
+    example: /api/v1/creatives/507f1f77bcf86cd799439011/video?index=0
+  thumbnailProxyUrl:
+    type: string
+    description: Poster image from the same creative as `videoProxyUrl`.
+    example: /api/v1/creatives/507f1f77bcf86cd799439011/thumbnail?index=0&kind=thumbnail

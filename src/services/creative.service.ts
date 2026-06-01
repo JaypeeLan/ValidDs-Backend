@@ -22,6 +22,8 @@ import {
   formatCreativeForApi,
   creativeAdDedupeAggregationStages,
 } from '../utils/creative-response.util';
+import { extractMetaAdIdFromUrl } from '../utils/meta-ad-url.util';
+import { extractTikTokVideoId } from '../utils/tiktok-url.util';
 import {
   creativeRecencyPrioritySortSpec,
   recencyTierAddFields,
@@ -187,6 +189,64 @@ async function loadCreativesForProduct(
     .exec()) as Record<string, unknown>[];
 
   return docs.map((doc) => formatCreativeFeedItem(doc));
+}
+
+/** TikTok video id or Meta ad id → creative Mongo id for angle videoProxyUrl. */
+export async function loadPlayableVideoIndexForProduct(
+  productId: string,
+  creativeModel: Model<ICreativeDocument> = Creative,
+): Promise<Map<string, string>> {
+  if (!mongoose.Types.ObjectId.isValid(productId)) return new Map();
+
+  const pid = new mongoose.Types.ObjectId(productId);
+  const s3VideoFilter = { videoS3Key: { $exists: true, $nin: [null, ''] } };
+
+  const [tiktokDocs, metaDocs] = await Promise.all([
+    creativeModel
+      .find({
+        productId: pid,
+        externalVideoId: { $not: /^meta:/ },
+        ...s3VideoFilter,
+      })
+      .select({ tiktokPostUrl: 1, embedUrl: 1, externalVideoId: 1 })
+      .lean(),
+    creativeModel
+      .find({
+        productId: pid,
+        externalVideoId: { $regex: /^meta:/ },
+        ...s3VideoFilter,
+      })
+      .select({ externalVideoId: 1, metaAdLibraryUrl: 1, tiktokPostUrl: 1, embedUrl: 1 })
+      .lean(),
+  ]);
+
+  const index = new Map<string, string>();
+  for (const doc of tiktokDocs) {
+    const creativeId = String(doc._id);
+    const urls = [doc.tiktokPostUrl, doc.embedUrl].filter(
+      (u): u is string => typeof u === 'string' && u.length > 0,
+    );
+    for (const url of urls) {
+      const vid = extractTikTokVideoId(url);
+      if (vid) index.set(vid, creativeId);
+    }
+    const ext = String(doc.externalVideoId ?? '').trim();
+    if (/^\d+$/.test(ext)) index.set(ext, creativeId);
+  }
+
+  for (const doc of metaDocs) {
+    const creativeId = String(doc._id);
+    const ext = String(doc.externalVideoId ?? '').trim();
+    const fromExt = extractMetaAdIdFromUrl(ext);
+    if (fromExt) index.set(fromExt, creativeId);
+    for (const field of [doc.metaAdLibraryUrl, doc.tiktokPostUrl, doc.embedUrl] as const) {
+      const u = field;
+      if (typeof u !== 'string' || !u.trim()) continue;
+      const adId = extractMetaAdIdFromUrl(u);
+      if (adId) index.set(adId, creativeId);
+    }
+  }
+  return index;
 }
 
 /** Commercial videos for a product (`GET /products/:id` → `relatedVideos`). */

@@ -13,6 +13,7 @@ import {
   applyProductCreatorMetricFilters,
   applyProductMetricFilters,
 } from '../../utils/content-feed-filters.util';
+import { buildProductTextSearchStrings } from '../../utils/product-text-search.util';
 
 const log = logger.child({ module: 'product-repository' });
 
@@ -58,11 +59,25 @@ export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
 // ── Generic title filtering ───────────────────────────────────────────────────
 
 const GENERIC_PHRASES = [
-  'amazon finds', 'amazon must-haves', 'amazon must haves', 'amazon home finds',
-  'trending amazon products', 'viral products', 'tiktok finds',
-  'tiktok made me buy it', 'must haves', 'must-haves', 'dropshipping products',
-  'unknown product', 'product name', 'things you need', 'buy this',
-  'beauty products', 'home products', 'tech products', 'kitchen products',
+  'amazon finds',
+  'amazon must-haves',
+  'amazon must haves',
+  'amazon home finds',
+  'trending amazon products',
+  'viral products',
+  'tiktok finds',
+  'tiktok made me buy it',
+  'must haves',
+  'must-haves',
+  'dropshipping products',
+  'unknown product',
+  'product name',
+  'things you need',
+  'buy this',
+  'beauty products',
+  'home products',
+  'tech products',
+  'kitchen products',
 ];
 
 const GENERIC_TITLE_PATTERNS: RegExp[] = [
@@ -85,8 +100,8 @@ export function normalizeProductTitle(title: string): string {
 export function isGenericTitle(title: string): boolean {
   if (!title || title.trim().length < 3) return true;
   const normalized = normalizeProductTitle(title);
-  if (GENERIC_PHRASES.some(p => normalized.includes(p))) return true;
-  return GENERIC_TITLE_PATTERNS.some(r => r.test(normalized));
+  if (GENERIC_PHRASES.some((p) => normalized.includes(p))) return true;
+  return GENERIC_TITLE_PATTERNS.some((r) => r.test(normalized));
 }
 
 // ── Input type ────────────────────────────────────────────────────────────────
@@ -249,7 +264,15 @@ export interface ProductFeedFilters {
   isAd?: boolean;
   page?: number;
   limit?: number;
-  sortBy?: 'gmv-desc' | 'gmv-asc' | 'units-desc' | 'units-asc' | 'trendScore' | 'views' | 'recent' | 'engagement';
+  sortBy?:
+    | 'gmv-desc'
+    | 'gmv-asc'
+    | 'units-desc'
+    | 'units-asc'
+    | 'trendScore'
+    | 'views'
+    | 'recent'
+    | 'engagement';
   minPrice?: number;
   maxPrice?: number;
   minTotalGmv?: number;
@@ -317,19 +340,36 @@ function appendAnd(filter: Record<string, unknown>, clause: Record<string, unkno
 
 /** Applies discovery-section rules to a Mongo filter (feed or text search). */
 const PRODUCT_SORT_MAP: Record<string, Record<string, 1 | -1>> = {
-  'gmv-desc':  { totalGmv: -1, lastIngestedAt: -1 },
-  'gmv-asc':   { totalGmv: 1, lastIngestedAt: -1 },
-  'units-desc':{ totalSales: -1, lastIngestedAt: -1 },
+  'gmv-desc': { totalGmv: -1, lastIngestedAt: -1 },
+  'gmv-asc': { totalGmv: 1, lastIngestedAt: -1 },
+  'units-desc': { totalSales: -1, lastIngestedAt: -1 },
   'units-asc': { totalSales: 1, lastIngestedAt: -1 },
-  trendScore:  { 'trends.engagement.score': -1, 'trend.score': -1 },
-  views:       { viewCount: -1 },
-  recent:      { lastIngestedAt: -1 },
-  engagement:  { engagementRate: -1 },
+  trendScore: { 'trends.engagement.score': -1, 'trend.score': -1 },
+  views: { viewCount: -1 },
+  recent: { lastIngestedAt: -1 },
+  engagement: { engagementRate: -1 },
 };
 
 function resolveProductSort(sortBy?: string): Record<string, 1 | -1> {
   return PRODUCT_SORT_MAP[sortBy ?? 'gmv-desc'] ?? PRODUCT_SORT_MAP['gmv-desc'];
 }
+
+/**
+ * Collapse duplicate TikTok Shop listings (same normalized title + shop).
+ * Keeps the row with highest soldCount / GMV (requires a prior $sort).
+ */
+export const PRODUCT_LISTING_DEDUPE_STAGES: Record<string, unknown>[] = [
+  {
+    $group: {
+      _id: {
+        title: { $toLower: { $ifNull: ['$normalizedTitle', ''] } },
+        shop: { $toLower: { $ifNull: ['$shopName', ''] } },
+      },
+      doc: { $first: '$$ROOT' },
+    },
+  },
+  { $replaceRoot: { newRoot: '$doc' } },
+];
 
 async function runProductFeedQuery(
   model: IProductModel,
@@ -347,6 +387,8 @@ async function runProductFeedQuery(
       .aggregate([
         { $match: match },
         { $addFields: recencyTierAddFields() },
+        { $sort: { ...sort, soldCount: -1, totalGmv: -1 } },
+        ...PRODUCT_LISTING_DEDUPE_STAGES,
         {
           $facet: {
             data: [
@@ -405,9 +447,99 @@ async function runProductFeedQuery(
   };
 }
 
+/** Text search: relevance only (ignores feed sortBy). Exact title match ranks first. */
+async function runProductSearchQuery(
+  model: IProductModel,
+  baseMatch: Record<string, unknown>,
+  filters: ProductFeedFilters,
+  rawQuery: string,
+): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
+  const page = Math.max(1, filters.page ?? 1);
+  const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
+  const skip = (page - 1) * limit;
+  const normalizedQ = rawQuery.trim().toLowerCase();
+  const searchStrings = buildProductTextSearchStrings(rawQuery);
+
+  for (const searchText of searchStrings) {
+    const match: Record<string, unknown> = {
+      ...baseMatch,
+      $text: { $search: searchText },
+    };
+
+    const [facet] = await model
+      .aggregate([
+        { $match: match },
+        {
+          $addFields: {
+            _textScore: { $meta: 'textScore' },
+            _titleExact: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: [{ $toLower: { $ifNull: ['$normalizedTitle', ''] } }, normalizedQ] },
+                    { $eq: [{ $toLower: { $ifNull: ['$title', ''] } }, normalizedQ] },
+                  ],
+                },
+                1000,
+                0,
+              ],
+            },
+          },
+        },
+        { $addFields: { _rank: { $add: ['$_titleExact', '$_textScore'] } } },
+        { $sort: { _rank: -1, soldCount: -1, totalGmv: -1, lastIngestedAt: -1 } },
+        ...PRODUCT_LISTING_DEDUPE_STAGES,
+        {
+          $facet: {
+            data: [
+              { $sort: { _rank: -1, lastIngestedAt: -1 } },
+              { $skip: skip },
+              { $limit: limit },
+              { $project: PRODUCT_LISTING_FIELD_PROJECTION },
+            ],
+            total: [{ $count: 'count' }],
+          },
+        },
+      ])
+      .option({ maxTimeMS: 30_000 })
+      .exec();
+
+    const total = facet?.total?.[0]?.count ?? 0;
+    if (total === 0 && searchStrings.indexOf(searchText) < searchStrings.length - 1) {
+      continue;
+    }
+
+    const data = (facet?.data ?? []) as unknown as IProductDocument[];
+    const totalPages = Math.ceil(total / limit);
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  return {
+    data: [],
+    pagination: {
+      page,
+      limit,
+      total: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPrevPage: false,
+    },
+  };
+}
+
 function applyDiscoverySectionRules(
   filter: Record<string, unknown>,
-  opts: { section?: string; isAd?: boolean }
+  opts: { section?: string; isAd?: boolean },
 ): void {
   const parts: Record<string, unknown>[] = [];
   if (opts.section) parts.push({ discoverySections: opts.section });
@@ -456,10 +588,7 @@ function applyProductFeedFilters(
       ...(filters.maxOpportunityScore != null ? { $lte: filters.maxOpportunityScore } : {}),
     };
     appendAnd(query, {
-      $or: [
-        { 'trends.engagement.score': scoreClause },
-        { 'trend.score': scoreClause },
-      ],
+      $or: [{ 'trends.engagement.score': scoreClause }, { 'trend.score': scoreClause }],
     });
   }
   if (filters.minCompetitionScore != null || filters.maxCompetitionScore != null) {
@@ -490,12 +619,7 @@ function applyProductFeedFilters(
     filters.maxSales7d,
   );
   if (sales7d) appendAnd(query, sales7d);
-  const gmv7d = metricWindowValueAtDaysAgo(
-    'revenueTrend',
-    7,
-    filters.minGmv7d,
-    filters.maxGmv7d,
-  );
+  const gmv7d = metricWindowValueAtDaysAgo('revenueTrend', 7, filters.minGmv7d, filters.maxGmv7d);
   if (gmv7d) appendAnd(query, gmv7d);
   if (filters.trendDirection) {
     appendAnd(query, {
@@ -533,12 +657,11 @@ function applyProductFeedFilters(
 // ── Repository ────────────────────────────────────────────────────────────────
 
 export const ProductRepository = {
-
   /**
    * Upsert an enriched product using videoId + source as the unique key.
    */
   async upsertEnrichedProduct(input: EnrichedProductInput): Promise<IProductDocument | null> {
-    const title           = input.title.trim().slice(0, 120);
+    const title = input.title.trim().slice(0, 120);
     const normalizedTitle = normalizeProductTitle(title);
 
     if (isGenericTitle(title)) {
@@ -553,52 +676,52 @@ export const ProductRepository = {
           $set: {
             // Identity
             externalId: input.videoId,
-            source:     input.source,
-            status:     'active',
+            source: input.source,
+            status: 'active',
 
             // Content
             title,
             normalizedTitle,
             description: input.description,
-            hashtags:    input.hashtags,
+            hashtags: input.hashtags,
 
             // Taxonomy
-            categoryL1:   input.categoryL1,
-            categoryL2:   input.categoryL2,
-            categoryL3:   input.categoryL3,
+            categoryL1: input.categoryL1,
+            categoryL2: input.categoryL2,
+            categoryL3: input.categoryL3,
             categoryPath: input.categoryPath,
 
             // Media
             primaryImageUrl: input.primaryImageUrl ?? null,
-            imageUrls:       input.imageUrls ?? [],
+            imageUrls: input.imageUrls ?? [],
 
             // Pricing
-            price:     input.price ?? null,
-            currency:  input.currency,
+            price: input.price ?? null,
+            currency: input.currency,
             suppliers: input.suppliers ?? [],
 
             // Market evidence
-            rating:        input.rating ?? null,
-            reviewCount:   input.reviewCount ?? null,
+            rating: input.rating ?? null,
+            reviewCount: input.reviewCount ?? null,
             ratingSources: input.ratingSources ?? [],
-            reviews:       (input.reviews ?? []).map((r) => ({
-              author:  null,
-              rating:  null,
+            reviews: (input.reviews ?? []).map((r) => ({
+              author: null,
+              rating: null,
               content: r.text,
-              date:    null,
-              item:    null,
-              images:  [],
+              date: null,
+              item: null,
+              images: [],
             })),
             totalSales: input.salesEvidence?.unitsSold ?? input.totalSale30d ?? 0,
-            totalGmv:   input.totalGmv ?? 0,
-            soldCount:  input.salesEvidence?.unitsSold ?? 0,
+            totalGmv: input.totalGmv ?? 0,
+            soldCount: input.salesEvidence?.unitsSold ?? 0,
 
             // TikTok engagement
-            viewCount:     input.viewCount,
-            likeCount:     input.likeCount,
-            commentCount:  input.commentCount,
-            shareCount:    input.shareCount,
-            engagementRate:input.engagementRate,
+            viewCount: input.viewCount,
+            likeCount: input.likeCount,
+            commentCount: input.commentCount,
+            shareCount: input.shareCount,
+            engagementRate: input.engagementRate,
 
             // Discovery origin
             primaryCreator: normalizePrimaryCreatorForStorage(input.primaryCreator),
@@ -614,20 +737,19 @@ export const ProductRepository = {
 
             // Discovery
             discoverySections: input.discoverySections ?? [],
-            creativeCounts:    input.creativeCounts ?? { ads: 0, organic: 0, reviews: 0, total: 0 },
-            market:            input.region ?? '',
+            creativeCounts: input.creativeCounts ?? { ads: 0, organic: 0, reviews: 0, total: 0 },
+            market: input.region ?? '',
 
             // Freshness
-            lastIngestedAt:      new Date(),
+            lastIngestedAt: new Date(),
             dataSourceUpdatedAt: input.collectedAt,
           },
         },
-        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
       );
 
       log.debug('Enriched product upserted', { videoId: input.videoId, title });
       return doc;
-
     } catch (err: any) {
       if (err.code === 11000) {
         log.warn('Duplicate key on upsert — product already exists', { videoId: input.videoId });
@@ -646,7 +768,7 @@ export const ProductRepository = {
     // Each market already has its own collection — no region filter needed when
     // a market-specific model is passed. The legacy `userRegion` filter still
     // applies when using the global model (single-collection fallback).
-    const query: Record<string, unknown> = { status: { $ne: 'archived' } };
+    const query: Record<string, unknown> = { status: { $nin: ['archived', 'invalid'] } };
 
     // ── Legacy multi-region fallback (single-collection path only) ───────────
     if (model === Product) {
@@ -699,21 +821,25 @@ export const ProductRepository = {
   ): Promise<IProductDocument[]> {
     if (!mongoose.isValidObjectId(id)) return [];
 
-    const objectId    = new mongoose.Types.ObjectId(id);
-    const baseFilter  = { _id: { $ne: objectId }, status: { $ne: 'archived' } };
-    const sort        = { 'trends.engagement.score': -1 as const, 'trend.score': -1 as const, totalSales: -1 as const };
-    const projection  = PRODUCT_LISTING_FIELD_PROJECTION;
+    const objectId = new mongoose.Types.ObjectId(id);
+    const baseFilter = { _id: { $ne: objectId }, status: { $ne: 'archived' } };
+    const sort = {
+      'trends.engagement.score': -1 as const,
+      'trend.score': -1 as const,
+      totalSales: -1 as const,
+    };
+    const projection = PRODUCT_LISTING_FIELD_PROJECTION;
 
     const results: IProductDocument[] = [];
 
     // Pass 1 — same subcategory
     if (categoryL2) {
-      const subcategoryResults = await model
+      const subcategoryResults = (await model
         .find({ ...baseFilter, categoryL2 })
         .select(projection)
         .sort(sort)
         .limit(limit)
-        .lean() as unknown as IProductDocument[];
+        .lean()) as unknown as IProductDocument[];
       results.push(...subcategoryResults);
     }
 
@@ -721,12 +847,16 @@ export const ProductRepository = {
     if (results.length < limit) {
       const seenIds = new Set([id, ...results.map((p) => String((p as any)._id))]);
       const remaining = limit - results.length;
-      const categoryResults = await model
-        .find({ ...baseFilter, categoryL1, _id: { $nin: [...seenIds].map((sid) => new mongoose.Types.ObjectId(sid)) } })
+      const categoryResults = (await model
+        .find({
+          ...baseFilter,
+          categoryL1,
+          _id: { $nin: [...seenIds].map((sid) => new mongoose.Types.ObjectId(sid)) },
+        })
         .select(projection)
         .sort(sort)
         .limit(remaining)
-        .lean() as unknown as IProductDocument[];
+        .lean()) as unknown as IProductDocument[];
       results.push(...categoryResults);
     }
 
@@ -745,23 +875,26 @@ export const ProductRepository = {
   ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
     const filter: Record<string, unknown> = {
       status: { $ne: 'archived' },
-      $text: { $search: query },
     };
     applyProductFeedFilters(filter, filters);
 
-    return runProductFeedQuery(model, filter, filters);
+    return runProductSearchQuery(model, filter, filters, query);
   },
 
   async markStaleProducts(olderThanMinutes = 10): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanMinutes * 60_000);
     const result = await Product.updateMany(
       { lastIngestedAt: { $lt: cutoff }, status: 'active' },
-      { $set: { status: 'stale' } }
+      { $set: { status: 'stale' } },
     );
     return result.modifiedCount;
   },
 
-  async cleanupBadProducts(): Promise<{ genericDeleted: number; duplicatesDeleted: number; lowViewsDeleted: number }> {
+  async cleanupBadProducts(): Promise<{
+    genericDeleted: number;
+    duplicatesDeleted: number;
+    lowViewsDeleted: number;
+  }> {
     const genericResult = await Product.deleteMany({
       status: { $ne: 'archived' },
       normalizedTitle: { $in: ['', 'unknown product'] },

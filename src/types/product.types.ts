@@ -5,10 +5,18 @@ export type { SentimentLabel };
 
 // ── Primitive enums ───────────────────────────────────────────────────────────
 
-export type ProductStatus   = 'active' | 'review' | 'invalid';
-export type TrendDirection  = 'rising' | 'peaked' | 'saturating' | 'stable' | 'declining' | 'emerging' | 'viral' | 'unknown';
-export type PriceBand       = 'budget' | 'mid-range' | 'premium';
-export type ProductType     = 'evergreen' | 'trend-driven' | 'seasonal' | 'unknown';
+export type ProductStatus = 'active' | 'review' | 'invalid';
+export type TrendDirection =
+  | 'rising'
+  | 'peaked'
+  | 'saturating'
+  | 'stable'
+  | 'declining'
+  | 'emerging'
+  | 'viral'
+  | 'unknown';
+export type PriceBand = 'budget' | 'mid-range' | 'premium';
+export type ProductType = 'evergreen' | 'trend-driven' | 'seasonal' | 'unknown';
 
 // ── Sub-document interfaces ───────────────────────────────────────────────────
 
@@ -51,7 +59,7 @@ export interface IProductReview {
 
 export interface IProductSupplierShop {
   name: string | null;
-  url:  string | null;
+  url: string | null;
   rating: number | null;
 }
 
@@ -84,15 +92,19 @@ export interface IProductSupplier {
 
 // ── Marketing analysis ────────────────────────────────────────────────────────
 
-export type Gender         = 'female' | 'male' | 'mixed' | 'unisex';
-export type IncomeLevel    = 'budget' | 'mid-range' | 'premium' | 'luxury';
+export type Gender = 'female' | 'male' | 'mixed' | 'unisex';
+export type IncomeLevel = 'budget' | 'mid-range' | 'premium' | 'luxury';
 export type PurchaseIntent = 'impulse' | 'considered' | 'habitual' | 'gifting';
-export type ContentFormat  = 'tutorial' | 'lifestyle' | 'entertainment' | 'review' | 'comparison';
+export type ContentFormat = 'tutorial' | 'lifestyle' | 'entertainment' | 'review' | 'comparison';
 
 export interface IMarketingAngle {
   hook: string;
   body: string;
   target: string;
+  /** S3 video proxy — only when a product creative has `videoS3Key`. */
+  videoProxyUrl?: string;
+  /** Poster from the same creative as `videoProxyUrl`. */
+  thumbnailProxyUrl?: string;
 }
 
 export interface IMarketingAnalysis {
@@ -333,6 +345,7 @@ export interface ProductFeedItem {
   totalSales?: number;
   totalGmv?: number;
   salesTrend?: IMetricTrend | null;
+  priceTrend?: IPriceTrend | null;
   shopName?: string;
   shopUrl?: string;
   shopAvatarUrl?: string | null;

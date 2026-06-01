@@ -5,12 +5,17 @@ feed:
     description: |
       Returns active products with default pagination (`page`, `limit`).
       With no filters, this is the full catalog, one page at a time.
-      Pass `q` to run full-text search on the same endpoint (matches by relevance; results are ordered by `sortBy`, default **`gmv`** = highest `totalGmv` first).
+      Pass `q` or `search` to find products by title/description. Search results are ranked by **relevance only** (`sortBy` is ignored). Multi-word queries use phrase matching first.
     parameters:
       - name: q
         in: query
         required: false
-        description: Full-text search query (optional).
+        description: Full-text search query (optional). Alias `search`.
+        schema: { type: string, maxLength: 200 }
+      - name: search
+        in: query
+        required: false
+        description: Alias for `q` (same relevance ranking).
         schema: { type: string, maxLength: 200 }
       - name: page
         in: query
@@ -21,13 +26,17 @@ feed:
       - name: category
         in: query
         description: Filter by category. Pass multiple times or as comma-separated string for multi-select.
-        schema: 
+        schema:
           type: array
           items:
             type: string
       - name: trendDirection
         in: query
-        schema: { type: string, enum: [rising, peaked, saturating, emerging, unknown, declining, stable, viral] }
+        schema:
+          {
+            type: string,
+            enum: [rising, peaked, saturating, emerging, unknown, declining, stable, viral],
+          }
       - name: minTrendScore
         in: query
         schema: { type: number }
@@ -43,7 +52,8 @@ feed:
         description: Require this discovery section slug on the product (e.g. `top-ads` for top ads).
         schema:
           type: string
-          enum: [top-ads, trending, top-rated, viral, influencer-reviews, tutorials, viral-unboxings]
+          enum:
+            [top-ads, trending, top-rated, viral, influencer-reviews, tutorials, viral-unboxings]
       - name: feed
         in: query
         required: false

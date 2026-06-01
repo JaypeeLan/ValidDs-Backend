@@ -97,6 +97,29 @@ describe('creativeAdDedupeKey', () => {
     expect(b).toBe(a);
   });
 
+  it('uses product-card key for Meta rows even when stored adDedupeKey differs', () => {
+    const hero = 'https://p16-oec.example.com/tos/abc/490f42dc4905478abbfb2ed0de864999~tplv.jpeg';
+    const productId = '507f1f77bcf86cd799439011';
+    const a = creativeAdDedupeKey({
+      productId,
+      externalVideoId: 'meta:111',
+      adDedupeKey: 'meta:visual:page-a:507f1f77bcf86cd799439011:490f42dc4905478abbfb2ed0de864999',
+      thumbnailUrl: hero,
+      productPrimaryImageUrl: hero,
+      description: 'Ad copy A',
+    });
+    const b = creativeAdDedupeKey({
+      productId,
+      externalVideoId: 'meta:222',
+      adDedupeKey: 'meta:visual:page-b:507f1f77bcf86cd799439011:490f42dc4905478abbfb2ed0de864999',
+      thumbnailUrl: hero,
+      productPrimaryImageUrl: hero,
+      description: 'Ad copy B',
+    });
+    expect(a).toBe(`product-card:${productId}`);
+    expect(b).toBe(a);
+  });
+
   it('collapses TikTok promos that only show the product hero image', () => {
     const hero = 'https://p16-oec.example.com/tos/abc/490f42dc4905478abbfb2ed0de864999~tplv.jpeg';
     const productId = '507f1f77bcf86cd799439011';

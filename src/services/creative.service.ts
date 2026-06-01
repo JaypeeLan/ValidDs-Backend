@@ -10,6 +10,8 @@ import type { Model } from 'mongoose';
 import { logger } from '../logger';
 import mongoose, { type PipelineStage } from 'mongoose';
 import { ScrapeCreatorsService } from './scrapecreators.service';
+import { persistCreatorAvatarOnCreative } from './creator-avatar-cache.service';
+import type { MarketCode } from '../utils/markets';
 import type { AwemeMediaPatch } from '../utils/aweme-media.util';
 import {
   apiSectionToDb,
@@ -408,9 +410,11 @@ export const CreativeService = {
   async refreshCreativeMedia(
     creativeId: string | mongoose.Types.ObjectId,
     index = 0,
+    market: MarketCode = 'US',
+    creativeModel: Model<ICreativeDocument> = Creative,
   ): Promise<boolean> {
     try {
-      const doc = await Creative.findById(creativeId);
+      const doc = await creativeModel.findById(creativeId);
       if (!doc) return false;
 
       const isRoot = index <= 0;
@@ -447,6 +451,11 @@ export const CreativeService = {
       let media: AwemeMediaPatch | null = null;
       if (handle && awemeId && !awemeId.startsWith('meta:')) {
         media = await ScrapeCreatorsService.findAwemeMedia(handle, awemeId, { region });
+      } else if (awemeId.startsWith('meta:')) {
+        const productThumb = pickUrl(String(doc.productPrimaryImageUrl ?? ''));
+        if (productThumb) {
+          media = { thumbnailUrl: productThumb };
+        }
       }
 
       const profile = handle ? await ScrapeCreatorsService.getUserInfo(handle) : null;
@@ -483,19 +492,30 @@ export const CreativeService = {
         if (changed) doc.markModified('relatedVideos');
       }
 
-      if (!changed) return false;
-
-      await doc.save();
-
-      if (isRoot && profileAvatar) {
-        await syncProductCreatorAvatar(doc.productId, profileAvatar);
+      if (changed) {
+        await doc.save();
+        if (isRoot && profileAvatar) {
+          await syncProductCreatorAvatar(doc.productId, profileAvatar);
+        }
       }
+
+      let avatarCached = false;
+      if (handle) {
+        const cached = await persistCreatorAvatarOnCreative(String(creativeId), creativeModel, {
+          index,
+          market,
+        });
+        avatarCached = Boolean(cached?.avatarS3Key || cached?.avatarUrl);
+      }
+
+      if (!changed && !avatarCached) return false;
 
       log.info('Creative media refreshed', {
         creativeId: String(creativeId),
         index,
         awemeId: awemeId || undefined,
         handle: handle || undefined,
+        avatarCached,
       });
       return true;
     } catch (err) {

@@ -25,6 +25,8 @@ export interface ICreatorProfile {
   displayName?: string;
   bio?: string;
   avatarUrl?: string;
+  /** Stable copy in S3 — served by thumbnail proxy when set */
+  avatarS3Key?: string;
   /** Optional — not present on older ingested records from main DB */
   followers?: number;
   following?: number;

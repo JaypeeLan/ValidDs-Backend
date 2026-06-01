@@ -193,15 +193,17 @@ async function main() {
   const total = await coll.estimatedDocumentCount();
   console.log(`Collection ${collName}: ~${total} docs (${dryRun ? 'dry-run' : 'live'})`);
 
+  const feedKeyExpr = computedAdDedupeKeyExpr();
+
   const dupCursor = coll.aggregate(
     [
-      { $addFields: { adDedupeKey: { $ifNull: ['$adDedupeKey', computedAdDedupeKeyExpr()] } } },
+      { $addFields: { _feedDedupeKey: feedKeyExpr } },
       { $sort: { 'metrics.viewCount': -1, publishedAt: -1 } },
       {
         $group: {
-          _id: '$adDedupeKey',
+          _id: '$_feedDedupeKey',
           keepId: { $first: '$_id' },
-          keepKey: { $first: '$adDedupeKey' },
+          keepKey: { $first: '$_feedDedupeKey' },
           ids: { $push: '$_id' },
         },
       },
@@ -260,6 +262,11 @@ async function main() {
     console.log(`  ${verb} batch of ${batch.length} (total ${deleteCount})`);
   }
 
+  if (!dryRun) {
+    const backfill = await coll.updateMany({}, [{ $set: { adDedupeKey: feedKeyExpr } }]);
+    console.log(`  backfilled adDedupeKey on ${backfill.modifiedCount} doc(s)`);
+  }
+
   if (!dryRun && keepUpdates.size) {
     const ops = [...keepUpdates.entries()].map(([id, key]) => ({
       updateOne: {
@@ -270,7 +277,7 @@ async function main() {
     for (let i = 0; i < ops.length; i += BATCH) {
       await coll.bulkWrite(ops.slice(i, i + BATCH), { ordered: false });
     }
-    console.log(`  set adDedupeKey on ${keepUpdates.size} kept row(s)`);
+    console.log(`  set adDedupeKey on ${keepUpdates.size} kept row(s) from duplicate groups`);
   }
 
   console.log(
@@ -279,7 +286,11 @@ async function main() {
   await client.close();
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+module.exports = { computedAdDedupeKeyExpr };
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

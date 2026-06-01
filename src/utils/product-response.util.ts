@@ -61,10 +61,9 @@ export function normalizePrimaryCreatorOnProduct(
   const primaryImageUrl =
     pickUrl(pc.primaryImageUrl, pc.avatarUrl, enrichment?.primaryImageUrl) ?? null;
 
-  const avatarProxyUrl =
-    enrichment?.creativeId && primaryImageUrl
-      ? creatorAvatarProxyPath(enrichment.creativeId)
-      : pickUrl(pc.avatarProxyUrl);
+  const avatarProxyUrl = enrichment?.creativeId
+    ? creatorAvatarProxyPath(enrichment.creativeId)
+    : pickUrl(pc.avatarProxyUrl);
 
   const apiCreator: IPrimaryCreatorApi = {
     handle: typeof pc.handle === 'string' ? pc.handle : '',
@@ -90,44 +89,46 @@ export async function loadCreatorAvatarEnrichmentByProductId(
   creativeModel: Model<ICreativeDocument> = Creative,
 ): Promise<Map<string, CreatorAvatarEnrichment>> {
   const validIds = [
-    ...new Set(
-      productIds.filter((id) => mongoose.isValidObjectId(id)).map((id) => String(id)),
-    ),
+    ...new Set(productIds.filter((id) => mongoose.isValidObjectId(id)).map((id) => String(id))),
   ];
   if (!validIds.length) return new Map();
 
   const objectIds = validIds.map((id) => new mongoose.Types.ObjectId(id));
 
-  const rows = await creativeModel.aggregate<{
-    _id: mongoose.Types.ObjectId;
-    creativeId: mongoose.Types.ObjectId;
-    avatarUrl?: string;
-  }>([
-    {
-      $match: {
-        productId: { $in: objectIds },
-        $or: [
-          { 'creator.avatarUrl': { $type: 'string', $regex: /^https:\/\// } },
-          { shopAvatarUrl: { $type: 'string', $regex: /^https:\/\// } },
-        ],
-      },
-    },
-    {
-      $addFields: {
-        displayAvatar: {
-          $ifNull: ['$creator.avatarUrl', '$shopAvatarUrl'],
+  const rows = await creativeModel
+    .aggregate<{
+      _id: mongoose.Types.ObjectId;
+      creativeId: mongoose.Types.ObjectId;
+      avatarUrl?: string;
+    }>([
+      {
+        $match: {
+          productId: { $in: objectIds },
+          $or: [
+            { 'creator.avatarUrl': { $type: 'string', $regex: /^https:\/\// } },
+            { 'creator.avatarS3Key': { $type: 'string', $regex: /\S/ } },
+            { 'creator.handle': { $type: 'string', $regex: /\S/ } },
+            { shopAvatarUrl: { $type: 'string', $regex: /^https:\/\// } },
+          ],
         },
       },
-    },
-    { $sort: { 'metrics.viewCount': -1 } },
-    {
-      $group: {
-        _id: '$productId',
-        creativeId: { $first: '$_id' },
-        avatarUrl: { $first: '$displayAvatar' },
+      {
+        $addFields: {
+          displayAvatar: {
+            $ifNull: ['$creator.avatarUrl', '$shopAvatarUrl'],
+          },
+        },
       },
-    },
-  ]).option({ maxTimeMS: 15_000 });
+      { $sort: { 'metrics.viewCount': -1 } },
+      {
+        $group: {
+          _id: '$productId',
+          creativeId: { $first: '$_id' },
+          avatarUrl: { $first: '$displayAvatar' },
+        },
+      },
+    ])
+    .option({ maxTimeMS: 15_000 });
 
   const map = new Map<string, CreatorAvatarEnrichment>();
   for (const row of rows) {

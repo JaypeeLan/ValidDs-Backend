@@ -280,7 +280,10 @@ creativeStreamThumbnail:
           default: thumbnail
     responses:
       '200':
-        description: Image bytes
+        description: |
+          Image bytes (JPEG/PNG/WebP/SVG). When TikTok CDN URLs expire, the server tries
+          fallbacks (product image, shop avatar) then a neutral SVG placeholder. Use in
+          `<img src>` only — this endpoint does not return JSON error bodies.
         content:
           image/jpeg:
             schema:
@@ -294,30 +297,10 @@ creativeStreamThumbnail:
             schema:
               type: string
               format: binary
-      '404':
-        description: Creative or image not found
-        content:
-          application/json:
+          image/svg+xml:
             schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                code:
-                  type: string
-                  enum: [IMAGE_NOT_AVAILABLE]
-      '410':
-        description: TikTok CDN URL expired; refresh triggered — retry shortly
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                code:
-                  type: string
-                  enum: [IMAGE_URL_EXPIRED]
+              type: string
+              format: binary
       '429':
         $ref: '../components/responses/Standard.yaml#/TooManyRequestsResponse'
 

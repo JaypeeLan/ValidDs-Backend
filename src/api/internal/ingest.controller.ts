@@ -10,6 +10,8 @@ import {
   validateProductForIngest,
 } from './ingest.validation';
 import { normalizeCreativePayload, normalizeProductPayload } from './ingest.normalize';
+import { persistCreatorAvatarOnCreative } from '../../services/creator-avatar-cache.service';
+import { isProductHeroThumbnail } from '../../utils/creative-response.util';
 import { logger } from '../../logger';
 
 const log = logger.child({ module: 'internal-ingest' });
@@ -174,7 +176,13 @@ export async function ingestCreative(
     }
 
     const adDedupeKey = String(payload.adDedupeKey ?? '').trim();
-    const upsertFilter = adDedupeKey ? { adDedupeKey } : { externalVideoId };
+    const isMetaAd = externalVideoId.startsWith('meta:');
+    // Meta rows upsert by Ad Library id; TikTok rows use stable adDedupeKey when set.
+    const upsertFilter = isMetaAd
+      ? { externalVideoId }
+      : adDedupeKey
+        ? { adDedupeKey }
+        : { externalVideoId };
 
     const saved = await Creative.findOneAndUpdate(
       upsertFilter,
@@ -200,6 +208,26 @@ export async function ingestCreative(
         });
       }
     }
+
+    // Hero-thumbnail Meta ads look identical in feeds — keep one per product.
+    if (isMetaAd && isProductHeroThumbnail(payload)) {
+      const removedMeta = await Creative.deleteMany({
+        productId: payload.productId,
+        externalVideoId: { $regex: /^meta:/ },
+        _id: { $ne: saved._id },
+      });
+      if (removedMeta.deletedCount > 0) {
+        log.info('Removed extra Meta ads for product hero card', {
+          market,
+          productId: String(payload.productId),
+          deletedCount: removedMeta.deletedCount,
+        });
+      }
+    }
+
+    void persistCreatorAvatarOnCreative(String(saved._id), Creative, { market }).catch((err) =>
+      log.warn('Avatar cache on ingest failed', { id: saved.id, err: String(err) }),
+    );
 
     log.info('Creative ingested', { market, externalVideoId, adDedupeKey, id: saved.id });
     res.status(200).json({ success: true, id: String(saved._id) });

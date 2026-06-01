@@ -22,6 +22,30 @@ describe('resolveCreatorAvatarUrl', () => {
   });
 });
 
+describe('formatCreativeFeedItem creator avatar proxy', () => {
+  it('exposes avatarProxyUrl when only creator handle is stored (S3/proxy refresh)', () => {
+    const item = formatCreativeFeedItem({
+      _id: '507f1f77bcf86cd799439012',
+      externalVideoId: '7123456789',
+      embedUrl: 'https://www.tiktok.com/@user/video/1',
+      tiktokPostUrl: 'https://www.tiktok.com/@user/video/1',
+      creator: {
+        handle: 'tiktok_user',
+        verified: false,
+        tiktokPostUrl: 'https://www.tiktok.com/@user/video/1',
+      },
+      metrics: { viewCount: 1, likeCount: 0, commentCount: 0, shareCount: 0 },
+      section: 'trending',
+      productId: '507f1f77bcf86cd799439022',
+    });
+
+    expect(item.creator.avatarUrl).toBeUndefined();
+    expect(item.creator.avatarProxyUrl).toBe(
+      '/api/v1/creatives/507f1f77bcf86cd799439012/thumbnail?index=0&kind=avatar',
+    );
+  });
+});
+
 describe('formatCreativeFeedItem creator avatar', () => {
   it('exposes avatarUrl and avatarProxyUrl when only shopAvatarUrl is stored', () => {
     const item = formatCreativeFeedItem({

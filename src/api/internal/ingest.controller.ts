@@ -4,7 +4,11 @@ import { getMarketModels } from '../../models/market-models.factory';
 import { normalizeProductTitle } from '../../db/repositories/product.repository';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 import { toMarketCode, isValidMarket } from '../../utils/markets';
-import { MAX_REVIEWS_INGEST, validateCreativeForIngest, validateProductForIngest } from './ingest.validation';
+import {
+  MAX_REVIEWS_INGEST,
+  validateCreativeForIngest,
+  validateProductForIngest,
+} from './ingest.validation';
 import { normalizeCreativePayload, normalizeProductPayload } from './ingest.normalize';
 import { logger } from '../../logger';
 
@@ -20,7 +24,8 @@ function parsePublishedAt(value: unknown): Date | null {
 function mapReviews(reviews: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(reviews)) return [];
   return reviews.slice(0, MAX_REVIEWS_INGEST).map((r) => {
-    if (!r || typeof r !== 'object') return { author: null, rating: null, content: null, date: null, item: null, images: [] };
+    if (!r || typeof r !== 'object')
+      return { author: null, rating: null, content: null, date: null, item: null, images: [] };
     const row = r as Record<string, unknown>;
     const text = String(row.content ?? row.review ?? row.text ?? '').trim();
     const author = String(row.author ?? row.name ?? '').trim() || null;
@@ -38,7 +43,9 @@ function mapReviews(reviews: unknown): Array<Record<string, unknown>> {
 }
 
 function prepareProductDoc(raw: Record<string, unknown>, market: string): Record<string, unknown> {
-  const title = String(raw.title ?? '').trim().slice(0, 120);
+  const title = String(raw.title ?? '')
+    .trim()
+    .slice(0, 120);
   const now = new Date();
   const published = parsePublishedAt(raw.publishedAt ?? raw.postCreatedAt);
 
@@ -51,7 +58,7 @@ function prepareProductDoc(raw: Record<string, unknown>, market: string): Record
     validationStatus: raw.validationStatus ?? 'valid',
     reviews: mapReviews(raw.reviews),
     primaryCreator: normalizePrimaryCreatorForStorage(
-      (raw.primaryCreator ?? null) as Parameters<typeof normalizePrimaryCreatorForStorage>[0]
+      (raw.primaryCreator ?? null) as Parameters<typeof normalizePrimaryCreatorForStorage>[0],
     ),
     lastIngestedAt: now,
     dataSourceUpdatedAt: now,
@@ -64,7 +71,11 @@ function prepareProductDoc(raw: Record<string, unknown>, market: string): Record
   return doc;
 }
 
-export async function ingestProduct(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function ingestProduct(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
     const body = req.body as { market?: string; product?: Record<string, unknown> };
     const marketRaw = body.market ?? body.product?.market;
@@ -93,7 +104,7 @@ export async function ingestProduct(req: Request, res: Response, next: NextFunct
     const saved = await Product.findOneAndUpdate(
       { externalId, source },
       { $set: prepared },
-      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
     );
 
     if (!saved) {
@@ -114,7 +125,11 @@ export async function ingestProduct(req: Request, res: Response, next: NextFunct
   }
 }
 
-export async function ingestCreative(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function ingestCreative(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
     const body = req.body as { market?: string; creative?: Record<string, unknown> };
     const marketRaw = body.market;
@@ -158,10 +173,13 @@ export async function ingestCreative(req: Request, res: Response, next: NextFunc
       payload.creator = creator;
     }
 
+    const adDedupeKey = String(payload.adDedupeKey ?? '').trim();
+    const upsertFilter = adDedupeKey ? { adDedupeKey } : { externalVideoId };
+
     const saved = await Creative.findOneAndUpdate(
-      { externalVideoId },
+      upsertFilter,
       { $set: payload },
-      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
     );
 
     if (!saved) {
@@ -169,7 +187,21 @@ export async function ingestCreative(req: Request, res: Response, next: NextFunc
       return;
     }
 
-    log.info('Creative ingested', { market, externalVideoId, id: saved.id });
+    if (adDedupeKey) {
+      const removed = await Creative.deleteMany({
+        adDedupeKey,
+        _id: { $ne: saved._id },
+      });
+      if (removed.deletedCount > 0) {
+        log.info('Removed duplicate creatives for adDedupeKey', {
+          market,
+          adDedupeKey,
+          deletedCount: removed.deletedCount,
+        });
+      }
+    }
+
+    log.info('Creative ingested', { market, externalVideoId, adDedupeKey, id: saved.id });
     res.status(200).json({ success: true, id: String(saved._id) });
   } catch (err) {
     if (err && typeof err === 'object' && (err as { name?: string }).name === 'ValidationError') {

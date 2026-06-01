@@ -55,20 +55,29 @@ function normalizeAdDescription(raw: unknown): string {
     .replace(/\s+/g, ' ');
 }
 
-/** Meta rows reuse the product hero when Ad Library has no image URL — cards look identical. */
-export function isMetaProductPlaceholderThumb(creative: Record<string, unknown>): boolean {
+/** Thumbnail is the listing hero (no real video cover) — feed cards look identical. */
+export function isProductHeroThumbnail(creative: Record<string, unknown>): boolean {
   const thumb = imageAssetKey(String(creative.thumbnailUrl ?? ''));
   const product = imageAssetKey(String(creative.productPrimaryImageUrl ?? ''));
   return Boolean(thumb && product && thumb === product);
 }
 
+/** @deprecated Use isProductHeroThumbnail */
+export const isMetaProductPlaceholderThumb = isProductHeroThumbnail;
+
 /**
- * One key per distinct ad — not per product.
- * Meta: same copy or same page+product+hero image → one slot (placeholder thumbs ignore copy).
- * TikTok: same post / aweme id.
+ * One key per distinct ad card in discovery feeds.
+ * Meta: same copy or same page+product+hero image → one slot.
+ * TikTok: same aweme id, or one card per product when only the hero image is shown.
  */
 export function creativeAdDedupeKey(creative: Record<string, unknown>): string {
   const ext = String(creative.externalVideoId ?? '').trim();
+  const pid = String(creative.productId ?? '').trim();
+
+  if (isProductHeroThumbnail(creative) && pid) {
+    return `product-card:${pid}`;
+  }
+
   if (ext.startsWith('meta:')) {
     const page = String(
       creative.metaPageId ??
@@ -77,9 +86,8 @@ export function creativeAdDedupeKey(creative: Record<string, unknown>): string {
     )
       .trim()
       .toLowerCase();
-    const pid = String(creative.productId ?? '');
     const thumb = imageAssetKey(String(creative.thumbnailUrl ?? ''));
-    if (isMetaProductPlaceholderThumb(creative) && page && thumb && pid) {
+    if (isProductHeroThumbnail(creative) && page && thumb && pid) {
       return `meta:visual:${page}:${pid}:${thumb}`;
     }
     const desc = normalizeAdDescription(creative.description);
@@ -192,57 +200,79 @@ function mongoMetaAdDedupeKeyExpr(): Record<string, unknown> {
   };
 }
 
-/** Mongo stages: collapse duplicate ads (same video / same Meta copy or look-alike card). */
-export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
-  const computedKey = {
-    $cond: [
-      { $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' } },
-      mongoMetaAdDedupeKeyExpr(),
-      {
-        $let: {
-          vars: {
-            postMatch: {
-              $regexFind: {
-                input: { $ifNull: ['$tiktokPostUrl', ''] },
-                regex: '(?:/video/|embed/v2/)(\\d+)',
-                options: 'i',
-              },
-            },
-            embedMatch: {
-              $regexFind: {
-                input: { $ifNull: ['$embedUrl', ''] },
-                regex: '(?:/video/|embed/v2/)(\\d+)',
-                options: 'i',
-              },
-            },
+function mongoTiktokVideoDedupeKeyExpr(): Record<string, unknown> {
+  return {
+    $let: {
+      vars: {
+        postMatch: {
+          $regexFind: {
+            input: { $ifNull: ['$tiktokPostUrl', ''] },
+            regex: '(?:/video/|embed/v2/)(\\d+)',
+            options: 'i',
           },
-          in: {
+        },
+        embedMatch: {
+          $regexFind: {
+            input: { $ifNull: ['$embedUrl', ''] },
+            regex: '(?:/video/|embed/v2/)(\\d+)',
+            options: 'i',
+          },
+        },
+      },
+      in: {
+        $cond: [
+          { $ne: ['$$postMatch', null] },
+          { $concat: ['tiktok:', { $arrayElemAt: ['$$postMatch.captures', 0] }] },
+          {
             $cond: [
-              { $ne: ['$$postMatch', null] },
-              { $concat: ['tiktok:', { $arrayElemAt: ['$$postMatch.captures', 0] }] },
+              { $ne: ['$$embedMatch', null] },
+              { $concat: ['tiktok:', { $arrayElemAt: ['$$embedMatch.captures', 0] }] },
               {
                 $cond: [
-                  { $ne: ['$$embedMatch', null] },
-                  { $concat: ['tiktok:', { $arrayElemAt: ['$$embedMatch.captures', 0] }] },
                   {
-                    $cond: [
-                      {
-                        $regexMatch: {
-                          input: { $ifNull: ['$externalVideoId', ''] },
-                          regex: '^\\d+$',
-                        },
-                      },
-                      { $concat: ['tiktok:', '$externalVideoId'] },
-                      {
-                        $ifNull: ['$externalVideoId', { $ifNull: ['$tiktokPostUrl', ''] }],
-                      },
-                    ],
+                    $regexMatch: {
+                      input: { $ifNull: ['$externalVideoId', ''] },
+                      regex: '^\\d+$',
+                    },
+                  },
+                  { $concat: ['tiktok:', '$externalVideoId'] },
+                  {
+                    $ifNull: ['$externalVideoId', { $ifNull: ['$tiktokPostUrl', ''] }],
                   },
                 ],
               },
             ],
           },
-        },
+        ],
+      },
+    },
+  };
+}
+
+/** Mongo stages: collapse duplicate ads (same video / same product hero card / Meta copy). */
+export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
+  const thumb = mongoImageAssetKeyExpr('$thumbnailUrl');
+  const productThumb = mongoImageAssetKeyExpr('$productPrimaryImageUrl');
+  const pid = { $toString: '$productId' };
+
+  // Order must match creativeAdDedupeKey(): product hero → meta → tiktok video id.
+  const computedKey = {
+    $cond: [
+      {
+        $and: [
+          { $ne: [thumb, ''] },
+          { $ne: [productThumb, ''] },
+          { $eq: [thumb, productThumb] },
+          { $ne: [pid, ''] },
+        ],
+      },
+      { $concat: ['product-card:', pid] },
+      {
+        $cond: [
+          { $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' } },
+          mongoMetaAdDedupeKeyExpr(),
+          mongoTiktokVideoDedupeKeyExpr(),
+        ],
       },
     ],
   };

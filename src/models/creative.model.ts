@@ -163,6 +163,8 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
 
     publishedAt: { type: Date, default: null },
     ingestedAt: { type: Date, default: Date.now },
+    /** Stable feed/upsert key — see creativeAdDedupeKey() */
+    adDedupeKey: { type: String, index: true },
   },
   { timestamps: true, strict: true },
 );
@@ -170,6 +172,13 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
 // ── Indexes ───────────────────────────────────────────────────────────────────
 
 CreativeSchema.index({ productId: 1, section: 1 });
+CreativeSchema.index(
+  { adDedupeKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { adDedupeKey: { $type: 'string', $gt: '' } },
+  },
+);
 CreativeSchema.index({ 'metrics.viewCount': -1 });
 CreativeSchema.index({ 'creator.followers': -1 });
 CreativeSchema.index({ publishedAt: -1 });

@@ -42,6 +42,7 @@
     "lint:fix": "eslint \"{src,tests,scripts}\" --ext .ts --fix",
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
     "make-admin": "ts-node src/scripts/make-admin.ts",
+    "dedupe-creatives": "node scripts/dedupe-creatives.cjs",
     "tester:ui": "node tools/backend-tester/server.js",
     "frontend:react": "node tools/full-frontend/server.js",
     "prepare": "husky",

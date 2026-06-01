@@ -14,7 +14,12 @@ async function main() {
   const page = await coll
     .aggregate(
       [
-        { $match: { section: 'trending', externalVideoId: { $regex: /^meta:/ } } },
+        {
+          $match: {
+            section: 'trending',
+            $or: [{ externalVideoId: { $regex: /^meta:/ } }, { isAd: true }],
+          },
+        },
         { $sort: { 'metrics.viewCount': -1, publishedAt: -1 } },
         { $addFields: { _feedDedupeKey: computedAdDedupeKeyExpr() } },
         { $group: { _id: '$_feedDedupeKey', doc: { $first: '$$ROOT' } } },

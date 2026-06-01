@@ -34,15 +34,22 @@ export function dbSectionToApi(section: string | undefined): CreativeSection | u
   return (DB_TO_API_SECTION[section as CreativeSection] ?? section) as CreativeSection;
 }
 
-/** TikTok UGC / shop videos — never Meta rows. */
+/**
+ * Organic TikTok shop / creator videos (DB `top-ads`, API default creatives list).
+ * Excludes Meta rows and TikTok posts flagged `isAd` (sponsored / ad copy).
+ */
 export const CREATIVE_TRENDING_MATCH = {
   section: 'top-ads' as const,
   externalVideoId: { $not: { $regex: /^meta:/ } },
+  isAd: { $ne: true },
 };
-/** Meta Ad Library creatives only — never TikTok video ids. */
+/**
+ * Paid ads bucket (DB `trending`, API `GET /creatives/top-ads`):
+ * Meta Ad Library + TikTok with ad/sponsored signals.
+ */
 export const CREATIVE_TOP_ADS_MATCH = {
   section: 'trending' as const,
-  externalVideoId: { $regex: /^meta:/ },
+  $or: [{ externalVideoId: { $regex: /^meta:/ } }, { isAd: true }],
 };
 export const CREATIVE_COMMERCIAL_MATCH = CREATIVE_TRENDING_MATCH;
 

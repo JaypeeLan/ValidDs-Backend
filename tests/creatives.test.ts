@@ -101,7 +101,7 @@ describe('Creatives Endpoints', () => {
         productId: product._id,
         externalVideoId: 'vid_1',
         section: 'top-ads',
-        isAd: true,
+        isAd: false,
         publishedAt: new Date('2020-01-01'),
         creator: {
           tiktokUserId: 'u1',
@@ -144,26 +144,26 @@ describe('Creatives Endpoints', () => {
       }),
     );
 
-    // TikTok row in wrong DB bucket — must not appear on GET /creatives/top-ads
     await Creative.create(
       minimalTestCreative({
         productId: product._id,
-        externalVideoId: 'vid_2',
+        externalVideoId: 'vid_sponsored',
         section: 'trending',
-        isAd: false,
-        publishedAt: new Date('2023-01-01'),
-        tiktokPostUrl: 'https://www.tiktok.com/@indie1/video/2',
+        isAd: true,
+        description: 'Love this product — #sponsored partnership',
+        publishedAt: new Date('2024-02-01'),
+        tiktokPostUrl: 'https://www.tiktok.com/@indie1/video/sponsored',
         creator: {
           tiktokUserId: 'u2b',
           handle: 'indie2',
           displayName: 'Indie Two',
           region: 'GB',
-          tiktokPostUrl: 'https://www.tiktok.com/@indie2/video/2',
+          tiktokPostUrl: 'https://www.tiktok.com/@indie2/video/sponsored',
           isIndependentCreator: true,
         },
         metrics: {
-          viewCount: 100,
-          likeCount: 10,
+          viewCount: 800,
+          likeCount: 80,
         },
       }),
     );
@@ -173,7 +173,7 @@ describe('Creatives Endpoints', () => {
         productId: product._id,
         externalVideoId: 'vid_3',
         section: 'top-ads',
-        isAd: true,
+        isAd: false,
         publishedAt: new Date('2024-06-01'),
         creator: {
           tiktokUserId: 'u1b',
@@ -249,7 +249,7 @@ describe('Creatives Endpoints', () => {
     expect(ids).toEqual(['vid_1', 'vid_3']);
   });
 
-  it('GET /api/v1/creatives/top-ads should return only Meta Ad Library creatives', async () => {
+  it('GET /api/v1/creatives/top-ads should return Meta and sponsored TikTok creatives', async () => {
     const res = await httpJson({
       baseUrl,
       method: 'GET',
@@ -259,13 +259,8 @@ describe('Creatives Endpoints', () => {
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
     expect(body.success).toBe(true);
-    expect(body.data.data.length).toBe(1);
-    expect(body.data.data[0].externalVideoId).toBe('meta:9001');
-    expect(
-      body.data.data.every((c: { externalVideoId: string }) =>
-        c.externalVideoId.startsWith('meta:'),
-      ),
-    ).toBe(true);
+    const ids = body.data.data.map((c: { externalVideoId: string }) => c.externalVideoId).sort();
+    expect(ids).toEqual(['meta:9001', 'vid_sponsored']);
   });
 
   it('GET /api/v1/creatives?section=top-ads should work', async () => {

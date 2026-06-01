@@ -1,8 +1,8 @@
 /**
- * Move TikTok creatives out of the Meta ads bucket (DB section `trending`).
+ * Legacy one-off: move non-Meta rows out of DB section `trending`.
+ * Prefer: scraper/scripts/maintenance/reclassify_creative_sections.py
  *
  *   node scripts/fix-creative-sections.cjs --market US --dry-run
- *   node scripts/fix-creative-sections.cjs --market US
  */
 const path = require('path');
 const { MongoClient } = require('mongodb');

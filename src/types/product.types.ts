@@ -337,6 +337,13 @@ export interface ProductAiInsightResponse {
   extractedAt?: string | Date;
 }
 
+export interface ProductItemFreshness {
+  lastUpdatedAt: string;
+  lastIngestedAt: string;
+  updatedAt: string;
+  freshnessLabel: string;
+}
+
 export interface ProductFeedItem {
   id: string;
   title: string;
@@ -357,6 +364,7 @@ export interface ProductFeedItem {
   shopAvatarUrl?: string | null;
   shopAvatarProxyUrl?: string;
   lastIngestedAt: string | Date;
+  freshness: ProductItemFreshness;
   publishedAt?: string | Date | null;
   isNew3d?: boolean;
   isNew7d?: boolean;

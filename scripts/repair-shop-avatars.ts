@@ -111,13 +111,26 @@ async function main(): Promise<void> {
         market,
         forceRefresh: true,
       });
-      if (result?.shopAvatarS3Key || result?.shopAvatarUrl) {
-        repaired += 1;
-        console.log(`  -> repaired ${shopName} s3=${result.shopAvatarS3Key ?? 'n/a'}`);
-      } else {
+      if (!result?.shopAvatarS3Key && !result?.shopAvatarUrl) {
         failed += 1;
         console.log(`  -> failed ${shopName} (no catalog logo cached)`);
+        continue;
       }
+
+      const setFields: Record<string, unknown> = {};
+      if (result.shopAvatarUrl) setFields.shopAvatarUrl = result.shopAvatarUrl;
+      if (result.shopAvatarS3Key) setFields.shopAvatarS3Key = result.shopAvatarS3Key;
+
+      const shopRegex = new RegExp(`^${shopName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+      const [productRes, creativeRes] = await Promise.all([
+        Product.updateMany({ shopName: shopRegex }, { $set: setFields }),
+        Creative.updateMany({ shopName: shopRegex }, { $set: setFields }),
+      ]);
+
+      repaired += 1;
+      console.log(
+        `  -> repaired ${shopName} s3=${result.shopAvatarS3Key ?? 'n/a'} products=${productRes.modifiedCount} creatives=${creativeRes.modifiedCount}`,
+      );
     } catch (err) {
       failed += 1;
       console.warn(`  -> error ${shopName}:`, String(err));

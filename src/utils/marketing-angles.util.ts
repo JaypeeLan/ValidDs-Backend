@@ -62,6 +62,29 @@ function angleCreativeProxyUrls(creativeId: string, apiVersion: string) {
   };
 }
 
+/** Attach a fallback creative proxy when the angle has no videoUrl/metaAdLibraryUrl. */
+export function enrichAnglesWithFallbackCreativeProxyUrls<T extends Record<string, unknown>>(
+  angles: T[],
+  fallbackCreativeId: string | undefined,
+  apiVersion = 'v1',
+): T[] {
+  const id = typeof fallbackCreativeId === 'string' ? fallbackCreativeId.trim() : '';
+  if (!id) return angles;
+  return angles.map((angle) => {
+    if (angleHasPlayableVideo(angle)) return angle;
+    // If the angle already points to a specific creative (via url fields),
+    // let the more specific enrichers handle it.
+    const hasSpecificUrl =
+      (typeof angle.videoUrl === 'string' && angle.videoUrl.trim().length > 0) ||
+      (typeof angle.metaAdLibraryUrl === 'string' && angle.metaAdLibraryUrl.trim().length > 0);
+    if (hasSpecificUrl) return angle;
+    return {
+      ...angle,
+      ...angleCreativeProxyUrls(id, apiVersion),
+    };
+  });
+}
+
 /** Attach /api/v1/creatives/:id/video proxy paths for angles matched to product TikTok creatives. */
 export function enrichAnglesWithVideoProxyUrls<T extends Record<string, unknown>>(
   angles: T[],

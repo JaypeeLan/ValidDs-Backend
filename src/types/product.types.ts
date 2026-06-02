@@ -355,6 +355,7 @@ export interface ProductFeedItem {
   shopName?: string;
   shopUrl?: string;
   shopAvatarUrl?: string | null;
+  shopAvatarProxyUrl?: string;
   lastIngestedAt: string | Date;
   publishedAt?: string | Date | null;
   isNew3d?: boolean;

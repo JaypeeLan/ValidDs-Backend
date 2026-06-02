@@ -34,7 +34,8 @@ export function shopAvatarS3Key(shopName: string, market = 'us'): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
   if (!slug) return '';
-  return `${s3ImagePrefix()}/shops/${market.toLowerCase()}/${slug}.jpg`;
+  // Under avatars/ — same IAM prefix as creator avatars (brightdata-delivery policy).
+  return `${s3ImagePrefix()}/avatars/${market.toLowerCase()}/shop-${slug}.jpg`;
 }
 
 /** Stable backend URL for creator profile images (S3 + refresh, not expiring CDN). */
@@ -49,6 +50,20 @@ export function buildCreatorAvatarProxyUrl(
     Boolean(opts.avatarUrl?.trim()) || Boolean(opts.avatarS3Key?.trim()) || hasHandle;
   if (!hasSource) return undefined;
   return `${baseUrl}/thumbnail?index=${index}&kind=avatar`;
+}
+
+/** Stable backend URL for TikTok Shop logos (S3-backed). */
+export function buildShopAvatarProxyUrl(
+  baseUrl: string | undefined,
+  opts: { shopAvatarUrl?: string; shopAvatarS3Key?: string; shopName?: string },
+): string | undefined {
+  if (!baseUrl?.trim()) return undefined;
+  const hasShop =
+    Boolean(opts.shopName?.trim()) ||
+    Boolean(opts.shopAvatarUrl?.trim()) ||
+    Boolean(opts.shopAvatarS3Key?.trim());
+  if (!hasShop) return undefined;
+  return `${baseUrl}/thumbnail?index=0&kind=shop`;
 }
 
 export function pickCreatorAvatarS3Key(

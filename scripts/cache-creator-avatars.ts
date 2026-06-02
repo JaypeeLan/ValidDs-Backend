@@ -1,12 +1,13 @@
 /**
- * Backfill S3 creator avatars for existing creatives.
+ * Backfill S3 creator avatars for existing creatives (validates S3 + CDN URLs).
  *
  *   npx ts-node --transpile-only scripts/cache-creator-avatars.ts --market US
+ *   npx ts-node --transpile-only scripts/cache-creator-avatars.ts --market US --revalidate
  */
 import 'dotenv/config';
 import { connectMongo, disconnectMongo } from '../src/db/client';
 import { getMarketModels } from '../src/models/market-models.factory';
-import { persistCreatorAvatarOnCreative } from '../src/services/creator-avatar-cache.service';
+import { persistAllCreatorAvatarsOnCreative } from '../src/services/creator-avatar-cache.service';
 import { toMarketCode } from '../src/utils/markets';
 
 async function main(): Promise<void> {
@@ -34,9 +35,16 @@ async function main(): Promise<void> {
     if (limit > 0 && n >= limit) break;
     n += 1;
     try {
-      const r = await persistCreatorAvatarOnCreative(String(row._id), Creative, { market });
-      if (r?.avatarS3Key) s3Ok += 1;
-      else if (r?.avatarUrl) urlOk += 1;
+      await persistAllCreatorAvatarsOnCreative(String(row._id), Creative, {
+        market,
+      });
+      const doc = await Creative.findById(row._id)
+        .select({ 'creator.avatarS3Key': 1, 'creator.avatarUrl': 1 })
+        .lean();
+      const creator = (doc as { creator?: { avatarS3Key?: string; avatarUrl?: string } } | null)
+        ?.creator;
+      if (creator?.avatarS3Key) s3Ok += 1;
+      else if (creator?.avatarUrl) urlOk += 1;
       else failed += 1;
     } catch (err) {
       failed += 1;
@@ -48,7 +56,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Done (${market}). ${n} processed — ${s3Ok} on S3, ${urlOk} CDN URL only, ${failed} failed.`,
+    `Done (${market}). ${n} creatives — ${s3Ok} on S3, ${urlOk} CDN URL only, ${failed} failed.`,
   );
   if (s3Ok === 0 && n > 0) {
     console.log('No S3 uploads — check IAM (see aws-s3-avatar-setup.txt at repo root).');

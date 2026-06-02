@@ -27,7 +27,9 @@ import {
 } from '../../utils/creator-avatar.util';
 import {
   persistCreatorAvatarOnCreative,
+  persistShopAvatarOnCreative,
   streamCreatorAvatarFromS3,
+  streamShopAvatarFromS3,
 } from '../../services/creator-avatar-cache.service';
 import { getS3VideoObject, isS3VideoConfigured } from '../../utils/s3-video.util';
 import { logger } from '../../logger';
@@ -333,7 +335,7 @@ export const CreativeController = {
    * `Referer`-injection trick as `streamVideo` — TikTok's image CDN also 403s
    * `<img>` requests that come from a non-TikTok origin.
    *
-   * GET /api/v1/creatives/:id/thumbnail?index=0&kind=thumbnail|avatar
+   * GET /api/v1/creatives/:id/thumbnail?index=0&kind=thumbnail|avatar|shop
    */
   async streamThumbnail(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -342,7 +344,8 @@ export const CreativeController = {
       const index = Number.isFinite(Number(indexRaw))
         ? Math.max(0, Math.floor(Number(indexRaw)))
         : 0;
-      const kind = req.query.kind === 'avatar' ? 'avatar' : 'thumbnail';
+      const kindRaw = req.query.kind;
+      const kind = kindRaw === 'avatar' ? 'avatar' : kindRaw === 'shop' ? 'shop' : 'thumbnail';
 
       const creativeModel = req.models?.Creative ?? Creative;
       let creative = await creativeModel.findById(id).lean();
@@ -353,6 +356,45 @@ export const CreativeController = {
 
       const plain = creative as Record<string, unknown>;
       const market = req.market ?? 'US';
+
+      if (kind === 'shop') {
+        const existingShopKey =
+          typeof plain.shopAvatarS3Key === 'string' ? plain.shopAvatarS3Key.trim() : '';
+        if (existingShopKey) {
+          const s3Obj = await streamShopAvatarFromS3(existingShopKey);
+          if (s3Obj) {
+            pipeS3Image(req, res, s3Obj, id);
+            return;
+          }
+        }
+
+        const cached = await persistShopAvatarOnCreative(id, creativeModel, { market });
+        if (cached?.shopAvatarS3Key) {
+          const s3Obj = await streamShopAvatarFromS3(cached.shopAvatarS3Key);
+          if (s3Obj) {
+            pipeS3Image(req, res, s3Obj, id);
+            return;
+          }
+        }
+        if (
+          cached?.shopAvatarUrl &&
+          (await streamFirstAvailableImage(req, res, [cached.shopAvatarUrl], id))
+        ) {
+          return;
+        }
+
+        const shopUrl = typeof plain.shopAvatarUrl === 'string' ? plain.shopAvatarUrl : '';
+        if (
+          shopUrl.startsWith('https://') &&
+          (await streamFirstAvailableImage(req, res, [shopUrl], id))
+        ) {
+          void persistShopAvatarOnCreative(id, creativeModel, { market });
+          return;
+        }
+
+        sendImagePlaceholder(res);
+        return;
+      }
 
       if (kind === 'avatar') {
         const existingKey = pickCreatorAvatarS3Key(plain, index);

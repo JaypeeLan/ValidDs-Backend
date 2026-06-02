@@ -32,15 +32,24 @@ export async function enrichProductMediaForIngest(
   }
 
   const shopName = String(doc.shopName ?? '').trim();
-  const shopUrl = String(doc.shopAvatarUrl ?? '');
-  if (shopName && shopUrl.startsWith('https://')) {
+  const shopAvatarUrl = String(doc.shopAvatarUrl ?? '');
+  const creatorHandle = String(
+    (doc.primaryCreator as Record<string, unknown> | undefined)?.handle ?? '',
+  );
+  if (
+    shopName &&
+    (shopAvatarUrl.startsWith('https://') || String(doc.shopUrl ?? '').startsWith('https://'))
+  ) {
     const shop = await ensureShopAvatarCached({
       shopName,
-      sourceUrl: shopUrl,
+      sourceUrl: shopAvatarUrl,
+      shopUrl: String(doc.shopUrl ?? ''),
+      creatorHandle,
       market,
       existingS3Key: typeof doc.shopAvatarS3Key === 'string' ? doc.shopAvatarS3Key : undefined,
     });
     if (shop?.shopAvatarS3Key) doc.shopAvatarS3Key = shop.shopAvatarS3Key;
+    if (shop?.shopAvatarUrl) doc.shopAvatarUrl = shop.shopAvatarUrl;
   }
 }
 
@@ -83,17 +92,25 @@ export async function enrichCreativeShopAvatarForIngest(
   market: string,
 ): Promise<void> {
   const shopName = String(payload.shopName ?? '').trim();
-  const shopUrl = String(payload.shopAvatarUrl ?? '');
-  if (!shopName || !shopUrl.startsWith('https://')) return;
+  const shopAvatarUrl = String(payload.shopAvatarUrl ?? '');
+  const storeUrl = String(payload.shopUrl ?? '');
+  const creatorHandle = String(
+    (payload.creator as Record<string, unknown> | undefined)?.handle ?? '',
+  );
+  if (!shopName || (!shopAvatarUrl.startsWith('https://') && !storeUrl.startsWith('https://')))
+    return;
 
   const shop = await ensureShopAvatarCached({
     shopName,
-    sourceUrl: shopUrl,
+    sourceUrl: shopAvatarUrl,
+    shopUrl: storeUrl,
+    creatorHandle,
     market,
     existingS3Key:
       typeof payload.shopAvatarS3Key === 'string' ? payload.shopAvatarS3Key : undefined,
   });
   if (shop?.shopAvatarS3Key) payload.shopAvatarS3Key = shop.shopAvatarS3Key;
+  if (shop?.shopAvatarUrl) payload.shopAvatarUrl = shop.shopAvatarUrl;
 }
 
 /** Resolve S3 key from tiktokPostUrl when externalVideoId missing on a slot. */

@@ -45,6 +45,7 @@
     "dedupe-creatives": "node scripts/dedupe-creatives.cjs",
     "fix-creative-sections": "node scripts/fix-creative-sections.cjs",
     "cache-creator-avatars": "ts-node --transpile-only scripts/cache-creator-avatars.ts",
+    "cache-shop-avatars": "ts-node --transpile-only scripts/cache-shop-avatars.ts",
     "tester:ui": "node tools/backend-tester/server.js",
     "frontend:react": "node tools/full-frontend/server.js",
     "prepare": "husky",

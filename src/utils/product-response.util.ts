@@ -47,6 +47,25 @@ function creatorAvatarProxyPath(creativeId: string): string {
   return `/api/${apiVersion}/creatives/${creativeId}/thumbnail?index=0&kind=avatar`;
 }
 
+function shopAvatarProxyPath(creativeId: string): string {
+  const apiVersion = process.env.API_VERSION || 'v1';
+  return `/api/${apiVersion}/creatives/${creativeId}/thumbnail?index=0&kind=shop`;
+}
+
+/** Attach stable shop-logo proxy URL when a creative exists for the product. */
+export function normalizeShopAvatarOnProduct(
+  product: Record<string, unknown>,
+  creativeId?: string,
+): void {
+  const shopName = typeof product.shopName === 'string' ? product.shopName.trim() : '';
+  const hasShop =
+    Boolean(shopName) ||
+    Boolean(pickUrl(product.shopAvatarUrl)) ||
+    Boolean(typeof product.shopAvatarS3Key === 'string' && product.shopAvatarS3Key.trim());
+  if (!hasShop || !creativeId) return;
+  product.shopAvatarProxyUrl = shopAvatarProxyPath(creativeId);
+}
+
 /** Merge stored creator fields with optional creative fallback; attach proxy URL when a creative exists. */
 export function normalizePrimaryCreatorOnProduct(
   product: Record<string, unknown>,
@@ -153,7 +172,9 @@ export async function enrichProductsWithCreatorAvatars(
 
   for (const product of products) {
     const id = String(product._id ?? '');
-    normalizePrimaryCreatorOnProduct(product, enrichments.get(id) ?? null);
+    const enrichment = enrichments.get(id) ?? null;
+    normalizePrimaryCreatorOnProduct(product, enrichment);
+    normalizeShopAvatarOnProduct(product, enrichment?.creativeId);
   }
 
   return products;

@@ -1,8 +1,6 @@
 import { collectHttpsUrls } from '../src/utils/image-s3-cache.util';
-import {
-  deriveShopAccountHandle,
-  pickShopLogoFromShopInfo,
-} from '../src/services/scrapecreators-shop.service';
+import { pickShopLogoFromShopInfo } from '../src/services/scrapecreators-shop.service';
+import { deriveShopAccountHandle } from '../src/utils/shop-avatar.util';
 import { buildShopAvatarProxyUrl } from '../src/utils/creator-avatar.util';
 
 describe('image-s3-cache.util', () => {

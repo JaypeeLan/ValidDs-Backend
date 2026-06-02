@@ -6,6 +6,7 @@ import type { ICreativeDocument, ICreatorProfile } from '../types/creative.types
 import { collectThumbnailProxyCandidates } from '../utils/creative-image-proxy.util';
 import { creatorAvatarS3Key, shopAvatarS3Key } from '../utils/creator-avatar.util';
 import { cacheImageToS3, collectHttpsUrls } from '../utils/image-s3-cache.util';
+import { isSuspiciousShopAvatarUrl } from '../utils/shop-avatar.util';
 import { getS3Object, isS3Configured } from '../utils/s3-video.util';
 import { fetchFreshShopLogoUrls } from './scrapecreators-shop.service';
 import { ScrapeCreatorsService } from './scrapecreators.service';
@@ -71,8 +72,11 @@ export async function ensureShopAvatarCached(input: {
   sourceUrls?: string[];
   shopUrl?: string;
   creatorHandle?: string;
+  creatorAvatarUrl?: string;
+  primaryImageUrl?: string;
   market?: string;
   existingS3Key?: string;
+  forceRefresh?: boolean;
 }): Promise<CachedShopAvatar | null> {
   const shopName = (input.shopName || '').trim();
   if (!shopName) return null;
@@ -81,17 +85,28 @@ export async function ensureShopAvatarCached(input: {
   const s3Key = input.existingS3Key?.trim() || shopAvatarS3Key(shopName, market);
   if (!s3Key) return null;
 
-  const sourceUrls = collectHttpsUrls(input.sourceUrl, ...(input.sourceUrls ?? []));
+  const storedSource = String(input.sourceUrl ?? '').trim();
+  const useStoredSource =
+    storedSource.startsWith('https://') &&
+    !isSuspiciousShopAvatarUrl({
+      shopAvatarUrl: storedSource,
+      creatorAvatarUrl: input.creatorAvatarUrl,
+      primaryImageUrl: input.primaryImageUrl,
+    });
+
+  const sourceUrls = useStoredSource
+    ? collectHttpsUrls(storedSource, ...(input.sourceUrls ?? []))
+    : collectHttpsUrls(...(input.sourceUrls ?? []));
 
   const cached = await cacheImageToS3({
     s3Key,
     sourceUrls,
     logLabel: `shop:${shopName}`,
+    forceRefresh: input.forceRefresh,
     fetchFreshUrls: () =>
       fetchFreshShopLogoUrls({
         shopName,
         shopUrl: input.shopUrl,
-        creatorHandle: input.creatorHandle,
         region: market.toUpperCase(),
       }),
   });
@@ -196,7 +211,7 @@ export async function persistCreatorAvatarOnCreative(
 export async function persistShopAvatarOnCreative(
   creativeId: string,
   creativeModel: Model<ICreativeDocument>,
-  options: { market?: string } = {},
+  options: { market?: string; forceRefresh?: boolean } = {},
 ): Promise<CachedShopAvatar | null> {
   const doc = await creativeModel.findById(creativeId).lean();
   if (!doc) return null;
@@ -207,13 +222,16 @@ export async function persistShopAvatarOnCreative(
 
   const creatorHandle = String((plain.creator as ICreatorProfile | undefined)?.handle ?? '').trim();
 
+  const creator = plain.creator as ICreatorProfile | undefined;
   const cached = await ensureShopAvatarCached({
     shopName,
     sourceUrl: String(plain.shopAvatarUrl ?? ''),
     shopUrl: String(plain.shopUrl ?? ''),
     creatorHandle,
+    creatorAvatarUrl: creator?.avatarUrl,
     market: options.market,
     existingS3Key: typeof plain.shopAvatarS3Key === 'string' ? plain.shopAvatarS3Key : undefined,
+    forceRefresh: options.forceRefresh,
   });
   if (!cached) return null;
 
@@ -241,7 +259,7 @@ export async function persistShopAvatarOnProduct(
   productId: string,
   productModel: Model<IProductDocument>,
   creativeModel: Model<ICreativeDocument>,
-  options: { market?: string } = {},
+  options: { market?: string; forceRefresh?: boolean } = {},
 ): Promise<CachedShopAvatar | null> {
   const doc = await productModel.findById(productId).lean();
   if (!doc) return null;
@@ -258,8 +276,16 @@ export async function persistShopAvatarOnProduct(
     sourceUrl: String(plain.shopAvatarUrl ?? ''),
     shopUrl: String(plain.shopUrl ?? ''),
     creatorHandle,
+    creatorAvatarUrl: typeof pc?.avatarUrl === 'string' ? pc.avatarUrl : undefined,
+    primaryImageUrl:
+      typeof plain.primaryImageUrl === 'string'
+        ? plain.primaryImageUrl
+        : typeof pc?.primaryImageUrl === 'string'
+          ? pc.primaryImageUrl
+          : undefined,
     market: options.market,
     existingS3Key: typeof plain.shopAvatarS3Key === 'string' ? plain.shopAvatarS3Key : undefined,
+    forceRefresh: options.forceRefresh,
   });
   if (!cached) return null;
 

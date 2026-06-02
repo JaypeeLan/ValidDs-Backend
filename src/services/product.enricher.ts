@@ -6,7 +6,10 @@ import { CreativeService } from './creative.service';
 import { DiscoveryService } from './discovery.service';
 import { Creative } from '../models/creative.model';
 import { logger } from '../logger';
-import { ensureSupplierMonthlyTraffic } from '../api/internal/ingest.normalize';
+import {
+  ensureSupplierMonthlyTraffic,
+  ensureSupplierProductUnitsSold,
+} from '../api/internal/ingest.normalize';
 
 const log = logger.child({ module: 'product-enricher' });
 
@@ -20,11 +23,10 @@ const log = logger.child({ module: 'product-enricher' });
  * 4. Discovery → section tagging (trending, top-ads, viral...)
  */
 export const ProductEnricher = {
-
   async mergeAndUpsert(
     extraction: ExtractedProduct,
     post: NormalizedPost,
-    comments: NormalizedPost['sourceRaw'] extends any ? any[] : any[] = [] // typing as any[] for now, will receive NormalizedComment[]
+    comments: NormalizedPost['sourceRaw'] extends any ? any[] : any[] = [], // typing as any[] for now, will receive NormalizedComment[]
   ): Promise<IProductDocument | null> {
     log.info('Running Discovery 2.0 Enrichment', { product: extraction.productName });
 
@@ -38,27 +40,27 @@ export const ProductEnricher = {
         supplierPrice = td.productMinPrice ?? td.discountProductMinPrice ?? undefined;
         const now = new Date();
         supplier = {
-          source:                  'TeemDrop',
-          platform:                'TeemDrop',
-          externalId:              '',
-          title:                   extraction.productName,
-          productUrl:              '',
-          shareUrl:                '',
-          price:                   supplierPrice ?? null,
-          currency:                'USD',
-          rating:                  null,
-          totalRatings:            null,
-          totalReviews:            null,
-          availableForSale:        true,
-          moq:                     0,
-          shop:                    { name: null, url: null, rating: null },
-          checkedAt:               now,
-          fetchedAt:               now,
-          monthlyTraffic:          ensureSupplierMonthlyTraffic(null, extraction.productName),
-          productUnitsSold:        null,
+          source: 'TeemDrop',
+          platform: 'TeemDrop',
+          externalId: '',
+          title: extraction.productName,
+          productUrl: '',
+          shareUrl: '',
+          price: supplierPrice ?? null,
+          currency: 'USD',
+          rating: null,
+          totalRatings: null,
+          totalReviews: null,
+          availableForSale: true,
+          moq: 0,
+          shop: { name: null, url: null, rating: null },
+          checkedAt: now,
+          fetchedAt: now,
+          monthlyTraffic: ensureSupplierMonthlyTraffic(null, extraction.productName),
+          productUnitsSold: ensureSupplierProductUnitsSold(null, extraction.productName),
           estimatedMonthlyRevenue: null,
-          revenueSource:           null,
-          competitorScore:         null,
+          revenueSource: null,
+          competitorScore: null,
         };
       }
     } catch (err) {
@@ -70,7 +72,9 @@ export const ProductEnricher = {
     const gallery =
       extraction.groundedImages.length >= 3
         ? extraction.groundedImages
-        : [...new Set([...extraction.groundedImages, post.thumbnailUrl].filter(Boolean))] as string[];
+        : ([
+            ...new Set([...extraction.groundedImages, post.thumbnailUrl].filter(Boolean)),
+          ] as string[]);
 
     // 3. Sales evidence — only include if AI found a concrete source
     const sourceBreakdown = normalizeUnitsSoldBreakdown(extraction.unitsSoldBreakdown);
@@ -81,9 +85,10 @@ export const ProductEnricher = {
     const primarySource = sourceBreakdown[0];
     const salesEvidence: EnrichedProductInput['salesEvidence'] = {
       unitsSold: unitsSoldTotal,
-      store: extraction.salesSource?.store && extraction.salesSource.store !== 'Unknown'
-        ? extraction.salesSource.store
-        : primarySource.source,
+      store:
+        extraction.salesSource?.store && extraction.salesSource.store !== 'Unknown'
+          ? extraction.salesSource.store
+          : primarySource.source,
       storeUrl: extraction.salesSource?.url || primarySource.url,
       timeframe: extraction.salesSource?.timeframe,
       sourceBreakdown,
@@ -106,103 +111,106 @@ export const ProductEnricher = {
       text: c.text,
       likeCount: c.likeCount || 0,
       authorHandle: c.authorHandle,
-      sentiment: extraction.buyingSentimentScore && extraction.buyingSentimentScore > 70 ? 'positive' : 'neutral',
+      sentiment:
+        extraction.buyingSentimentScore && extraction.buyingSentimentScore > 70
+          ? 'positive'
+          : 'neutral',
       source: 'TikTok',
-      collectedAt: new Date()
+      collectedAt: new Date(),
     }));
     const reviews = buildProductReviews(extraction, topComments);
 
     const relatedProducts: EnrichedProductInput['relatedProducts'] = [];
 
     // 5. Build tiktokPostUrl for primary creator
-    const tiktokPostUrl = post.videoUrl
-      || `https://www.tiktok.com/@${post.creatorHandle}/video/${post.videoId}`;
+    const tiktokPostUrl =
+      post.videoUrl || `https://www.tiktok.com/@${post.creatorHandle}/video/${post.videoId}`;
 
     // 6. Assemble the input
     const input: EnrichedProductInput = {
       // Identity
-      videoId:     post.videoId,
-      source:      post.source,
-      hashtags:    post.hashtags,
+      videoId: post.videoId,
+      source: post.source,
+      hashtags: post.hashtags,
       publishedAt: post.publishedAt,
       collectedAt: post.collectedAt,
 
       // Post engagement
-      viewCount:     post.viewCount,
-      likeCount:     post.likeCount,
-      commentCount:  post.commentCount,
-      shareCount:    post.shareCount,
-      engagementRate:post.engagementRate,
-      videoPlayUrl:  post.videoPlayUrl,
-      thumbnailUrl:  post.thumbnailUrl,
-      isAd:          post.isAd,
+      viewCount: post.viewCount,
+      likeCount: post.likeCount,
+      commentCount: post.commentCount,
+      shareCount: post.shareCount,
+      engagementRate: post.engagementRate,
+      videoPlayUrl: post.videoPlayUrl,
+      thumbnailUrl: post.thumbnailUrl,
+      isAd: post.isAd,
 
       // Content
-      title:       extraction.productName,
+      title: extraction.productName,
       description: extraction.productDescription,
 
       // Taxonomy
-      categoryL1:   extraction.categoryL1,
-      categoryL2:   extraction.categoryL2,
-      categoryL3:   extraction.categoryL3,
+      categoryL1: extraction.categoryL1,
+      categoryL2: extraction.categoryL2,
+      categoryL3: extraction.categoryL3,
       categoryPath: extraction.categoryPath || extraction.categoryL1,
 
       // Media
       primaryImageUrl: primaryImageUrl || post.thumbnailUrl,
-      imageUrls:       gallery,
+      imageUrls: gallery,
 
       // Pricing
-      price:    supplierPrice ?? extraction.estimatedPrice,
+      price: supplierPrice ?? extraction.estimatedPrice,
       currency: extraction.currency || 'USD',
       suppliers: supplier ? [supplier] : [],
 
       // Market evidence
       salesEvidence,
       ratingSources,
-      rating:      calculateFinalRating(ratingSources, extraction),
+      rating: calculateFinalRating(ratingSources, extraction),
       reviewCount: calculateFinalReviewCount(ratingSources, extraction),
       topComments: topComments as any,
       reviews,
 
       // Discovery origin
       primaryCreator: {
-        tiktokUserId:    post.creatorId ?? '',
-        handle:          post.creatorHandle || 'unknown',
-        displayName:     post.creatorDisplayName ?? '',
-        bio:             post.creatorBio ?? '',
-        followers:       post.creatorFollowers ?? 0,
-        following:       post.creatorFollowing ?? 0,
-        totalLikes:      post.creatorTotalLikes ?? 0,
-        region:          post.creatorRegion ?? '',
-        verified:        post.creatorVerified ?? false,
+        tiktokUserId: post.creatorId ?? '',
+        handle: post.creatorHandle || 'unknown',
+        displayName: post.creatorDisplayName ?? '',
+        bio: post.creatorBio ?? '',
+        followers: post.creatorFollowers ?? 0,
+        following: post.creatorFollowing ?? 0,
+        totalLikes: post.creatorTotalLikes ?? 0,
+        region: post.creatorRegion ?? '',
+        verified: post.creatorVerified ?? false,
         primaryImageUrl: post.creatorAvatarUrl ?? null,
-        avatarUrl:       post.creatorAvatarUrl ?? null,
+        avatarUrl: post.creatorAvatarUrl ?? null,
         tiktokPostUrl,
       },
 
       // AI intelligence
       aiIntelligence: {
-        confidence:            extraction.extractionConfidence,
-        confidenceReason:      extraction.confidenceReason || 'AI extraction',
-        brand:                 extraction.brand ?? '',
-        categoryKeywords:      extraction.categoryKeywords || [],
-        buyingSentimentScore:  extraction.buyingSentimentScore ?? 0,
+        confidence: extraction.extractionConfidence,
+        confidenceReason: extraction.confidenceReason || 'AI extraction',
+        brand: extraction.brand ?? '',
+        categoryKeywords: extraction.categoryKeywords || [],
+        buyingSentimentScore: extraction.buyingSentimentScore ?? 0,
         buyingSentimentReason: extraction.buyingSentimentReason ?? '',
-        extractedAt:           new Date(),
-        niche:                 extraction.niche ?? '',
-        productType:           'unknown',
-        priceBand:             'mid-range',
-        audience:              extraction.audience ?? [],
-        problemStatement:      extraction.problemStatement ?? '',
-        valueStatement:        extraction.valueStatement ?? '',
-        marketingAnalysis:     null,
+        extractedAt: new Date(),
+        niche: extraction.niche ?? '',
+        productType: 'unknown',
+        priceBand: 'mid-range',
+        audience: extraction.audience ?? [],
+        problemStatement: extraction.problemStatement ?? '',
+        valueStatement: extraction.valueStatement ?? '',
+        marketingAnalysis: null,
       },
 
       // Trend
       trend: {
-        score:      extraction.trendScore,
-        direction:  extraction.trendDirection,
-        reason:     extraction.trendReason,
+        score: extraction.trendScore,
+        direction: extraction.trendDirection,
+        reason: extraction.trendReason,
         isTrending: extraction.isTrending,
         calculatedAt: new Date(),
       },
@@ -217,17 +225,13 @@ export const ProductEnricher = {
     if (!product) return null;
 
     // 8. Ingest creatives (pass taxonomy + relevance keywords)
-    await CreativeService.fetchAndIngestCreatives(
-      extraction.productName,
-      product._id,
-      {
-        brand:            extraction.brand,
-        categoryKeywords: extraction.categoryKeywords,
-        categoryL1:       extraction.categoryL1,
-        categoryL2:       extraction.categoryL2,
-        categoryL3:       extraction.categoryL3,
-      }
-    );
+    await CreativeService.fetchAndIngestCreatives(extraction.productName, product._id, {
+      brand: extraction.brand,
+      categoryKeywords: extraction.categoryKeywords,
+      categoryL1: extraction.categoryL1,
+      categoryL2: extraction.categoryL2,
+      categoryL3: extraction.categoryL3,
+    });
 
     // 9. Discovery section tagging
     const sections = await DiscoveryService.categorizeProduct(product);
@@ -241,17 +245,17 @@ export const ProductEnricher = {
 
     // 11. Final update
     product.creativeCounts = {
-      ads:     adsCount,
+      ads: adsCount,
       organic: totalCount - adsCount,
       reviews: reviewsCount,
-      total:   totalCount,
+      total: totalCount,
     };
     await product.save();
 
     log.info('Discovery 2.0 complete', {
-      title:    product.title,
+      title: product.title,
       sections: sections.join(','),
-      creatives:totalCount,
+      creatives: totalCount,
     });
 
     return product;
@@ -281,7 +285,7 @@ function calculateFinalRating(sources: any[], extraction: any): number | undefin
   }
 
   if (totalReviews === 0) return sanitizeRating(extraction.estimatedRating);
-  
+
   const avg = totalWeightedScore / totalReviews;
   return sanitizeRating(Math.round(avg * 10) / 10); // Round to 1 decimal
 }
@@ -310,7 +314,7 @@ function sanitizeRating(value: any): number {
 }
 
 function normalizeRatingSources(
-  sources: EnrichedProductInput['ratingSources'] = []
+  sources: EnrichedProductInput['ratingSources'] = [],
 ): NonNullable<EnrichedProductInput['ratingSources']> {
   const cleaned = (sources || [])
     .map((source) => ({
@@ -324,7 +328,10 @@ function normalizeRatingSources(
   return cleaned;
 }
 
-function buildFallbackRatingSource(extraction: any, post: NormalizedPost): NonNullable<EnrichedProductInput['ratingSources']>[number] {
+function buildFallbackRatingSource(
+  extraction: any,
+  post: NormalizedPost,
+): NonNullable<EnrichedProductInput['ratingSources']>[number] {
   const sentiment = Number(extraction.buyingSentimentScore || 50);
   let estimated = Number(extraction.estimatedRating);
 
@@ -336,7 +343,9 @@ function buildFallbackRatingSource(extraction: any, post: NormalizedPost): NonNu
   const reviews = Math.max(10, Number(extraction.estimatedReviewCount) || reviewsFromPost);
 
   return {
-    platform: post.engagementRate ? 'TikTok Engagement (Estimated)' : 'AI Estimate (Gemini/DeepSeek)',
+    platform: post.engagementRate
+      ? 'TikTok Engagement (Estimated)'
+      : 'AI Estimate (Gemini/DeepSeek)',
     rating: sanitizeRating(estimated),
     reviewCount: reviews,
     fetchedAt: new Date(),
@@ -344,7 +353,7 @@ function buildFallbackRatingSource(extraction: any, post: NormalizedPost): NonNu
 }
 
 function normalizeUnitsSoldBreakdown(
-  breakdown: ExtractedProduct['unitsSoldBreakdown']
+  breakdown: ExtractedProduct['unitsSoldBreakdown'],
 ): Array<{ source: string; unitsSold: number; url?: string }> {
   return (breakdown || [])
     .map((entry) => ({
@@ -357,7 +366,7 @@ function normalizeUnitsSoldBreakdown(
 
 function buildFallbackUnitsSoldSource(
   extraction: ExtractedProduct,
-  post: NormalizedPost
+  post: NormalizedPost,
 ): { source: string; unitsSold: number; url?: string } {
   const aiUnits = Math.max(0, Math.round(Number(extraction.unitsSold || 0)));
   if (aiUnits > 0 && extraction.salesSource?.store && extraction.salesSource.store !== 'Unknown') {
@@ -370,7 +379,9 @@ function buildFallbackUnitsSoldSource(
 
   const estimatedDemand = Math.max(
     50,
-    Math.round((post.commentCount || 0) * 10 + (post.shareCount || 0) * 4 + (post.likeCount || 0) * 0.01)
+    Math.round(
+      (post.commentCount || 0) * 10 + (post.shareCount || 0) * 4 + (post.likeCount || 0) * 0.01,
+    ),
   );
   return {
     source: 'TikTok Demand Signal (Estimated)',
@@ -380,7 +391,7 @@ function buildFallbackUnitsSoldSource(
 
 function buildProductReviews(
   extraction: ExtractedProduct,
-  topComments: Array<{ comment: string; source: string; collectedAt: Date }>
+  topComments: Array<{ comment: string; source: string; collectedAt: Date }>,
 ): Array<{ source: string; text: string; collectedAt: Date }> {
   const fromAi = (extraction.reviews || [])
     .map((review) => ({

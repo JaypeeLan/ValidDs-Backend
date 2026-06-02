@@ -102,6 +102,19 @@ export function normalizePrimaryCreatorOnProduct(
   product.primaryCreator = apiCreator;
 }
 
+function normalizeSupplierUnitsSold(product: Record<string, unknown>): void {
+  if (!Array.isArray(product.suppliers)) return;
+  product.suppliers = product.suppliers.map((s) => {
+    if (!s || typeof s !== 'object') return s;
+    const row = { ...(s as Record<string, unknown>) };
+    // Ensure API never returns null/0 for supplier units sold.
+    const v = Number(row.productUnitsSold);
+    row.productUnitsSold = Number.isFinite(v) && v > 0 ? Math.round(v) : 1;
+    if (row.revenueSource === 'product-sales') row.revenueSource = 'traffic-estimate';
+    return row;
+  });
+}
+
 /** Top creative per product (by views) that has a creator avatar URL. */
 export async function loadCreatorAvatarEnrichmentByProductId(
   productIds: string[],
@@ -175,6 +188,7 @@ export async function enrichProductsWithCreatorAvatars(
     const enrichment = enrichments.get(id) ?? null;
     normalizePrimaryCreatorOnProduct(product, enrichment);
     normalizeShopAvatarOnProduct(product, enrichment?.creativeId);
+    normalizeSupplierUnitsSold(product);
   }
 
   return products;

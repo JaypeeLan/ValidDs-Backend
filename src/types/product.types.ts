@@ -86,7 +86,7 @@ export interface IProductSupplier {
   checkedAt?: Date | string;
   fetchedAt: Date | string;
   monthlyTraffic: number | null;
-  productUnitsSold: number | null;
+  productUnitsSold: number;
   estimatedMonthlyRevenue: number | null;
   revenueSource: 'product-sales' | 'traffic-estimate' | null;
   competitorScore: number | null;

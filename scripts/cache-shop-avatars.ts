@@ -53,6 +53,7 @@ async function main(): Promise<void> {
     try {
       const r = await persistShopAvatarOnProduct(String(row._id), Product, Creative, {
         market,
+        forceRefresh: args.includes('--force'),
       });
       if (r?.shopAvatarS3Key) s3Ok += 1;
       else failed += 1;

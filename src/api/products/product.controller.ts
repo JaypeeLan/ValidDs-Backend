@@ -31,6 +31,7 @@ import {
   enrichAnglesWithMetaVideoProxyUrls,
   stripAngleExternalLinks,
   enrichAnglesWithVideoProxyUrls,
+  enrichAnglesWithFallbackCreativeProxyUrls,
   normalizeMarketingAngleVideoUrls,
   sortMarketingAnglesWithVideoFirst,
   stripNonPlayableAngleVideoUrls,
@@ -85,6 +86,7 @@ function buildAiInsight(
   opts: {
     metaViewerUrls?: string[];
     playableVideoIndex?: Map<string, string>;
+    fallbackCreativeId?: string;
     apiVersion?: string;
   } = {},
 ): ProductAiInsightResponse {
@@ -98,7 +100,12 @@ function buildAiInsight(
   const index = opts.playableVideoIndex ?? new Map();
   const withProxy = enrichAnglesWithVideoProxyUrls(stripped, index, apiVersion);
   const withMetaProxy = enrichAnglesWithMetaVideoProxyUrls(withProxy, index, apiVersion);
-  const angles = sortMarketingAnglesWithVideoFirst(stripAngleExternalLinks(withMetaProxy));
+  const withFallback = enrichAnglesWithFallbackCreativeProxyUrls(
+    withMetaProxy,
+    opts.fallbackCreativeId,
+    apiVersion,
+  );
+  const angles = sortMarketingAnglesWithVideoFirst(stripAngleExternalLinks(withFallback));
   const marketingAnalysis = ai.marketingAnalysis
     ? {
         ...ai.marketingAnalysis,
@@ -249,6 +256,7 @@ function formatProductResponse(
   options: {
     metaViewerUrls?: string[];
     playableVideoIndex?: Map<string, string>;
+    fallbackCreativeId?: string;
     apiVersion?: string;
   } = {},
 ): ProductApiResponse {
@@ -446,12 +454,17 @@ export const ProductController = {
         creativeModel,
       );
 
+      const fallbackCreativeId =
+        relatedVideos.find((v) => typeof v?.videoProxyUrl === 'string' && v.videoProxyUrl.trim())
+          ?.id ?? undefined;
+
       res.json(
         successResponse(
           {
             product: formatProductResponse(plain as ProductLike, {
               metaViewerUrls: metaViewerUrlsFromCreatives(relatedAds),
               playableVideoIndex,
+              fallbackCreativeId,
               apiVersion: process.env.API_VERSION ?? 'v1',
             }),
             relatedProducts: relatedPlains.map(formatProductFeedItem),

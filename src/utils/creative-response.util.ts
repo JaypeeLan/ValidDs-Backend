@@ -390,6 +390,7 @@ function formatCreator(
   return {
     handle: c.handle ?? '',
     displayName: c.displayName,
+    followers: typeof c.followers === 'number' ? c.followers : 0,
     verified: Boolean(c.verified),
     region: c.region,
     isIndependentCreator: Boolean(c.isIndependentCreator),

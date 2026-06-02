@@ -213,6 +213,10 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     shopName: product.shopName as string | undefined,
     shopUrl: product.shopUrl as string | undefined,
     shopAvatarUrl: (product.shopAvatarUrl as string | null | undefined) ?? null,
+    shopAvatarProxyUrl:
+      typeof (product as { shopAvatarProxyUrl?: unknown }).shopAvatarProxyUrl === 'string'
+        ? ((product as { shopAvatarProxyUrl?: string }).shopAvatarProxyUrl as string)
+        : undefined,
     lastIngestedAt: product.lastIngestedAt as string | Date,
     publishedAt: postDate as string | Date | null | undefined,
     isNew3d,

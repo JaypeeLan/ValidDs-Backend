@@ -182,7 +182,21 @@ feed:
         schema: { type: number, minimum: 0, maximum: 100 }
       - name: subcategory
         in: query
-        description: Filter by subcategory (L2). Pass multiple times or comma-separated for multi-select.
+        description: Filter by subcategory (L2, stored as `categoryL2`). OR match when multiple values are provided. Repeat the param, use comma-separated values, or pass a JSON array.
+        schema:
+          type: array
+          items:
+            type: string
+      - name: subcategories
+        in: query
+        description: Alias of `subcategory` (same multi-select behavior).
+        schema:
+          type: array
+          items:
+            type: string
+      - name: categoryL2
+        in: query
+        description: Alias of `subcategory`.
         schema:
           type: array
           items:

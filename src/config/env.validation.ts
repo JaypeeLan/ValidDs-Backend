@@ -18,7 +18,7 @@ const envSchema = z.object({
   /** Python scraper → POST /internal/ingest/* (`X-Ingest-Key` header). */
   SCRAPER_INGEST_KEY: z.preprocess(
     (val) => (val === '' || val === undefined ? 'change-me-scraper-ingest-key' : val),
-    z.string().min(8)
+    z.string().min(8),
   ),
   JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
@@ -32,13 +32,13 @@ const envSchema = z.object({
   // Redis
   REDIS_URL: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1, 'REDIS_URL must not be empty').optional()
+    z.string().min(1, 'REDIS_URL must not be empty').optional(),
   ),
 
   // Sentry
   SENTRY_DSN: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().url('SENTRY_DSN must be a valid URL').optional()
+    z.string().url('SENTRY_DSN must be a valid URL').optional(),
   ),
   SENTRY_ENVIRONMENT: z.enum(['development', 'staging', 'production']).default('development'),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
@@ -47,181 +47,177 @@ const envSchema = z.object({
   TIKTOK_API_KEY: z.string().optional(),
   TIKTOK_API_BASE_URL: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().url().optional()
+    z.string().url().optional(),
   ),
   TIKTOK_CLIENT_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   TIKTOK_CLIENT_SECRET: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
 
   // Resend (email)
   RESEND_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
-  RESEND_FROM: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
-  ),
-
+  RESEND_FROM: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
 
   TIKTOK_REGION: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional().default('US')
+    z.string().min(1).optional().default('US'),
   ),
 
   // AI Providers
   DEEPSEEK_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   GOOGLE_AI_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   GOOGLE_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   OPENAI_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
 
   // TeemDrop API
   TEEMDROP_APP_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   TEEMDROP_APP_SECRET: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   TEEMDROP_BASE_URL: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().url().optional().default('https://openapi.teemdrop.com')
+    z.string().url().optional().default('https://openapi.teemdrop.com'),
   ),
   TEEMDROP_USER_AGENT: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional().default('PostmanRuntime/7.43.0')
+    z.string().min(1).optional().default('PostmanRuntime/7.43.0'),
   ),
 
   // Frontend URL — used for OAuth redirects and Stripe checkout redirect URLs
   FRONTEND_URL: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().url().optional().default('http://localhost:3001')
+    z.string().url().optional().default('http://localhost:3001'),
   ),
 
   // Stripe
   STRIPE_SECRET_KEY_TEST: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   STRIPE_SECRET_KEY_LIVE: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   STRIPE_PUBLISHABLE_KEY_TEST: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   STRIPE_PUBLISHABLE_KEY_LIVE: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   STRIPE_WEBHOOK_SECRET_TEST: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   STRIPE_WEBHOOK_SECRET_LIVE: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
 
   // Stripe Price IDs (test)
   STRIPE_PRICE_ID_EXPLORER_TEST: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   STRIPE_PRICE_ID_PRO_TEST: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   STRIPE_PRICE_ID_PREMIUM_TEST: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
 
   // Stripe Price IDs (live)
   STRIPE_PRICE_ID_EXPLORER_LIVE: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   STRIPE_PRICE_ID_PRO_LIVE: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   STRIPE_PRICE_ID_PREMIUM_LIVE: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
 
   // Shopify (OAuth — for "Connect Shopify store")
   SHOPIFY_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   SHOPIFY_API_SECRET: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   SHOPIFY_API_SCOPES: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional().default('read_products,write_products')
+    z.string().min(1).optional().default('read_products,write_products'),
   ),
   SHOPIFY_API_VERSION: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional().default('2025-01')
+    z.string().min(1).optional().default('2025-01'),
   ),
   SHOPIFY_REDIRECT_URI: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().url().optional()
+    z.string().url().optional(),
   ),
   SHOPIFY_SIGNUP_URL: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().url().optional().default('https://www.shopify.com/signup')
+    z.string().url().optional().default('https://www.shopify.com/signup'),
   ),
   SHOPIFY_PARTNER_REFERRAL_CODE: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
 
   // ScrapeCreators
   SCRAPECREATORS_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   SCRAPECREATORS_BASE_URL: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().url().optional().default('https://api.scrapecreators.com')
+    z.string().url().optional().default('https://api.scrapecreators.com'),
   ),
 
   // Apify
   APIFY_API_TOKEN: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(1).optional()
+    z.string().min(1).optional(),
   ),
   APIFY_SHOPIFY_MAX_ITEMS: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.coerce.number().int().positive().optional().default(20)
+    z.coerce.number().int().positive().optional().default(20),
   ),
   APIFY_ACTOR_TIMEOUT_MS: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.coerce.number().int().positive().optional().default(30000)
+    z.coerce.number().int().positive().optional().default(30000),
   ),
 
   // Rate limiting
@@ -237,7 +233,6 @@ const envSchema = z.object({
 
   /** Bypass Redis for all product:* cache keys — reads always miss, writes are no-ops. */
   PRODUCT_CACHE_DISABLED: z.coerce.boolean().default(false),
-
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -248,9 +243,13 @@ function validateEnv(): Env {
   const envToParse = { ...process.env };
 
   if (isStaging) {
-    envToParse.INTERNAL_API_KEY = envToParse.INTERNAL_API_KEY || 'dummy_api_key_for_staging_environments_only!';
-    envToParse.JWT_SECRET = envToParse.JWT_SECRET || 'dummy_jwt_secret_for_staging_environments_only!';
-    envToParse.ENCRYPTION_KEY = envToParse.ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    envToParse.INTERNAL_API_KEY =
+      envToParse.INTERNAL_API_KEY || 'dummy_api_key_for_staging_environments_only!';
+    envToParse.JWT_SECRET =
+      envToParse.JWT_SECRET || 'dummy_jwt_secret_for_staging_environments_only!';
+    envToParse.ENCRYPTION_KEY =
+      envToParse.ENCRYPTION_KEY ||
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
     envToParse.MONGODB_URI = envToParse.MONGODB_URI || 'mongodb://localhost:27017/dummy_staging';
   }
 

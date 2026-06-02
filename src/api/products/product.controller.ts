@@ -39,6 +39,7 @@ import {
 import { resolveEngagementTrend } from '../../utils/product-trend.util';
 import { resolveBuyingSentimentLabel, type SentimentLabel } from '../../utils/sentiment.util';
 import { postRecencyFlags } from '../../utils/product-recency.util';
+import { buildProductItemFreshness } from '../../utils/product-freshness.util';
 import { formatCreativeFeedItem, imageAssetKey } from '../../utils/creative-response.util';
 
 type ProductLike = Record<string, unknown> & {
@@ -225,6 +226,7 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
         ? ((product as { shopAvatarProxyUrl?: string }).shopAvatarProxyUrl as string)
         : undefined,
     lastIngestedAt: product.lastIngestedAt as string | Date,
+    freshness: buildProductItemFreshness(product),
     publishedAt: postDate as string | Date | null | undefined,
     isNew3d,
     isNew7d,
@@ -278,6 +280,7 @@ function formatProductResponse(
     isTopAd: discoverySections.includes('top-ads'),
     trend: engagement,
     trends: product.trends ?? { engagement },
+    freshness: buildProductItemFreshness(product),
     aiInsight: buildAiInsight(product.aiIntelligence as IAIIntelligence | undefined, options),
   } as Record<string, unknown>;
 

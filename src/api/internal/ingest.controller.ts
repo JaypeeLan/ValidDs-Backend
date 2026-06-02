@@ -119,7 +119,7 @@ function prepareProductDoc(raw: Record<string, unknown>, market: string): Record
       (raw.primaryCreator ?? null) as Parameters<typeof normalizePrimaryCreatorForStorage>[0],
     ),
     lastIngestedAt: now,
-    dataSourceUpdatedAt: now,
+    dataSourceUpdatedAt: raw.dataSourceUpdatedAt ?? now,
   });
 
   if (published) {

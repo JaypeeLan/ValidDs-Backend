@@ -5,6 +5,23 @@ import { ScrapeCreatorsService } from './scrapecreators.service';
 
 const log = logger.child({ module: 'scrapecreators-shop' });
 
+const MIN_CATALOG_NAME_SCORE = 0.45;
+
+function nameSimilarity(a: string, b: string): number {
+  const x = a.toLowerCase().trim();
+  const y = b.toLowerCase().trim();
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  if (x.includes(y) || y.includes(x)) return 0.85;
+  const longer = x.length >= y.length ? x : y;
+  const shorter = x.length < y.length ? x : y;
+  let matches = 0;
+  for (let i = 0; i <= shorter.length - 3; i += 1) {
+    if (longer.includes(shorter.slice(i, i + 3))) matches += 1;
+  }
+  return Math.min(1, matches / Math.max(1, shorter.length - 2));
+}
+
 function firstHttpsFromUrlList(value: unknown): string | undefined {
   if (!value) return undefined;
   if (typeof value === 'string' && value.startsWith('https://')) return value;
@@ -67,7 +84,13 @@ export async function fetchShopLogoFromCatalog(
   if (!data || data.success === false) return undefined;
   const shopInfo = data.shopInfo;
   if (shopInfo && typeof shopInfo === 'object') {
-    const fromCatalog = pickShopLogoFromShopInfo(shopInfo as Record<string, unknown>);
+    const info = shopInfo as Record<string, unknown>;
+    const catalogShopName = String(info.shop_name ?? '').trim();
+    if (catalogShopName && nameSimilarity(shopName, catalogShopName) < MIN_CATALOG_NAME_SCORE) {
+      log.debug('Shop catalog name mismatch', { shopName, catalogShopName, catalogUrl });
+      return undefined;
+    }
+    const fromCatalog = pickShopLogoFromShopInfo(info);
     if (fromCatalog) return fromCatalog;
     const link = (shopInfo as Record<string, unknown>).shop_link;
     if (typeof link === 'string' && link.includes('tiktok.com/shop/store/')) {

@@ -18,6 +18,10 @@ import type {
   ISalesHistoryEntry,
   ITrend,
 } from '../types/product.types.js';
+import {
+  ensureLastIngestedAtOnCreate,
+  touchProductFreshnessOnUpdate,
+} from '../utils/product-freshness.util';
 
 export type {
   IAIIntelligence,
@@ -437,6 +441,23 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     dataSourceUpdatedAt: { type: Date, required: true },
   },
   { timestamps: true, strict: true },
+);
+
+ProductSchema.pre('save', function productFreshnessOnSave(next) {
+  ensureLastIngestedAtOnCreate(this);
+  next();
+});
+
+ProductSchema.pre(
+  ['updateOne', 'updateMany', 'findOneAndUpdate'],
+  function productFreshnessOnUpdate(next) {
+    const update = this.getUpdate();
+    if (update && typeof update === 'object' && !Array.isArray(update)) {
+      touchProductFreshnessOnUpdate(update as Record<string, unknown>);
+      this.setUpdate(update);
+    }
+    next();
+  },
 );
 
 // ── Indexes ───────────────────────────────────────────────────────────────────

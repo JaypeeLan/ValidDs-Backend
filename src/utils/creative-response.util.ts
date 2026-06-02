@@ -405,14 +405,12 @@ function formatSecondaryVideo(
   baseUrl?: string,
 ): CreativeApiItem['relatedVideos'][number] {
   const thumb = pickUrl(video.thumbnailUrl);
-  const playable = Boolean(pickUrl(video.videoS3Key));
   return {
     isPrimary: false,
     externalVideoId: video.externalVideoId,
-    thumbnailUrl: video.thumbnailUrl,
-    videoProxyUrl: playable && baseUrl ? `${baseUrl}/video?index=${index}` : undefined,
-    thumbnailProxyUrl:
-      baseUrl && thumb ? `${baseUrl}/thumbnail?index=${index}&kind=thumbnail` : undefined,
+    thumbnailUrl: thumb,
+    videoProxyUrl: baseUrl ? `${baseUrl}/video?index=${index}` : undefined,
+    thumbnailProxyUrl: baseUrl ? `${baseUrl}/thumbnail?index=${index}&kind=thumbnail` : undefined,
     creator: formatCreator(video.creator, index, baseUrl),
     metrics: formatMetrics(video.metrics),
     topComments: video.topComments ?? [],
@@ -443,8 +441,6 @@ export function formatCreativeForApi(
   const apiVersion = process.env.API_VERSION || 'v1';
   const baseUrl = id ? `/api/${apiVersion}/creatives/${id}` : undefined;
   const externalVideoId = String(creative.externalVideoId ?? '');
-  const thumb = pickUrl(creative.thumbnailUrl);
-  const playable = creativeHasPlayableVideo(creative, 0);
 
   const apiSection = dbSectionToApi(creative.section as string | undefined) ?? 'trending';
   const creator = creative.creator as ICreatorProfile | undefined;
@@ -455,8 +451,8 @@ export function formatCreativeForApi(
     productId: String(creative.productId ?? ''),
     externalVideoId,
     thumbnailUrl: creative.thumbnailUrl as string | undefined,
-    videoProxyUrl: playable && baseUrl ? `${baseUrl}/video?index=0` : undefined,
-    thumbnailProxyUrl: baseUrl && thumb ? `${baseUrl}/thumbnail?index=0&kind=thumbnail` : undefined,
+    videoProxyUrl: baseUrl ? `${baseUrl}/video?index=0` : undefined,
+    thumbnailProxyUrl: baseUrl ? `${baseUrl}/thumbnail?index=0&kind=thumbnail` : undefined,
     creator: formatCreator(creator, 0, baseUrl, creatorAvatarUrl),
     metrics: formatMetrics(creative.metrics as IVideoMetrics | undefined),
     section: apiSection,

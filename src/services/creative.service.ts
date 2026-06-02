@@ -93,17 +93,28 @@ function mergeCreatorPatch(
   patch: AwemeMediaPatch['creator'] | undefined,
   avatarUrl?: string,
 ): ICreatorProfile | undefined {
-  const base = existing ? { ...existing } : undefined;
+  const base =
+    existing && typeof (existing as { toObject?: unknown }).toObject === 'function'
+      ? ((existing as unknown as { toObject: () => ICreatorProfile }).toObject() as ICreatorProfile)
+      : existing
+        ? ({ ...(existing as unknown as Record<string, unknown>) } as unknown as ICreatorProfile)
+        : undefined;
   const nextAvatar = pickUrl(avatarUrl, patch?.avatarUrl, base?.avatarUrl);
+  // If the creator subdocument is missing entirely (corrupt legacy rows), do NOT
+  // synthesize a new creator object from partial patch fields; the Creative schema
+  // requires creator.handle + creator.tiktokPostUrl.
+  if (!base) {
+    return undefined;
+  }
   if (!nextAvatar && !patch) return base;
   return {
-    handle: base?.handle ?? '',
-    verified: patch?.verified ?? base?.verified ?? false,
-    tiktokPostUrl: base?.tiktokPostUrl ?? '',
-    ...(base?.displayName ? { displayName: base.displayName } : {}),
-    ...(base?.bio ? { bio: base.bio } : {}),
-    ...(base?.region ? { region: base.region } : {}),
-    ...(base?.isIndependentCreator != null
+    handle: base.handle ?? '',
+    verified: patch?.verified ?? base.verified ?? false,
+    tiktokPostUrl: base.tiktokPostUrl ?? '',
+    ...(base.displayName ? { displayName: base.displayName } : {}),
+    ...(base.bio ? { bio: base.bio } : {}),
+    ...(base.region ? { region: base.region } : {}),
+    ...(base.isIndependentCreator != null
       ? { isIndependentCreator: base.isIndependentCreator }
       : {}),
     ...(nextAvatar ? { avatarUrl: nextAvatar } : {}),

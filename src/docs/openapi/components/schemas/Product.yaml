@@ -25,7 +25,7 @@ properties:
   status:
     type: string
     enum: [active, review, invalid]
-    description: "`active` = live in the feed; `review` = pending QA; `invalid` = rejected."
+    description: '`active` = live in the feed; `review` = pending QA; `invalid` = rejected.'
 
   title:
     type: string
@@ -42,16 +42,16 @@ properties:
 
   categoryL1:
     type: string
-    example: "Beauty & Personal Care"
+    example: 'Beauty & Personal Care'
   categoryL2:
     type: string
-    example: "Skincare"
+    example: 'Skincare'
   categoryL3:
     type: string
-    example: "Face Serums"
+    example: 'Face Serums'
   categoryPath:
     type: string
-    example: "Beauty & Personal Care > Skincare > Face Serums"
+    example: 'Beauty & Personal Care > Skincare > Face Serums'
 
   primaryImageUrl:
     type: string
@@ -129,7 +129,8 @@ properties:
           nullable: true
         productUnitsSold:
           type: integer
-          nullable: true
+          minimum: 1
+          nullable: false
         estimatedMonthlyRevenue:
           type: number
           nullable: true
@@ -254,13 +255,13 @@ properties:
     description: TikTok creator who posted the discovery video.
     properties:
       tiktokUserId: { type: string }
-      handle: { type: string, example: "colorkey_vn" }
+      handle: { type: string, example: 'colorkey_vn' }
       displayName: { type: string }
       bio: { type: string }
       followers: { type: integer }
       following: { type: integer }
       totalLikes: { type: integer }
-      region: { type: string, example: "US" }
+      region: { type: string, example: 'US' }
       verified: { type: boolean }
       tiktokPostUrl: { type: string, format: uri }
       primaryImageUrl:
@@ -361,7 +362,7 @@ properties:
 
   isTopAd:
     type: boolean
-    description: "`true` when `discoverySections` contains `top-ads`. Computed on read."
+    description: '`true` when `discoverySections` contains `top-ads`. Computed on read.'
 
   shopName:
     type: string

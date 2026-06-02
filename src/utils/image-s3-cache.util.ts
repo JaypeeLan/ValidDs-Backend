@@ -33,6 +33,8 @@ export type CacheImageToS3Input = {
   sourceUrls?: string[];
   fetchFreshUrls?: () => Promise<string[]>;
   logLabel?: string;
+  /** Re-download even when S3 already has bytes (repair bad cached logos). */
+  forceRefresh?: boolean;
 };
 
 export type CacheImageToS3Result = {
@@ -74,7 +76,7 @@ export async function cacheImageToS3(
   const s3Key = input.s3Key?.trim();
   if (!s3Key) return null;
 
-  if (isS3Configured() && (await verifyS3ImageKey(s3Key))) {
+  if (!input.forceRefresh && isS3Configured() && (await verifyS3ImageKey(s3Key))) {
     return { s3Key };
   }
 

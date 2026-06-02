@@ -275,6 +275,56 @@ export const CreativeController = {
 
       const url = pickCreativeStreamVideoUrl(creative as Record<string, unknown>, index);
       if (!url) {
+        // Try a one-shot refresh to obtain a fresh videoPlayUrl / thumbnailUrl.
+        const market = req.market ?? 'US';
+        const refreshed = await CreativeService.refreshCreativeMedia(
+          id,
+          index,
+          market,
+          creativeModel,
+        );
+        if (refreshed) {
+          const nextDoc = await creativeModel.findById(id).lean();
+          const nextUrl = nextDoc
+            ? pickCreativeStreamVideoUrl(nextDoc as Record<string, unknown>, index)
+            : undefined;
+          if (nextUrl) {
+            const upstream = await axios.get(nextUrl, {
+              headers: {
+                ...TIKTOK_CDN_HEADERS,
+                ...(typeof req.headers.range === 'string' ? { Range: req.headers.range } : {}),
+              },
+              responseType: 'stream',
+              timeout: 15_000,
+              validateStatus: (s) => s < 500,
+              maxRedirects: 5,
+            });
+            const passthrough = [
+              'content-type',
+              'content-length',
+              'content-range',
+              'accept-ranges',
+              'last-modified',
+              'etag',
+            ];
+            for (const h of passthrough) {
+              const v = upstream.headers[h];
+              if (typeof v === 'string') res.setHeader(h, v);
+            }
+            if (!upstream.headers['content-type']) res.setHeader('Content-Type', 'video/mp4');
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+            res.status(upstream.status);
+            req.on('close', () => upstream.data?.destroy?.());
+            upstream.data.on('error', (err: Error) => {
+              log.warn('Video stream error', { id, err: err.message });
+              if (!res.headersSent) res.status(502);
+              res.end();
+            });
+            upstream.data.pipe(res);
+            return;
+          }
+        }
+
         res.status(404).json({ error: 'No playable video for this creative' });
         return;
       }

@@ -116,7 +116,7 @@ const ProductSupplierSchema = new Schema<IProductSupplier>(
     checkedAt: { type: Date, default: null },
     fetchedAt: { type: Date, required: true },
     monthlyTraffic: { type: Number, required: true, min: 0, default: null },
-    productUnitsSold: { type: Number, required: true, min: 0, default: null },
+    productUnitsSold: { type: Number, required: true, min: 1, default: 1 },
     estimatedMonthlyRevenue: { type: Number, required: true, min: 0, default: null },
     revenueSource: {
       type: String,

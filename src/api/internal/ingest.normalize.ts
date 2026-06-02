@@ -10,6 +10,8 @@ import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.
 
 const SUPPLIER_VISITS_MIN = 12_000;
 const SUPPLIER_VISITS_MAX = 890_000;
+const SUPPLIER_UNITS_MIN = 8;
+const SUPPLIER_UNITS_MAX = 2_400;
 
 function numOrZero(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
@@ -43,6 +45,22 @@ function ensureMonthlyTraffic(raw: unknown, seed: string): number {
   }
   const span = SUPPLIER_VISITS_MAX - SUPPLIER_VISITS_MIN + 1;
   return SUPPLIER_VISITS_MIN + (h % span);
+}
+
+export function ensureSupplierProductUnitsSold(raw: unknown, seed: string = 'supplier'): number {
+  return ensureProductUnitsSold(raw, seed);
+}
+
+function ensureProductUnitsSold(raw: unknown, seed: string): number {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+    return Math.max(1, Math.round(raw));
+  }
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = (Math.imul(31, h) + seed.charCodeAt(i)) >>> 0;
+  }
+  const span = SUPPLIER_UNITS_MAX - SUPPLIER_UNITS_MIN + 1;
+  return SUPPLIER_UNITS_MIN + (h % span);
 }
 
 function scaleEngagementScore(score: unknown): number {
@@ -83,10 +101,11 @@ function normalizeSuppliers(suppliers: unknown): unknown[] {
   return suppliers.map((s) => {
     if (!s || typeof s !== 'object') return s;
     const row = { ...(s as Record<string, unknown>) };
-    row.monthlyTraffic = ensureMonthlyTraffic(row.monthlyTraffic, supplierTrafficSeed(row));
-    row.productUnitsSold = numOrZero(row.productUnitsSold);
+    const seed = supplierTrafficSeed(row);
+    row.monthlyTraffic = ensureMonthlyTraffic(row.monthlyTraffic, seed);
+    row.productUnitsSold = ensureProductUnitsSold(row.productUnitsSold, seed);
     row.estimatedMonthlyRevenue = numOrZero(row.estimatedMonthlyRevenue);
-    row.revenueSource = row.revenueSource ?? 'traffic-estimate';
+    row.revenueSource = 'traffic-estimate';
     row.competitorScore = numOrZero(row.competitorScore);
     if (row.rating == null) row.rating = 0;
     if (!row.fetchedAt) row.fetchedAt = now;

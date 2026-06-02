@@ -1,6 +1,7 @@
 import {
   angleHasPlayableVideo,
   enrichAnglesWithMetaVideoProxyUrls,
+  enrichAnglesWithFallbackCreativeProxyUrls,
   sortMarketingAnglesWithVideoFirst,
 } from '../src/utils/marketing-angles.util';
 
@@ -43,5 +44,19 @@ describe('marketing-angles.util', () => {
       { hook: 'c' },
     ]);
     expect(sorted.map((a) => a.hook)).toEqual(['b', 'a', 'c']);
+  });
+
+  it('enriches angles with fallback creative proxy URLs', () => {
+    const out = enrichAnglesWithFallbackCreativeProxyUrls(
+      [{ hook: 'h1' }, { hook: 'h2', videoUrl: 'https://www.tiktok.com/@x/video/7123' }],
+      'creative_123',
+      'v1',
+    );
+    expect(out[0]?.videoProxyUrl).toBe('/api/v1/creatives/creative_123/video?index=0');
+    expect(out[0]?.thumbnailProxyUrl).toBe(
+      '/api/v1/creatives/creative_123/thumbnail?index=0&kind=thumbnail',
+    );
+    // Do not attach fallback if a specific videoUrl is present (handled by other enrichers).
+    expect(out[1]?.videoProxyUrl).toBeUndefined();
   });
 });

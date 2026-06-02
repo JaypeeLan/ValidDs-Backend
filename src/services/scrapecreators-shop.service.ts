@@ -1,25 +1,9 @@
 import { env } from '../config/env.validation';
 import { logger } from '../logger';
+import { buildShopStoreCatalogUrl } from '../utils/shop-avatar.util';
 import { ScrapeCreatorsService } from './scrapecreators.service';
 
 const log = logger.child({ module: 'scrapecreators-shop' });
-
-const MIN_PROFILE_MATCH_SCORE = 0.45;
-
-function similarity(a: string, b: string): number {
-  const x = a.toLowerCase().trim();
-  const y = b.toLowerCase().trim();
-  if (!x || !y) return 0;
-  if (x === y) return 1;
-  if (x.includes(y) || y.includes(x)) return 0.85;
-  const longer = x.length >= y.length ? x : y;
-  const shorter = x.length < y.length ? x : y;
-  let matches = 0;
-  for (let i = 0; i <= shorter.length - 3; i += 1) {
-    if (longer.includes(shorter.slice(i, i + 3))) matches += 1;
-  }
-  return Math.min(1, matches / Math.max(1, shorter.length - 2));
-}
 
 function firstHttpsFromUrlList(value: unknown): string | undefined {
   if (!value) return undefined;
@@ -38,10 +22,6 @@ function firstHttpsFromUrlList(value: unknown): string | undefined {
     }
   }
   return undefined;
-}
-
-export function deriveShopAccountHandle(shopName: string): string {
-  return shopName.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 export function pickShopLogoFromShopInfo(shopInfo: Record<string, unknown>): string | undefined {
@@ -72,47 +52,41 @@ async function scFetch(path: string, params: Record<string, string>): Promise<un
 /** Fetch shop logo from TikTok Shop storefront catalog (`/v1/tiktok/shop/products`). */
 export async function fetchShopLogoFromCatalog(
   shopUrl: string,
+  shopName: string,
   region = 'US',
 ): Promise<string | undefined> {
-  const url = shopUrl.trim();
-  if (!url.startsWith('https://')) return undefined;
+  const catalogUrl =
+    buildShopStoreCatalogUrl(shopUrl, shopName) ??
+    (shopUrl.trim().includes('tiktok.com/shop/store/') ? shopUrl.trim() : undefined);
+  if (!catalogUrl?.startsWith('https://')) return undefined;
 
-  const data = (await scFetch('/v1/tiktok/shop/products', { url, region })) as Record<
-    string,
-    unknown
-  > | null;
+  const data = (await scFetch('/v1/tiktok/shop/products', {
+    url: catalogUrl,
+    region,
+  })) as Record<string, unknown> | null;
   if (!data || data.success === false) return undefined;
   const shopInfo = data.shopInfo;
   if (shopInfo && typeof shopInfo === 'object') {
-    return pickShopLogoFromShopInfo(shopInfo as Record<string, unknown>);
+    const fromCatalog = pickShopLogoFromShopInfo(shopInfo as Record<string, unknown>);
+    if (fromCatalog) return fromCatalog;
+    const link = (shopInfo as Record<string, unknown>).shop_link;
+    if (typeof link === 'string' && link.includes('tiktok.com/shop/store/')) {
+      const retry = (await scFetch('/v1/tiktok/shop/products', { url: link, region })) as Record<
+        string,
+        unknown
+      > | null;
+      const info = retry?.shopInfo;
+      if (info && typeof info === 'object') {
+        return pickShopLogoFromShopInfo(info as Record<string, unknown>);
+      }
+    }
   }
   return undefined;
-}
-
-/** Match shop name to a creator profile avatar when storefront logo is unavailable. */
-export async function fetchShopLogoFromProfile(
-  shopName: string,
-  accountHandle?: string,
-): Promise<string | undefined> {
-  const handle = (accountHandle || deriveShopAccountHandle(shopName)).trim();
-  if (!handle) return undefined;
-
-  const profile = await ScrapeCreatorsService.getUserInfo(handle);
-  if (!profile?.uniqueId) return undefined;
-
-  const nickname = profile.nickname ?? profile.uniqueId;
-  if (similarity(shopName, nickname) < MIN_PROFILE_MATCH_SCORE) {
-    log.debug('Shop profile match rejected', { shopName, handle, nickname });
-    return undefined;
-  }
-
-  return ScrapeCreatorsService.pickAvatarUrl(profile);
 }
 
 export async function fetchFreshShopLogoUrls(input: {
   shopName: string;
   shopUrl?: string;
-  creatorHandle?: string;
   region?: string;
 }): Promise<string[]> {
   const urls: string[] = [];
@@ -122,21 +96,9 @@ export async function fetchFreshShopLogoUrls(input: {
 
   const region = (input.region ?? 'US').toUpperCase();
   const shopUrl = input.shopUrl?.trim();
-  if (shopUrl?.startsWith('https://')) {
-    add(await fetchShopLogoFromCatalog(shopUrl, region));
-  }
-
-  add(
-    await fetchShopLogoFromProfile(
-      input.shopName,
-      input.creatorHandle || deriveShopAccountHandle(input.shopName),
-    ),
-  );
-
-  const creatorHandle = input.creatorHandle?.replace(/^@/, '').trim();
-  if (creatorHandle) {
-    const profile = await ScrapeCreatorsService.getUserInfo(creatorHandle);
-    add(ScrapeCreatorsService.pickAvatarUrl(profile));
+  const shopName = input.shopName.trim();
+  if (shopUrl?.startsWith('https://') && shopName) {
+    add(await fetchShopLogoFromCatalog(shopUrl, shopName, region));
   }
 
   return urls;

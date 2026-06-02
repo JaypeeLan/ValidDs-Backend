@@ -4,7 +4,6 @@ import { ProductService } from '../src/services/product.service';
 import { ProductFeedQuerySchema } from '../src/api/products/product.validator';
 
 describe('Product Categories - Hardcoded Canonical List', () => {
-
   it('PRODUCT_CATEGORIES should be defined and have multiple categories', () => {
     expect(PRODUCT_CATEGORIES).toBeDefined();
     expect(PRODUCT_CATEGORIES.length).toBeGreaterThanOrEqual(11);
@@ -55,6 +54,45 @@ describe('Product Categories - Hardcoded Canonical List', () => {
       const result = ProductFeedQuerySchema.safeParse(invalidQuery);
       expect(result.success).toBe(false);
     });
+
+    it('should pass validation with multiple subcategories as array', () => {
+      const parsed = ProductFeedQuerySchema.parse({
+        subcategory: ['Skincare', 'Makeup & Cosmetics'],
+      });
+      expect(parsed._filters.subcategory).toEqual(['Skincare', 'Makeup & Cosmetics']);
+    });
+
+    it('should pass validation with comma-separated subcategory string', () => {
+      const parsed = ProductFeedQuerySchema.parse({
+        subcategory: 'Skincare,Hair Care',
+      });
+      expect(parsed._filters.subcategory).toEqual(['Skincare', 'Hair Care']);
+    });
+
+    it('should pass validation with subcategories alias', () => {
+      const parsed = ProductFeedQuerySchema.parse({
+        subcategories: ['Skincare', 'Fragrance'],
+      });
+      expect(parsed._filters.subcategory).toEqual(['Skincare', 'Fragrance']);
+    });
+
+    it('should pass validation with categoryL2 alias', () => {
+      const parsed = ProductFeedQuerySchema.parse({
+        categoryL2: 'Skincare,Nail Care',
+      });
+      expect(parsed._filters.subcategory).toEqual(['Skincare', 'Nail Care']);
+    });
+
+    it('should split comma-separated tokens inside a single array element', () => {
+      const parsed = ProductFeedQuerySchema.parse({
+        subcategory: ['Skincare,Fragrance'],
+      });
+      expect(parsed._filters.subcategory).toEqual(['Skincare', 'Fragrance']);
+    });
+
+    it('should fail validation with invalid subcategory', () => {
+      const result = ProductFeedQuerySchema.safeParse({ subcategory: 'Not A Real Subcategory' });
+      expect(result.success).toBe(false);
+    });
   });
 });
-

@@ -46,6 +46,35 @@ export function mapFrontendCategories(categories?: string[]): string[] | undefin
   return [...new Set(mapped)];
 }
 
+/**
+ * Normalize a multi-value query param from string, repeated keys, or comma-separated tokens.
+ * Splits commas inside each array element (e.g. `subcategory[]=A,B`).
+ */
+export function flattenMultiStringParam(val: string | string[] | undefined): string[] | undefined {
+  if (val == null || val === '') return undefined;
+  const parts = Array.isArray(val) ? val : [val];
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part == null || part === '') continue;
+    for (const token of String(part).split(',')) {
+      const t = token.trim();
+      if (t) out.push(t);
+    }
+  }
+  return out.length ? [...new Set(out)] : undefined;
+}
+
+/** Merge `subcategory` query aliases before Zod validation. */
+export function normalizeProductFeedQueryInput(input: unknown): unknown {
+  if (!input || typeof input !== 'object') return input;
+  const q = { ...(input as Record<string, unknown>) };
+  const sub = q.subcategory ?? q.subcategories ?? q.categoryL2;
+  if (sub != null) q.subcategory = sub;
+  delete q.subcategories;
+  delete q.categoryL2;
+  return q;
+}
+
 function levelToRange(
   level: LevelFilter | undefined,
   bands: Record<LevelFilter, { min?: number; max?: number }>,
@@ -135,11 +164,7 @@ export function buildProductFeedFilters(raw: RawProductFeedQuery): ProductFeedFi
       ? [raw.category]
       : undefined;
 
-  const subcategoryList = Array.isArray(raw.subcategory)
-    ? raw.subcategory
-    : raw.subcategory
-      ? [raw.subcategory]
-      : undefined;
+  const subcategoryList = flattenMultiStringParam(raw.subcategory);
 
   const metrics = buildContentMetricFilters(raw);
 

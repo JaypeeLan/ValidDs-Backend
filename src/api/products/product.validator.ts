@@ -7,7 +7,9 @@ import {
 import {
   buildProductFeedFilters,
   defaultSortOptionsForFeed,
+  flattenMultiStringParam,
   FRONTEND_CATEGORY_TO_L1,
+  normalizeProductFeedQueryInput,
   normalizeProductSortBy,
   type RawProductFeedQuery,
 } from './product-feed-filters.util';
@@ -21,16 +23,7 @@ const MultiStringSchema = (allowedValues?: string[]) =>
   z
     .union([z.string(), z.array(z.string())])
     .optional()
-    .transform((val) => {
-      if (!val) return undefined;
-      const items = Array.isArray(val)
-        ? val.filter(Boolean)
-        : val
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean);
-      return items.length ? items : undefined;
-    })
+    .transform((val) => flattenMultiStringParam(val))
     .refine(
       (items) => {
         if (!items || !allowedValues) return true;
@@ -47,16 +40,7 @@ const MultiStringSchema = (allowedValues?: string[]) =>
 const CategorySchema = z
   .union([z.string(), z.array(z.string())])
   .optional()
-  .transform((val) => {
-    if (!val) return undefined;
-    const items = Array.isArray(val)
-      ? val.filter(Boolean)
-      : val
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean);
-    return items.length ? items : undefined;
-  })
+  .transform((val) => flattenMultiStringParam(val))
   .refine(
     (items) => {
       if (!items) return true;
@@ -129,83 +113,86 @@ const ProductFeedQueryBaseSchema = z.object({
   ...contentMetricFilterZodFields,
 });
 
-export const ProductFeedQuerySchema = ProductFeedQueryBaseSchema.superRefine((val, ctx) => {
-  const sortBy = normalizeProductSortBy(val.sortBy);
-  if (val.sortBy && !sortBy) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['sortBy'],
-      message: `Invalid sortBy. Examples: ${defaultSortOptionsForFeed(val.feed).join(', ')}`,
-    });
-    return;
-  }
-  if (sortBy && val.feed === 'discover') {
-    const allowed = new Set(['recent', 'trendScore', 'views', 'engagement']);
-    if (!allowed.has(sortBy)) {
+export const ProductFeedQuerySchema = z
+  .preprocess(normalizeProductFeedQueryInput, ProductFeedQueryBaseSchema)
+  .superRefine((val, ctx) => {
+    const sortBy = normalizeProductSortBy(val.sortBy);
+    if (val.sortBy && !sortBy) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['sortBy'],
-        message:
-          'For feed=discover use: recent, views, engagement, trendScore (or gmv/units for top-opportunities tab only)',
+        message: `Invalid sortBy. Examples: ${defaultSortOptionsForFeed(val.feed).join(', ')}`,
       });
+      return;
     }
-  }
-  if (sortBy && val.feed === 'top-opportunities') {
-    const allowed = new Set(['gmv-desc', 'gmv-asc', 'units-desc', 'units-asc']);
-    if (!allowed.has(sortBy)) {
+    if (sortBy && val.feed === 'discover') {
+      const allowed = new Set(['recent', 'trendScore', 'views', 'engagement']);
+      if (!allowed.has(sortBy)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['sortBy'],
+          message:
+            'For feed=discover use: recent, views, engagement, trendScore (or gmv/units for top-opportunities tab only)',
+        });
+      }
+    }
+    if (sortBy && val.feed === 'top-opportunities') {
+      const allowed = new Set(['gmv-desc', 'gmv-asc', 'units-desc', 'units-asc']);
+      if (!allowed.has(sortBy)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['sortBy'],
+          message:
+            'For feed=top-opportunities use: gmv_desc, gmv_asc, units_sold_desc, units_sold_asc',
+        });
+      }
+    }
+    if (val.minPrice != null && val.maxPrice != null && val.minPrice > val.maxPrice) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['sortBy'],
-        message:
-          'For feed=top-opportunities use: gmv_desc, gmv_asc, units_sold_desc, units_sold_asc',
+        path: ['minPrice'],
+        message: 'minPrice cannot exceed maxPrice',
       });
     }
-  }
-  if (val.minPrice != null && val.maxPrice != null && val.minPrice > val.maxPrice) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['minPrice'],
-      message: 'minPrice cannot exceed maxPrice',
-    });
-  }
-  const minGmv = val.minTotalGmv ?? val.minGmv;
-  const maxGmv = val.maxTotalGmv ?? val.maxGmv;
-  if (minGmv != null && maxGmv != null && minGmv > maxGmv) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['minGmv'],
-      message: 'minGmv cannot exceed maxGmv',
-    });
-  }
-  const minU = val.minUnitsSold ?? val.minUnits;
-  const maxU = val.maxUnitsSold ?? val.maxUnits;
-  if (minU != null && maxU != null && minU > maxU) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['minUnits'],
-      message: 'minUnits cannot exceed maxUnits',
-    });
-  }
-  validateContentMetricRanges(
-    {
-      minGmv: val.minGmv ?? val.minTotalGmv,
-      maxGmv: val.maxGmv ?? val.maxTotalGmv,
-      minUnits: minU,
-      maxUnits: maxU,
-      startDate: val.startDate,
-    },
-    ctx,
-  );
-}).transform((val): ProductFeedQuery => {
-  const q = val.q ?? val.search;
-  const filters = buildProductFeedFilters({ ...(val as RawProductFeedQuery), q });
-  return {
-    ...val,
-    q,
-    sortBy: filters.sortBy,
-    _filters: filters,
-  };
-});
+    const minGmv = val.minTotalGmv ?? val.minGmv;
+    const maxGmv = val.maxTotalGmv ?? val.maxGmv;
+    if (minGmv != null && maxGmv != null && minGmv > maxGmv) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['minGmv'],
+        message: 'minGmv cannot exceed maxGmv',
+      });
+    }
+    const minU = val.minUnitsSold ?? val.minUnits;
+    const maxU = val.maxUnitsSold ?? val.maxUnits;
+    if (minU != null && maxU != null && minU > maxU) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['minUnits'],
+        message: 'minUnits cannot exceed maxUnits',
+      });
+    }
+    validateContentMetricRanges(
+      {
+        minGmv: val.minGmv ?? val.minTotalGmv,
+        maxGmv: val.maxGmv ?? val.maxTotalGmv,
+        minUnits: minU,
+        maxUnits: maxU,
+        startDate: val.startDate,
+      },
+      ctx,
+    );
+  })
+  .transform((val): ProductFeedQuery => {
+    const q = val.q ?? val.search;
+    const filters = buildProductFeedFilters({ ...(val as RawProductFeedQuery), q });
+    return {
+      ...val,
+      q,
+      sortBy: filters.sortBy,
+      _filters: filters,
+    };
+  });
 
 export type ProductFeedQuery = z.infer<typeof ProductFeedQueryBaseSchema> & {
   sortBy?: ProductFeedFilters['sortBy'];

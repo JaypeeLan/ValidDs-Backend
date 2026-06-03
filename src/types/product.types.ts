@@ -170,7 +170,6 @@ export interface ITrend {
 /** Per-dimension trend signals stored on the product. */
 export interface IProductTrends {
   engagement: ITrend | null;
-  priceHistory: IPriceHistoryEntry[];
 }
 
 // ── Sales / revenue / price trends ───────────────────────────────────────────
@@ -240,7 +239,6 @@ export interface IProduct {
   // Pricing
   price: number | null;
   currency: string;
-  priceHistory: IPriceHistoryEntry[];
   priceTrend: IPriceTrend | null;
 
   // Competitor suppliers (sorted by competitorScore desc)

@@ -1,5 +1,9 @@
 import { ProductRepository, ProductFeedFilters } from '../db/repositories/product.repository';
-import { PRODUCT_CATEGORIES, SUBCATEGORIES_BY_CATEGORY, CATEGORY_TAXONOMY } from '../api/products/product.constants';
+import { CATEGORY_TAXONOMY } from '../api/products/product.constants';
+import {
+  filterL1CategoriesWithProducts,
+  filterSubcategoriesWithProducts,
+} from '../utils/product-category-catalog.util';
 import { IProductDocument, IProductModel } from '../models/product.model';
 import { FreshnessService } from '../freshness/freshness.service';
 import { CacheService } from '../cache/cache.service';
@@ -27,21 +31,17 @@ export async function getRelatedProducts(
   if (!mongoose.isValidObjectId(id)) return [];
 
   const cacheKey = CacheKeys.productRelated(market, id);
-  return CacheService.getOrSet(
-    cacheKey,
-    CACHE_TTL.PRODUCT_RELATED,
-    async () => {
-      const product = await ProductRepository.findById(id, productModel);
-      if (!product) return [];
-      return ProductRepository.findRelated(
-        id,
-        product.categoryL1,
-        product.categoryL2,
-        8,
-        productModel,
-      );
-    },
-  ) as Promise<IProductDocument[]>;
+  return CacheService.getOrSet(cacheKey, CACHE_TTL.PRODUCT_RELATED, async () => {
+    const product = await ProductRepository.findById(id, productModel);
+    if (!product) return [];
+    return ProductRepository.findRelated(
+      id,
+      product.categoryL1,
+      product.categoryL2,
+      8,
+      productModel,
+    );
+  }) as Promise<IProductDocument[]>;
 }
 
 export type ProductServiceType = {
@@ -66,10 +66,18 @@ export type ProductServiceType = {
     product: IProductDocument;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
   }>;
-  getCategories: () => Promise<string[]>;
-  getSubcategories: (category?: string) => Promise<Record<string, string[]> | string[]>;
+  getCategories: (productModel?: IProductModel, market?: MarketCode) => Promise<string[]>;
+  getSubcategories: (
+    category?: string,
+    productModel?: IProductModel,
+    market?: MarketCode,
+  ) => Promise<Record<string, string[]> | string[]>;
   getTaxonomy: () => Promise<typeof CATEGORY_TAXONOMY>;
-  getRelated: (id: string, productModel?: IProductModel, market?: MarketCode) => Promise<IProductDocument[]>;
+  getRelated: (
+    id: string,
+    productModel?: IProductModel,
+    market?: MarketCode,
+  ) => Promise<IProductDocument[]>;
   search: (
     query: string,
     filters: ProductFeedFilters,
@@ -97,7 +105,6 @@ export type ProductServiceType = {
 };
 
 export const ProductService: ProductServiceType = {
-
   /**
    * Get the product feed with optional filters.
    * Cached in Redis for 5 minutes.
@@ -115,7 +122,7 @@ export const ProductService: ProductServiceType = {
       market,
       filters.page ?? 1,
       filters.limit ?? 20,
-      JSON.stringify({ ...filters, page: undefined, limit: undefined })
+      JSON.stringify({ ...filters, page: undefined, limit: undefined }),
     );
 
     let feed = await CacheService.get<PaginatedResponse<IProductDocument>>(cacheKey);
@@ -132,7 +139,11 @@ export const ProductService: ProductServiceType = {
     return { feed, freshness };
   },
 
-  async cleanupProducts(): Promise<{ genericDeleted: number; duplicatesDeleted: number; lowViewsDeleted: number }> {
+  async cleanupProducts(): Promise<{
+    genericDeleted: number;
+    duplicatesDeleted: number;
+    lowViewsDeleted: number;
+  }> {
     return ProductRepository.cleanupBadProducts();
   },
 
@@ -156,17 +167,29 @@ export const ProductService: ProductServiceType = {
   },
 
   /**
-   * Get all unique product categories.
+   * L1 categories that have at least one listable product (canonical order).
    */
-  async getCategories(): Promise<string[]> {
-    return [...PRODUCT_CATEGORIES];
+  async getCategories(
+    productModel?: IProductModel,
+    market: MarketCode = DEFAULT_MARKET,
+  ): Promise<string[]> {
+    const cacheKey = CacheKeys.productCategories(market);
+    return CacheService.getOrSet(cacheKey, CACHE_TTL.CATEGORIES, async () => {
+      const dbL1 = await ProductRepository.getDistinctCategoryL1(productModel);
+      return filterL1CategoriesWithProducts(dbL1);
+    }) as Promise<string[]>;
   },
 
-  async getSubcategories(category?: string): Promise<Record<string, string[]> | string[]> {
-    if (category) {
-      return SUBCATEGORIES_BY_CATEGORY[category] ?? [];
-    }
-    return SUBCATEGORIES_BY_CATEGORY;
+  async getSubcategories(
+    category?: string,
+    productModel?: IProductModel,
+    market: MarketCode = DEFAULT_MARKET,
+  ): Promise<Record<string, string[]> | string[]> {
+    const cacheKey = CacheKeys.productSubcategories(market, category);
+    return CacheService.getOrSet(cacheKey, CACHE_TTL.CATEGORIES, async () => {
+      const dbByL1 = await ProductRepository.getDistinctSubcategoriesByL1(productModel);
+      return filterSubcategoriesWithProducts(dbByL1, category);
+    }) as Promise<Record<string, string[]> | string[]>;
   },
 
   async getTaxonomy(): Promise<typeof CATEGORY_TAXONOMY> {

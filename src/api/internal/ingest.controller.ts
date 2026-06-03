@@ -87,14 +87,18 @@ function mapReviews(reviews: unknown): Array<Record<string, unknown>> {
     const row = r as Record<string, unknown>;
     const text = String(row.content ?? row.review ?? row.text ?? '').trim();
     const author = String(row.author ?? row.name ?? '').trim() || null;
+    const rating = typeof row.rating === 'number' ? row.rating : 5;
+    const item = String(row.item ?? 'General').trim() || 'General';
+    const date = row.date ? String(row.date) : new Date().toISOString().slice(0, 10);
+    const body = text || 'No review text provided.';
     return {
       name: author,
       author,
-      rating: typeof row.rating === 'number' ? row.rating : null,
-      review: text || null,
-      content: text || null,
-      date: row.date ? String(row.date) : null,
-      item: row.item ? String(row.item) : null,
+      rating,
+      review: body,
+      content: body,
+      date,
+      item,
       images: Array.isArray(row.images) ? row.images : [],
     };
   });

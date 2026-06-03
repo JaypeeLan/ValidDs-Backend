@@ -492,7 +492,8 @@ categories:
     operationId: fetchCategories
     summary: Fetch categories (L1)
     description: |
-      Returns all top-level (L1) category names as a flat array.
+      Returns top-level (L1) category names that have at least one listable product
+      in the current market (canonical order). Empty categories are omitted.
 
       Does **not** return products — use `GET /products` with `?category=` to filter the feed.
     responses:
@@ -531,9 +532,12 @@ subcategories:
     operationId: fetchSubcategories
     summary: Fetch subcategories (L2)
     description: |
-      Without `category`: returns an object mapping every L1 → its L2 subcategories.
+      Without `category`: returns an object mapping each L1 (with products) → its L2
+      subcategories that also have at least one listable product.
 
-      With `category`: returns a flat array of L2 subcategories for that specific L1.
+      With `category`: returns a flat array of L2 subcategories for that L1 that have products.
+
+      L1/L2 entries with zero products are omitted.
 
       Does **not** return products — use `GET /products` with `?subcategory=` to filter the feed.
     parameters:

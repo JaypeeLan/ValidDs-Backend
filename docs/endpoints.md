@@ -48,13 +48,13 @@ Alias of `GET /products/:id/related-products`.
 
 ### `GET /products/categories`
 
-Returns all L1 category names (flat array). Does not return products.
-**Authentication:** Not required.
+Returns L1 category names that have at least one listable product in the request market (flat array, canonical order). Categories with zero products are omitted.
+**Authentication:** Not required (optional JWT sets market via `attachMarketModels`).
 **Response `data`:** `{ "categories": ["Beauty & Personal Care", ...] }`
 
 ### `GET /products/subcategories`
 
-Returns L2 subcategories. Optional query `?category=<L1>` for a flat list; omit for full L1→L2 map.
+Returns L2 subcategories that have at least one listable product. Optional query `?category=<L1>` for a flat list; omit for full L1→L2 map (only L1/L2 keys with products are included).
 **Authentication:** Not required.
 
 ### `GET /products/taxonomy`

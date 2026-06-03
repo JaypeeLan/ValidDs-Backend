@@ -2,7 +2,6 @@ import mongoose from 'mongoose';
 import { Product, IProductDocument, IProductModel } from '../../models/product.model';
 import type { IProductSupplier } from '../../types/product.types';
 import { logger } from '../../logger';
-import { PRODUCT_CATEGORIES } from '../../api/products/product.constants';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 import {
   recencyPrioritySortSpec,
@@ -49,7 +48,6 @@ export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
   ratingSources: 1,
   reviewCount: 1,
   priceTrend: 1,
-  priceHistory: 1,
   creativeCounts: 1,
   relatedVideosCount: 1,
   'suppliers.competitorScore': 1,
@@ -654,6 +652,13 @@ function applyProductFeedFilters(
   applyDiscoverySectionRules(query, { section: filters.section, isAd: filters.isAd });
 }
 
+/** Same eligibility as `findFeed` — categories/subcategories only count listable products. */
+export const LISTABLE_PRODUCT_FILTER: Record<string, unknown> = {
+  status: { $nin: ['archived', 'invalid'] },
+};
+
+const NON_EMPTY_STRING = { $exists: true, $nin: [null, ''] };
+
 // ── Repository ────────────────────────────────────────────────────────────────
 
 export const ProductRepository = {
@@ -732,7 +737,6 @@ export const ProductRepository = {
             // Trend (schema: trends.engagement)
             trends: {
               engagement: input.trend,
-              priceHistory: [],
             },
 
             // Discovery
@@ -863,8 +867,49 @@ export const ProductRepository = {
     return results;
   },
 
-  async getCategories(): Promise<string[]> {
-    return [...PRODUCT_CATEGORIES];
+  /** Distinct L1 category names that have at least one listable product. */
+  async getDistinctCategoryL1(model: IProductModel = Product): Promise<string[]> {
+    const values = await model
+      .distinct('categoryL1', {
+        ...LISTABLE_PRODUCT_FILTER,
+        categoryL1: NON_EMPTY_STRING,
+      })
+      .maxTimeMS(30_000);
+    return (values as string[])
+      .map((v) => String(v).trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+  },
+
+  /** L1 → distinct L2 subcategories that have at least one listable product. */
+  async getDistinctSubcategoriesByL1(
+    model: IProductModel = Product,
+  ): Promise<Record<string, string[]>> {
+    const rows = await model
+      .aggregate<{ _id: string; subs: string[] }>([
+        {
+          $match: {
+            ...LISTABLE_PRODUCT_FILTER,
+            categoryL1: NON_EMPTY_STRING,
+            categoryL2: NON_EMPTY_STRING,
+          },
+        },
+        { $group: { _id: '$categoryL1', subs: { $addToSet: '$categoryL2' } } },
+        { $sort: { _id: 1 } },
+      ])
+      .option({ maxTimeMS: 30_000 })
+      .exec();
+
+    const out: Record<string, string[]> = {};
+    for (const row of rows) {
+      const l1 = String(row._id ?? '').trim();
+      if (!l1) continue;
+      out[l1] = (row.subs ?? [])
+        .map((s) => String(s).trim())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+    }
+    return out;
   },
 
   async search(

@@ -29,8 +29,10 @@ export const CacheKeys = {
   // Related products for a given product
   productRelated: (market: MarketCode, id: string) => `product:related:${market}:${id}`,
 
-  // Product categories
-  productCategories: () => `product:categories`,
+  // Product categories (distinct values with ≥1 listable product in market)
+  productCategories: (market: MarketCode) => `product:categories:${market}`,
+  productSubcategories: (market: MarketCode, category?: string) =>
+    `product:subcategories:${market}:${category?.trim() || '__all__'}`,
 
   // Product trend signals
   productTrend: (id: string) => `product:trend:${id}`,
@@ -56,7 +58,6 @@ export const CacheKeys = {
 
   // Ingestion state — tracks last successful run per source
   ingestionLastRun: (source: string) => `ingestion:last-run:${source}`,
-
 };
 
 /**
@@ -66,18 +67,18 @@ export const CacheKeys = {
  * Adjust based on observed ingestion frequency and product requirements.
  */
 export const CACHE_TTL = {
-  PRODUCT_FEED: 60,        // 1 minute
-  PRODUCT_DETAIL: 60,      // 1 minute
-  PRODUCT_RELATED: 60,     // 1 minute
-  PRODUCT_TREND: 180,      // 3 minutes — trend data changes quickly
-  CATEGORIES: 3600,        // 1 hour — DB scans for distinct take time
-  VIDEO_FEED: 300,         // 5 minutes
-  VIDEO_DETAIL: 600,       // 10 minutes
-  TRENDS: 300,             // 5 minutes
-  STORE: 900,              // 15 minutes — stores change less frequently
-  SUPPLIER: 1800,          // 30 minutes — supplier data is relatively stable
-  HEALTH_CHECK: 10,        // 10 seconds — brief cache to protect the DB
-  INGESTION_STATE: 3600,   // 1 hour — just metadata, not product data
+  PRODUCT_FEED: 60, // 1 minute
+  PRODUCT_DETAIL: 60, // 1 minute
+  PRODUCT_RELATED: 60, // 1 minute
+  PRODUCT_TREND: 180, // 3 minutes — trend data changes quickly
+  CATEGORIES: 3600, // 1 hour — DB scans for distinct take time
+  VIDEO_FEED: 300, // 5 minutes
+  VIDEO_DETAIL: 600, // 10 minutes
+  TRENDS: 300, // 5 minutes
+  STORE: 900, // 15 minutes — stores change less frequently
+  SUPPLIER: 1800, // 30 minutes — supplier data is relatively stable
+  HEALTH_CHECK: 10, // 10 seconds — brief cache to protect the DB
+  INGESTION_STATE: 3600, // 1 hour — just metadata, not product data
 } as const;
 
 /**

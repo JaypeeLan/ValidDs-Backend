@@ -7,27 +7,25 @@ import {
 } from '../src/api/internal/ingest.validation';
 import { MIN_TOTAL_GMV } from '../src/api/internal/ingest-quality';
 
-function priceTrendWithMonths(value: number, monthCount = 10) {
-  const windows = Array.from({ length: monthCount }, (_, i) => {
-    const monthsAgo = monthCount - 1 - i;
-    return {
-      label: `m-${monthsAgo}`,
-      daysAgo: monthsAgo,
-      monthsAgo,
-      value,
-    };
-  });
-  return { direction: 'stable' as const, changePercent: 0, windows };
+function dayMetricTrend(value: number) {
+  return {
+    direction: 'stable' as const,
+    changePercent: 0,
+    windows: [
+      { label: 'Today', daysAgo: 0, value },
+      { label: '3d ago', daysAgo: 3, value: 0 },
+      { label: '7d ago', daysAgo: 7, value: 0 },
+      { label: '30d ago', daysAgo: 30, value: 0 },
+      { label: '60d ago', daysAgo: 60, value: 0 },
+      { label: '90d ago', daysAgo: 90, value: 0 },
+    ],
+  };
 }
 
 function minimalProduct(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const now = new Date();
-  const metricWindow = {
-    direction: 'stable',
-    changePercent: 0,
-    windows: [{ label: 'Now', daysAgo: 0, monthsAgo: 0, value: 1 }],
-  };
-  return {
+  const metricWindow = dayMetricTrend(1);
+  const base = {
     externalId: 'ext-1',
     source: 'tiktok',
     title: 'Test Product Title Here',
@@ -36,6 +34,17 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
     categoryL2: 'Skincare',
     categoryL3: 'Face Serums',
     categoryPath: 'Beauty & Personal Care > Skincare > Face Serums',
+    hashtags: ['#skincare'],
+    discoverySections: ['tiktok_shop'],
+    ratingSources: [
+      {
+        platform: 'Shop',
+        rating: 4.5,
+        reviewCount: 10,
+        sourceUrl: 'https://example.com/p',
+        fetchedAt: now,
+      },
+    ],
     shopName: 'Shop',
     shopUrl: 'https://example.com/shop',
     shopAvatarUrl: 'https://example.com/shop.jpg',
@@ -52,6 +61,8 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
     ],
     primaryCreator: {
       handle: 'creator1',
+      tiktokUserId: 'creator1',
+      bio: 'Creator bio',
       avatarS3Key: 'validds/creator-assets/avatars/us/creator1.jpg',
       tiktokPostUrl: 'https://www.tiktok.com/@creator1/video/1',
     },
@@ -59,7 +70,7 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
       content: `Review number ${i} with enough text`,
       author: 'user',
     })),
-    priceTrend: priceTrendWithMonths(20),
+    priceTrend: dayMetricTrend(20),
     salesTrend: metricWindow,
     revenueTrend: metricWindow,
     storeGmv: 5000,
@@ -74,8 +85,11 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
     creativeCounts: { ads: 0, organic: 1, reviews: 0, total: 1 },
     suppliers: [{ monthlyTraffic: 10_000 }, { monthlyTraffic: 20_000 }, { monthlyTraffic: 30_000 }],
     aiIntelligence: {
+      buyingSentimentLabel: 'positive',
+      buyingSentimentReason: 'Strong purchase intent in reviews.',
       reviewSummary: { summary: 'Good product reviews overall' },
       marketingAnalysis: {
+        sentimentLabel: 'positive',
         angles: Array.from({ length: 5 }, (_, i) => ({
           hook: `Hook ${i}`,
           body: `Body ${i}`,
@@ -84,13 +98,14 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
         })),
       },
     },
-    ...overrides,
   };
+  return { ...base, ...overrides };
 }
 
 describe('validateProductForIngest', () => {
   it('accepts a fully valid product', () => {
-    expect(validateProductForIngest(minimalProduct(), 'US')).toEqual([]);
+    const doc = minimalProduct();
+    expect(validateProductForIngest(doc, 'US')).toEqual([]);
   });
 
   it('rejects products priced below $10', () => {
@@ -162,17 +177,17 @@ describe('validateProductForIngest', () => {
     );
     expect(badTraffic).toContain('supplier[0].monthlyTraffic must be > 0');
 
-    const shortPriceHistory = validateProductForIngest(
+    const missingTodaySales = validateProductForIngest(
       minimalProduct({
-        priceTrend: {
+        salesTrend: {
           direction: 'stable',
           changePercent: 0,
-          windows: [{ label: 'Now', daysAgo: 0, monthsAgo: 0, value: 20 }],
+          windows: [{ label: '7d ago', daysAgo: 7, value: 100 }],
         },
       }),
       'US',
     );
-    expect(shortPriceHistory).toContain('priceTrend must have at least 10 months with price > 0');
+    expect(missingTodaySales).toContain('salesTrend missing today window (daysAgo=0)');
   });
 });
 

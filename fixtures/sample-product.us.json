@@ -14,32 +14,15 @@
     "niche": "heart-shaped jewelry",
     "productType": "seasonal",
     "priceBand": "budget",
-    "audience": [
-      "women",
-      "gift shoppers",
-      "accessory lovers"
-    ],
+    "audience": ["women", "gift shoppers", "accessory lovers"],
     "problemStatement": "Finding an affordable, stylish gift that fits any wrist size.",
     "valueStatement": "This adjustable heart-shaped bow pendant bracelet is a perfect, budget-friendly gift for birthdays or Christmas that adds a touch of elegance to any outfit.",
     "marketingAnalysis": {
       "primaryGender": "female",
-      "topAgeGroups": [
-        "18-24",
-        "25-34"
-      ],
-      "topRegions": [
-        "US",
-        "UK",
-        "Canada"
-      ],
-      "accessibilityTags": [
-        "none"
-      ],
-      "lifestyleSegments": [
-        "fashion enthusiast",
-        "gift shopper",
-        "accessory lover"
-      ],
+      "topAgeGroups": ["18-24", "25-34"],
+      "topRegions": ["US", "UK", "Canada"],
+      "accessibilityTags": ["none"],
+      "lifestyleSegments": ["fashion enthusiast", "gift shopper", "accessory lover"],
       "incomeLevel": "budget",
       "purchaseIntent": "gifting",
       "contentFormat": "lifestyle",
@@ -109,12 +92,7 @@
   "dataSourceUpdatedAt": "2026-05-20T10:05:14.636Z",
   "description": "Women's adjustable beaded bracelet with heart-shaped bow pendant. Expands 18.5-24.0cm. Suitable for birthdays and Christmas gifts.",
   "engagementRate": 0.4,
-  "hashtags": [
-    "bracelet",
-    "braceletmaking",
-    "gifts",
-    "tiktok"
-  ],
+  "hashtags": ["bracelet", "braceletmaking", "gifts", "tiktok"],
   "imageUrls": [
     "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/c9813db2e9bb498a83420ae5ffe5a9e7~tplv-fhlh96nyum-crop-webp:800:800.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839",
     "https://p16-oec-general-useast5.ttcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/2fab25007008489c85cd084b47c561aa~tplv-fhlh96nyum-crop-webp:1200:1200.webp?dr=12190&t=555f072d&ps=933b5bde&shp=8dbd94bf&shcp=e1be8f53&idc=useast5&from=2378011839",
@@ -377,12 +355,6 @@
     {
       "sales": 1349,
       "recordedAt": "2026-05-20T08:06:34.236Z"
-    }
-  ],
-  "priceHistory": [
-    {
-      "price": 20.99,
-      "recordedAt": "2026-05-22T12:00:00.000Z"
     }
   ],
   "priceTrend": null

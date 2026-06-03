@@ -198,7 +198,6 @@ describe('Products Endpoints', () => {
             isTrending: true,
             calculatedAt: new Date(),
           },
-          priceHistory: [],
         },
         creativeCounts: { ads: 0, organic: 2, reviews: 0, total: 2 },
         aiIntelligence: {
@@ -261,6 +260,116 @@ describe('Products Endpoints', () => {
     expect(firstProduct.aiExtraction).toBeUndefined(); // Obsolete field shouldn't exist
     expect(firstProduct.aiInsight).toBeDefined(); // Controller standardizes it as aiInsight
     expect(firstProduct.aiInsight.confidence.score).toBe(90);
+  });
+
+  it('GET /api/v1/products filters OR across multiple subcategories (comma-separated)', async () => {
+    const { Product } = await getSeededTestMarketModels();
+    const prefix = 'MultiSub OR';
+    await Product.create([
+      minimalTestProduct({
+        externalId: 'ms_or_skincare',
+        source: 'tiktok',
+        title: `${prefix} Skincare item`,
+        normalizedTitle: 'multisub or skincare item',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Skincare',
+        categoryPath: 'Beauty & Personal Care > Skincare > Face Serums',
+        totalGmv: 12_000,
+      }),
+      minimalTestProduct({
+        externalId: 'ms_or_hair',
+        source: 'tiktok',
+        title: `${prefix} Hair item`,
+        normalizedTitle: 'multisub or hair item',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Hair Care',
+        categoryPath: 'Beauty & Personal Care > Hair Care > Shampoo & Conditioner',
+        totalGmv: 11_000,
+      }),
+      minimalTestProduct({
+        externalId: 'ms_or_fragrance',
+        source: 'tiktok',
+        title: `${prefix} Fragrance item`,
+        normalizedTitle: 'multisub or fragrance item',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Fragrance',
+        categoryPath: 'Beauty & Personal Care > Fragrance > Perfume',
+        totalGmv: 99_000,
+      }),
+    ]);
+
+    const category = encodeURIComponent('Beauty & Personal Care');
+    const subcategory = encodeURIComponent('Skincare,Hair Care');
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: `/api/v1/products?category=${category}&subcategory=${subcategory}&limit=100&sortBy=gmv_desc`,
+      token: testToken,
+    });
+
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    const matched = (body.data.products as { title: string; categoryPath?: string }[]).filter((p) =>
+      p.title.startsWith(prefix),
+    );
+    const titles = matched.map((p) => p.title).sort();
+    expect(titles).toEqual([`${prefix} Hair item`, `${prefix} Skincare item`]);
+    for (const p of matched) {
+      expect(p.categoryPath).toMatch(/Skincare|Hair Care/);
+    }
+  });
+
+  it('GET /api/v1/products filters OR across repeated subcategory query params', async () => {
+    const { Product } = await getSeededTestMarketModels();
+    const prefix = 'MultiSub Repeat';
+    await Product.create([
+      minimalTestProduct({
+        externalId: 'ms_rep_skincare',
+        source: 'tiktok',
+        title: `${prefix} Skincare`,
+        normalizedTitle: 'multisub repeat skincare',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Skincare',
+        totalGmv: 8_000,
+      }),
+      minimalTestProduct({
+        externalId: 'ms_rep_makeup',
+        source: 'tiktok',
+        title: `${prefix} Makeup`,
+        normalizedTitle: 'multisub repeat makeup',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup & Cosmetics',
+        totalGmv: 7_500,
+      }),
+      minimalTestProduct({
+        externalId: 'ms_rep_nail',
+        source: 'tiktok',
+        title: `${prefix} Nail`,
+        normalizedTitle: 'multisub repeat nail',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Nail Care',
+        totalGmv: 50_000,
+      }),
+    ]);
+
+    const category = encodeURIComponent('Beauty & Personal Care');
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path:
+        `/api/v1/products?category=${category}` +
+        '&subcategory=Skincare&subcategory=Makeup%20%26%20Cosmetics&limit=100',
+      token: testToken,
+    });
+
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    const titles = (body.data.products as { title: string }[])
+      .filter((p) => p.title.startsWith(prefix))
+      .map((p) => p.title)
+      .sort();
+    expect(titles).toEqual([`${prefix} Makeup`, `${prefix} Skincare`]);
+    expect(titles).not.toContain(`${prefix} Nail`);
   });
 
   it('GET /api/v1/products/:id should handle ID properly', async () => {

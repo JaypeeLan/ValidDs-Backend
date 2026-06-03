@@ -5,7 +5,6 @@ import type {
   IMarketingAngle,
   IMetricTrend,
   IMetricTrendWindow,
-  IPriceHistoryEntry,
   IPriceTrend,
   IPrimaryCreator,
   IProductDocument,
@@ -29,7 +28,6 @@ export type {
   IMarketingAngle,
   IMetricTrend,
   IMetricTrendWindow,
-  IPriceHistoryEntry,
   IPriceTrend,
   IPriceTrendWindow,
   IPrimaryCreator,
@@ -287,14 +285,6 @@ const RevenueHistoryEntrySchema = new Schema<IRevenueHistoryEntry>(
   STRICT_SUB,
 );
 
-const PriceHistoryEntrySchema = new Schema<IPriceHistoryEntry>(
-  {
-    price: { type: Number, required: true, min: 0 },
-    recordedAt: { type: Schema.Types.Mixed, required: true },
-  },
-  STRICT_SUB,
-);
-
 const PriceTrendSchema = new Schema<IPriceTrend>(
   {
     direction: { type: String, enum: ['up', 'down', 'stable'], required: true },
@@ -318,7 +308,6 @@ const RatingSourceSchema = new Schema(
 const ProductTrendsSchema = new Schema<IProductTrends>(
   {
     engagement: { type: TrendSchema, required: true },
-    priceHistory: { type: [PriceHistoryEntrySchema], required: true, default: [] },
   },
   STRICT_SUB,
 );
@@ -367,7 +356,6 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     // Pricing
     price: { type: Number, required: true, min: 0, default: 0 },
     currency: { type: String, required: true, default: 'USD' },
-    priceHistory: { type: [PriceHistoryEntrySchema], required: true, default: [] },
     priceTrend: { type: PriceTrendSchema, required: true },
 
     // Competitor suppliers

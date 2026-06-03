@@ -1,24 +1,16 @@
 import { PRODUCT_CATEGORIES } from '../src/api/products/product.constants';
-import { ProductRepository } from '../src/db/repositories/product.repository';
-import { ProductService } from '../src/services/product.service';
 import { ProductFeedQuerySchema } from '../src/api/products/product.validator';
+import {
+  filterL1CategoriesWithProducts,
+  filterSubcategoriesWithProducts,
+} from '../src/utils/product-category-catalog.util';
 
-describe('Product Categories - Hardcoded Canonical List', () => {
+describe('Product Categories', () => {
   it('PRODUCT_CATEGORIES should be defined and have multiple categories', () => {
     expect(PRODUCT_CATEGORIES).toBeDefined();
     expect(PRODUCT_CATEGORIES.length).toBeGreaterThanOrEqual(11);
     expect(PRODUCT_CATEGORIES).toContain('Beauty & Personal Care');
     expect(PRODUCT_CATEGORIES).toContain('Home & Kitchen');
-  });
-
-  it('ProductRepository.getCategories() should return the hardcoded list', async () => {
-    const repoCategories = await ProductRepository.getCategories();
-    expect(repoCategories).toEqual([...PRODUCT_CATEGORIES]);
-  });
-
-  it('ProductService.getCategories() should return the hardcoded list directly', async () => {
-    const serviceCategories = await ProductService.getCategories();
-    expect(serviceCategories).toEqual([...PRODUCT_CATEGORIES]);
   });
 
   describe('Validator - ProductFeedQuerySchema', () => {
@@ -93,6 +85,21 @@ describe('Product Categories - Hardcoded Canonical List', () => {
     it('should fail validation with invalid subcategory', () => {
       const result = ProductFeedQuerySchema.safeParse({ subcategory: 'Not A Real Subcategory' });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('API catalog filters (products in DB only)', () => {
+    it('drops L1 categories with no listable products', () => {
+      expect(filterL1CategoriesWithProducts(['Pets'])).toEqual(['Pets']);
+      expect(filterL1CategoriesWithProducts([])).toEqual([]);
+    });
+
+    it('drops L2 subcategories with no listable products', () => {
+      const all = filterSubcategoriesWithProducts({
+        'Beauty & Personal Care': ['Skincare'],
+      }) as Record<string, string[]>;
+      expect(Object.keys(all)).toEqual(['Beauty & Personal Care']);
+      expect(all['Beauty & Personal Care']).not.toContain('Fragrance');
     });
   });
 });

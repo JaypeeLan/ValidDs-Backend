@@ -574,7 +574,7 @@ export const ProductController = {
 
   async categories(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const categories = await ProductService.getCategories();
+      const categories = await ProductService.getCategories(req.models?.Product, req.market);
       res.json(successResponse({ categories }, ResponseMessage.SUCCESS, 200));
     } catch (err) {
       next(err);
@@ -584,7 +584,7 @@ export const ProductController = {
   async subcategories(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const category = req.query.category as string | undefined;
-      const data = await ProductService.getSubcategories(category);
+      const data = await ProductService.getSubcategories(category, req.models?.Product, req.market);
       res.json(successResponse(data, ResponseMessage.SUCCESS, 200));
     } catch (err) {
       next(err);

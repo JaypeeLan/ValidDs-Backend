@@ -13,10 +13,8 @@ import {
   MIN_VIEW_COUNT,
   asFiniteNumber,
   baselineProductQualityReasons,
-  hasFullPriceHistory,
   hasTrendCurrentWindow,
   isMetaCreative,
-  MIN_PRICE_HISTORY_MONTHS,
   MIN_PRODUCT_PRICE,
   marketingAngleFieldReasons,
   marketingAngles,
@@ -24,6 +22,7 @@ import {
   strictProductQualityReasons,
   supplierTrafficReasons,
 } from './ingest-quality';
+import { productFieldCompletenessReasons } from './product-field-completeness';
 
 export {
   BASELINE_INGEST,
@@ -167,14 +166,10 @@ export function validateProductForIngest(
     reasons.push('missing reviewSummary for products with review text');
   }
 
-  for (const key of ['priceTrend', 'salesTrend', 'revenueTrend'] as const) {
+  for (const key of ['salesTrend', 'revenueTrend'] as const) {
     if (!hasTrendCurrentWindow(doc[key])) {
-      reasons.push(`${key} missing current-month window (monthsAgo=0)`);
+      reasons.push(`${key} missing today window (daysAgo=0)`);
     }
-  }
-
-  if (!hasFullPriceHistory(doc)) {
-    reasons.push(`priceTrend must have at least ${MIN_PRICE_HISTORY_MONTHS} months with price > 0`);
   }
 
   reasons.push(...marketingAngleFieldReasons(doc));
@@ -213,6 +208,7 @@ export function validateProductForIngest(
   reasons.push(...baselineProductQualityReasons(doc));
   reasons.push(...strictProductQualityReasons(doc, market));
   reasons.push(...supplierTrafficReasons(doc));
+  reasons.push(...productFieldCompletenessReasons(doc));
 
   return reasons;
 }

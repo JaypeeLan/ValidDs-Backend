@@ -17,7 +17,9 @@ export const INGEST_QUALITY = {
   MAX_POST_AGE_DAYS: 30,
   MIN_RELATED_VIDEOS: 3,
   MIN_MARKETING_ANGLES: 5,
-  MIN_ANGLES_WITH_VIDEO: 2,
+  MIN_ANGLES_WITH_VIDEO: 1,
+  /** Angle promo clips: no age limit (0). Listing id must match via shop card or anchor. */
+  ANGLES_PROMO_MAX_AGE_DAYS: 0,
   MIN_REVIEWS: 5,
   MIN_SUPPLIERS: 3,
 } as const;
@@ -77,25 +79,13 @@ export function nonzeroPriceTrendMonths(trend: unknown): number {
   }).length;
 }
 
-export function hasFullPriceHistory(doc: Record<string, unknown>): boolean {
-  if (nonzeroPriceTrendMonths(doc.priceTrend) >= MIN_PRICE_HISTORY_MONTHS) {
-    return true;
-  }
-  const ph = doc.priceHistory;
-  if (!Array.isArray(ph)) return false;
-  const months = new Set<string>();
-  for (const entry of ph) {
-    if (!entry || typeof entry !== 'object') continue;
-    const row = entry as { recordedAt?: unknown; price?: unknown };
-    const price = asFiniteNumber(row.price);
-    if (price === null || price <= 0) continue;
-    const raw = String(row.recordedAt ?? '')
-      .trim()
-      .slice(0, 7);
-    if (raw.length >= 7) months.add(raw);
-  }
-  return months.size >= MIN_PRICE_HISTORY_MONTHS;
+/** True when priceTrend has enough monthly windows with price > 0. */
+export function hasFullPriceTrend(doc: Record<string, unknown>): boolean {
+  return nonzeroPriceTrendMonths(doc.priceTrend) >= MIN_PRICE_HISTORY_MONTHS;
 }
+
+/** @deprecated Use hasFullPriceTrend — priceHistory is no longer stored on products. */
+export const hasFullPriceHistory = hasFullPriceTrend;
 
 export function hasTrendCurrentWindow(trend: unknown): boolean {
   if (!trend || typeof trend !== 'object') return false;

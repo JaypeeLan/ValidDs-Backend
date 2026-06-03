@@ -6,7 +6,9 @@ import {
   sortMarketingAnglesWithVideoFirst,
 } from '../../utils/marketing-angles.util';
 import { normalizeMetaAdLibraryUrl } from '../../utils/meta-ad-url.util';
+import { defaultMetricTrendWindows } from '../../utils/metric-trend-days.util';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
+import { fillProductFieldGaps } from './product-field-completeness';
 
 const SUPPLIER_VISITS_MIN = 12_000;
 const SUPPLIER_VISITS_MAX = 890_000;
@@ -87,11 +89,24 @@ function normalizeMetricTrend(trend: unknown, defaultValue = 0): Record<string, 
   const t = trend && typeof trend === 'object' ? { ...(trend as Record<string, unknown>) } : {};
   if (!t.direction) t.direction = 'stable';
   if (t.changePercent == null) t.changePercent = 0;
-  const windows = Array.isArray(t.windows) ? [...t.windows] : [];
-  if (!trendHasCurrentWindow(windows)) {
-    windows.unshift({ label: 'Now', daysAgo: 0, monthsAgo: 0, value: defaultValue });
+  const incoming = Array.isArray(t.windows) ? [...t.windows] : [];
+  if (!trendHasCurrentWindow(incoming)) {
+    incoming.unshift({ label: 'Today', daysAgo: 0, value: defaultValue });
   }
-  t.windows = windows;
+  const template = defaultMetricTrendWindows(defaultValue);
+  const byOffset = new Map<number, number>();
+  for (const w of incoming) {
+    if (!w || typeof w !== 'object') continue;
+    const row = w as { daysAgo?: number; monthsAgo?: number; value?: unknown };
+    const offset = row.daysAgo ?? row.monthsAgo ?? 0;
+    const value = Number(row.value);
+    if (Number.isFinite(value) && value >= 0) byOffset.set(Number(offset), value);
+  }
+  byOffset.set(0, Math.max(0, defaultValue));
+  t.windows = template.map((w) => ({
+    ...w,
+    value: byOffset.get(w.daysAgo) ?? w.value,
+  }));
   return t;
 }
 
@@ -161,6 +176,16 @@ function normalizeAiIntelligence(ai: unknown): Record<string, unknown> {
     ma.angles = sortMarketingAnglesWithVideoFirst(angleRows);
   }
   if (!ma.analyzedAt) ma.analyzedAt = new Date();
+  if (ma.sentimentLabel == null) {
+    const score = base.buyingSentimentScore;
+    const s = typeof score === 'number' && Number.isFinite(score) ? score : 50;
+    ma.sentimentLabel = s >= 70 ? 'positive' : s >= 40 ? 'neutral' : 'negative';
+  }
+  if (base.buyingSentimentLabel == null) {
+    const score = base.buyingSentimentScore;
+    const s = typeof score === 'number' && Number.isFinite(score) ? score : 50;
+    base.buyingSentimentLabel = s >= 70 ? 'positive' : s >= 40 ? 'neutral' : 'negative';
+  }
   base.marketingAnalysis = ma;
   return base;
 }
@@ -177,7 +202,6 @@ function normalizeTrends(trends: unknown): Record<string, unknown> {
   if (!eng.calculatedAt) eng.calculatedAt = new Date();
   if (!eng.reason) eng.reason = '';
   t.engagement = eng;
-  if (!Array.isArray(t.priceHistory)) t.priceHistory = [];
   return t;
 }
 
@@ -241,7 +265,7 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     strOrEmpty(raw.postCreatedAt) ||
     (published instanceof Date ? published.toISOString() : String(published));
 
-  return {
+  const out: Record<string, unknown> = {
     ...raw,
     description: strOrEmpty(raw.description),
     hashtags: Array.isArray(raw.hashtags)
@@ -253,7 +277,6 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     imageUrls,
     price,
     currency: strOrEmpty(raw.currency) || 'USD',
-    priceHistory: Array.isArray(raw.priceHistory) ? raw.priceHistory : [],
     priceTrend: normalizeMetricTrend(raw.priceTrend, price),
     rating: numOrZero(raw.rating),
     reviewCount: numOrZero(raw.reviewCount),
@@ -296,6 +319,7 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     dataSourceUpdatedAt: raw.dataSourceUpdatedAt ?? new Date(),
     productTrend: normalizeProductTrend(raw.productTrend),
   };
+  return fillProductFieldGaps(out);
 }
 
 function normalizeRelatedVideos(related: unknown): unknown[] {

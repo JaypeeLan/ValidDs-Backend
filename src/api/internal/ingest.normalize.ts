@@ -9,6 +9,7 @@ import { normalizeMetaAdLibraryUrl } from '../../utils/meta-ad-url.util';
 import { defaultMetricTrendWindows } from '../../utils/metric-trend-days.util';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 import { fillProductFieldGaps } from './product-field-completeness';
+import { normalizeCategoryL2 } from '../../utils/category-l2-normalize.util';
 
 const SUPPLIER_VISITS_MIN = 12_000;
 const SUPPLIER_VISITS_MAX = 890_000;
@@ -271,7 +272,12 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     hashtags: Array.isArray(raw.hashtags)
       ? (raw.hashtags as unknown[]).map((h) => strOrEmpty(h)).filter(Boolean)
       : [],
-    categoryL2: strOrEmpty(raw.categoryL2),
+    categoryL2: (() => {
+      const l1 = strOrEmpty(raw.categoryL1);
+      const l2 = strOrEmpty(raw.categoryL2);
+      if (!l1 || !l2) return l2;
+      return normalizeCategoryL2(l1, l2);
+    })(),
     categoryL3: strOrEmpty(raw.categoryL3),
     primaryImageUrl: strOrEmpty(raw.primaryImageUrl) || imageUrls[0] || '',
     imageUrls,

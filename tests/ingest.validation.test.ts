@@ -159,6 +159,24 @@ describe('validateProductForIngest', () => {
     );
     expect(badAngle).toContain('marketing angle[0] must have hook, body, and target');
 
+    const textOnlyAngles = validateProductForIngest(
+      minimalProduct({
+        aiIntelligence: {
+          marketingAnalysis: {
+            angles: Array.from({ length: 5 }, (_, i) => ({
+              hook: `Hook ${i}`,
+              body: `Body ${i}`,
+              target: `Target ${i}`,
+            })),
+          },
+        },
+      }),
+      'US',
+    );
+    expect(textOnlyAngles.some((r) => r.includes('angles with playable TikTok videoUrl'))).toBe(
+      false,
+    );
+
     const supplierReasons = validateProductForIngest(
       minimalProduct({ suppliers: [{ monthlyTraffic: 1 }] }),
       'US',

@@ -176,7 +176,11 @@ Adds a TikTok **handle** to the shared live-monitoring watchlist (`TrackedStore`
 ## 5. Background Job Endpoints (`/jobs`)
 
 These endpoints are used for monitoring and triggering ingestion/cleanup jobs from external cron services.
+See **`docs/cron-jobs.md`** for Render/GitHub/crontab setup (`render.yaml`, `cron/trigger-job.mjs`).
+
 **Authentication:** Required. Requires `X-API-Key` header (matches `INTERNAL_API_KEY`).
+
+**Production with external cron:** `ENABLE_BACKGROUND_JOBS=true`, `ENABLE_IN_PROCESS_SCHEDULERS=false`.
 
 **Scheduled cadence** (all anchored to Africa/Lagos):
 

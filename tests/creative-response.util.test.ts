@@ -46,6 +46,64 @@ describe('formatCreativeFeedItem creator avatar proxy', () => {
   });
 });
 
+describe('formatCreativeFeedItem videoProxyUrl', () => {
+  it('sets videoProxyUrl only when videoS3Key exists', () => {
+    const withVideo = formatCreativeFeedItem({
+      _id: '507f1f77bcf86cd799439012',
+      externalVideoId: '7123456789',
+      videoS3Key: 'brightdata/tiktok-videos/7123456789.mp4',
+      tiktokPostUrl: 'https://www.tiktok.com/@user/video/7123456789',
+      creator: {
+        handle: 'user',
+        verified: false,
+        tiktokPostUrl: 'https://www.tiktok.com/@user/video/7123456789',
+      },
+      metrics: { viewCount: 1, likeCount: 0, commentCount: 0, shareCount: 0 },
+      section: 'top-ads',
+      productId: '507f1f77bcf86cd799439022',
+    });
+    expect(withVideo.videoProxyUrl).toBe(
+      '/api/v1/creatives/507f1f77bcf86cd799439012/video?index=0',
+    );
+
+    const withoutVideo = formatCreativeFeedItem({
+      _id: '507f1f77bcf86cd799439013',
+      externalVideoId: 'meta:12345678901',
+      metaAdLibraryUrl: 'https://www.facebook.com/ads/library/?id=12345678901',
+      tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=12345678901',
+      creator: {
+        handle: 'brand',
+        verified: false,
+        tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=12345678901',
+      },
+      metrics: { viewCount: 0, likeCount: 0, commentCount: 0, shareCount: 0 },
+      section: 'trending',
+      productId: '507f1f77bcf86cd799439022',
+    });
+    expect(withoutVideo.videoProxyUrl).toBeUndefined();
+  });
+
+  it('sets videoProxyUrl for verified Meta creative with S3 key', () => {
+    const item = formatCreativeFeedItem({
+      _id: '507f1f77bcf86cd799439014',
+      externalVideoId: 'meta:12345678901',
+      metaAdId: '12345678901',
+      metaAdLibraryUrl: 'https://www.facebook.com/ads/library/?id=12345678901',
+      tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=12345678901',
+      videoS3Key: 'brightdata/tiktok-videos/meta/12345678901.mp4',
+      creator: {
+        handle: 'brand',
+        verified: false,
+        tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=12345678901',
+      },
+      metrics: { viewCount: 0, likeCount: 0, commentCount: 0, shareCount: 0 },
+      section: 'trending',
+      productId: '507f1f77bcf86cd799439022',
+    });
+    expect(item.videoProxyUrl).toBe('/api/v1/creatives/507f1f77bcf86cd799439014/video?index=0');
+  });
+});
+
 describe('formatCreativeFeedItem creator avatar', () => {
   it('exposes avatarUrl and avatarProxyUrl when only shopAvatarUrl is stored', () => {
     const item = formatCreativeFeedItem({

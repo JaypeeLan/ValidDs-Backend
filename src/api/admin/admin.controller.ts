@@ -4,9 +4,8 @@ import os from 'os';
 import { getRedisClient } from '../../cache/redis.client';
 import { getJobsStatus } from '../../jobs/index';
 import { User } from '../../models/user.model';
-import { Product } from '../../models/product.model';
-import { Creative } from '../../models/creative.model';
 import { getMarketModels } from '../../models/market-models.factory';
+import { deleteCreativeAndOrphanProduct } from '../../services/creative.service';
 import { MARKET_CODES, toMarketCode, type MarketCode } from '../../utils/markets';
 import { successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
@@ -16,8 +15,6 @@ import type {
   AdminUsersQueryInput,
   AdminUserIdParamInput,
   UpdateUserStatusInput,
-  AdminProductIdParamInput,
-  AdminProductsQueryInput,
   AdminWaitlistQueryInput,
   AdminProductsQueryV2Input,
   AdminDeleteContentParamInput,
@@ -28,7 +25,11 @@ import type {
 import { TransactionService } from '../../services/transaction.service';
 import { WaitlistService } from '../../services/waitlist.service';
 
-export const getSystemHealth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getSystemHealth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const memory = process.memoryUsage();
     const redisClient = getRedisClient();
@@ -69,7 +70,11 @@ export const getSystemHealth = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const getUserAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getUserAnalytics = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const totalUsers = await User.countDocuments();
 
@@ -80,21 +85,27 @@ export const getUserAnalytics = async (req: Request, res: Response, next: NextFu
 
     // Users by Plan
     const planAggregation = await User.aggregate([
-      { $group: { _id: '$plan', count: { $sum: 1 } } }
+      { $group: { _id: '$plan', count: { $sum: 1 } } },
     ]);
-    const usersByPlan = planAggregation.reduce((acc, curr) => {
-      acc[curr._id || 'unknown'] = curr.count;
-      return acc;
-    }, {} as Record<string, number>);
+    const usersByPlan = planAggregation.reduce(
+      (acc, curr) => {
+        acc[curr._id || 'unknown'] = curr.count;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     // Active vs Suspended vs Deleted
     const statusAggregation = await User.aggregate([
-      { $group: { _id: '$status', count: { $sum: 1 } } }
+      { $group: { _id: '$status', count: { $sum: 1 } } },
     ]);
-    const usersByStatus = statusAggregation.reduce((acc, curr) => {
-      acc[curr._id || 'unknown'] = curr.count;
-      return acc;
-    }, {} as Record<string, number>);
+    const usersByStatus = statusAggregation.reduce(
+      (acc, curr) => {
+        acc[curr._id || 'unknown'] = curr.count;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     res.json({
       success: true,
@@ -103,14 +114,18 @@ export const getUserAnalytics = async (req: Request, res: Response, next: NextFu
         newUsersToday,
         usersByPlan,
         usersByStatus,
-      }
+      },
     });
   } catch (err) {
     next(err);
   }
 };
 
-export const getProductAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getProductAnalytics = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const query = req.query as unknown as AdminAnalyticsQueryInput;
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -124,26 +139,33 @@ export const getProductAnalytics = async (req: Request, res: Response, next: Nex
     const productsBySource: Record<string, number> = {};
     const topCategoriesAcc: Record<string, number> = {};
 
-    await Promise.all(markets.map(async (market) => {
-      const { Product: MarketProduct } = getMarketModels(market);
-      const [total, fresh, sourceAgg, catAgg] = await Promise.all([
-        MarketProduct.countDocuments(),
-        MarketProduct.countDocuments({ lastIngestedAt: { $gte: oneDayAgo } }),
-        MarketProduct.aggregate([{ $group: { _id: '$source', count: { $sum: 1 } } }]),
-        MarketProduct.aggregate([
-          { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
-          { $sort: { count: -1 } },
-          { $limit: 10 },
-        ]),
-      ]);
-      totalProducts += total;
-      freshProducts += fresh;
-      for (const { _id, count } of sourceAgg) productsBySource[_id || 'unknown'] = (productsBySource[_id || 'unknown'] ?? 0) + count;
-      for (const { _id, count } of catAgg)    topCategoriesAcc[_id || 'Uncategorized'] = (topCategoriesAcc[_id || 'Uncategorized'] ?? 0) + count;
-    }));
+    await Promise.all(
+      markets.map(async (market) => {
+        const { Product: MarketProduct } = getMarketModels(market);
+        const [total, fresh, sourceAgg, catAgg] = await Promise.all([
+          MarketProduct.countDocuments(),
+          MarketProduct.countDocuments({ lastIngestedAt: { $gte: oneDayAgo } }),
+          MarketProduct.aggregate([{ $group: { _id: '$source', count: { $sum: 1 } } }]),
+          MarketProduct.aggregate([
+            { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 10 },
+          ]),
+        ]);
+        totalProducts += total;
+        freshProducts += fresh;
+        for (const { _id, count } of sourceAgg)
+          productsBySource[_id || 'unknown'] = (productsBySource[_id || 'unknown'] ?? 0) + count;
+        for (const { _id, count } of catAgg)
+          topCategoriesAcc[_id || 'Uncategorized'] =
+            (topCategoriesAcc[_id || 'Uncategorized'] ?? 0) + count;
+      }),
+    );
 
     const topCategories = Object.fromEntries(
-      Object.entries(topCategoriesAcc).sort(([, a], [, b]) => b - a).slice(0, 10)
+      Object.entries(topCategoriesAcc)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10),
     );
 
     res.json({
@@ -154,14 +176,18 @@ export const getProductAnalytics = async (req: Request, res: Response, next: Nex
         freshProducts24h: freshProducts,
         productsBySource,
         topCategories,
-      }
+      },
     });
   } catch (err) {
     next(err);
   }
 };
 
-export const getCreativeAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getCreativeAnalytics = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const query = req.query as unknown as AdminAnalyticsQueryInput;
     const markets: MarketCode[] = query.market ? [query.market as MarketCode] : [...MARKET_CODES];
@@ -175,35 +201,47 @@ export const getCreativeAnalytics = async (req: Request, res: Response, next: Ne
     const creativesBySection: Record<string, number> = {};
     const topCategoriesAcc: Record<string, number> = {};
 
-    await Promise.all(markets.map(async (market) => {
-      const { Creative: MarketCreative } = getMarketModels(market);
-      const [total, fresh, ads, organic, sectionAgg, catAgg, videoRows] = await Promise.all([
-        MarketCreative.countDocuments(),
-        MarketCreative.countDocuments({ ingestedAt: { $gte: oneDayAgo } }),
-        MarketCreative.countDocuments({ isAd: true }),
-        MarketCreative.countDocuments({ isAd: false }),
-        MarketCreative.aggregate([{ $group: { _id: '$section', count: { $sum: 1 } } }]),
-        MarketCreative.aggregate([
-          { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
-          { $sort: { count: -1 } },
-          { $limit: 10 },
-        ]),
-        MarketCreative.aggregate([
-          { $project: { videoCount: { $add: [1, { $size: { $ifNull: ['$relatedVideos', []] } }] } } },
-          { $group: { _id: null, totalVideos: { $sum: '$videoCount' } } },
-        ]),
-      ]);
-      totalCreatives += total;
-      freshCreatives24h += fresh;
-      adsCount += ads;
-      organicCount += organic;
-      totalVideos += videoRows[0]?.totalVideos ?? 0;
-      for (const { _id, count } of sectionAgg) creativesBySection[_id || 'unknown'] = (creativesBySection[_id || 'unknown'] ?? 0) + count;
-      for (const { _id, count } of catAgg)     topCategoriesAcc[_id || 'Uncategorized'] = (topCategoriesAcc[_id || 'Uncategorized'] ?? 0) + count;
-    }));
+    await Promise.all(
+      markets.map(async (market) => {
+        const { Creative: MarketCreative } = getMarketModels(market);
+        const [total, fresh, ads, organic, sectionAgg, catAgg, videoRows] = await Promise.all([
+          MarketCreative.countDocuments(),
+          MarketCreative.countDocuments({ ingestedAt: { $gte: oneDayAgo } }),
+          MarketCreative.countDocuments({ isAd: true }),
+          MarketCreative.countDocuments({ isAd: false }),
+          MarketCreative.aggregate([{ $group: { _id: '$section', count: { $sum: 1 } } }]),
+          MarketCreative.aggregate([
+            { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 10 },
+          ]),
+          MarketCreative.aggregate([
+            {
+              $project: {
+                videoCount: { $add: [1, { $size: { $ifNull: ['$relatedVideos', []] } }] },
+              },
+            },
+            { $group: { _id: null, totalVideos: { $sum: '$videoCount' } } },
+          ]),
+        ]);
+        totalCreatives += total;
+        freshCreatives24h += fresh;
+        adsCount += ads;
+        organicCount += organic;
+        totalVideos += videoRows[0]?.totalVideos ?? 0;
+        for (const { _id, count } of sectionAgg)
+          creativesBySection[_id || 'unknown'] =
+            (creativesBySection[_id || 'unknown'] ?? 0) + count;
+        for (const { _id, count } of catAgg)
+          topCategoriesAcc[_id || 'Uncategorized'] =
+            (topCategoriesAcc[_id || 'Uncategorized'] ?? 0) + count;
+      }),
+    );
 
     const topCategories = Object.fromEntries(
-      Object.entries(topCategoriesAcc).sort(([, a], [, b]) => b - a).slice(0, 10)
+      Object.entries(topCategoriesAcc)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10),
     );
 
     res.json({
@@ -223,7 +261,11 @@ export const getCreativeAnalytics = async (req: Request, res: Response, next: Ne
   }
 };
 
-export const listProducts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const listProducts = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const query = req.query as unknown as AdminProductsQueryV2Input;
     const market = toMarketCode(query.market);
@@ -234,8 +276,8 @@ export const listProducts = async (req: Request, res: Response, next: NextFuncti
     const skip = (page - 1) * limit;
 
     const filter: Record<string, unknown> = {};
-    if (query.status)   filter.status = query.status;
-    if (query.source)   filter.source = query.source;
+    if (query.status) filter.status = query.status;
+    if (query.source) filter.source = query.source;
     if (query.category) filter.categoryL1 = query.category;
     if (query.q) {
       const regex = new RegExp(query.q, 'i');
@@ -254,35 +296,41 @@ export const listProducts = async (req: Request, res: Response, next: NextFuncti
           products,
           pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
         },
-        'Products retrieved successfully.'
-      )
+        'Products retrieved successfully.',
+      ),
     );
   } catch (err) {
     next(err);
   }
 };
 
-export const listTransactions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const listTransactions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const query = req.query as unknown as AdminTransactionsQueryInput;
     const data = await TransactionService.list(query);
 
-    res.json(
-      successResponse(data, 'Transaction records retrieved successfully.')
-    );
+    res.json(successResponse(data, 'Transaction records retrieved successfully.'));
   } catch (err) {
     next(err);
   }
 };
 
-export const createTransaction = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const createTransaction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const input = req.body as CreateTransactionInput;
     const transaction = await TransactionService.create(input);
 
-    res.status(201).json(
-      successResponse(transaction, 'Transaction record created successfully.', 201)
-    );
+    res
+      .status(201)
+      .json(successResponse(transaction, 'Transaction record created successfully.', 201));
   } catch (err) {
     next(err);
   }
@@ -339,15 +387,19 @@ export const listUsers = async (req: Request, res: Response, next: NextFunction)
             totalPages: Math.max(1, Math.ceil(total / limit)),
           },
         },
-        'Users retrieved successfully.'
-      )
+        'Users retrieved successfully.',
+      ),
     );
   } catch (err) {
     next(err);
   }
 };
 
-export const updateUserStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const updateUserStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { userId } = req.params as unknown as AdminUserIdParamInput;
     const { status } = req.body as UpdateUserStatusInput;
@@ -363,15 +415,19 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
     res.json(
       successResponse(
         { id: userId, status: user.status },
-        `User status updated to ${status} successfully.`
-      )
+        `User status updated to ${status} successfully.`,
+      ),
     );
   } catch (err) {
     next(err);
   }
 };
 
-export const deleteUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const deleteUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { userId } = req.params as unknown as AdminUserIdParamInput;
 
@@ -386,18 +442,17 @@ export const deleteUser = async (req: Request, res: Response, next: NextFunction
 
     await User.findByIdAndDelete(userId);
 
-    res.json(
-      successResponse(
-        { id: userId },
-        'User account permanently deleted successfully.'
-      )
-    );
+    res.json(successResponse({ id: userId }, 'User account permanently deleted successfully.'));
   } catch (err) {
     next(err);
   }
 };
 
-export const deleteProduct = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const deleteProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { id } = req.params as unknown as AdminDeleteContentParamInput;
     const market = toMarketCode((req.query as any).market);
@@ -410,9 +465,7 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
 
     await MarketProduct.findByIdAndDelete(id);
 
-    res.json(
-      successResponse({ id, market }, 'Product permanently deleted successfully.')
-    );
+    res.json(successResponse({ id, market }, 'Product permanently deleted successfully.'));
   } catch (err) {
     next(err);
   }
@@ -420,32 +473,40 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
 
 // ── Admin content creation ────────────────────────────────────────────────────
 
-export const createProduct = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const createProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const body = req.body as AdminCreateProductInput;
     const market = toMarketCode(body.market);
     const { Product: MarketProduct } = getMarketModels(market);
 
     const now = new Date();
-    const normalizedTitle = body.title.trim().toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ');
+    const normalizedTitle = body.title
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ');
 
     const product = await MarketProduct.create({
-      externalId:      body.externalId,
-      source:          body.source ?? 'admin',
-      status:          'review',
-      title:           body.title,
+      externalId: body.externalId,
+      source: body.source ?? 'admin',
+      status: 'review',
+      title: body.title,
       normalizedTitle,
-      description:     body.description ?? '',
-      categoryL1:      body.categoryL1,
-      categoryL2:      body.categoryL2 ?? '',
-      categoryPath:    body.categoryL2 ? `${body.categoryL1} > ${body.categoryL2}` : body.categoryL1,
-      price:           body.price ?? 0,
-      currency:        body.currency ?? 'USD',
-      productUrl:      body.productUrl ?? '',
+      description: body.description ?? '',
+      categoryL1: body.categoryL1,
+      categoryL2: body.categoryL2 ?? '',
+      categoryPath: body.categoryL2 ? `${body.categoryL1} > ${body.categoryL2}` : body.categoryL1,
+      price: body.price ?? 0,
+      currency: body.currency ?? 'USD',
+      productUrl: body.productUrl ?? '',
       primaryImageUrl: body.primaryImageUrl ?? '',
-      shopName:        body.shopName ?? '',
+      shopName: body.shopName ?? '',
       validationStatus: 'pending',
-      lastIngestedAt:      now,
+      lastIngestedAt: now,
       dataSourceUpdatedAt: now,
       aiIntelligence: {
         confidence: 0,
@@ -455,15 +516,17 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       trend: { score: 0, direction: 'unknown', isTrending: false, calculatedAt: now },
     });
 
-    res.status(201).json(
-      successResponse({ market, product }, 'Product created successfully.')
-    );
+    res.status(201).json(successResponse({ market, product }, 'Product created successfully.'));
   } catch (err) {
     next(err);
   }
 };
 
-export const createCreative = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const createCreative = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const body = req.body as AdminCreateCreativeInput;
     const market = toMarketCode(body.market);
@@ -471,52 +534,61 @@ export const createCreative = async (req: Request, res: Response, next: NextFunc
 
     const creative = await MarketCreative.create({
       externalVideoId: body.externalVideoId,
-      productId:       body.productId ? new mongoose.Types.ObjectId(body.productId) : undefined,
-      videoPlayUrl:    body.videoPlayUrl ?? '',
-      thumbnailUrl:    body.thumbnailUrl ?? '',
-      isAd:            body.isAd ?? false,
-      section:         body.section ?? 'ads',
-      description:     body.description ?? '',
+      productId: body.productId ? new mongoose.Types.ObjectId(body.productId) : undefined,
+      videoPlayUrl: body.videoPlayUrl ?? '',
+      thumbnailUrl: body.thumbnailUrl ?? '',
+      isAd: body.isAd ?? false,
+      section: body.section ?? 'ads',
+      description: body.description ?? '',
       creator: body.creatorHandle ? { handle: body.creatorHandle, followers: 0 } : undefined,
-      metrics:    { viewCount: 0, likeCount: 0, commentCount: 0, shareCount: 0 },
+      metrics: { viewCount: 0, likeCount: 0, commentCount: 0, shareCount: 0 },
       ingestedAt: new Date(),
     });
 
-    res.status(201).json(
-      successResponse({ market, creative }, 'Creative created successfully.')
-    );
+    res.status(201).json(successResponse({ market, creative }, 'Creative created successfully.'));
   } catch (err) {
     next(err);
   }
 };
 
-export const deleteCreative = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const deleteCreative = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { id } = req.params as unknown as AdminDeleteContentParamInput;
     const market = toMarketCode((req.query as any).market);
-    const { Creative: MarketCreative } = getMarketModels(market);
-
-    const creative = await MarketCreative.findByIdAndDelete(id);
-    if (!creative) {
+    const result = await deleteCreativeAndOrphanProduct(market, id);
+    if (!result.creativeDeleted) {
       throw new AppError(404, 'Creative not found', 'CREATIVE_NOT_FOUND');
     }
 
+    const message = result.productDeleted
+      ? 'Creative deleted; product removed (no creatives remaining).'
+      : 'Creative permanently deleted successfully.';
+
     res.json(
-      successResponse({ id, market }, 'Creative permanently deleted successfully.')
+      successResponse(
+        { id, market, productDeleted: result.productDeleted, productId: result.productId },
+        message,
+      ),
     );
   } catch (err) {
     next(err);
   }
 };
 
-export const listWaitlist = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const listWaitlist = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const query = req.query as unknown as AdminWaitlistQueryInput;
     const data = await WaitlistService.list(query);
 
-    res.json(
-      successResponse(data, 'Waitlist entries retrieved successfully.')
-    );
+    res.json(successResponse(data, 'Waitlist entries retrieved successfully.'));
   } catch (err) {
     next(err);
   }

@@ -271,11 +271,15 @@ export const CreativeController = {
           return;
         }
         log.debug('S3 key configured but object missing', { id, s3Key });
+        res.status(404).json({ error: 'No playable video for this creative' });
+        return;
       }
 
-      const url = pickCreativeStreamVideoUrl(creative as Record<string, unknown>, index);
+      // S3-only playback when configured — do not proxy expiring TikTok CDN URLs (410 / unavailable in UI).
+      const url = isS3VideoConfigured()
+        ? undefined
+        : pickCreativeStreamVideoUrl(creative as Record<string, unknown>, index);
       if (!url) {
-        // Try a one-shot refresh to obtain a fresh videoPlayUrl / thumbnailUrl.
         const market = req.market ?? 'US';
         const refreshed = await CreativeService.refreshCreativeMedia(
           id,

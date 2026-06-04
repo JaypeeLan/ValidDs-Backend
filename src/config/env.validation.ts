@@ -228,8 +228,13 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   LOG_PRETTY: z.coerce.boolean().default(false),
   ENABLE_DEV_JOBS: z.coerce.boolean().default(false),
-  /** When false, in-process timers and manual `/jobs/*` triggers are no-ops. */
+  /** When false, job execution and `/jobs/*` triggers are no-ops. */
   ENABLE_BACKGROUND_JOBS: z.coerce.boolean().default(false),
+  /**
+   * When false, `startJobs()` does not register in-process timers (use Render/GitHub cron instead).
+   * Defaults to true when omitted — same as legacy behaviour with ENABLE_BACKGROUND_JOBS.
+   */
+  ENABLE_IN_PROCESS_SCHEDULERS: z.coerce.boolean().optional(),
 
   /** Bypass Redis for all product:* cache keys — reads always miss, writes are no-ops. */
   PRODUCT_CACHE_DISABLED: z.coerce.boolean().default(false),

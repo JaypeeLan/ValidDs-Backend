@@ -43,7 +43,6 @@
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
     "make-admin": "ts-node src/scripts/make-admin.ts",
     "dedupe-creatives": "node scripts/dedupe-creatives.cjs",
-    "fix-creative-sections": "node scripts/fix-creative-sections.cjs",
     "cache-creator-avatars": "ts-node --transpile-only scripts/cache-creator-avatars.ts",
     "cache-shop-avatars": "ts-node --transpile-only scripts/cache-shop-avatars.ts",
     "tester:ui": "node tools/backend-tester/server.js",

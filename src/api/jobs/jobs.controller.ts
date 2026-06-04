@@ -18,16 +18,17 @@ function respondJobsDisabled(res: Response): void {
     success: false,
     error: {
       code: 'JOBS_DISABLED',
-      message: 'Background jobs are disabled. Set ENABLE_BACKGROUND_JOBS=true to run schedulers.',
+      message:
+        'Background jobs are disabled. Set ENABLE_BACKGROUND_JOBS=true (external cron: docs/cron-jobs.md).',
     },
   });
 }
 
 /**
  * Jobs Controller
- * 
+ *
  * Provides endpoints to check background job status and trigger them manually.
- * Critical for Render Free Tier where internal timers (setInterval) might 
+ * Critical for Render Free Tier where internal timers (setInterval) might
  * be cleared if the instance sleeps.
  */
 export const JobsController = {
@@ -41,8 +42,8 @@ export const JobsController = {
       error: {
         code: 'METHOD_NOT_ALLOWED',
         message: `This endpoint requires a POST request. You sent a ${req.method}.`,
-        hint: 'If you are using cron-job.org, ensure the Method is set to POST and X-API-Key header is added.'
-      }
+        hint: 'If you are using cron-job.org, ensure the Method is set to POST and X-API-Key header is added.',
+      },
     });
   },
 
@@ -70,17 +71,18 @@ export const JobsController = {
       userAgent: req.headers['user-agent'],
       hasApiKey: !!req.headers['x-api-key'],
     });
-    
+
     // Do not block the HTTP request; run asynchronously with guard against overlaps.
     const trigger = triggerProductRefreshJob();
     if (!trigger.started) {
-      res.status(409).json(successResponse({ triggered: false }, 'Product refresh already running'));
+      res
+        .status(409)
+        .json(successResponse({ triggered: false }, 'Product refresh already running'));
       return;
     }
 
     res.json(successResponse({ triggered: true }, 'Product refresh job started in background'));
   },
-
 
   /**
    * POST /jobs/product-ingestion
@@ -96,7 +98,14 @@ export const JobsController = {
 
     const trigger = triggerProductIngestionJob();
     if (!trigger.started) {
-      res.status(409).json(successResponse({ triggered: false }, trigger.reason || 'Product ingestion already running'));
+      res
+        .status(409)
+        .json(
+          successResponse(
+            { triggered: false },
+            trigger.reason || 'Product ingestion already running',
+          ),
+        );
       return;
     }
 
@@ -117,7 +126,14 @@ export const JobsController = {
 
     const trigger = triggerCreativeIngestionJob();
     if (!trigger.started) {
-      res.status(409).json(successResponse({ triggered: false }, trigger.reason || 'Creative ingestion already running'));
+      res
+        .status(409)
+        .json(
+          successResponse(
+            { triggered: false },
+            trigger.reason || 'Creative ingestion already running',
+          ),
+        );
       return;
     }
 
@@ -138,7 +154,14 @@ export const JobsController = {
 
     const trigger = triggerLiveMonitorDiscoverJob();
     if (!trigger.started) {
-      res.status(409).json(successResponse({ triggered: false }, trigger.reason || 'Live monitor discover already running'));
+      res
+        .status(409)
+        .json(
+          successResponse(
+            { triggered: false },
+            trigger.reason || 'Live monitor discover already running',
+          ),
+        );
       return;
     }
 
@@ -155,9 +178,9 @@ export const JobsController = {
       return;
     }
     log.info('Manual stale cleanup triggered via API');
-    
+
     await runStaleCleanupJob();
-    
+
     res.json(successResponse({ triggered: true }, 'Stale cleanup job completed'));
-  }
+  },
 };

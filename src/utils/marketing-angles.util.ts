@@ -154,6 +154,12 @@ export function sortMarketingAnglesWithVideoFirst<T>(angles: T[] | undefined | n
   });
 }
 
+/** Drop angles that cannot stream from S3 (no videoProxyUrl). */
+export function filterMarketingAnglesWithPlayableVideo<T>(angles: T[] | undefined | null): T[] {
+  if (!Array.isArray(angles)) return [];
+  return angles.filter((angle) => angleHasPlayableVideo(angle));
+}
+
 /** Optional: keep normalized Ad Library link separate from videoUrl (not for inline player). */
 export function attachMetaAdLibraryUrlsToAngles<T extends Record<string, unknown>>(
   angles: T[],

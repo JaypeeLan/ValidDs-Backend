@@ -173,6 +173,14 @@ export function fillProductFieldGaps(raw: Record<string, unknown>): Record<strin
   }
   if (!ai.brand) ai.brand = String(out.shopName ?? '').slice(0, 80);
   if (!ai.niche) ai.niche = String(out.categoryL1 ?? 'General');
+  const audience = ai.audience;
+  if (!Array.isArray(audience) || audience.length === 0) {
+    const niche = String(ai.niche ?? out.categoryL1 ?? 'general').trim();
+    ai.audience = niche ? [niche] : ['general'];
+  }
+  if (!Array.isArray(ai.categoryKeywords) || ai.categoryKeywords.length === 0) {
+    ai.categoryKeywords = [String(out.categoryL1 ?? 'general').slice(0, 40)];
+  }
   if (!ai.problemStatement) {
     ai.problemStatement = String(out.description ?? '').slice(0, 500) || 'See product description.';
   }
@@ -388,6 +396,10 @@ export function productFieldCompletenessReasons(doc: Record<string, unknown>): s
       seen.add(r);
       reasons.push(r);
     }
+  }
+  const shopAvatarS3 = doc.shopAvatarS3Key;
+  if (typeof shopAvatarS3 === 'string' && shopAvatarS3.trim()) {
+    return reasons.filter((r) => !r.startsWith('shopAvatarUrl ')).slice(0, 40);
   }
   return reasons.slice(0, 40);
 }

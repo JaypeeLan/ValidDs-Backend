@@ -32,6 +32,7 @@ import {
   stripAngleExternalLinks,
   enrichAnglesWithVideoProxyUrls,
   enrichAnglesWithFallbackCreativeProxyUrls,
+  filterMarketingAnglesWithPlayableVideo,
   normalizeMarketingAngleVideoUrls,
   sortMarketingAnglesWithVideoFirst,
   stripNonPlayableAngleVideoUrls,
@@ -106,7 +107,9 @@ function buildAiInsight(
     opts.fallbackCreativeId,
     apiVersion,
   );
-  const angles = sortMarketingAnglesWithVideoFirst(stripAngleExternalLinks(withFallback));
+  const angles = filterMarketingAnglesWithPlayableVideo(
+    sortMarketingAnglesWithVideoFirst(stripAngleExternalLinks(withFallback)),
+  );
   const marketingAnalysis = ai.marketingAnalysis
     ? {
         ...ai.marketingAnalysis,
@@ -511,6 +514,7 @@ export const ProductController = {
         existing.totalViews += creative.metrics?.viewCount || 0;
 
         const card = formatCreativeFeedItem(creative);
+        if (typeof card.videoProxyUrl !== 'string' || !card.videoProxyUrl.trim()) continue;
         existing.videos.push({
           id: card.id,
           externalVideoId: card.externalVideoId,

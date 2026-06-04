@@ -1,4 +1,5 @@
 import { PRODUCT_CATEGORIES, SUBCATEGORIES_BY_CATEGORY } from '../api/products/product.constants';
+import { normalizeCategoryL2 } from './category-l2-normalize.util';
 
 /** L1 categories in canonical order, limited to those present in the database. */
 export function filterL1CategoriesWithProducts(dbL1: string[]): string[] {
@@ -16,13 +17,15 @@ export function filterSubcategoriesWithProducts(
 ): Record<string, string[]> | string[] {
   if (category) {
     const canonical = SUBCATEGORIES_BY_CATEGORY[category] ?? [];
-    const have = new Set((dbByL1[category] ?? []).map((s) => s.trim()).filter(Boolean));
+    const have = new Set(
+      (dbByL1[category] ?? []).map((s) => normalizeCategoryL2(category, s)).filter(Boolean),
+    );
     return canonical.filter((s) => have.has(s));
   }
 
   const out: Record<string, string[]> = {};
   for (const l1 of PRODUCT_CATEGORIES) {
-    const have = new Set((dbByL1[l1] ?? []).map((s) => s.trim()).filter(Boolean));
+    const have = new Set((dbByL1[l1] ?? []).map((s) => normalizeCategoryL2(l1, s)).filter(Boolean));
     const subs = (SUBCATEGORIES_BY_CATEGORY[l1] ?? []).filter((s) => have.has(s));
     if (subs.length > 0) {
       out[l1] = subs;

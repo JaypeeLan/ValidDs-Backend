@@ -13,6 +13,7 @@ import {
   applyProductMetricFilters,
 } from '../../utils/content-feed-filters.util';
 import { buildProductTextSearchStrings } from '../../utils/product-text-search.util';
+import { expandSubcategoryFilterValues } from '../../utils/category-l2-normalize.util';
 
 const log = logger.child({ module: 'product-repository' });
 
@@ -555,7 +556,9 @@ function applyProductFeedFilters(
   filters: ProductFeedFilters,
 ): void {
   if (filters.category?.length) query['categoryL1'] = { $in: filters.category };
-  if (filters.subcategory?.length) query['categoryL2'] = { $in: filters.subcategory };
+  if (filters.subcategory?.length) {
+    query['categoryL2'] = { $in: expandSubcategoryFilterValues(filters.subcategory) };
+  }
   if (filters.minPrice != null || filters.maxPrice != null) {
     query.price = {
       ...(filters.minPrice != null ? { $gte: filters.minPrice } : {}),

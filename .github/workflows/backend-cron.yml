@@ -1,0 +1,59 @@
+# Triggers background jobs on this API (separate repo / Render service).
+# Secrets: BACKEND_URL or CRON_BACKEND_URL, INTERNAL_API_KEY
+#
+# Schedules are UTC (Africa/Lagos = UTC+1).
+
+name: Backend cron jobs
+
+on:
+  schedule:
+    - cron: '0 23 * * *'
+    - cron: '5 23 * * *'
+    - cron: '0 11 * * *'
+    - cron: '*/5 * * * *'
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Job to run
+        required: true
+        type: choice
+        options:
+          - product-ingestion
+          - creative-ingestion
+          - stale-cleanup
+          - live-monitor-discover
+          - product-refresh
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve job name
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "job=${{ inputs.job }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "${{ github.event.schedule }}" in
+            "0 23 * * *") echo "job=product-ingestion" >> "$GITHUB_OUTPUT" ;;
+            "5 23 * * *") echo "job=creative-ingestion" >> "$GITHUB_OUTPUT" ;;
+            "0 11 * * *") echo "job=creative-ingestion" >> "$GITHUB_OUTPUT" ;;
+            "*/5 * * * *") echo "job=stale-cleanup" >> "$GITHUB_OUTPUT" ;;
+            "0 * * * *") echo "job=live-monitor-discover" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown schedule" >&2; exit 1 ;;
+          esac
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Trigger backend job
+        env:
+          CRON_BACKEND_URL: ${{ secrets.CRON_BACKEND_URL }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+        run: node cron/trigger-job.mjs "${{ steps.meta.outputs.job }}"

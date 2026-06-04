@@ -1,0 +1,21 @@
+# Example crontab entries (UTC). Install: crontab -e
+# Set CRON_BACKEND_URL and INTERNAL_API_KEY in the environment or inline below.
+#
+# SHELL=/bin/bash
+# CRON_BACKEND_URL=https://api.example.com
+# INTERNAL_API_KEY=your_internal_api_key_at_least_32_chars
+# NODE=/usr/local/bin/node
+# CRON_DIR=/path/to/validDs-backend
+
+# Daily 00:00 Africa/Lagos (23:00 UTC)
+0 23 * * * cd "$CRON_DIR" && "$NODE" cron/trigger-job.mjs product-ingestion
+
+# Creative ingestion — 00:05 and 12:00 Lagos (staggered from product)
+5 23 * * * cd "$CRON_DIR" && "$NODE" cron/trigger-job.mjs creative-ingestion
+0 11 * * * cd "$CRON_DIR" && "$NODE" cron/trigger-job.mjs creative-ingestion
+
+# Stale product cleanup (aligns with 24h markStaleProducts threshold when ingest is daily)
+*/5 * * * * cd "$CRON_DIR" && "$NODE" cron/trigger-job.mjs stale-cleanup
+
+# Watchlist / open LiveSession polling (ScrapeCreators)
+0 * * * * cd "$CRON_DIR" && "$NODE" cron/trigger-job.mjs live-monitor-discover

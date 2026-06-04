@@ -3,7 +3,6 @@
  */
 
 import type { MarketCode } from '../../utils/markets';
-import { isTikTokPostUrl } from '../../utils/tiktok-url.util';
 
 /** Baseline rules from scraper validate_product_for_insert (pre–strict tier). */
 export const BASELINE_INGEST = {
@@ -17,7 +16,8 @@ export const INGEST_QUALITY = {
   MAX_POST_AGE_DAYS: 30,
   MIN_RELATED_VIDEOS: 3,
   MIN_MARKETING_ANGLES: 5,
-  MIN_ANGLES_WITH_VIDEO: 1,
+  /** Optional at ingest — text-only angles are enough; video can be backfilled later. */
+  MIN_ANGLES_WITH_VIDEO: 0,
   /** Angle promo clips: no age limit (0). Listing id must match via shop card or anchor. */
   ANGLES_PROMO_MAX_AGE_DAYS: 0,
   MIN_REVIEWS: 5,
@@ -188,21 +188,12 @@ export function strictProductQualityReasons(
   if (angles.length < INGEST_QUALITY.MIN_MARKETING_ANGLES) {
     reasons.push(`need at least ${INGEST_QUALITY.MIN_MARKETING_ANGLES} marketing angles`);
   }
-  const anglesWithVideo = angles.filter((a) => {
-    const url = a.videoUrl;
-    return typeof url === 'string' && isTikTokPostUrl(url);
-  }).length;
-  if (anglesWithVideo < INGEST_QUALITY.MIN_ANGLES_WITH_VIDEO) {
-    reasons.push(
-      `need at least ${INGEST_QUALITY.MIN_ANGLES_WITH_VIDEO} angles with playable TikTok videoUrl`,
-    );
-  }
 
   const suppliers = doc.suppliers;
   if (!Array.isArray(suppliers) || suppliers.length < INGEST_QUALITY.MIN_SUPPLIERS) {
     const n = Array.isArray(suppliers) ? suppliers.length : 0;
     reasons.push(
-      `need at least ${INGEST_QUALITY.MIN_SUPPLIERS} suppliers (Shopify + Google Shopping); got ${n}`,
+      `need at least ${INGEST_QUALITY.MIN_SUPPLIERS} suppliers (Apify Shopify store leads); got ${n}`,
     );
   }
 

@@ -13,6 +13,8 @@ import type {
   ISecondaryVideo,
   IVideoMetrics,
 } from '../types/creative.types';
+import { isMetaCreative, metaAdIdFromCreative } from './meta-video-s3.util';
+import { normalizeMetaAdLibraryUrl } from './meta-ad-url.util';
 import { resolveEngagementTrend } from './product-trend.util';
 
 /** API `trending` ↔ DB `top-ads`; API `top-ads` ↔ DB `trending`. */
@@ -51,6 +53,11 @@ export const CREATIVE_TRENDING_MATCH = {
 export const CREATIVE_TOP_ADS_MATCH = {
   section: 'trending' as const,
   $or: [{ externalVideoId: { $regex: /^meta:/ } }, { isAd: true }],
+};
+/** Meta Ad Library rows only (DB section `trending`, API top-ads / related-ads). */
+export const CREATIVE_META_ADS_MATCH = {
+  section: 'trending' as const,
+  externalVideoId: { $regex: /^meta:/ },
 };
 export const CREATIVE_COMMERCIAL_MATCH = CREATIVE_TRENDING_MATCH;
 
@@ -399,18 +406,63 @@ function formatCreator(
   };
 }
 
+function buildCreativeProxyUrls(
+  creative: CreativePlain,
+  index: number,
+  baseUrl?: string,
+): { videoProxyUrl?: string; thumbnailProxyUrl?: string } {
+  if (!baseUrl || !creativeHasPlayableVideo(creative, index)) return {};
+  return {
+    videoProxyUrl: `${baseUrl}/video?index=${index}`,
+    thumbnailProxyUrl: `${baseUrl}/thumbnail?index=${index}&kind=thumbnail`,
+  };
+}
+
+/** Meta row with numeric Ad Library id and canonical viewer URL. */
+export function isVerifiedMetaCreative(creative: CreativePlain): boolean {
+  if (!isMetaCreative(creative)) return false;
+  if (!metaAdIdFromCreative(creative)) return false;
+  const rawUrl = String(
+    creative.metaAdLibraryUrl ??
+      creative.tiktokPostUrl ??
+      creative.embedUrl ??
+      creative.externalVideoId ??
+      '',
+  );
+  if (rawUrl.toLowerCase().includes('access_token=')) return false;
+  const canonical =
+    normalizeMetaAdLibraryUrl(rawUrl) ??
+    normalizeMetaAdLibraryUrl(String(creative.externalVideoId ?? ''));
+  return Boolean(canonical?.includes('facebook.com/ads/library/?id='));
+}
+
+export function shouldExposeCreativeInFeed(creative: CreativePlain): boolean {
+  if (!creativeHasPlayableVideo(creative, 0)) return false;
+  if (isMetaCreative(creative) && !isVerifiedMetaCreative(creative)) return false;
+  return true;
+}
+
 function formatSecondaryVideo(
   video: ISecondaryVideo,
   index: number,
   baseUrl?: string,
+  parent?: CreativePlain,
 ): CreativeApiItem['relatedVideos'][number] {
   const thumb = pickUrl(video.thumbnailUrl);
+  const proxy =
+    parent && baseUrl
+      ? buildCreativeProxyUrls(parent, index, baseUrl)
+      : pickUrl(video.videoS3Key) && baseUrl
+        ? {
+            videoProxyUrl: `${baseUrl}/video?index=${index}`,
+            thumbnailProxyUrl: `${baseUrl}/thumbnail?index=${index}&kind=thumbnail`,
+          }
+        : {};
   return {
     isPrimary: false,
     externalVideoId: video.externalVideoId,
     thumbnailUrl: thumb,
-    videoProxyUrl: baseUrl ? `${baseUrl}/video?index=${index}` : undefined,
-    thumbnailProxyUrl: baseUrl ? `${baseUrl}/thumbnail?index=${index}&kind=thumbnail` : undefined,
+    ...proxy,
     creator: formatCreator(video.creator, index, baseUrl),
     metrics: formatMetrics(video.metrics),
     topComments: video.topComments ?? [],
@@ -446,13 +498,14 @@ export function formatCreativeForApi(
   const creator = creative.creator as ICreatorProfile | undefined;
   const creatorAvatarUrl = resolveCreatorAvatarUrl(creative);
 
+  const primaryProxy = buildCreativeProxyUrls(creative, 0, baseUrl);
+
   const item: CreativeApiItem = {
     id,
     productId: String(creative.productId ?? ''),
     externalVideoId,
     thumbnailUrl: creative.thumbnailUrl as string | undefined,
-    videoProxyUrl: baseUrl ? `${baseUrl}/video?index=0` : undefined,
-    thumbnailProxyUrl: baseUrl ? `${baseUrl}/thumbnail?index=0&kind=thumbnail` : undefined,
+    ...primaryProxy,
     creator: formatCreator(creator, 0, baseUrl, creatorAvatarUrl),
     metrics: formatMetrics(creative.metrics as IVideoMetrics | undefined),
     section: apiSection,
@@ -483,7 +536,12 @@ export function formatCreativeForApi(
         seen.add(vid);
         slots.push(v);
       }
-      return slots.map((v, i) => formatSecondaryVideo(v, i + 1, baseUrl));
+      return slots
+        .map((v, slotIndex) => ({ v, slotIndex: slotIndex + 1 }))
+        .filter(({ v, slotIndex }) =>
+          Boolean(pickCreativeVideoS3Key(creative, slotIndex) || pickUrl(v.videoS3Key)),
+        )
+        .map(({ v, slotIndex }) => formatSecondaryVideo(v, slotIndex, baseUrl, creative));
     })(),
     productRating: creative.productRating as number | null | undefined,
     productTotalSales: creative.productTotalSales as number | null | undefined,
@@ -512,6 +570,13 @@ export function formatCreativeFeedItem(input: unknown): CreativeFeedItem {
   const full = formatCreativeForApi(input, { includeProductDescription: false });
   // List endpoints return one card per creative doc; nested slots are detail-only.
   return { ...full, relatedVideos: [] };
+}
+
+/** Drop creatives that are not playable or (for Meta) not verified Ad Library rows. */
+export function filterPlayableCreativeFeedItems<T extends CreativeFeedItem>(items: T[]): T[] {
+  return items.filter(
+    (item) => typeof item.videoProxyUrl === 'string' && item.videoProxyUrl.trim().length > 0,
+  );
 }
 
 export function formatCreativeCreatorFeedItem(

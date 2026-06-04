@@ -2,6 +2,7 @@ import {
   angleHasPlayableVideo,
   enrichAnglesWithMetaVideoProxyUrls,
   enrichAnglesWithFallbackCreativeProxyUrls,
+  filterMarketingAnglesWithPlayableVideo,
   sortMarketingAnglesWithVideoFirst,
 } from '../src/utils/marketing-angles.util';
 
@@ -35,6 +36,15 @@ describe('marketing-angles.util', () => {
       '/api/v1/creatives/creative_meta_1/thumbnail?index=0&kind=thumbnail',
     );
     expect(out[0]?.metaAdLibraryUrl).toBeUndefined();
+  });
+
+  it('filterMarketingAnglesWithPlayableVideo drops angles without proxy', () => {
+    const out = filterMarketingAnglesWithPlayableVideo([
+      { hook: 'text only' },
+      { hook: 'playable', videoProxyUrl: '/api/v1/creatives/x/video' },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]?.hook).toBe('playable');
   });
 
   it('sorts angles with video first', () => {

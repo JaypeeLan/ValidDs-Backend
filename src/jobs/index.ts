@@ -91,6 +91,12 @@ export function isBackgroundJobsEnabled(): boolean {
   return true;
 }
 
+/** In-process setInterval/setTimeout schedulers (off when using external HTTP cron). */
+export function isInProcessSchedulersEnabled(): boolean {
+  if (!isBackgroundJobsEnabled()) return false;
+  return env.ENABLE_IN_PROCESS_SCHEDULERS ?? true;
+}
+
 export function triggerProductRefreshJob(): { started: boolean; reason?: string } {
   if (!isBackgroundJobsEnabled()) {
     return { started: false, reason: 'Background jobs are disabled' };
@@ -249,6 +255,7 @@ export function triggerLiveMonitorDiscoverJob(): { started: boolean; reason?: st
 
 export function getJobsStatus() {
   return {
+    inProcessSchedulers: isInProcessSchedulersEnabled(),
     timers: {
       staleCleanup: !!staleCleanupTimer,
       productIngestion: !!productIngestionInterval || !!productIngestionTimeout,
@@ -256,9 +263,9 @@ export function getJobsStatus() {
       liveMonitorDiscover: !!liveMonitorInterval || !!liveMonitorTimeout,
     },
     lastRuns: {
-      productRefresh:    lastProductRefreshRun,
-      staleCleanup:      lastStaleCleanupRun,
-      productIngestion:  lastProductIngestionRun,
+      productRefresh: lastProductRefreshRun,
+      staleCleanup: lastStaleCleanupRun,
+      productIngestion: lastProductIngestionRun,
       creativeIngestion: lastCreativeIngestionRun,
       liveMonitorDiscover: lastLiveMonitorRun,
     },
@@ -305,6 +312,13 @@ export function startJobs(): void {
     return;
   }
 
+  if (!isInProcessSchedulersEnabled()) {
+    log.info('In-process job schedulers disabled — use POST /api/v1/jobs/* or external cron', {
+      enableInProcessSchedulers: env.ENABLE_IN_PROCESS_SCHEDULERS,
+    });
+    return;
+  }
+
   staleCleanupTimer = setInterval(() => {
     lastStaleCleanupRun = new Date();
     runStaleCleanupJob().catch((err) => log.error('Stale cleanup job failed', err));
@@ -319,12 +333,18 @@ export function startJobs(): void {
   const creativeDelay = getDelayUntilNextLagosHours(CREATIVE_INGESTION_HOURS_LAGOS);
   creativeIngestionTimeout = setTimeout(() => {
     triggerCreativeIngestionJob();
-    creativeIngestionInterval = setInterval(() => triggerCreativeIngestionJob(), HALF_DAY_INTERVAL_MS);
+    creativeIngestionInterval = setInterval(
+      () => triggerCreativeIngestionJob(),
+      HALF_DAY_INTERVAL_MS,
+    );
   }, creativeDelay);
 
   liveMonitorTimeout = setTimeout(() => {
     triggerLiveMonitorDiscoverJob();
-    liveMonitorInterval = setInterval(() => triggerLiveMonitorDiscoverJob(), LIVE_MONITOR_INTERVAL_MS);
+    liveMonitorInterval = setInterval(
+      () => triggerLiveMonitorDiscoverJob(),
+      LIVE_MONITOR_INTERVAL_MS,
+    );
   }, LIVE_MONITOR_INITIAL_DELAY_MS);
 }
 

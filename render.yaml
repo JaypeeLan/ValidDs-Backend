@@ -1,0 +1,77 @@
+# Render Blueprint — ValidDs API (this repo root only)
+# https://render.com/docs/blueprint-spec
+#
+# Host separately from scraper/ and live-scrapper/. Cron jobs call this API over HTTPS.
+# See docs/cron-jobs.md. Schedules are UTC (Africa/Lagos = UTC+1).
+#
+# API env when using these crons:
+#   ENABLE_BACKGROUND_JOBS=true
+#   ENABLE_IN_PROCESS_SCHEDULERS=false
+
+envVarGroups:
+  - name: validds-backend-cron
+    envVars:
+      - key: CRON_BACKEND_URL
+        sync: false
+      - key: INTERNAL_API_KEY
+        sync: false
+      - key: API_VERSION
+        value: v1
+
+services:
+  # Uncomment and fill if deploying the web service from this blueprint:
+  # - type: web
+  #   name: validds-api
+  #   runtime: node
+  #   buildCommand: npm ci && npm run build
+  #   startCommand: npm start
+  #   envVars:
+  #     - key: ENABLE_BACKGROUND_JOBS
+  #       value: "true"
+  #     - key: ENABLE_IN_PROCESS_SCHEDULERS
+  #       value: "false"
+
+  - type: cron
+    name: validds-cron-product-ingestion
+    runtime: node
+    schedule: '0 23 * * *'
+    buildCommand: 'true'
+    startCommand: node cron/trigger-job.mjs product-ingestion
+    envVars:
+      - fromGroup: validds-backend-cron
+
+  - type: cron
+    name: validds-cron-creative-ingestion-midnight
+    runtime: node
+    schedule: '5 23 * * *'
+    buildCommand: 'true'
+    startCommand: node cron/trigger-job.mjs creative-ingestion
+    envVars:
+      - fromGroup: validds-backend-cron
+
+  - type: cron
+    name: validds-cron-creative-ingestion-noon
+    runtime: node
+    schedule: '0 11 * * *'
+    buildCommand: 'true'
+    startCommand: node cron/trigger-job.mjs creative-ingestion
+    envVars:
+      - fromGroup: validds-backend-cron
+
+  - type: cron
+    name: validds-cron-stale-cleanup
+    runtime: node
+    schedule: '*/5 * * * *'
+    buildCommand: 'true'
+    startCommand: node cron/trigger-job.mjs stale-cleanup
+    envVars:
+      - fromGroup: validds-backend-cron
+
+  - type: cron
+    name: validds-cron-live-monitor
+    runtime: node
+    schedule: '0 * * * *'
+    buildCommand: 'true'
+    startCommand: node cron/trigger-job.mjs live-monitor-discover
+    envVars:
+      - fromGroup: validds-backend-cron

@@ -1,5 +1,6 @@
 import { Creative, type ICreativeDocument } from '../models/creative.model';
 import { Product } from '../models/product.model';
+import { getMarketModels } from '../models/market-models.factory';
 import type {
   CreativeCreatorFeedItem,
   CreativeFeedItem,
@@ -16,10 +17,13 @@ import type { AwemeMediaPatch } from '../utils/aweme-media.util';
 import {
   apiSectionToDb,
   CREATIVE_COMMERCIAL_MATCH,
-  CREATIVE_TOP_ADS_MATCH,
+  CREATIVE_META_ADS_MATCH,
   formatCreativeFeedItem,
   formatCreativeCreatorFeedItem,
   formatCreativeForApi,
+  filterPlayableCreativeFeedItems,
+  shouldExposeCreativeInFeed,
+  isVerifiedMetaCreative,
   creativeAdDedupeAggregationStages,
 } from '../utils/creative-response.util';
 import { extractMetaAdIdFromUrl } from '../utils/meta-ad-url.util';
@@ -39,11 +43,45 @@ export {
   apiSectionToDb,
   dbSectionToApi,
   CREATIVE_COMMERCIAL_MATCH,
+  CREATIVE_META_ADS_MATCH,
   CREATIVE_TOP_ADS_MATCH,
   CREATIVE_TRENDING_MATCH,
 } from '../utils/creative-response.util';
 
 const log = logger.child({ module: 'creative-service' });
+
+/** Delete a creative; remove its product when that was the only linked creative. */
+export async function deleteCreativeAndOrphanProduct(
+  market: MarketCode,
+  creativeId: string,
+): Promise<{ creativeDeleted: boolean; productDeleted: boolean; productId?: string }> {
+  const { Creative: MarketCreative, Product: MarketProduct } = getMarketModels(market);
+  const creative = await MarketCreative.findById(creativeId).select('productId').lean();
+  if (!creative?.productId) {
+    return { creativeDeleted: false, productDeleted: false };
+  }
+
+  const productId = creative.productId;
+  await MarketCreative.findByIdAndDelete(creativeId);
+
+  const remaining = await MarketCreative.countDocuments({ productId });
+  let productDeleted = false;
+  if (remaining === 0) {
+    await MarketProduct.findByIdAndDelete(productId);
+    productDeleted = true;
+    log.info('Deleted product — last creative removed', {
+      market,
+      productId: String(productId),
+      creativeId,
+    });
+  }
+
+  return {
+    creativeDeleted: true,
+    productDeleted,
+    productId: String(productId),
+  };
+}
 
 function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -202,7 +240,10 @@ async function loadCreativesForProduct(
     .exec()) as Record<string, unknown>[];
 
   const enriched = await enrichCreativesWithResolvedVideoS3Keys(docs, creativeModel);
-  return enriched.map((doc) => formatCreativeFeedItem(doc));
+  const items = enriched
+    .filter((doc) => shouldExposeCreativeInFeed(doc))
+    .map((doc) => formatCreativeFeedItem(doc));
+  return filterPlayableCreativeFeedItems(items);
 }
 
 /** TikTok video id or Meta ad id → creative Mongo id for angle videoProxyUrl. */
@@ -259,6 +300,7 @@ export async function loadPlayableVideoIndexForProduct(
   }
 
   for (const doc of metaDocs) {
+    if (!isVerifiedMetaCreative(doc as Record<string, unknown>)) continue;
     const storedKey =
       typeof doc.videoS3Key === 'string' && doc.videoS3Key.trim() ? doc.videoS3Key.trim() : '';
     if (!storedKey) continue;
@@ -288,13 +330,13 @@ export async function findCreativesByProductId(
   return loadCreativesForProduct(productId, creativeModel, CREATIVE_COMMERCIAL_MATCH, limit);
 }
 
-/** Ad creatives only for a product (`GET /products/:id` → `relatedAds`). */
+/** Ad creatives only for a product (`GET /products/:id` → `relatedAds`). Meta + playable only. */
 export async function findRelatedAdsByProductId(
   productId: string,
   creativeModel: Model<ICreativeDocument> = Creative,
   limit = PRODUCT_CREATIVE_LIMIT,
 ): Promise<CreativeFeedItem[]> {
-  return loadCreativesForProduct(productId, creativeModel, CREATIVE_TOP_ADS_MATCH, limit);
+  return loadCreativesForProduct(productId, creativeModel, CREATIVE_META_ADS_MATCH, limit);
 }
 
 /** Embedded secondary videos on a creative document (`GET /creatives/:id/related-videos`). */
@@ -468,15 +510,20 @@ export const CreativeService = {
     const rawData = result?.data ?? [];
     const total = result?.total[0]?.count ?? 0;
     const enriched = await enrichCreativesWithResolvedVideoS3Keys(rawData, creativeModel);
-    const data = groupByCreator
-      ? enriched.map((doc) => {
-          const { videoCount, ...creative } = doc;
-          return formatCreativeCreatorFeedItem(
-            creative,
-            typeof videoCount === 'number' ? videoCount : Number(videoCount) || 0,
-          );
-        })
-      : enriched.map((doc) => formatCreativeFeedItem(doc));
+    const rawItems = groupByCreator
+      ? enriched
+          .filter((doc) => shouldExposeCreativeInFeed(doc))
+          .map((doc) => {
+            const { videoCount, ...creative } = doc;
+            return formatCreativeCreatorFeedItem(
+              creative,
+              typeof videoCount === 'number' ? videoCount : Number(videoCount) || 0,
+            );
+          })
+      : enriched
+          .filter((doc) => shouldExposeCreativeInFeed(doc))
+          .map((doc) => formatCreativeFeedItem(doc));
+    const data = filterPlayableCreativeFeedItems(rawItems);
     return {
       data,
       pagination: {

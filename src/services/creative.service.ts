@@ -25,6 +25,7 @@ import {
   shouldExposeCreativeInFeed,
   isVerifiedMetaCreative,
   creativeAdDedupeAggregationStages,
+  creativeFeedExposureMatchStage,
 } from '../utils/creative-response.util';
 import { extractMetaAdIdFromUrl } from '../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../utils/tiktok-url.util';
@@ -210,6 +211,122 @@ async function syncProductCreatorAvatar(
 }
 
 const PRODUCT_CREATIVE_LIMIT = 100;
+const MAX_PAGE_FILL_ROUNDS = 8;
+
+type CreativeFeedDoc = Record<string, unknown>;
+
+function buildCreativeFeedBaseStages(
+  query: Record<string, unknown>,
+  sortKey: string,
+  sort: Record<string, unknown>,
+): PipelineStage[] {
+  return [
+    { $match: query },
+    creativeFeedExposureMatchStage() as PipelineStage,
+    ...(sortKey === 'recent' ? [] : [{ $addFields: recencyTierAddFields() }]),
+    { $sort: sort as PipelineStage.Sort['$sort'] },
+    ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
+    { $unset: ['productDescription', '_recencyTier', '_postDate', 'adDedupeKey'] },
+    { $sort: sort as PipelineStage.Sort['$sort'] },
+  ];
+}
+
+function buildCreativeFeedGroupByCreatorStages(sort: Record<string, unknown>): PipelineStage[] {
+  return [
+    {
+      $match: {
+        'creator.handle': { $type: 'string', $regex: /\S/ },
+      },
+    },
+    {
+      $group: {
+        _id: { $toLower: { $trim: { input: '$creator.handle' } } },
+        creative: { $first: '$$ROOT' },
+        videoCount: { $sum: 1 },
+      },
+    },
+    {
+      $replaceRoot: {
+        newRoot: {
+          $mergeObjects: ['$creative', { videoCount: '$videoCount' }],
+        },
+      },
+    },
+    { $sort: sort as PipelineStage.Sort['$sort'] },
+  ];
+}
+
+async function countCreativeFeed(
+  creativeModel: Model<ICreativeDocument>,
+  baseStages: PipelineStage[],
+  groupByCreator: boolean,
+  sort: Record<string, unknown>,
+): Promise<number> {
+  const countStages = groupByCreator
+    ? [...baseStages, ...buildCreativeFeedGroupByCreatorStages(sort)]
+    : baseStages;
+  const [result] = (await creativeModel
+    .aggregate([...countStages, { $count: 'count' }])
+    .option({ maxTimeMS: 15_000 })
+    .exec()) as [{ count: number }] | [];
+  return result?.count ?? 0;
+}
+
+async function fetchCreativeFeedBatch(
+  creativeModel: Model<ICreativeDocument>,
+  baseStages: PipelineStage[],
+  groupByCreator: boolean,
+  sort: Record<string, unknown>,
+  skip: number,
+  limit: number,
+): Promise<CreativeFeedDoc[]> {
+  const dataStages = groupByCreator
+    ? [
+        ...baseStages,
+        ...buildCreativeFeedGroupByCreatorStages(sort),
+        { $skip: skip },
+        { $limit: limit },
+      ]
+    : [...baseStages, { $skip: skip }, { $limit: limit }];
+
+  return (await creativeModel
+    .aggregate(dataStages)
+    .option({ maxTimeMS: 15_000 })
+    .exec()) as CreativeFeedDoc[];
+}
+
+async function fillCreativeFeedPage(
+  creativeModel: Model<ICreativeDocument>,
+  baseStages: PipelineStage[],
+  groupByCreator: boolean,
+  sort: Record<string, unknown>,
+  skip: number,
+  mLimit: number,
+): Promise<CreativeFeedDoc[]> {
+  const collected: CreativeFeedDoc[] = [];
+  let cursor = skip;
+  const batchSize = Math.max(mLimit * 2, mLimit + 4);
+
+  for (let round = 0; round < MAX_PAGE_FILL_ROUNDS && collected.length < mLimit; round++) {
+    const batch = await fetchCreativeFeedBatch(
+      creativeModel,
+      baseStages,
+      groupByCreator,
+      sort,
+      cursor,
+      batchSize,
+    );
+    if (!batch.length) break;
+
+    const enriched = await enrichCreativesWithResolvedVideoS3Keys(batch, creativeModel);
+    const filtered = enriched.filter((doc) => shouldExposeCreativeInFeed(doc));
+    collected.push(...filtered);
+    cursor += batch.length;
+    if (batch.length < batchSize) break;
+  }
+
+  return collected.slice(0, mLimit);
+}
 
 async function loadCreativesForProduct(
   productId: string,
@@ -221,28 +338,18 @@ async function loadCreativesForProduct(
 
   const mLimit = Math.min(Math.max(limit, 1), 100);
   const videoSort = creativeRecencyPrioritySortSpec('views');
-  const docs = (await creativeModel
-    .aggregate([
-      {
-        $match: {
-          productId: new mongoose.Types.ObjectId(productId),
-          ...extraFilter,
-        },
-      },
-      { $addFields: recencyTierAddFields() },
-      { $sort: videoSort },
-      ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
-      { $sort: videoSort },
-      { $limit: mLimit },
-      { $unset: ['productDescription', '_recencyTier', '_postDate'] },
-    ])
-    .option({ maxTimeMS: 15_000 })
-    .exec()) as Record<string, unknown>[];
+  const baseStages = buildCreativeFeedBaseStages(
+    {
+      productId: new mongoose.Types.ObjectId(productId),
+      ...extraFilter,
+    },
+    'views',
+    videoSort,
+  );
 
-  const enriched = await enrichCreativesWithResolvedVideoS3Keys(docs, creativeModel);
-  const items = enriched
-    .filter((doc) => shouldExposeCreativeInFeed(doc))
-    .map((doc) => formatCreativeFeedItem(doc));
+  const docs = await fillCreativeFeedPage(creativeModel, baseStages, false, videoSort, 0, mLimit);
+
+  const items = docs.map((doc) => formatCreativeFeedItem(doc));
   return filterPlayableCreativeFeedItems(items);
 }
 
@@ -450,79 +557,23 @@ export const CreativeService = {
             sortKey === 'likes' ? 'likes' : sortKey === 'engagement' ? 'engagement' : 'views',
           );
 
-    const baseStages: PipelineStage[] = [
-      { $match: query },
-      ...(sortKey === 'recent' ? [] : [{ $addFields: recencyTierAddFields() }]),
-      { $sort: sort },
-      ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
-      { $unset: ['productDescription', '_recencyTier', '_postDate', 'adDedupeKey'] },
-      { $sort: sort },
-    ];
-
+    const baseStages = buildCreativeFeedBaseStages(query, sortKey, sort);
     const groupByCreator = groupBy === 'creator';
-    const pipeline: PipelineStage[] = groupByCreator
-      ? [
-          ...baseStages,
-          {
-            $match: {
-              'creator.handle': { $type: 'string', $regex: /\S/ },
-            },
-          },
-          {
-            $group: {
-              _id: { $toLower: { $trim: { input: '$creator.handle' } } },
-              creative: { $first: '$$ROOT' },
-              videoCount: { $sum: 1 },
-            },
-          },
-          {
-            $replaceRoot: {
-              newRoot: {
-                $mergeObjects: ['$creative', { videoCount: '$videoCount' }],
-              },
-            },
-          },
-          { $sort: sort },
-          {
-            $facet: {
-              data: [{ $skip: skip }, { $limit: mLimit }],
-              total: [{ $count: 'count' }],
-            },
-          },
-        ]
-      : [
-          ...baseStages,
-          {
-            $facet: {
-              data: [{ $skip: skip }, { $limit: mLimit }],
-              total: [{ $count: 'count' }],
-            },
-          },
-        ];
 
-    const [result] = (await creativeModel.aggregate(pipeline).exec()) as [
-      {
-        data: Record<string, unknown>[];
-        total: [{ count: number }] | [];
-      },
-    ];
+    const [total, rawData] = await Promise.all([
+      countCreativeFeed(creativeModel, baseStages, groupByCreator, sort),
+      fillCreativeFeedPage(creativeModel, baseStages, groupByCreator, sort, skip, mLimit),
+    ]);
 
-    const rawData = result?.data ?? [];
-    const total = result?.total[0]?.count ?? 0;
-    const enriched = await enrichCreativesWithResolvedVideoS3Keys(rawData, creativeModel);
     const rawItems = groupByCreator
-      ? enriched
-          .filter((doc) => shouldExposeCreativeInFeed(doc))
-          .map((doc) => {
-            const { videoCount, ...creative } = doc;
-            return formatCreativeCreatorFeedItem(
-              creative,
-              typeof videoCount === 'number' ? videoCount : Number(videoCount) || 0,
-            );
-          })
-      : enriched
-          .filter((doc) => shouldExposeCreativeInFeed(doc))
-          .map((doc) => formatCreativeFeedItem(doc));
+      ? rawData.map((doc) => {
+          const { videoCount, ...creative } = doc;
+          return formatCreativeCreatorFeedItem(
+            creative,
+            typeof videoCount === 'number' ? videoCount : Number(videoCount) || 0,
+          );
+        })
+      : rawData.map((doc) => formatCreativeFeedItem(doc));
     const data = filterPlayableCreativeFeedItems(rawItems);
     return {
       data,

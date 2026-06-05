@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { env } from '../../config/env.validation';
 import { AppError } from '../../middleware/error.middleware';
 import { logger } from '../../logger';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
@@ -27,7 +26,6 @@ const log = logger.child({ module: 'store-controller' });
  *  POST  /api/v1/stores/shopify/products  → Push a ValidDs product to Shopify
  */
 export const StoreController = {
-
   /**
    * GET /shopify/app — Partner **App URL** (public distribution install checks).
    * Immediately redirects to Shopify OAuth (no ValidDs JWT required).
@@ -39,7 +37,10 @@ export const StoreController = {
     try {
       const shop = typeof req.query.shop === 'string' ? req.query.shop : '';
       if (!shop) {
-        res.redirect(302, ShopifyService.appUiRedirectUrl({ status: 'error', message: 'Missing shop' }));
+        res.redirect(
+          302,
+          ShopifyService.appUiRedirectUrl({ status: 'error', message: 'Missing shop' }),
+        );
         return;
       }
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -56,7 +57,10 @@ export const StoreController = {
 
       const shop = ShopifyService.normalizeShop(query.shop);
 
-      if (query.hmac && !ShopifyService.verifyHmac(req.query as Record<string, string | string[] | undefined>)) {
+      if (
+        query.hmac &&
+        !ShopifyService.verifyHmac(req.query as Record<string, string | string[] | undefined>)
+      ) {
         throw new AppError(400, 'Invalid HMAC on App URL request', 'SHOPIFY_INVALID_HMAC');
       }
 
@@ -95,8 +99,8 @@ export const StoreController = {
                 "It looks like you don't have a Shopify store yet. Create one first, then come back and connect it.",
             },
             ResponseMessage.SUCCESS,
-            200
-          )
+            200,
+          ),
         );
         return;
       }
@@ -112,8 +116,8 @@ export const StoreController = {
             state,
           },
           ResponseMessage.SUCCESS,
-          200
-        )
+          200,
+        ),
       );
     } catch (err) {
       next(err);
@@ -174,9 +178,8 @@ export const StoreController = {
     } catch (err) {
       // If anything goes wrong, redirect the user back to the frontend with
       // an error indicator instead of dumping a stack trace in the browser.
-      const message =
-        err instanceof AppError ? err.message : 'Shopify connection failed';
-      const code = err instanceof AppError ? err.code ?? 'SHOPIFY_ERROR' : 'SHOPIFY_ERROR';
+      const message = err instanceof AppError ? err.message : 'Shopify connection failed';
+      const code = err instanceof AppError ? (err.code ?? 'SHOPIFY_ERROR') : 'SHOPIFY_ERROR';
       log.warn('Shopify callback failed', { message, code });
       try {
         res.redirect(
@@ -229,8 +232,8 @@ export const StoreController = {
             connection: ShopifyService.publicConnectionView(conn),
           },
           ResponseMessage.SUCCESS,
-          200
-        )
+          200,
+        ),
       );
     } catch (err) {
       next(err);
@@ -247,13 +250,7 @@ export const StoreController = {
     try {
       await ShopifyService.disconnect(String(req.user!._id));
       log.info('Shopify store disconnected', { userId: req.user!.id });
-      res.json(
-        successResponse(
-          { disconnected: true },
-          ResponseMessage.SHOPIFY_DISCONNECTED,
-          200
-        )
-      );
+      res.json(successResponse({ disconnected: true }, ResponseMessage.SHOPIFY_DISCONNECTED, 200));
     } catch (err) {
       next(err);
     }
@@ -277,11 +274,7 @@ export const StoreController = {
       const { Product: MarketProduct } = getMarketModels(market);
       const product = await MarketProduct.findById(input.productId);
       if (!product) {
-        throw new AppError(
-          404,
-          `Product not found in market ${market}`,
-          'PRODUCT_NOT_FOUND',
-        );
+        throw new AppError(404, `Product not found in market ${market}`, 'PRODUCT_NOT_FOUND');
       }
 
       const created = await ShopifyService.createProductFromDbProduct(user, product, {
@@ -289,13 +282,9 @@ export const StoreController = {
         status: input.status,
       });
 
-      res.status(201).json(
-        successResponse(
-          { product: created },
-          ResponseMessage.SHOPIFY_PRODUCT_PUSHED,
-          201
-        )
-      );
+      res
+        .status(201)
+        .json(successResponse({ product: created }, ResponseMessage.SHOPIFY_PRODUCT_PUSHED, 201));
     } catch (err) {
       next(err);
     }

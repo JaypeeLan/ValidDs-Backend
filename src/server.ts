@@ -86,7 +86,6 @@ async function start(): Promise<void> {
   }
 }
 
-
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
 
 async function shutdown(signal: string): Promise<void> {
@@ -97,13 +96,8 @@ async function shutdown(signal: string): Promise<void> {
     log.info('HTTP server closed');
 
     try {
-      await Promise.all([
-        disconnectMongo(),
-        disconnectRedis(),
-      ]);
-      stopJobs(),
-
-      log.info('All connections closed. Goodbye.');
+      await Promise.all([disconnectMongo(), disconnectRedis()]);
+      (stopJobs(), log.info('All connections closed. Goodbye.'));
       process.exit(0);
     } catch (err) {
       log.error('Error during shutdown', err);
@@ -130,7 +124,10 @@ process.on('unhandledRejection', (reason) => {
 /** ts-node-dev can throw EPIPE when the parent restarts mid hot-reload (harmless). */
 function isBenignDevReloadError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
-  const code = (err as NodeJS.ErrnoException).code;
+  const code =
+    err && typeof err === 'object' && 'code' in err
+      ? String((err as { code?: unknown }).code)
+      : undefined;
   if (code !== 'EPIPE') return false;
   const stack = (err as Error).stack ?? '';
   return env.NODE_ENV === 'development' && stack.includes('ts-node-dev');

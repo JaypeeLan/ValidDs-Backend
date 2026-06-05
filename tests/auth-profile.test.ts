@@ -1,11 +1,10 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { Server } from 'http';
-import http from 'http';
 import type { AddressInfo } from 'net';
 
 /**
  * Authentication and Profile Integration Tests
- * 
+ *
  * Tests the end-to-end flow:
  * register -> verify email -> login -> fetch profile -> update profile
  */
@@ -70,7 +69,7 @@ process.env.NODE_ENV = 'test';
 process.env.INTERNAL_API_KEY = 'k'.repeat(32);
 process.env.JWT_SECRET = 'x'.repeat(32);
 process.env.ENCRYPTION_KEY = 'a'.repeat(64);
-process.env.MONGODB_URI = 'mongodb://localhost:27017/test'; 
+process.env.MONGODB_URI = 'mongodb://localhost:27017/test';
 
 describe('Auth + Profile', () => {
   let mongo: MongoMemoryServer;
@@ -138,7 +137,10 @@ describe('Auth + Profile', () => {
       }
 
       // Mock TikTok Token/Info
-      if (url.includes('tiktokapis.com/v2/oauth/token') || url.includes('tiktokapis.com/v2/user/info')) {
+      if (
+        url.includes('tiktokapis.com/v2/oauth/token') ||
+        url.includes('tiktokapis.com/v2/user/info')
+      ) {
         if (url.includes('user/info')) {
           return {
             ok: true,
@@ -150,8 +152,8 @@ describe('Auth + Profile', () => {
                   display_name: 'TikTok User',
                   avatar_url: 'https://example.com/tk.jpg',
                   open_id: 'tk-open-id',
-                }
-              }
+                },
+              },
             }),
           };
         }
@@ -208,9 +210,9 @@ describe('Auth + Profile', () => {
     expect(registerRes.json.success).toBe(true);
 
     // 2. Get code
-    const lastEmail = sentEmails.find(e => e.to === email);
+    const lastEmail = sentEmails.find((e) => e.to === email);
     expect(lastEmail).toBeDefined();
-    
+
     const verificationCode = extractSixDigitCode(lastEmail!.html);
     expect(verificationCode).toHaveLength(6);
 
@@ -234,7 +236,7 @@ describe('Auth + Profile', () => {
 
     expect(completeRes.status).toBe(200);
     expect(completeRes.json.success).toBe(true);
-    
+
     const token = completeRes.json.data.token;
     expect(token).toBeDefined();
 
@@ -335,9 +337,9 @@ describe('Auth + Profile', () => {
       baseUrl,
       method: 'POST',
       path: '/api/v1/auth/tiktok',
-      body: { 
+      body: {
         code: 'fake-tiktok-code',
-        redirectUri: 'http://localhost:3001/auth/tiktok/callback'
+        redirectUri: 'http://localhost:3001/auth/tiktok/callback',
       },
     });
 

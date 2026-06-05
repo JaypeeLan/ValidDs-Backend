@@ -54,7 +54,6 @@ export interface TokenPayload {
 // ── Google OAuth ──────────────────────────────────────────────────────────────
 
 export const AuthService = {
-
   /**
    * Find or create a user from a verified Google profile.
    * Called after Google OAuth callback verifies the code.
@@ -142,7 +141,7 @@ export const AuthService = {
       throw new UnauthorizedError('Google authentication failed');
     }
 
-    const tokens = await tokenRes.json() as {
+    const tokens = (await tokenRes.json()) as {
       access_token: string;
       refresh_token?: string;
       id_token: string;
@@ -157,7 +156,7 @@ export const AuthService = {
       throw new UnauthorizedError('Failed to fetch Google profile');
     }
 
-    const googleUser = await profileRes.json() as {
+    const googleUser = (await profileRes.json()) as {
       id: string;
       email: string;
       name: string;
@@ -184,15 +183,18 @@ export const AuthService = {
       throw new AppError(500, 'Google OAuth not configured', 'OAUTH_NOT_CONFIGURED');
     }
 
-    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`, {
-      method: 'GET',
-    });
+    const res = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
+      {
+        method: 'GET',
+      },
+    );
 
     if (!res.ok) {
       throw new UnauthorizedError('Google authentication failed');
     }
 
-    const payload = await res.json() as {
+    const payload = (await res.json()) as {
       aud?: string;
       sub?: string;
       email?: string;
@@ -223,7 +225,10 @@ export const AuthService = {
 
   // ── TikTok OAuth ───────────────────────────────────────────────────────────
 
-  async exchangeTikTokCode(code: string, redirectUri: string): Promise<{
+  async exchangeTikTokCode(
+    code: string,
+    redirectUri: string,
+  ): Promise<{
     openId: string;
     unionId?: string;
     displayName: string;
@@ -252,7 +257,7 @@ export const AuthService = {
       throw new UnauthorizedError('TikTok authentication failed');
     }
 
-    const tokenJson = await tokenRes.json() as {
+    const tokenJson = (await tokenRes.json()) as {
       access_token?: string;
       open_id?: string;
       data?: { access_token?: string; open_id?: string };
@@ -264,16 +269,19 @@ export const AuthService = {
       throw new UnauthorizedError('TikTok authentication failed');
     }
 
-    const userRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,display_name,avatar_url', {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const userRes = await fetch(
+      'https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,display_name,avatar_url',
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
 
     if (!userRes.ok) {
       throw new UnauthorizedError('TikTok authentication failed');
     }
 
-    const userJson = await userRes.json() as {
+    const userJson = (await userRes.json()) as {
       data?: {
         user?: {
           open_id?: string;
@@ -297,7 +305,10 @@ export const AuthService = {
     };
   },
 
-  async tiktokSignIn(profile: { openId: string; unionId?: string; displayName: string; avatarUrl?: string }, ip?: string): Promise<AuthResult> {
+  async tiktokSignIn(
+    profile: { openId: string; unionId?: string; displayName: string; avatarUrl?: string },
+    ip?: string,
+  ): Promise<AuthResult> {
     let user = await User.findByTikTokOpenId(profile.openId);
     let isNewUser = false;
 
@@ -347,8 +358,8 @@ export const AuthService = {
       redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
-      access_type: 'offline',     // Request refresh token
-      prompt: 'select_account',   // Always show account picker
+      access_type: 'offline', // Request refresh token
+      prompt: 'select_account', // Always show account picker
       ...(state ? { state } : {}),
     });
 
@@ -359,7 +370,9 @@ export const AuthService = {
 
   async startEmailRegistration(email: string): Promise<{ isNewUser: boolean }> {
     const normalizedEmail = email.toLowerCase();
-    let user = await User.findOne({ email: normalizedEmail, status: 'active' }).select('+localAuth');
+    let user = await User.findOne({ email: normalizedEmail, status: 'active' }).select(
+      '+localAuth',
+    );
     let isNewUser = false;
 
     if (user) {
@@ -391,12 +404,9 @@ export const AuthService = {
     return { isNewUser };
   },
 
-  async verifyEmailCode(
-    email: string,
-    code: string,
-  ): Promise<void> {
+  async verifyEmailCode(email: string, code: string): Promise<void> {
     const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
-      '+localAuth'
+      '+localAuth',
     );
 
     if (!user || user.authProvider !== 'local' || !user.localAuth) {
@@ -425,20 +435,32 @@ export const AuthService = {
     email: string,
     password: string,
     name: string,
-    ip?: string
+    ip?: string,
   ): Promise<AuthResult> {
     const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
-      '+localAuth'
+      '+localAuth',
     );
 
     if (!user || user.authProvider !== 'local' || !user.localAuth) {
-      throw new AppError(400, 'Registration cannot be completed for this account', 'REGISTRATION_NOT_ALLOWED');
+      throw new AppError(
+        400,
+        'Registration cannot be completed for this account',
+        'REGISTRATION_NOT_ALLOWED',
+      );
     }
     if (!user.localAuth.emailVerified) {
-      throw new AppError(400, 'Email must be verified before completing registration', 'EMAIL_NOT_VERIFIED');
+      throw new AppError(
+        400,
+        'Email must be verified before completing registration',
+        'EMAIL_NOT_VERIFIED',
+      );
     }
     if (user.localAuth.passwordHash) {
-      throw new AppError(409, 'Registration already completed for this account', 'REGISTRATION_ALREADY_COMPLETED');
+      throw new AppError(
+        409,
+        'Registration already completed for this account',
+        'REGISTRATION_ALREADY_COMPLETED',
+      );
     }
 
     AuthService.validatePassword(password);
@@ -464,7 +486,7 @@ export const AuthService = {
     email: string,
     password: string,
     name: string,
-    ip?: string
+    ip?: string,
   ): Promise<AuthResult> {
     const existing = await User.findByEmail(email);
     if (existing) {
@@ -500,11 +522,13 @@ export const AuthService = {
    */
   async localSignIn(email: string, password: string, ip?: string): Promise<AuthResult> {
     // Fetch with passwordHash (select: false by default)
-    const user = await User.findOne({ email: email.toLowerCase(), status: 'active' })
-      .select('+localAuth');
+    const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
+      '+localAuth',
+    );
 
     if (!user) {
-      throw new UnauthorizedError('Email not found');
+      await dummyHashCompare();
+      throw new UnauthorizedError('Invalid email or password');
     }
 
     if (!user.localAuth?.passwordHash) {
@@ -513,7 +537,8 @@ export const AuthService = {
 
     const valid = await verifyPassword(password, user.localAuth.passwordHash);
     if (!valid) {
-      throw new UnauthorizedError('Incorrect password');
+      await dummyHashCompare();
+      throw new UnauthorizedError('Invalid email or password');
     }
 
     user.lastLoginAt = new Date();
@@ -531,7 +556,11 @@ export const AuthService = {
       throw new AppError(404, 'Account not found', 'NOT_FOUND');
     }
     if (user.authProvider !== 'local' || !user.localAuth) {
-      throw new AppError(400, 'Email verification is only available for local accounts', 'INVALID_AUTH_PROVIDER');
+      throw new AppError(
+        400,
+        'Email verification is only available for local accounts',
+        'INVALID_AUTH_PROVIDER',
+      );
     }
 
     const { code, hash, expiresAt } = createVerificationCode();
@@ -548,7 +577,7 @@ export const AuthService = {
 
   async requestPasswordReset(email: string): Promise<void> {
     const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
-      '+localAuth.passwordResetToken +localAuth.passwordResetExpiresAt +localAuth.passwordHash'
+      '+localAuth.passwordResetToken +localAuth.passwordResetExpiresAt +localAuth.passwordHash',
     );
 
     if (!user) {
@@ -556,7 +585,7 @@ export const AuthService = {
     }
 
     const { code, hash, expiresAt } = createVerificationCode();
-    
+
     // Initialize localAuth if it doesn't exist (for social-login users)
     if (!user.localAuth) {
       user.localAuth = { emailVerified: true };
@@ -564,7 +593,7 @@ export const AuthService = {
 
     user.localAuth.passwordResetToken = hash;
     user.localAuth.passwordResetExpiresAt = expiresAt;
-    
+
     await user.save();
 
     await EmailService.sendEmail({
@@ -588,9 +617,9 @@ export const AuthService = {
 
   async resetPassword(email: string, token: string, newPassword: string): Promise<void> {
     console.log(`[AUTH] Attempting password reset for: ${email}`);
-    
+
     const user = await User.findOne({ email: email.toLowerCase(), status: 'active' }).select(
-      '+localAuth'
+      '+localAuth',
     );
 
     if (!user || !user.localAuth) {
@@ -600,7 +629,7 @@ export const AuthService = {
 
     const expiresAt = user.localAuth.passwordResetExpiresAt;
     const storedHash = user.localAuth.passwordResetToken;
-    
+
     console.log('[AUTH] Found stored hash:', !!storedHash);
     console.log('[AUTH] Found expiry:', !!expiresAt);
 
@@ -619,7 +648,7 @@ export const AuthService = {
     user.localAuth.passwordHash = await hashPassword(newPassword);
     user.localAuth.passwordResetToken = undefined;
     user.localAuth.passwordResetExpiresAt = undefined;
-    
+
     // Explicitly mark localAuth as modified to ensure Mongoose saves the nested object
     user.markModified('localAuth');
     await user.save();
@@ -651,7 +680,11 @@ export const AuthService = {
       throw new AppError(400, 'Password must be at least 8 characters', 'WEAK_PASSWORD');
     }
     if (!/[A-Z]/.test(password)) {
-      throw new AppError(400, 'Password must contain at least one uppercase letter', 'WEAK_PASSWORD');
+      throw new AppError(
+        400,
+        'Password must contain at least one uppercase letter',
+        'WEAK_PASSWORD',
+      );
     }
     if (!/[0-9]/.test(password)) {
       throw new AppError(400, 'Password must contain at least one number', 'WEAK_PASSWORD');
@@ -685,10 +718,7 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
       else resolve(key);
     });
   });
-  return crypto.timingSafeEqual(
-    Buffer.from(storedHash, 'hex'),
-    hash
-  );
+  return crypto.timingSafeEqual(Buffer.from(storedHash, 'hex'), hash);
 }
 
 // Prevents timing-based user enumeration on failed logins
@@ -720,5 +750,10 @@ function deriveNameFromEmail(email: string): string {
   const local = email.split('@')[0] ?? 'User';
   const base = local.replace(/[^a-zA-Z0-9]+/g, ' ').trim();
   const words = base ? base.split(/\s+/) : ['User'];
-  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ').slice(0, 100) || 'User';
+  return (
+    words
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
+      .slice(0, 100) || 'User'
+  );
 }

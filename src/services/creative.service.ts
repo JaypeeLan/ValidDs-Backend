@@ -521,12 +521,21 @@ export const CreativeService = {
     if (section) query.section = apiSectionToDb(String(section));
     if (isAd !== undefined) query.isAd = isAd;
     if (minViews) query['metrics.viewCount'] = { $gte: Number(minViews) };
-    if (categoryL1) query.categoryL1 = categoryL1;
-    if (categoryL2) query.categoryL2 = categoryL2;
-    if (categoryL3) query.categoryL3 = categoryL3;
-    if (hashtags) {
-      const tagList = Array.isArray(hashtags) ? hashtags : [hashtags];
-      query.hashtags = { $in: tagList };
+    const categoryL1List = categoryL1 as string[] | undefined;
+    const categoryL2List = categoryL2 as string[] | undefined;
+    const categoryL3List = categoryL3 as string[] | undefined;
+    const hashtagList = hashtags as string[] | undefined;
+    if (categoryL1List?.length) {
+      query.categoryL1 = categoryL1List.length === 1 ? categoryL1List[0] : { $in: categoryL1List };
+    }
+    if (categoryL2List?.length) {
+      query.categoryL2 = categoryL2List.length === 1 ? categoryL2List[0] : { $in: categoryL2List };
+    }
+    if (categoryL3List?.length) {
+      query.categoryL3 = categoryL3List.length === 1 ? categoryL3List[0] : { $in: categoryL3List };
+    }
+    if (hashtagList?.length) {
+      query.hashtags = { $in: hashtagList };
     }
     if (q) {
       const safeSearch = escapeRegex(String(q).trim());

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { flattenMultiStringParam } from '../products/product-feed-filters.util';
 import {
   buildContentMetricFilters,
   contentMetricFilterZodFields,
@@ -26,18 +27,26 @@ const CreativeListQueryBaseSchema = z.object({
   hashtags: z.union([z.string(), z.array(z.string())]).optional(),
   sortBy: z.enum(['views', 'likes', 'recent', 'engagement']).default('views'),
   groupBy: z.enum(['creator']).optional(),
-  categoryL1: z.string().optional(),
-  categoryL2: z.string().optional(),
-  categoryL3: z.string().optional(),
+  categoryL1: z.union([z.string(), z.array(z.string())]).optional(),
+  categoryL2: z.union([z.string(), z.array(z.string())]).optional(),
+  categoryL3: z.union([z.string(), z.array(z.string())]).optional(),
   ...contentMetricFilterZodFields,
 });
 
+function normalizeCreativeListQuery(val: z.infer<typeof CreativeListQueryBaseSchema>) {
+  return {
+    ...val,
+    _metricFilters: buildContentMetricFilters(val),
+    hashtags: flattenMultiStringParam(val.hashtags),
+    categoryL1: flattenMultiStringParam(val.categoryL1),
+    categoryL2: flattenMultiStringParam(val.categoryL2),
+    categoryL3: flattenMultiStringParam(val.categoryL3),
+  };
+}
+
 export const CreativeListQuerySchema = CreativeListQueryBaseSchema.superRefine((val, ctx) => {
   validateContentMetricRanges(val, ctx);
-}).transform((val) => ({
-  ...val,
-  _metricFilters: buildContentMetricFilters(val),
-}));
+}).transform(normalizeCreativeListQuery);
 
 export const CreativeIdParamSchema = z.object({
   id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid creative ID format'),
@@ -52,22 +61,15 @@ export const CreativeThumbnailQuerySchema = z.object({
   kind: z.enum(['thumbnail', 'avatar', 'shop']).default('thumbnail'),
 });
 
-export type CreativeListQuery = z.infer<typeof CreativeListQueryBaseSchema> & {
-  _metricFilters: ReturnType<typeof buildContentMetricFilters>;
-};
+export type CreativeListQuery = ReturnType<typeof normalizeCreativeListQuery>;
 
 /** Same filters as list creatives, without legacy `section` (top ads are defined by `creator.isIndependentCreator`). */
 export const CreativeTopAdsListQuerySchema = CreativeListQueryBaseSchema.omit({ section: true })
   .superRefine((val, ctx) => {
     validateContentMetricRanges(val, ctx);
   })
-  .transform((val) => ({
-    ...val,
-    _metricFilters: buildContentMetricFilters(val),
-  }));
-export type CreativeTopAdsListQuery = z.infer<typeof CreativeListQueryBaseSchema> & {
-  _metricFilters: ReturnType<typeof buildContentMetricFilters>;
-};
+  .transform(normalizeCreativeListQuery);
+export type CreativeTopAdsListQuery = CreativeListQuery;
 
 export const CreativeIngestBodySchema = z.object({
   keyword: z.string().min(2).max(100),

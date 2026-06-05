@@ -107,6 +107,8 @@ describe('Creatives Endpoints', () => {
         ...LISTABLE_PRODUCT_METRICS,
         productId: product._id,
         externalVideoId: 'vid_1',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Skincare',
         section: 'top-ads',
         isAd: false,
         publishedAt: new Date('2020-01-01'),
@@ -182,6 +184,8 @@ describe('Creatives Endpoints', () => {
         ...LISTABLE_PRODUCT_METRICS,
         productId: product._id,
         externalVideoId: 'vid_3',
+        categoryL1: 'Home & Kitchen',
+        categoryL2: 'Kitchen Appliances',
         section: 'top-ads',
         isAd: false,
         publishedAt: new Date('2024-06-01'),
@@ -308,6 +312,34 @@ describe('Creatives Endpoints', () => {
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
     expect(body.data.creative.externalVideoId).toBe('vid_1');
+  });
+
+  it('GET /api/v1/creatives should OR-match comma-separated categoryL1 values', async () => {
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path:
+        '/api/v1/creatives?categoryL1=' +
+        encodeURIComponent('Beauty & Personal Care,Home & Kitchen'),
+      token: testToken,
+    });
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    const ids = body.data.data.map((c: { externalVideoId: string }) => c.externalVideoId).sort();
+    expect(ids).toEqual(['vid_1', 'vid_3']);
+  });
+
+  it('GET /api/v1/creatives should OR-match comma-separated categoryL2 values', async () => {
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: '/api/v1/creatives?categoryL2=' + encodeURIComponent('Skincare,Kitchen Appliances'),
+      token: testToken,
+    });
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    const ids = body.data.data.map((c: { externalVideoId: string }) => c.externalVideoId).sort();
+    expect(ids).toEqual(['vid_1', 'vid_3']);
   });
 
   it('GET /api/v1/creatives/:id should return 404 for missing', async () => {

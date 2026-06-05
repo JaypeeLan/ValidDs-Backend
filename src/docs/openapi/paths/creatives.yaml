@@ -439,18 +439,33 @@ components:
     categoryL1:
       name: categoryL1
       in: query
+      description: Filter by L1 category. OR match when multiple values are provided. Repeat the param, use comma-separated values, or pass a JSON array.
       schema:
-        type: string
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
     categoryL2:
       name: categoryL2
       in: query
+      description: Filter by L2 subcategory. OR match when multiple values are provided. Repeat the param, use comma-separated values, or pass a JSON array.
       schema:
-        type: string
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
     categoryL3:
       name: categoryL3
       in: query
+      description: Filter by L3 category. OR match when multiple values are provided. Repeat the param, use comma-separated values, or pass a JSON array.
       schema:
-        type: string
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
     minLikes:
       name: minLikes
       in: query

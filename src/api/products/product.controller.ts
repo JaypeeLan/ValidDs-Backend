@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import {
   findCreativesByProductId,
   findRelatedAdsByProductId,
-  loadPlayableVideoIndexForProduct,
 } from '../../services/creative.service';
 import { ProductService, getRelatedProducts } from '../../services/product.service';
 import {
@@ -28,13 +27,8 @@ import {
   normalizePrimaryCreatorOnProduct,
 } from '../../utils/product-response.util';
 import {
-  enrichAnglesWithMetaVideoProxyUrls,
-  stripAngleExternalLinks,
-  enrichAnglesWithVideoProxyUrls,
-  enrichAnglesWithFallbackCreativeProxyUrls,
-  filterMarketingAnglesWithPlayableVideo,
   normalizeMarketingAngleVideoUrls,
-  sortMarketingAnglesWithVideoFirst,
+  stripAllAngleVideos,
   stripNonPlayableAngleVideoUrls,
 } from '../../utils/marketing-angles.util';
 import { resolveEngagementTrend } from '../../utils/product-trend.util';
@@ -68,47 +62,14 @@ function resolveStoredSentimentLabel(ai: IAIIntelligence): SentimentLabel {
   return resolveBuyingSentimentLabel(ai.buyingSentimentScore);
 }
 
-function metaViewerUrlsFromCreatives(creatives: unknown[]): string[] {
-  const urls: string[] = [];
-  for (const item of creatives) {
-    if (!item || typeof item !== 'object') continue;
-    const row = item as Record<string, unknown>;
-    const ext = String(row.externalVideoId ?? '');
-    if (!ext.startsWith('meta:')) continue;
-    for (const field of ['metaAdLibraryUrl', 'tiktokPostUrl', 'embedUrl'] as const) {
-      const u = row[field];
-      if (typeof u === 'string' && u.trim()) urls.push(u.trim());
-    }
-  }
-  return urls;
-}
-
-function buildAiInsight(
-  aiIntelligence: IAIIntelligence | undefined,
-  opts: {
-    metaViewerUrls?: string[];
-    playableVideoIndex?: Map<string, string>;
-    fallbackCreativeId?: string;
-    apiVersion?: string;
-  } = {},
-): ProductAiInsightResponse {
+function buildAiInsight(aiIntelligence: IAIIntelligence | undefined): ProductAiInsightResponse {
   const ai = aiIntelligence ?? ({} as IAIIntelligence);
   const sentimentLabel = resolveStoredSentimentLabel(ai);
   const rawAngles = ai.marketingAnalysis?.angles ?? [];
-  const stripped = stripNonPlayableAngleVideoUrls(
-    normalizeMarketingAngleVideoUrls(rawAngles as Record<string, unknown>[]),
-  );
-  const apiVersion = opts.apiVersion ?? process.env.API_VERSION ?? 'v1';
-  const index = opts.playableVideoIndex ?? new Map();
-  const withProxy = enrichAnglesWithVideoProxyUrls(stripped, index, apiVersion);
-  const withMetaProxy = enrichAnglesWithMetaVideoProxyUrls(withProxy, index, apiVersion);
-  const withFallback = enrichAnglesWithFallbackCreativeProxyUrls(
-    withMetaProxy,
-    opts.fallbackCreativeId,
-    apiVersion,
-  );
-  const angles = filterMarketingAnglesWithPlayableVideo(
-    sortMarketingAnglesWithVideoFirst(stripAngleExternalLinks(withFallback)),
+  const angles = stripAllAngleVideos(
+    stripNonPlayableAngleVideoUrls(
+      normalizeMarketingAngleVideoUrls(rawAngles as Record<string, unknown>[]),
+    ),
   );
   const marketingAnalysis = ai.marketingAnalysis
     ? {
@@ -256,15 +217,7 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
   return item;
 }
 
-function formatProductResponse(
-  input: ProductLike,
-  options: {
-    metaViewerUrls?: string[];
-    playableVideoIndex?: Map<string, string>;
-    fallbackCreativeId?: string;
-    apiVersion?: string;
-  } = {},
-): ProductApiResponse {
+function formatProductResponse(input: ProductLike): ProductApiResponse {
   const product = toProductPlain(input);
   const engagement = resolveEngagementTrend(product);
   const ratingSources = Array.isArray(product.ratingSources) ? product.ratingSources : [];
@@ -284,7 +237,7 @@ function formatProductResponse(
     trend: engagement,
     trends: product.trends ?? { engagement },
     freshness: buildProductItemFreshness(product),
-    aiInsight: buildAiInsight(product.aiIntelligence as IAIIntelligence | undefined, options),
+    aiInsight: buildAiInsight(product.aiIntelligence as IAIIntelligence | undefined),
   } as Record<string, unknown>;
 
   delete response.aiIntelligence;
@@ -443,14 +396,12 @@ export const ProductController = {
       const productModel = req.models?.Product;
       const creativeModel = req.models?.Creative;
 
-      const [{ product, freshness }, relatedDocs, relatedVideos, relatedAds, playableVideoIndex] =
-        await Promise.all([
-          ProductService.getById(id, productModel, req.market),
-          getRelatedProducts(id, productModel, req.market),
-          findCreativesByProductId(id, creativeModel),
-          findRelatedAdsByProductId(id, creativeModel),
-          loadPlayableVideoIndexForProduct(id, creativeModel),
-        ]);
+      const [{ product, freshness }, relatedDocs, relatedVideos, relatedAds] = await Promise.all([
+        ProductService.getById(id, productModel, req.market),
+        getRelatedProducts(id, productModel, req.market),
+        findCreativesByProductId(id, creativeModel),
+        findRelatedAdsByProductId(id, creativeModel),
+      ]);
 
       const [plain, ...relatedPlains] = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages([
@@ -460,19 +411,10 @@ export const ProductController = {
         creativeModel,
       );
 
-      const fallbackCreativeId =
-        relatedVideos.find((v) => typeof v?.videoProxyUrl === 'string' && v.videoProxyUrl.trim())
-          ?.id ?? undefined;
-
       res.json(
         successResponse(
           {
-            product: formatProductResponse(plain as ProductLike, {
-              metaViewerUrls: metaViewerUrlsFromCreatives(relatedAds),
-              playableVideoIndex,
-              fallbackCreativeId,
-              apiVersion: process.env.API_VERSION ?? 'v1',
-            }),
+            product: formatProductResponse(plain as ProductLike),
             relatedProducts: relatedPlains.map(formatProductFeedItem),
             relatedVideos,
             relatedAds,

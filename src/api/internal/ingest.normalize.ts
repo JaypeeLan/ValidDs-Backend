@@ -3,7 +3,7 @@
 import { creativeAdDedupeKey } from '../../utils/creative-response.util';
 import {
   normalizeMarketingAngleVideoUrls,
-  sortMarketingAnglesWithVideoFirst,
+  stripAllAngleVideos,
 } from '../../utils/marketing-angles.util';
 import { normalizeMetaAdLibraryUrl } from '../../utils/meta-ad-url.util';
 import { defaultMetricTrendWindows } from '../../utils/metric-trend-days.util';
@@ -173,8 +173,9 @@ function normalizeAiIntelligence(ai: unknown): Record<string, unknown> {
   if (!ma.marketingInsight) ma.marketingInsight = '';
   if (!Array.isArray(ma.angles)) ma.angles = [];
   else {
-    const angleRows = normalizeMarketingAngleVideoUrls(ma.angles as Record<string, unknown>[]);
-    ma.angles = sortMarketingAnglesWithVideoFirst(angleRows);
+    ma.angles = stripAllAngleVideos(
+      normalizeMarketingAngleVideoUrls(ma.angles as Record<string, unknown>[]),
+    );
   }
   if (!ma.analyzedAt) ma.analyzedAt = new Date();
   if (ma.sentimentLabel == null) {

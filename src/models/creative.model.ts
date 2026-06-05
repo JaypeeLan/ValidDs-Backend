@@ -162,7 +162,7 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     publishedAt: { type: Date, default: null },
     ingestedAt: { type: Date, default: Date.now },
     /** Stable feed/upsert key — see creativeAdDedupeKey() */
-    adDedupeKey: { type: String, index: true },
+    adDedupeKey: { type: String },
   },
   { timestamps: true, strict: true },
 );

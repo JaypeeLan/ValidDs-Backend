@@ -1,5 +1,4 @@
 import { NormalizedPost } from '../ingestion/ingestion.types';
-import { PRODUCT_CATEGORIES } from '../api/products/product.constants';
 
 export function formatNumber(n?: number): string {
   if (!n) return '0';

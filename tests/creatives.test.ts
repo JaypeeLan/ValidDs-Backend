@@ -38,6 +38,12 @@ function httpJson(opts: {
   });
 }
 
+/** Default list queries apply minGmv / minUnits via CreativeListQuerySchema. */
+const LISTABLE_PRODUCT_METRICS = {
+  productTotalGmv: 5000,
+  productTotalSales: 500,
+};
+
 describe('Creatives Endpoints', () => {
   jest.setTimeout(60000);
   let mongo: MongoMemoryServer;
@@ -98,6 +104,7 @@ describe('Creatives Endpoints', () => {
 
     const creative = await Creative.create(
       minimalTestCreative({
+        ...LISTABLE_PRODUCT_METRICS,
         productId: product._id,
         externalVideoId: 'vid_1',
         section: 'top-ads',
@@ -121,20 +128,21 @@ describe('Creatives Endpoints', () => {
 
     await Creative.create(
       minimalTestCreative({
+        ...LISTABLE_PRODUCT_METRICS,
         productId: product._id,
-        externalVideoId: 'meta:9001',
+        externalVideoId: 'meta:90001',
         section: 'trending',
         isAd: true,
         publishedAt: new Date('2024-01-01'),
-        embedUrl: 'https://www.facebook.com/ads/library/?id=9001',
-        tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=9001',
-        metaAdLibraryUrl: 'https://www.facebook.com/ads/library/?id=9001',
+        embedUrl: 'https://www.facebook.com/ads/library/?id=90001',
+        tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=90001',
+        metaAdLibraryUrl: 'https://www.facebook.com/ads/library/?id=90001',
         creator: {
           tiktokUserId: 'u2',
           handle: 'indie1',
           displayName: 'Indie Creator',
           region: 'GB',
-          tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=9001',
+          tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=90001',
           isIndependentCreator: true,
         },
         metrics: {
@@ -146,6 +154,7 @@ describe('Creatives Endpoints', () => {
 
     await Creative.create(
       minimalTestCreative({
+        ...LISTABLE_PRODUCT_METRICS,
         productId: product._id,
         externalVideoId: 'vid_sponsored',
         section: 'trending',
@@ -170,6 +179,7 @@ describe('Creatives Endpoints', () => {
 
     await Creative.create(
       minimalTestCreative({
+        ...LISTABLE_PRODUCT_METRICS,
         productId: product._id,
         externalVideoId: 'vid_3',
         section: 'top-ads',
@@ -260,7 +270,7 @@ describe('Creatives Endpoints', () => {
     const body = JSON.parse(res.text);
     expect(body.success).toBe(true);
     const ids = body.data.data.map((c: { externalVideoId: string }) => c.externalVideoId).sort();
-    expect(ids).toEqual(['meta:9001', 'vid_sponsored']);
+    expect(ids).toEqual(['meta:90001', 'vid_sponsored']);
   });
 
   it('GET /api/v1/creatives?section=top-ads should work', async () => {

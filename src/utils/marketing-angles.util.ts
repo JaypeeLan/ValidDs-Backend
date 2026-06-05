@@ -20,6 +20,30 @@ export function angleHasPlayableVideo(angle: unknown): boolean {
   return typeof row.videoProxyUrl === 'string' && row.videoProxyUrl.trim().length > 0;
 }
 
+const ANGLE_VIDEO_KEYS = [
+  'videoUrl',
+  'videoProxyUrl',
+  'thumbnailProxyUrl',
+  'metaAdLibraryUrl',
+  'listingVerified',
+] as const;
+
+/** Drop API-only proxy fields before persisting angles. */
+export function stripAngleProxyUrls<T extends Record<string, unknown>>(
+  angles: T[] | undefined | null,
+): T[] {
+  if (!Array.isArray(angles)) return [];
+  return angles.map((angle) => omitAngleKeys(angle, ['videoProxyUrl', 'thumbnailProxyUrl']));
+}
+
+/** Text-only angles — strip every video/link field (hook, body, target remain). */
+export function stripAllAngleVideos<T extends Record<string, unknown>>(
+  angles: T[] | undefined | null,
+): T[] {
+  if (!Array.isArray(angles)) return [];
+  return angles.map((angle) => omitAngleKeys(angle, [...ANGLE_VIDEO_KEYS]));
+}
+
 /** Remove Ad Library links from videoUrl (not playable as MP4). */
 export function stripNonPlayableAngleVideoUrls<T extends Record<string, unknown>>(
   angles: T[] | undefined | null,

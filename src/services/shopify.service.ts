@@ -4,11 +4,7 @@ import { logger } from '../logger';
 import { AppError } from '../middleware/error.middleware';
 import { encrypt, decrypt } from '../security/encryption';
 import { signJWT, verifyJWT } from '../security/jwt';
-import {
-  IShopifyConnection,
-  IUserDocument,
-  User,
-} from '../models/user.model';
+import { IShopifyConnection, IUserDocument, User } from '../models/user.model';
 import { ShopifyPendingConnection } from '../models/shopify-pending-connection.model';
 import { IProductDocument } from '../models/product.model';
 
@@ -78,7 +74,6 @@ interface ShopifyAccessTokenResponse {
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export const ShopifyService = {
-
   // ── Config / readiness ────────────────────────────────────────────────────
 
   isConfigured(): boolean {
@@ -90,7 +85,7 @@ export const ShopifyService = {
       throw new AppError(
         503,
         'Shopify integration is not configured on this server',
-        'SHOPIFY_NOT_CONFIGURED'
+        'SHOPIFY_NOT_CONFIGURED',
       );
     }
   },
@@ -141,7 +136,7 @@ export const ShopifyService = {
       throw new AppError(
         400,
         'Shop must be a valid <name>.myshopify.com domain',
-        'SHOPIFY_INVALID_SHOP'
+        'SHOPIFY_INVALID_SHOP',
       );
     }
 
@@ -344,7 +339,7 @@ export const ShopifyService = {
       throw new AppError(
         400,
         result.expired ? 'OAuth state expired — please try again' : 'Invalid OAuth state',
-        'SHOPIFY_INVALID_STATE'
+        'SHOPIFY_INVALID_STATE',
       );
     }
     const payload = result.payload as Record<string, unknown>;
@@ -400,7 +395,7 @@ export const ShopifyService = {
       throw new AppError(
         401,
         'Failed to authenticate with Shopify — please try connecting again',
-        'SHOPIFY_TOKEN_EXCHANGE_FAILED'
+        'SHOPIFY_TOKEN_EXCHANGE_FAILED',
       );
     }
 
@@ -420,7 +415,7 @@ export const ShopifyService = {
       shop,
       accessToken,
       'GET',
-      '/shop.json'
+      '/shop.json',
     );
     return res.shop ?? {};
   },
@@ -436,7 +431,7 @@ export const ShopifyService = {
     shop: string,
     accessToken: string,
     scope: string,
-    shopInfo: ShopifyShopInfo
+    shopInfo: ShopifyShopInfo,
   ): Promise<IShopifyConnection> {
     const enc = encrypt(accessToken);
 
@@ -455,10 +450,7 @@ export const ShopifyService = {
       lastSyncedAt: new Date(),
     };
 
-    await User.updateOne(
-      { _id: userId },
-      { $set: { shopifyConnection: connection } }
-    );
+    await User.updateOne({ _id: userId }, { $set: { shopifyConnection: connection } });
 
     return connection;
   },
@@ -533,10 +525,7 @@ export const ShopifyService = {
   },
 
   async disconnect(userId: string): Promise<void> {
-    await User.updateOne(
-      { _id: userId },
-      { $unset: { shopifyConnection: '' } }
-    );
+    await User.updateOne({ _id: userId }, { $unset: { shopifyConnection: '' } });
   },
 
   /**
@@ -544,14 +533,14 @@ export const ShopifyService = {
    * Throws 400 if the user has no connected store.
    */
   async getConnection(
-    userId: string
+    userId: string,
   ): Promise<{ shop: string; accessToken: string; connection: IShopifyConnection }> {
     const user = await User.findById(userId).select('+shopifyConnection');
     if (!user?.shopifyConnection) {
       throw new AppError(
         400,
         'No Shopify store connected. Connect your store first.',
-        'SHOPIFY_NOT_CONNECTED'
+        'SHOPIFY_NOT_CONNECTED',
       );
     }
     const c = user.shopifyConnection;
@@ -594,7 +583,7 @@ export const ShopifyService = {
     accessToken: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     path: string,
-    body?: unknown
+    body?: unknown,
   ): Promise<T> {
     const url = `https://${shop}/admin/api/${env.SHOPIFY_API_VERSION}${path}`;
     const res = await fetch(url, {
@@ -611,7 +600,7 @@ export const ShopifyService = {
       throw new AppError(
         401,
         'Shopify rejected our access token. Please reconnect your store.',
-        'SHOPIFY_AUTH_REVOKED'
+        'SHOPIFY_AUTH_REVOKED',
       );
     }
 
@@ -622,7 +611,7 @@ export const ShopifyService = {
         res.status === 422 ? 422 : 502,
         `Shopify Admin API error (${res.status})`,
         'SHOPIFY_API_ERROR',
-        safeParseJson(text)
+        safeParseJson(text),
       );
     }
 
@@ -639,26 +628,22 @@ export const ShopifyService = {
   async createProductFromDbProduct(
     user: IUserDocument,
     product: IProductDocument,
-    overrides?: { price?: number; status?: 'active' | 'draft' | 'archived' }
+    overrides?: { price?: number; status?: 'active' | 'draft' | 'archived' },
   ): Promise<ShopifyProductCreateResult> {
     const { shop, accessToken } = await this.getConnection(String(user._id));
 
     const shopifyProduct = mapProductToShopify(product, overrides);
 
-    const response = await this.adminApi<{ product: { id: number; handle: string; status: string } }>(
-      shop,
-      accessToken,
-      'POST',
-      '/products.json',
-      { product: shopifyProduct }
-    );
+    const response = await this.adminApi<{
+      product: { id: number; handle: string; status: string };
+    }>(shop, accessToken, 'POST', '/products.json', { product: shopifyProduct });
 
     const created = response.product;
 
     // Update lastSyncedAt timestamp on the connection
     await User.updateOne(
       { _id: user._id },
-      { $set: { 'shopifyConnection.lastSyncedAt': new Date() } }
+      { $set: { 'shopifyConnection.lastSyncedAt': new Date() } },
     );
 
     log.info('Created Shopify product', {
@@ -693,7 +678,7 @@ interface ShopifyProductPayload {
 
 function mapProductToShopify(
   product: IProductDocument,
-  overrides?: { price?: number; status?: 'active' | 'draft' | 'archived' }
+  overrides?: { price?: number; status?: 'active' | 'draft' | 'archived' },
 ): ShopifyProductPayload {
   const price = overrides?.price ?? product.price ?? 0;
   // const compareAt = product.originalPrice && product.originalPrice > price
@@ -712,17 +697,17 @@ function mapProductToShopify(
   if (product.aiIntelligence?.niche) tags.push(product.aiIntelligence.niche);
   for (const t of product.hashtags ?? []) tags.push(t);
 
-
   const options: ShopifyProductPayload['options'] = [];
 
-  // const variants: ShopifyProductPayload['variants'] = [{
-  //   price: price.toFixed(2),
-  //   ...(compareAt ? { compare_at_price: compareAt.toFixed(2) } : {}),
-  //   sku: product.externalId,
-  //   inventory_management: null,
-  //   requires_shipping: true,
-  //   taxable: true,
-  // }];
+  const variants: ShopifyProductPayload['variants'] = [
+    {
+      price: price.toFixed(2),
+      sku: product.externalId,
+      inventory_management: null,
+      requires_shipping: true,
+      taxable: true,
+    },
+  ];
 
   return {
     title: product.title.slice(0, 255),
@@ -732,7 +717,7 @@ function mapProductToShopify(
     tags: tags.filter((t, i, arr) => arr.indexOf(t) === i).join(', '),
     status: overrides?.status ?? 'draft',
     images: images.length ? images : undefined,
-    // variants,
+    variants,
     options: options.length ? options : undefined,
   };
 }

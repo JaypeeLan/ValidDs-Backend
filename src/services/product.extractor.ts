@@ -1,8 +1,7 @@
 import { AIOrchestrator } from './ai.orchestrator';
 import { NormalizedPost, NormalizedComment, ExtractedProduct } from '../ingestion/ingestion.types';
-import { PRODUCT_CATEGORIES } from '../api/products/product.constants';
 import { logger } from '../logger';
-import { chunk, formatNumber, sleep, inferNicheFromHashtags } from './extractor.utils';
+import { chunk, formatNumber, sleep } from './extractor.utils';
 
 const log = logger.child({ module: 'product-extractor' });
 
@@ -13,7 +12,6 @@ const log = logger.child({ module: 'product-extractor' });
  * from TikTok data, utilizing rich search results parsed from SerpApi.
  */
 
-const GEN_AI_MODEL = 'gemini-3-flash-preview';
 const CONCURRENCY_LIMIT = 5;
 
 // ── System prompt ─────────────────────────────────────────────────────────────
@@ -39,7 +37,10 @@ You receive data from a TikTok video (title, description, hashtags, engagement, 
 // ── Extraction prompt builder ─────────────────────────────────────────────────
 
 function buildExtractionPrompt(post: NormalizedPost, comments: NormalizedComment[]): string {
-  const topComments = comments.slice(0, 15).map(c => `- "${c.text}"`).join('\n');
+  const topComments = comments
+    .slice(0, 15)
+    .map((c) => `- "${c.text}"`)
+    .join('\n');
 
   return `
 TIKTOK POST DATA:
@@ -101,17 +102,16 @@ ${topComments}
 // ── Extractor ─────────────────────────────────────────────────────────────────
 
 export const ProductExtractor = {
-  async extractFromPost(post: NormalizedPost, comments: NormalizedComment[] = []): Promise<ExtractedProduct | null> {
+  async extractFromPost(
+    post: NormalizedPost,
+    comments: NormalizedComment[] = [],
+  ): Promise<ExtractedProduct | null> {
     try {
       const prompt = buildExtractionPrompt(post, comments);
-      
+
       // Use AIOrchestrator for robust failure-tolerant extraction
       // DeepSeek is preferred for parsing structured data from raw strings
-      const parsed = await AIOrchestrator.extractJson<any>(
-        SYSTEM_PROMPT,
-        prompt,
-        'deepseek'
-      );
+      const parsed = await AIOrchestrator.extractJson<any>(SYSTEM_PROMPT, prompt, 'deepseek');
 
       if (!parsed || !parsed.isProductVideo) {
         log.debug('Post discarded or invalid JSON', { videoId: post.videoId });
@@ -124,7 +124,16 @@ export const ProductExtractor = {
       const salesBreakdown = Array.isArray(sales.breakdown) ? sales.breakdown : [];
       const parsedReviews = Array.isArray(parsed.reviews) ? parsed.reviews : [];
 
-      const validDirections = ['rising', 'peaked', 'saturating', 'stable', 'declining', 'emerging', 'viral', 'unknown'];
+      const validDirections = [
+        'rising',
+        'peaked',
+        'saturating',
+        'stable',
+        'declining',
+        'emerging',
+        'viral',
+        'unknown',
+      ];
       let parsedDirection = String(parsed.trendDirection || 'unknown').toLowerCase();
       if (parsedDirection === 'plateauing') parsedDirection = 'saturating';
       if (!validDirections.includes(parsedDirection)) parsedDirection = 'unknown';
@@ -132,7 +141,7 @@ export const ProductExtractor = {
       return {
         productName: String(parsed.productName || ''),
         amazonSearchTerm: String(parsed.productName || ''),
-        
+
         categoryL1: String(cat.l1 || 'Other'),
         categoryL2: cat.l2 ? String(cat.l2) : undefined,
         categoryL3: cat.l3 ? String(cat.l3) : undefined,
@@ -141,7 +150,7 @@ export const ProductExtractor = {
         productDescription: String(parsed.productDescription || ''),
         estimatedPrice: Number(parsed.estimatedPrice) || undefined,
         currency: 'USD',
-        
+
         unitsSold: Number(sales.unitsSold || 0),
         unitsSoldBreakdown: salesBreakdown
           .map((entry: any) => ({
@@ -153,12 +162,12 @@ export const ProductExtractor = {
         salesSource: {
           store: String(sales.store || 'Unknown'),
           url: sales.url ? String(sales.url) : undefined,
-          timeframe: sales.timeframe ? String(sales.timeframe) : undefined
+          timeframe: sales.timeframe ? String(sales.timeframe) : undefined,
         },
 
         extractionConfidence: Number(confidence.score || 70),
         confidenceReason: String(confidence.reason || ''),
-        
+
         buyingSentimentScore: Number(parsed.buyingSentimentScore || 50),
         buyingSentimentReason: String(parsed.buyingSentimentReason || ''),
         reviews: parsedReviews
@@ -167,22 +176,24 @@ export const ProductExtractor = {
             text: String(review?.text || '').trim(),
           }))
           .filter((review: any) => review.source && review.text),
-        
+
         estimatedRating: Number(parsed.estimatedRating) || undefined,
         estimatedReviewCount: Number(parsed.estimatedReviewCount) || undefined,
 
         brand: parsed.brand ? String(parsed.brand) : undefined,
-        categoryKeywords: Array.isArray(parsed.categoryKeywords) ? parsed.categoryKeywords.map(String) : [],
+        categoryKeywords: Array.isArray(parsed.categoryKeywords)
+          ? parsed.categoryKeywords.map(String)
+          : [],
 
         trendScore: Number(parsed.trendScore || 50),
         trendReason: String(parsed.trendReason || ''),
         trendDirection: parsedDirection as any,
         isTrending: Number(parsed.trendScore || 0) > 60,
         isProductVideo: true,
-        
+
         sourceVideoId: post.videoId,
         sourceVideoUrl: post.videoUrl,
-        groundedImages: Array.isArray(parsed.aestheticImageUrls) ? parsed.aestheticImageUrls : []
+        groundedImages: Array.isArray(parsed.aestheticImageUrls) ? parsed.aestheticImageUrls : [],
       } as any;
     } catch (err) {
       log.error('AI extraction failed', { err: String(err), videoId: post.videoId });
@@ -190,13 +201,16 @@ export const ProductExtractor = {
     }
   },
 
-  async extractBatch(posts: NormalizedPost[], commentMap: Map<string, NormalizedComment[]> = new Map()): Promise<ExtractedProduct[]> {
+  async extractBatch(
+    posts: NormalizedPost[],
+    commentMap: Map<string, NormalizedComment[]> = new Map(),
+  ): Promise<ExtractedProduct[]> {
     const results: ExtractedProduct[] = [];
     const batches = chunk(posts, CONCURRENCY_LIMIT);
 
     for (const batch of batches) {
       const batchResults = await Promise.allSettled(
-        batch.map((post) => this.extractFromPost(post, commentMap.get(post.videoId) ?? []))
+        batch.map((post) => this.extractFromPost(post, commentMap.get(post.videoId) ?? [])),
       );
 
       for (const result of batchResults) {
@@ -212,26 +226,9 @@ export const ProductExtractor = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function parseAIJSON(text: string): Record<string, unknown> | null {
-  try {
-    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(clean);
-  } catch {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        return JSON.parse(match[0]);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
-}
-
 function buildFallbackExtraction(post: NormalizedPost): ExtractedProduct | null {
   const hasProductHashtag = post.hashtags.some((h) =>
-    ['tiktokmademebuyit', 'amazon', 'amazonfinds', 'shopify', 'product', 'buy'].includes(h)
+    ['tiktokmademebuyit', 'amazon', 'amazonfinds', 'shopify', 'product', 'buy'].includes(h),
   );
 
   if (!hasProductHashtag && !post.isAd) return null;
@@ -252,27 +249,27 @@ function buildFallbackExtraction(post: NormalizedPost): ExtractedProduct | null 
     productDescription: post.description || cleanTitle || '',
     estimatedPrice: undefined,
     currency: 'USD',
-    
+
     unitsSold: 0,
     unitsSoldBreakdown: [],
     salesSource: {
-      store: 'Unknown'
+      store: 'Unknown',
     },
 
     extractionConfidence: 30,
     confidenceReason: 'Inferred from hashtags/metadata (fallback)',
-    
+
     trendScore: Math.min(100, Math.round((post.engagementRate ?? 0) * 10)),
     trendDirection: 'unknown',
     isTrending: false,
     isProductVideo: true,
-    
+
     brand: undefined,
     categoryKeywords: post.hashtags.slice(0, 5), // Use top hashtags as keywords for fallback
     reviews: [],
 
     sourceVideoId: post.videoId,
     sourceVideoUrl: post.videoUrl,
-    groundedImages: []
+    groundedImages: [],
   };
 }

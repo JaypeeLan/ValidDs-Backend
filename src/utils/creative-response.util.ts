@@ -310,6 +310,156 @@ export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
   ];
 }
 
+/** Mongo expression: numeric Meta Ad Library id (mirrors metaAdIdFromCreative). */
+export function mongoMetaAdIdFromCreativeExpr(): Record<string, unknown> {
+  return {
+    $let: {
+      vars: {
+        fromExt: {
+          $regexFind: {
+            input: { $ifNull: ['$externalVideoId', ''] },
+            regex: '^meta:(\\d{5,})$',
+          },
+        },
+        fromMetaAdId: {
+          $cond: [
+            { $regexMatch: { input: { $ifNull: ['$metaAdId', ''] }, regex: '^\\d{5,}$' } },
+            '$metaAdId',
+            '',
+          ],
+        },
+        fromLib: {
+          $regexFind: {
+            input: { $ifNull: ['$metaAdLibraryUrl', ''] },
+            regex: '[?&]id=(\\d{5,})',
+            options: 'i',
+          },
+        },
+        fromPost: {
+          $regexFind: {
+            input: { $ifNull: ['$tiktokPostUrl', ''] },
+            regex: '[?&]id=(\\d{5,})',
+            options: 'i',
+          },
+        },
+        fromEmbed: {
+          $regexFind: {
+            input: { $ifNull: ['$embedUrl', ''] },
+            regex: '[?&]id=(\\d{5,})',
+            options: 'i',
+          },
+        },
+      },
+      in: {
+        $cond: [
+          { $ne: ['$$fromExt', null] },
+          { $arrayElemAt: ['$$fromExt.captures', 0] },
+          {
+            $cond: [
+              { $ne: ['$$fromMetaAdId', ''] },
+              '$$fromMetaAdId',
+              {
+                $cond: [
+                  { $ne: ['$$fromLib', null] },
+                  { $arrayElemAt: ['$$fromLib.captures', 0] },
+                  {
+                    $cond: [
+                      { $ne: ['$$fromPost', null] },
+                      { $arrayElemAt: ['$$fromPost.captures', 0] },
+                      {
+                        $cond: [
+                          { $ne: ['$$fromEmbed', null] },
+                          { $arrayElemAt: ['$$fromEmbed.captures', 0] },
+                          '',
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+}
+
+/** Mongo expression: verified Meta Ad Library row (mirrors isVerifiedMetaCreative). */
+export function mongoIsVerifiedMetaCreativeExpr(): Record<string, unknown> {
+  const rawUrl = {
+    $ifNull: [
+      '$metaAdLibraryUrl',
+      {
+        $ifNull: [
+          '$tiktokPostUrl',
+          { $ifNull: ['$embedUrl', { $ifNull: ['$externalVideoId', ''] }] },
+        ],
+      },
+    ],
+  };
+  const adId = mongoMetaAdIdFromCreativeExpr();
+  return {
+    $and: [
+      { $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' } },
+      { $regexMatch: { input: adId, regex: '^\\d{5,}$' } },
+      { $not: { $regexMatch: { input: { $toLower: rawUrl }, regex: 'access_token=' } } },
+      {
+        $or: [
+          {
+            $regexMatch: {
+              input: rawUrl,
+              regex: 'facebook\\.com/ads/library/\\?id=',
+              options: 'i',
+            },
+          },
+          {
+            $regexMatch: {
+              input: { $ifNull: ['$externalVideoId', ''] },
+              regex: '^meta:\\d{5,}$',
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/** Mongo expression: playable primary slot (mirrors creativeHasPlayableVideo at index 0). */
+export function mongoHasPlayableVideoExpr(): Record<string, unknown> {
+  const hasStoredS3Key = {
+    $and: [
+      { $eq: [{ $type: '$videoS3Key' }, 'string'] },
+      { $regexMatch: { input: '$videoS3Key', regex: '\\S' } },
+    ],
+  };
+  return {
+    $or: [
+      hasStoredS3Key,
+      // Meta rows may resolve S3 at enrich time when only the ad id is stored.
+      mongoIsVerifiedMetaCreativeExpr(),
+    ],
+  };
+}
+
+/** Mongo expression: feed-safe creative (mirrors shouldExposeCreativeInFeed). */
+export function mongoShouldExposeCreativeInFeedExpr(): Record<string, unknown> {
+  const isMeta = {
+    $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' },
+  };
+  return {
+    $and: [
+      mongoHasPlayableVideoExpr(),
+      { $or: [{ $not: isMeta }, mongoIsVerifiedMetaCreativeExpr()] },
+    ],
+  };
+}
+
+/** $match stage: only creatives safe to show in discovery feeds (before dedupe + pagination). */
+export function creativeFeedExposureMatchStage(): Record<string, unknown> {
+  return { $match: { $expr: mongoShouldExposeCreativeInFeedExpr() } };
+}
+
 function pickUrl(...vals: unknown[]): string | undefined {
   for (const v of vals) {
     if (typeof v === 'string' && v.trim()) return v.trim();

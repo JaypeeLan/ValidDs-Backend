@@ -2,11 +2,48 @@ import {
   angleHasPlayableVideo,
   enrichAnglesWithMetaVideoProxyUrls,
   enrichAnglesWithFallbackCreativeProxyUrls,
+  stripAngleProxyUrls,
+  stripAllAngleVideos,
   filterMarketingAnglesWithPlayableVideo,
   sortMarketingAnglesWithVideoFirst,
 } from '../src/utils/marketing-angles.util';
 
 describe('marketing-angles.util', () => {
+  it('stripAllAngleVideos removes every video field', () => {
+    const out = stripAllAngleVideos([
+      {
+        hook: 'h',
+        body: 'b',
+        target: 't',
+        videoUrl: 'https://www.tiktok.com/@u/video/1',
+        videoProxyUrl: '/api/v1/creatives/x/video',
+        thumbnailProxyUrl: '/api/v1/creatives/x/thumbnail',
+        metaAdLibraryUrl: 'https://www.facebook.com/ads/library/?id=1',
+        listingVerified: true,
+      },
+    ]);
+    expect(out[0]).toEqual({ hook: 'h', body: 'b', target: 't' });
+  });
+
+  it('stripAngleProxyUrls removes persisted proxy fields only', () => {
+    const out = stripAngleProxyUrls([
+      {
+        hook: 'h',
+        body: 'b',
+        target: 't',
+        videoUrl: 'https://www.tiktok.com/@u/video/1',
+        videoProxyUrl: '/api/v1/creatives/x/video',
+        thumbnailProxyUrl: '/api/v1/creatives/x/thumbnail',
+      },
+    ]);
+    expect(out[0]).toEqual({
+      hook: 'h',
+      body: 'b',
+      target: 't',
+      videoUrl: 'https://www.tiktok.com/@u/video/1',
+    });
+  });
+
   it('detects playable video only via videoProxyUrl (S3)', () => {
     expect(angleHasPlayableVideo({ videoProxyUrl: '/api/v1/creatives/x/video' })).toBe(true);
     expect(

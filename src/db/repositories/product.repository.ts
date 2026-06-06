@@ -14,6 +14,7 @@ import {
 } from '../../utils/content-feed-filters.util';
 import { buildProductTextSearchStrings } from '../../utils/product-text-search.util';
 import { expandSubcategoryFilterValues } from '../../utils/category-l2-normalize.util';
+import { expandCategoryL1FilterValues } from '../../utils/category-l1-normalize.util';
 
 const log = logger.child({ module: 'product-repository' });
 
@@ -555,7 +556,9 @@ function applyProductFeedFilters(
   query: Record<string, unknown>,
   filters: ProductFeedFilters,
 ): void {
-  if (filters.category?.length) query['categoryL1'] = { $in: filters.category };
+  if (filters.category?.length) {
+    query['categoryL1'] = { $in: expandCategoryL1FilterValues(filters.category) };
+  }
   if (filters.subcategory?.length) {
     query['categoryL2'] = { $in: expandSubcategoryFilterValues(filters.subcategory) };
   }

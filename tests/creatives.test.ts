@@ -329,6 +329,78 @@ describe('Creatives Endpoints', () => {
     expect(ids).toEqual(['vid_1', 'vid_3']);
   });
 
+  it('GET /api/v1/creatives?categoryL1=Fashion should match TikTok alias labels', async () => {
+    const { Creative } = await getSeededTestMarketModels();
+    await Creative.create(
+      minimalTestCreative({
+        ...LISTABLE_PRODUCT_METRICS,
+        productId,
+        externalVideoId: 'vid_fashion_alias',
+        categoryL1: 'Clothing, Shoes & Accessories',
+        categoryL2: "Women's Clothing",
+        section: 'top-ads',
+        isAd: false,
+        publishedAt: new Date('2024-07-01'),
+        creator: {
+          tiktokUserId: 'u_fashion',
+          handle: 'fashion1',
+          displayName: 'Fashion Creator',
+          region: 'US',
+          tiktokPostUrl: 'https://www.tiktok.com/@fashion1/video/alias',
+          isIndependentCreator: false,
+        },
+        metrics: { viewCount: 9000, likeCount: 900 },
+      }),
+    );
+
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: '/api/v1/creatives?categoryL1=' + encodeURIComponent('Fashion'),
+      token: testToken,
+    });
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    const ids = body.data.data.map((c: { externalVideoId: string }) => c.externalVideoId);
+    expect(ids).toContain('vid_fashion_alias');
+  });
+
+  it('GET /api/v1/creatives/categories should return canonical L1 with alias-aware counts', async () => {
+    const { Creative } = await getSeededTestMarketModels();
+    await Creative.create(
+      minimalTestCreative({
+        ...LISTABLE_PRODUCT_METRICS,
+        productId,
+        externalVideoId: 'vid_electronics_alias',
+        categoryL1: 'Electronics',
+        categoryL2: 'Phone Accessories',
+        section: 'top-ads',
+        isAd: false,
+        publishedAt: new Date('2024-08-01'),
+        creator: {
+          tiktokUserId: 'u_elec',
+          handle: 'elec1',
+          displayName: 'Electronics Creator',
+          region: 'US',
+          tiktokPostUrl: 'https://www.tiktok.com/@elec1/video/alias',
+          isIndependentCreator: false,
+        },
+        metrics: { viewCount: 8000, likeCount: 800 },
+      }),
+    );
+
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: '/api/v1/creatives/categories',
+      token: testToken,
+    });
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    expect(body.data.categories).toContain('Fashion');
+    expect(body.data.categories).toContain('Electronics & Tech');
+  });
+
   it('GET /api/v1/creatives should OR-match comma-separated categoryL2 values', async () => {
     const res = await httpJson({
       baseUrl,

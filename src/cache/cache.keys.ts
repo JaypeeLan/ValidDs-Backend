@@ -34,6 +34,9 @@ export const CacheKeys = {
   productSubcategories: (market: MarketCode, category?: string) =>
     `product:subcategories:${market}:${category?.trim() || '__all__'}`,
 
+  // Creative categories (distinct L1 with ≥1 creative in market, alias-normalized)
+  creativeCategories: (market: MarketCode) => `creative:categories:${market}`,
+
   // Product trend signals
   productTrend: (id: string) => `product:trend:${id}`,
 

@@ -27,6 +27,11 @@ import {
   creativeAdDedupeAggregationStages,
   creativeFeedExposureMatchStage,
 } from '../utils/creative-response.util';
+import { expandCategoryL1FilterValues } from '../utils/category-l1-normalize.util';
+import { filterL1CategoriesWithProducts } from '../utils/product-category-catalog.util';
+import { CacheKeys, CACHE_TTL } from '../cache/cache.keys';
+import { CacheService } from '../cache/cache.service';
+import { DEFAULT_MARKET } from '../utils/markets';
 import { extractMetaAdIdFromUrl } from '../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../utils/tiktok-url.util';
 import {
@@ -457,6 +462,21 @@ export async function findRelatedVideosByCreativeId(
   return formatted.relatedVideos ?? [];
 }
 
+const NON_EMPTY_CATEGORY_L1 = { $exists: true, $nin: [null, ''] };
+
+/** Distinct raw L1 category names on creatives with a non-empty categoryL1. */
+async function getDistinctCreativeCategoryL1(
+  model: Model<ICreativeDocument> = Creative,
+): Promise<string[]> {
+  const values = await model
+    .distinct('categoryL1', { categoryL1: NON_EMPTY_CATEGORY_L1 })
+    .maxTimeMS(30_000);
+  return (values as string[])
+    .map((v) => String(v).trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 export const CreativeService = {
   formatWithAllVideos(input: unknown) {
     return formatCreativeForApi(input, { includeProductDescription: true });
@@ -526,7 +546,8 @@ export const CreativeService = {
     const categoryL3List = categoryL3 as string[] | undefined;
     const hashtagList = hashtags as string[] | undefined;
     if (categoryL1List?.length) {
-      query.categoryL1 = categoryL1List.length === 1 ? categoryL1List[0] : { $in: categoryL1List };
+      const expandedL1 = expandCategoryL1FilterValues(categoryL1List);
+      query.categoryL1 = expandedL1.length === 1 ? expandedL1[0] : { $in: expandedL1 };
     }
     if (categoryL2List?.length) {
       query.categoryL2 = categoryL2List.length === 1 ? categoryL2List[0] : { $in: categoryL2List };
@@ -594,6 +615,20 @@ export const CreativeService = {
       },
       ...(groupByCreator ? { groupBy: 'creator' as const } : {}),
     };
+  },
+
+  /**
+   * L1 categories that have at least one creative (canonical order, alias-aware).
+   */
+  async getCategories(
+    creativeModel: Model<ICreativeDocument> = Creative,
+    market: MarketCode = DEFAULT_MARKET,
+  ): Promise<string[]> {
+    const cacheKey = CacheKeys.creativeCategories(market);
+    return CacheService.getOrSet(cacheKey, CACHE_TTL.CATEGORIES, async () => {
+      const dbL1 = await getDistinctCreativeCategoryL1(creativeModel);
+      return filterL1CategoriesWithProducts(dbL1);
+    }) as Promise<string[]>;
   },
 
   async getCreativeById(id: string, creativeModel: Model<ICreativeDocument> = Creative) {

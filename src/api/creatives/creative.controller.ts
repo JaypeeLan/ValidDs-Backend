@@ -163,6 +163,19 @@ export const CreativeController = {
   },
 
   /**
+   * L1 categories that have at least one creative in the current market.
+   * GET /api/v1/creatives/categories
+   */
+  async categories(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const categories = await CreativeService.getCategories(req.models?.Creative, req.market);
+      res.json(successResponse({ categories }, ResponseMessage.SUCCESS, 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
    * Paginated paid / top-ad creatives only.
    * GET /api/v1/creatives/top-ads
    */

@@ -10,6 +10,8 @@ import { defaultMetricTrendWindows } from '../../utils/metric-trend-days.util';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 import { fillProductFieldGaps } from './product-field-completeness';
 import { normalizeCategoryL2 } from '../../utils/category-l2-normalize.util';
+import { normalizeCategoryL1 } from '../../utils/category-l1-normalize.util';
+import { resolveShopStoreUrl } from '../../utils/shop-avatar.util';
 
 const SUPPLIER_VISITS_MIN = 12_000;
 const SUPPLIER_VISITS_MAX = 890_000;
@@ -267,17 +269,19 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     strOrEmpty(raw.postCreatedAt) ||
     (published instanceof Date ? published.toISOString() : String(published));
 
+  const categoryL1 = normalizeCategoryL1(strOrEmpty(raw.categoryL1));
+
   const out: Record<string, unknown> = {
     ...raw,
     description: strOrEmpty(raw.description),
     hashtags: Array.isArray(raw.hashtags)
       ? (raw.hashtags as unknown[]).map((h) => strOrEmpty(h)).filter(Boolean)
       : [],
+    categoryL1,
     categoryL2: (() => {
-      const l1 = strOrEmpty(raw.categoryL1);
       const l2 = strOrEmpty(raw.categoryL2);
-      if (!l1 || !l2) return l2;
-      return normalizeCategoryL2(l1, l2);
+      if (!categoryL1 || !l2) return l2;
+      return normalizeCategoryL2(categoryL1, l2);
     })(),
     categoryL3: strOrEmpty(raw.categoryL3),
     primaryImageUrl: strOrEmpty(raw.primaryImageUrl) || imageUrls[0] || '',
@@ -309,7 +313,9 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     trends: normalizeTrends(raw.trends),
     discoverySections: Array.isArray(raw.discoverySections) ? raw.discoverySections : [],
     shopName: strOrEmpty(raw.shopName),
-    shopUrl: strOrEmpty(raw.shopUrl),
+    shopUrl:
+      resolveShopStoreUrl(strOrEmpty(raw.shopUrl), strOrEmpty(raw.shopName)) ??
+      strOrEmpty(raw.shopUrl),
     shopAvatarUrl: strOrEmpty(raw.shopAvatarUrl),
     shopFollowers: numOrZero(raw.shopFollowers),
     postUrl: strOrEmpty(raw.postUrl),

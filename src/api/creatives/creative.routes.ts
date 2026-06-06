@@ -21,6 +21,7 @@ router.use(optionalAuth, attachMarketModels);
  * Creative Routes
  *
  * GET /api/v1/creatives — List creatives (public discovery)
+ * GET /api/v1/creatives/categories — L1 categories with creatives (canonical, alias-aware)
  * GET /api/v1/creatives/top-ads — Creatives from independent creators (top ads)
  * GET /api/v1/creatives/:id — Detail (public)
  * GET /api/v1/creatives/:id/related-videos — embedded secondary videos on this creative
@@ -32,20 +33,18 @@ router.post(
   strictLimiter,
   requireAuth,
   validate(CreativeIngestBodySchema, 'body'),
-  CreativeController.ingest
+  CreativeController.ingest,
 );
+
+router.get('/categories', CreativeController.categories);
 
 router.get(
   '/top-ads',
   validate(CreativeTopAdsListQuerySchema, 'query'),
-  CreativeController.listTopAds
+  CreativeController.listTopAds,
 );
 
-router.get(
-  '/',
-  validate(CreativeListQuerySchema, 'query'),
-  CreativeController.list
-);
+router.get('/', validate(CreativeListQuerySchema, 'query'), CreativeController.list);
 
 router.get(
   '/:id/related-videos',
@@ -53,11 +52,7 @@ router.get(
   CreativeController.relatedVideos,
 );
 
-router.get(
-  '/:id',
-  validate(CreativeIdParamSchema, 'params'),
-  CreativeController.detail
-);
+router.get('/:id', validate(CreativeIdParamSchema, 'params'), CreativeController.detail);
 
 // Streams the TikTok CDN video through the API to bypass the CDN's
 // `Referer`-required 403. Public so <video> tags can hit it directly.
@@ -66,7 +61,7 @@ router.get(
   mediaLimiter,
   validate(CreativeIdParamSchema, 'params'),
   validate(CreativeStreamQuerySchema, 'query'),
-  CreativeController.streamVideo
+  CreativeController.streamVideo,
 );
 
 // Same proxy trick for thumbnail / avatar images (TikTok CDN also 403s
@@ -76,7 +71,7 @@ router.get(
   mediaLimiter,
   validate(CreativeIdParamSchema, 'params'),
   validate(CreativeThumbnailQuerySchema, 'query'),
-  CreativeController.streamThumbnail
+  CreativeController.streamThumbnail,
 );
 
 export default router;

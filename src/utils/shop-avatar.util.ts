@@ -22,6 +22,20 @@ export function buildShopStoreCatalogUrl(shopUrl: string, shopName: string): str
   return `https://www.tiktok.com/shop/store/${slug}/${sellerId}`;
 }
 
+/** Public storefront link for API responses and ingest (fixes legacy view/shop URLs). */
+export function resolveShopStoreUrl(
+  shopUrl: string | undefined | null,
+  shopName: string | undefined | null,
+): string | undefined {
+  const trimmed = (shopUrl ?? '').trim();
+  if (!trimmed.startsWith('https://')) return undefined;
+  if (trimmed.includes('tiktok.com/shop/store/')) return trimmed;
+  if (trimmed.includes('shop.tiktok.com/view/shop/')) {
+    return buildShopStoreCatalogUrl(trimmed, shopName ?? '') ?? undefined;
+  }
+  return buildShopStoreCatalogUrl(trimmed, shopName ?? '') ?? trimmed;
+}
+
 /** Strip query params for stable comparison. */
 export function shopAvatarUrlBase(url: string): string {
   try {

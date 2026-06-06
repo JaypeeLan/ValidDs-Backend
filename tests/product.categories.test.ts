@@ -94,6 +94,12 @@ describe('Product Categories', () => {
       expect(filterL1CategoriesWithProducts([])).toEqual([]);
     });
 
+    it('maps raw DB L1 aliases to canonical categories', () => {
+      expect(filterL1CategoriesWithProducts(['Clothing, Shoes & Accessories'])).toEqual([
+        'Fashion',
+      ]);
+    });
+
     it('drops L2 subcategories with no listable products', () => {
       const all = filterSubcategoriesWithProducts({
         'Beauty & Personal Care': ['Skincare'],

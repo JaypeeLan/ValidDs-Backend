@@ -51,6 +51,37 @@ creatives:
       '429':
         $ref: '../components/responses/Standard.yaml#/TooManyRequestsResponse'
 
+creativeCategories:
+  get:
+    tags: [Creatives, Categories]
+    operationId: fetchCreativeCategories
+    summary: Fetch creative categories (L1)
+    description: |
+      Returns top-level (L1) category names that have at least one creative in the current market
+      (canonical order). Raw TikTok Shop labels (e.g. `Clothing, Shoes & Accessories`) are mapped
+      to canonical taxonomy names (e.g. `Fashion`) before counting.
+
+      Use `GET /creatives?categoryL1=` with these values — alias expansion is applied automatically.
+    responses:
+      '200':
+        description: Categories retrieved successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        categories:
+                          type: array
+                          items:
+                            type: string
+      '429':
+        $ref: '../components/responses/Standard.yaml#/TooManyRequestsResponse'
+
 topAdsList:
   get:
     summary: List top-ad creatives

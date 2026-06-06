@@ -3,6 +3,7 @@ import {
   deriveShopAccountHandle,
   isLikelyCreatorProfileAvatarCdnUrl,
   isSuspiciousShopAvatarUrl,
+  resolveShopStoreUrl,
 } from '../src/utils/shop-avatar.util';
 
 describe('shop-avatar.util', () => {
@@ -14,6 +15,18 @@ describe('shop-avatar.util', () => {
   it('builds tiktok shop/store catalog URL from view/shop link', () => {
     expect(
       buildShopStoreCatalogUrl('https://shop.tiktok.com/view/shop/7495832567110863806', 'Crocs'),
+    ).toBe('https://www.tiktok.com/shop/store/crocs/7495832567110863806');
+  });
+
+  it('resolveShopStoreUrl fixes legacy view/shop URLs for API responses', () => {
+    expect(
+      resolveShopStoreUrl(
+        'https://shop.tiktok.com/view/shop/7495150597721263036',
+        'Tarte Cosmetics',
+      ),
+    ).toBe('https://www.tiktok.com/shop/store/tarte-cosmetics/7495150597721263036');
+    expect(
+      resolveShopStoreUrl('https://www.tiktok.com/shop/store/crocs/7495832567110863806', 'Crocs'),
     ).toBe('https://www.tiktok.com/shop/store/crocs/7495832567110863806');
   });
 

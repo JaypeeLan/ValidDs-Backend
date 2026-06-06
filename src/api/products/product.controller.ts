@@ -11,6 +11,7 @@ import {
 } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
+import { resolveShopStoreUrl } from '../../utils/shop-avatar.util';
 import type {
   IAIIntelligence,
   IProduct,
@@ -183,7 +184,10 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     salesTrend: (product.salesTrend as ProductFeedItem['salesTrend']) ?? null,
     priceTrend: (product.priceTrend as ProductFeedItem['priceTrend']) ?? null,
     shopName: product.shopName as string | undefined,
-    shopUrl: product.shopUrl as string | undefined,
+    shopUrl: resolveShopStoreUrl(
+      product.shopUrl as string | undefined,
+      product.shopName as string | undefined,
+    ),
     shopAvatarUrl: (product.shopAvatarUrl as string | null | undefined) ?? null,
     shopAvatarProxyUrl:
       typeof (product as { shopAvatarProxyUrl?: unknown }).shopAvatarProxyUrl === 'string'
@@ -230,6 +234,10 @@ function formatProductResponse(input: ProductLike): ProductApiResponse {
 
   const response = {
     ...product,
+    shopUrl: resolveShopStoreUrl(
+      product.shopUrl as string | undefined,
+      product.shopName as string | undefined,
+    ),
     rating: finalRating,
     ratings: finalRating,
     reviewCount: product.reviewCount,

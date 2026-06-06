@@ -103,6 +103,8 @@ paths:
     $ref: './paths/products.yaml#/relatedAds'
   /api/v1/creatives:
     $ref: './paths/creatives.yaml#/creatives'
+  /api/v1/creatives/categories:
+    $ref: './paths/creatives.yaml#/creativeCategories'
   /api/v1/creatives/top-ads:
     $ref: './paths/creatives.yaml#/topAdsList'
   /api/v1/creatives/ingest:

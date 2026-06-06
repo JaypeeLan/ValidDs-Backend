@@ -1,9 +1,16 @@
 import { PRODUCT_CATEGORIES, SUBCATEGORIES_BY_CATEGORY } from '../api/products/product.constants';
+import { normalizeCategoryL1 } from './category-l1-normalize.util';
 import { normalizeCategoryL2 } from './category-l2-normalize.util';
+
+const CANONICAL_L1_SET = new Set(PRODUCT_CATEGORIES);
 
 /** L1 categories in canonical order, limited to those present in the database. */
 export function filterL1CategoriesWithProducts(dbL1: string[]): string[] {
-  const have = new Set(dbL1.map((c) => c.trim()).filter(Boolean));
+  const have = new Set<string>();
+  for (const raw of dbL1) {
+    const canonical = normalizeCategoryL1(raw);
+    if (canonical && CANONICAL_L1_SET.has(canonical)) have.add(canonical);
+  }
   return PRODUCT_CATEGORIES.filter((c) => have.has(c));
 }
 

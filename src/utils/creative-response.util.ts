@@ -16,6 +16,7 @@ import type {
 import { isMetaCreative, metaAdIdFromCreative } from './meta-video-s3.util';
 import { normalizeMetaAdLibraryUrl } from './meta-ad-url.util';
 import { resolveEngagementTrend } from './product-trend.util';
+import { normalizeCategoryL1 } from './category-l1-normalize.util';
 
 /** API `trending` ↔ DB `top-ads`; API `top-ads` ↔ DB `trending`. */
 const API_TO_DB_SECTION: Record<string, CreativeSection> = {
@@ -663,7 +664,10 @@ export function formatCreativeForApi(
     isPrimaryDiscovery: creative.isPrimaryDiscovery as boolean | undefined,
     isAd: creative.isAd as boolean | undefined,
     productName: creative.productName as string | undefined,
-    categoryL1: creative.categoryL1 as string | undefined,
+    categoryL1: (() => {
+      const raw = creative.categoryL1 as string | undefined;
+      return raw ? normalizeCategoryL1(raw) : undefined;
+    })(),
     categoryL2: creative.categoryL2 as string | undefined,
     categoryL3: creative.categoryL3 as string | undefined,
     categoryPath: creative.categoryPath as string | undefined,

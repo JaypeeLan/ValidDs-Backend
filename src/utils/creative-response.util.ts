@@ -8,15 +8,17 @@ import type {
   ICreatorProfile,
   ICreatorProfileApi,
   IMetricTrend,
-  IMetricTrendWindow,
   IProductTrendSnapshot,
   ISecondaryVideo,
   IVideoMetrics,
 } from '../types/creative.types';
 import { isMetaCreative, metaAdIdFromCreative } from './meta-video-s3.util';
 import { normalizeMetaAdLibraryUrl } from './meta-ad-url.util';
+import { mergeMetricTrendSnapshots } from './metric-trend-merge.util';
 import { resolveEngagementTrend } from './product-trend.util';
 import { normalizeCategoryL1 } from './category-l1-normalize.util';
+import { creativeVideoMatchesProduct } from './video-product-match.util';
+import { sanitizeVideoMetrics } from './video-metrics.util';
 
 /** API `trending` ↔ DB `top-ads`; API `top-ads` ↔ DB `trending`. */
 const API_TO_DB_SECTION: Record<string, CreativeSection> = {
@@ -496,20 +498,20 @@ function resolveProductSalesTrend(raw: unknown): IMetricTrend | null {
   const o = raw as Record<string, unknown>;
   const direction = o.direction;
   if (direction !== 'up' && direction !== 'down' && direction !== 'stable') return null;
-  const windows: IMetricTrendWindow[] = Array.isArray(o.windows)
-    ? o.windows
-        .filter((w): w is Record<string, unknown> => !!w && typeof w === 'object')
-        .map((w) => ({
-          label: String(w.label ?? ''),
-          daysAgo: Number(w.daysAgo) || 0,
-          value: Number(w.value) || 0,
-        }))
-    : [];
-  return {
-    direction,
-    changePercent: Number(o.changePercent) || 0,
-    windows,
-  };
+
+  const windows = Array.isArray(o.windows) ? o.windows : [];
+  let currentValue = 0;
+  for (const w of windows) {
+    if (!w || typeof w !== 'object') continue;
+    const row = w as Record<string, unknown>;
+    if (row.daysAgo === 0 || (row.daysAgo == null && row.monthsAgo === 0)) {
+      currentValue = Number(row.value) || 0;
+      break;
+    }
+  }
+
+  // Normalize legacy monthly windows (monthsAgo / mislabeled daysAgo) to day offsets.
+  return mergeMetricTrendSnapshots(raw, null, currentValue);
 }
 
 function resolveProductTrendSnapshot(raw: unknown): IProductTrendSnapshot | null {
@@ -533,14 +535,7 @@ function resolveProductTrendSnapshot(raw: unknown): IProductTrendSnapshot | null
 }
 
 function formatMetrics(metrics: IVideoMetrics | undefined): IVideoMetrics {
-  const m = metrics ?? ({} as IVideoMetrics);
-  return {
-    viewCount: Number(m.viewCount) || 0,
-    likeCount: Number(m.likeCount) || 0,
-    commentCount: Number(m.commentCount) || 0,
-    shareCount: Number(m.shareCount) || 0,
-    engagementRate: m.engagementRate ?? null,
-  };
+  return sanitizeVideoMetrics(metrics);
 }
 
 function formatCreator(
@@ -560,6 +555,8 @@ function formatCreator(
     handle: c.handle ?? '',
     displayName: c.displayName,
     followers: typeof c.followers === 'number' ? c.followers : 0,
+    following: typeof c.following === 'number' ? c.following : undefined,
+    totalLikes: typeof c.totalLikes === 'number' ? c.totalLikes : undefined,
     verified: Boolean(c.verified),
     region: c.region,
     isIndependentCreator: Boolean(c.isIndependentCreator),
@@ -601,6 +598,7 @@ export function isVerifiedMetaCreative(creative: CreativePlain): boolean {
 export function shouldExposeCreativeInFeed(creative: CreativePlain): boolean {
   if (!creativeHasPlayableVideo(creative, 0)) return false;
   if (isMetaCreative(creative) && !isVerifiedMetaCreative(creative)) return false;
+  if (!creativeVideoMatchesProduct(creative as Record<string, unknown>)) return false;
   return true;
 }
 

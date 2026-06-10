@@ -131,11 +131,11 @@ export function applyProductMetricFilters(
   }
 
   if (filters.startDate) {
+    // publishedAt may be ISO string (scraper mongo ingest) or BSON Date — coerce before compare.
     appendAnd(query, {
-      $or: [
-        { publishedAt: { $gte: filters.startDate } },
-        { postCreatedAt: { $gte: filters.startDate } },
-      ],
+      $expr: {
+        $gte: [postDateCoalesceExpr(), filters.startDate],
+      },
     });
   }
 }

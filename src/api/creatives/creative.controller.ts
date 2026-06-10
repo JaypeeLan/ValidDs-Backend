@@ -154,7 +154,12 @@ export const CreativeController = {
     try {
       const query = req.query as unknown as CreativeListQuery;
       const listMatch = query.section || query.productId ? undefined : CREATIVE_TRENDING_MATCH;
-      const result = await CreativeService.findCreatives(query, listMatch, req.models?.Creative);
+      const result = await CreativeService.findCreatives(
+        query,
+        listMatch,
+        req.models?.Creative,
+        req.models?.Product,
+      );
 
       res.json(successResponse(result, ResponseMessage.CREATIVES_RETRIEVED, 200));
     } catch (err) {
@@ -186,6 +191,7 @@ export const CreativeController = {
         query,
         CREATIVE_TOP_ADS_MATCH,
         req.models?.Creative,
+        req.models?.Product,
       );
 
       res.json(successResponse(result, ResponseMessage.CREATIVES_RETRIEVED, 200));

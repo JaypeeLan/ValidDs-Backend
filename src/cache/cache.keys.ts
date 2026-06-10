@@ -18,6 +18,9 @@ import type { MarketCode } from '../utils/markets';
 /** Bump when feed query semantics change so Redis does not serve stale empty/wrong slices. */
 const PRODUCT_FEED_CACHE_REVISION = 'v7';
 
+/** Bump when related-product matching semantics change. */
+const PRODUCT_RELATED_CACHE_REVISION = 'l2-complete';
+
 export const CacheKeys = {
   // Product feed — varies by market + page + limit + filters
   productFeed: (market: MarketCode, page: number, limit: number, filters?: string) =>
@@ -27,7 +30,8 @@ export const CacheKeys = {
   productDetail: (market: MarketCode, id: string) => `product:detail:${market}:${id}`,
 
   // Related products for a given product
-  productRelated: (market: MarketCode, id: string) => `product:related:${market}:${id}`,
+  productRelated: (market: MarketCode, id: string) =>
+    `product:related:${PRODUCT_RELATED_CACHE_REVISION}:${market}:${id}`,
 
   // Product categories (distinct values with ≥1 listable product in market)
   productCategories: (market: MarketCode) => `product:categories:${market}`,

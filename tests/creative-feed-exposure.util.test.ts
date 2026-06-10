@@ -34,6 +34,7 @@ describe('creativeFeedExposureMatchStage', () => {
       externalVideoId: '7643925823090625822',
       videoS3Key: 'brightdata/tiktok-videos/7643925823090625822.mp4',
       tiktokPostUrl: 'https://www.tiktok.com/@x/video/7643925823090625822',
+      publishedAt: new Date(),
     };
     expect(shouldExposeCreativeInFeed(doc)).toBe(true);
     expect(await matchesFeedExposureInMongo(doc)).toBe(true);
@@ -53,6 +54,7 @@ describe('creativeFeedExposureMatchStage', () => {
       externalVideoId: 'meta:12345678901',
       metaAdLibraryUrl: 'https://www.facebook.com/ads/library/?id=12345678901',
       tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=12345678901',
+      publishedAt: new Date(),
     };
     expect(shouldExposeCreativeInFeed(doc)).toBe(false);
     expect(await matchesFeedExposureInMongo(doc)).toBe(true);
@@ -66,5 +68,32 @@ describe('creativeFeedExposureMatchStage', () => {
     };
     expect(shouldExposeCreativeInFeed(doc)).toBe(false);
     expect(await matchesFeedExposureInMongo(doc)).toBe(false);
+  });
+
+  it('still exposes older creatives in feed (48h rule is ingest-only)', async () => {
+    const old = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const doc = {
+      externalVideoId: '7643925823090625822',
+      videoS3Key: 'brightdata/tiktok-videos/7643925823090625822.mp4',
+      tiktokPostUrl: 'https://www.tiktok.com/@x/video/7643925823090625822',
+      publishedAt: old,
+      productName: 'Sample Product',
+      description: 'sample product review',
+    };
+    expect(shouldExposeCreativeInFeed(doc)).toBe(true);
+    expect(await matchesFeedExposureInMongo(doc)).toBe(true);
+  });
+
+  it('rejects creatives whose caption does not match the attached product', async () => {
+    const doc = {
+      externalVideoId: '7643925823090625824',
+      videoS3Key: 'brightdata/tiktok-videos/7643925823090625824.mp4',
+      tiktokPostUrl: 'https://www.tiktok.com/@x/video/7643925823090625824',
+      publishedAt: new Date(),
+      productName: 'Tarte Colored Clay CC Undereye Corrector',
+      description: 'collagen creatine jars bulk supplement haul',
+      hashtags: ['supplements'],
+    };
+    expect(shouldExposeCreativeInFeed(doc)).toBe(false);
   });
 });

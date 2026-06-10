@@ -13,6 +13,7 @@ import { normalizeCategoryL2 } from '../../utils/category-l2-normalize.util';
 import { normalizeCategoryL1 } from '../../utils/category-l1-normalize.util';
 import { resolveShopStoreUrl } from '../../utils/shop-avatar.util';
 import { discoverySectionsForProduct } from '../../utils/discovery-sections.util';
+import { sanitizeVideoMetrics } from '../../utils/video-metrics.util';
 
 const SUPPLIER_VISITS_MIN = 12_000;
 const SUPPLIER_VISITS_MAX = 890_000;
@@ -350,6 +351,9 @@ function normalizeRelatedVideos(related: unknown): unknown[] {
       creator.tiktokPostUrl = postUrl;
     }
     row.creator = creator;
+    if (row.metrics && typeof row.metrics === 'object') {
+      row.metrics = sanitizeVideoMetrics(row.metrics as Record<string, unknown>);
+    }
     return row;
   });
 }
@@ -398,6 +402,9 @@ export function normalizeCreativePayload(raw: Record<string, unknown>): Record<s
     creator.tiktokPostUrl = rootPostUrl;
   }
   out.creator = creator;
+  if (out.metrics && typeof out.metrics === 'object') {
+    out.metrics = sanitizeVideoMetrics(out.metrics as Record<string, unknown>);
+  }
   out.relatedVideos = normalizeRelatedVideos(out.relatedVideos);
   out.adDedupeKey = creativeAdDedupeKey(out);
   return out;

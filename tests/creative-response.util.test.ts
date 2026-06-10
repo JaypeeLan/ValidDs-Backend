@@ -22,6 +22,28 @@ describe('resolveCreatorAvatarUrl', () => {
   });
 });
 
+describe('formatCreativeFeedItem metrics', () => {
+  it('sanitizes implausible view/like ratios in API output', () => {
+    const item = formatCreativeFeedItem({
+      _id: '507f1f77bcf86cd799439012',
+      externalVideoId: '7123456789',
+      videoS3Key: 'brightdata/tiktok-videos/7123456789.mp4',
+      tiktokPostUrl: 'https://www.tiktok.com/@user/video/7123456789',
+      creator: {
+        handle: 'user',
+        verified: false,
+        tiktokPostUrl: 'https://www.tiktok.com/@user/video/7123456789',
+      },
+      metrics: { viewCount: 4_000_000, likeCount: 2, commentCount: 0, shareCount: 0 },
+      section: 'top-ads',
+      productId: '507f1f77bcf86cd799439022',
+    });
+
+    expect(item.metrics.viewCount).toBe(1000);
+    expect(item.metrics.likeCount).toBe(2);
+  });
+});
+
 describe('formatCreativeFeedItem creator avatar proxy', () => {
   it('exposes avatarProxyUrl when only creator handle is stored (S3/proxy refresh)', () => {
     const item = formatCreativeFeedItem({

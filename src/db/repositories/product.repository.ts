@@ -16,7 +16,10 @@ import {
   applyProductMetricFilters,
 } from '../../utils/content-feed-filters.util';
 import { buildProductTextSearchStrings } from '../../utils/product-text-search.util';
-import { expandSubcategoryFilterValues } from '../../utils/category-l2-normalize.util';
+import {
+  expandSubcategoryFilterValues,
+  normalizeCategoryL2,
+} from '../../utils/category-l2-normalize.util';
 import { expandCategoryL1FilterValues } from '../../utils/category-l1-normalize.util';
 
 const log = logger.child({ module: 'product-repository' });
@@ -683,7 +686,7 @@ export const ProductRepository = {
    * Upsert an enriched product using videoId + source as the unique key.
    */
   async upsertEnrichedProduct(input: EnrichedProductInput): Promise<IProductDocument | null> {
-    const title = input.title.trim().slice(0, 120);
+    const title = input.title.trim().slice(0, 500);
     const normalizedTitle = normalizeProductTitle(title);
 
     if (isGenericTitle(title)) {
@@ -828,60 +831,56 @@ export const ProductRepository = {
 
   /**
    * Find related products for a given product.
-   * Strategy:
-   *   1. Same categoryL2 (subcategory), excluding current — up to 8 results.
-   *   2. If fewer than 8 found, backfill from same categoryL1, excluding already-found IDs.
-   * Sorted by trend score desc then totalSales desc.
+   * Same L2 subcategory only (including alias variants), excluding current product,
+   * duplicate titles, and non-listable rows — up to `limit`.
+   * Sorted by trend score desc then totalSales desc; deduped by normalized title + shop.
    */
   async findRelated(
     id: string,
     categoryL1: string,
     categoryL2: string | undefined,
+    normalizedTitle: string | undefined,
     limit = 8,
     model: IProductModel = Product,
   ): Promise<IProductDocument[]> {
-    if (!mongoose.isValidObjectId(id)) return [];
+    if (!mongoose.isValidObjectId(id) || !categoryL2?.trim()) return [];
+
+    const l2Values = expandSubcategoryFilterValues([normalizeCategoryL2(categoryL1, categoryL2)]);
+    if (l2Values.length === 0) return [];
 
     const objectId = new mongoose.Types.ObjectId(id);
-    const baseFilter = { _id: { $ne: objectId }, status: { $ne: 'archived' } };
     const sort = {
       'trends.engagement.score': -1 as const,
       'trend.score': -1 as const,
       totalSales: -1 as const,
+      soldCount: -1 as const,
+      totalGmv: -1 as const,
     };
-    const projection = PRODUCT_LISTING_FIELD_PROJECTION;
 
-    const results: IProductDocument[] = [];
+    const match: Record<string, unknown> = {
+      ...LISTABLE_PRODUCT_FILTER,
+      _id: { $ne: objectId },
+      categoryL2: l2Values.length === 1 ? l2Values[0]! : { $in: l2Values },
+    };
 
-    // Pass 1 — same subcategory
-    if (categoryL2) {
-      const subcategoryResults = (await model
-        .find({ ...baseFilter, categoryL2 })
-        .select(projection)
-        .sort(sort)
-        .limit(limit)
-        .lean()) as unknown as IProductDocument[];
-      results.push(...subcategoryResults);
+    const titleKey = normalizedTitle?.trim().toLowerCase();
+    if (titleKey) {
+      match.normalizedTitle = { $ne: titleKey };
     }
 
-    // Pass 2 — backfill from same top-level category if needed
-    if (results.length < limit) {
-      const seenIds = new Set([id, ...results.map((p) => String((p as any)._id))]);
-      const remaining = limit - results.length;
-      const categoryResults = (await model
-        .find({
-          ...baseFilter,
-          categoryL1,
-          _id: { $nin: [...seenIds].map((sid) => new mongoose.Types.ObjectId(sid)) },
-        })
-        .select(projection)
-        .sort(sort)
-        .limit(remaining)
-        .lean()) as unknown as IProductDocument[];
-      results.push(...categoryResults);
-    }
+    const rows = await model
+      .aggregate([
+        { $match: match },
+        { $sort: sort },
+        ...PRODUCT_LISTING_DEDUPE_STAGES,
+        { $sort: sort },
+        { $limit: limit },
+        { $project: PRODUCT_LISTING_FIELD_PROJECTION },
+      ])
+      .option({ maxTimeMS: 15_000 })
+      .exec();
 
-    return results;
+    return rows as unknown as IProductDocument[];
   },
 
   /** Distinct L1 category names that have at least one listable product. */

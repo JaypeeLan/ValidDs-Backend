@@ -372,6 +372,80 @@ describe('Products Endpoints', () => {
     expect(titles).not.toContain(`${prefix} Nail`);
   });
 
+  it('GET /api/v1/products/:id/related-products returns same L2 only with alias expansion', async () => {
+    const { Product } = await getSeededTestMarketModels();
+    const prefix = 'Related L2';
+    const anchor = await Product.create(
+      minimalTestProduct({
+        externalId: 'rel_l2_anchor',
+        source: 'tiktok',
+        title: `${prefix} Anchor Lipstick`,
+        normalizedTitle: 'related l2 anchor lipstick',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup',
+        categoryL3: 'Lipstick',
+        categoryPath: 'Beauty & Personal Care > Makeup > Lipstick',
+        totalGmv: 20_000,
+      }),
+    );
+    await Product.create([
+      minimalTestProduct({
+        externalId: 'rel_l2_canonical',
+        source: 'tiktok',
+        title: `${prefix} Canonical Blush`,
+        normalizedTitle: 'related l2 canonical blush',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup & Cosmetics',
+        categoryL3: 'Blush',
+        totalGmv: 18_000,
+      }),
+      minimalTestProduct({
+        externalId: 'rel_l2_wrong_l2',
+        source: 'tiktok',
+        title: `${prefix} Wrong L2 Shampoo`,
+        normalizedTitle: 'related l2 wrong l2 shampoo',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Hair Care',
+        totalGmv: 99_000,
+      }),
+      minimalTestProduct({
+        externalId: 'rel_l2_dup_title',
+        source: 'tiktok',
+        title: `${prefix} Anchor Lipstick Duplicate`,
+        normalizedTitle: 'related l2 anchor lipstick',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup & Cosmetics',
+        totalGmv: 50_000,
+      }),
+      minimalTestProduct({
+        externalId: 'rel_l2_invalid',
+        source: 'tiktok',
+        status: 'invalid',
+        title: `${prefix} Invalid Status`,
+        normalizedTitle: 'related l2 invalid status',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup & Cosmetics',
+        totalGmv: 40_000,
+      }),
+    ]);
+
+    const id = String(anchor._id);
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: `/api/v1/products/${id}/related-products`,
+      token: testToken,
+    });
+
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    const titles = (body.data.relatedProducts as { title: string }[]).map((p) => p.title);
+    expect(titles).toEqual([`${prefix} Canonical Blush`]);
+    expect(titles).not.toContain(`${prefix} Wrong L2 Shampoo`);
+    expect(titles).not.toContain(`${prefix} Anchor Lipstick Duplicate`);
+    expect(titles).not.toContain(`${prefix} Invalid Status`);
+  });
+
   it('GET /api/v1/products/:id should handle ID properly', async () => {
     const res = await httpJson({
       baseUrl,

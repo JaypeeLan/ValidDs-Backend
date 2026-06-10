@@ -10,7 +10,6 @@ import {
   MAX_REVIEWS_INGEST,
   MIN_PRODUCT_IMAGES,
   MIN_PRODUCT_RATING,
-  MIN_VIEW_COUNT,
   asFiniteNumber,
   baselineProductQualityReasons,
   hasTrendCurrentWindow,
@@ -18,11 +17,14 @@ import {
   MIN_PRODUCT_PRICE,
   marketingAngleFieldReasons,
   marketingAngles,
+  isAngleVideoCreative,
   postAgeRejection,
+  postAgeRejectionHours,
   strictProductQualityReasons,
   supplierTrafficReasons,
 } from './ingest-quality';
 import { productFieldCompletenessReasons } from './product-field-completeness';
+import { creativeVideoProductMatchReason } from '../../utils/video-product-match.util';
 
 export {
   BASELINE_INGEST,
@@ -141,11 +143,6 @@ export function validateProductForIngest(
     reasons.push('primaryCreator.avatarS3Key required — profile image must be in S3 before ingest');
   }
 
-  const views = asFiniteNumber(doc.viewCount);
-  if (views === null || views < MIN_VIEW_COUNT) {
-    reasons.push(`viewCount must be >= ${MIN_VIEW_COUNT}`);
-  }
-
   const reviews = doc.reviews;
   if (Array.isArray(reviews) && reviews.length > MAX_REVIEWS_INGEST) {
     reasons.push(`reviews must be capped at ${MAX_REVIEWS_INGEST}`);
@@ -246,15 +243,9 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
     reasons.push('creator.avatarS3Key required — profile image must be in S3 before ingest');
   }
 
-  const metrics = (doc.metrics ?? {}) as Record<string, unknown>;
-  const viewCount = asFiniteNumber(metrics.viewCount);
-  if (viewCount === null || viewCount < MIN_VIEW_COUNT) {
-    reasons.push(`viewCount must be >= ${MIN_VIEW_COUNT}`);
-  }
-
   const isStandaloneAd = doc.isAd === true && doc.isPrimaryDiscovery !== true;
-  if (!isStandaloneAd) {
-    const creativeAge = postAgeRejection(doc.publishedAt, 'creative');
+  if (!isAngleVideoCreative(doc)) {
+    const creativeAge = postAgeRejectionHours(doc.publishedAt, 'creative');
     if (creativeAge) reasons.push(creativeAge);
   }
 
@@ -274,6 +265,9 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
   if (!hasTrendCurrentWindow(doc.productSalesTrend)) {
     reasons.push('productSalesTrend missing today window');
   }
+
+  const matchReason = creativeVideoProductMatchReason(doc);
+  if (matchReason) reasons.push(matchReason);
 
   return reasons;
 }

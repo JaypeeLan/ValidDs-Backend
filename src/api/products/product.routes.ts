@@ -19,7 +19,7 @@ const router = Router();
  * GET /products/keyword-context — public
  * GET /products/categories — public
  * GET /products/:id — product detail (public)
- * GET /products/:id/related-products — same-category products (feed cards)
+ * GET /products/:id/related-products — same L2 subcategory products (feed cards)
  * GET /products/:id/similar-products — alias for related-products (feed cards)
  * GET /products/:id/related-videos — commercial (non-ad) creatives for this product
  * GET /products/:id/related-ads — paid / top-ad creatives for this product
@@ -29,21 +29,17 @@ const router = Router();
 // optionalAuth loads the user from DB so contentRegion is available before market models attach.
 router.use(optionalAuth, attachMarketModels);
 
-router.get(
-  '/',
-  validate(ProductFeedQuerySchema, 'query'),
-  ProductController.feed
-);
+router.get('/', validate(ProductFeedQuerySchema, 'query'), ProductController.feed);
 
 router.get(
   '/keyword-context',
   validate(ProductKeywordContextQuerySchema, 'query'),
-  ProductController.keywordContext
+  ProductController.keywordContext,
 );
 
-router.get('/categories',    ProductController.categories);
+router.get('/categories', ProductController.categories);
 router.get('/subcategories', ProductController.subcategories);
-router.get('/taxonomy',      ProductController.taxonomy);
+router.get('/taxonomy', ProductController.taxonomy);
 router.get('/saved', requireAuth, ProductController.saved);
 
 router.get(
@@ -69,10 +65,6 @@ router.get(
   ProductController.relatedAds,
 );
 
-router.get(
-  '/:id',
-  validate(ProductIdParamSchema, 'params'),
-  ProductController.detail,
-);
+router.get('/:id', validate(ProductIdParamSchema, 'params'), ProductController.detail);
 
 export default router;

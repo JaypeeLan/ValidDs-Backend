@@ -4,6 +4,7 @@
 
 import { z } from 'zod';
 import { INGEST_QUALITY, MIN_TOTAL_GMV } from '../api/internal/ingest-quality';
+import { postDateCoalesceExpr } from './product-recency.util';
 
 export interface ContentMetricFilters {
   minLikes?: number;
@@ -166,7 +167,12 @@ export function applyCreativeMetricFilters(
   }
 
   if (filters.startDate) {
-    query.publishedAt = { $gte: filters.startDate };
+    // publishedAt may be stored as ISO string (scraper mongo ingest) or BSON Date — coerce before compare.
+    appendAnd(query, {
+      $expr: {
+        $gte: [postDateCoalesceExpr(), filters.startDate],
+      },
+    });
   }
 
   const gmvMin = [filters.minGmv, filters.minCreatorGmv].filter((n): n is number => n != null);

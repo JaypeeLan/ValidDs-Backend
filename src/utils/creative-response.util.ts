@@ -274,6 +274,17 @@ function mongoTiktokVideoDedupeKeyExpr(): Record<string, unknown> {
   };
 }
 
+/**
+ * Mongo stages: one creative per product in global discovery feeds.
+ * Run after $sort so the highest-ranked creative per product is kept.
+ */
+export function creativeOneAdPerProductFeedStages(): Record<string, unknown>[] {
+  return [
+    { $group: { _id: '$productId', doc: { $first: '$$ROOT' } } },
+    { $replaceRoot: { newRoot: '$doc' } },
+  ];
+}
+
 /** Mongo stages: collapse duplicate ads (same video / same product hero card / Meta copy). */
 export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
   const thumb = mongoImageAssetKeyExpr('$thumbnailUrl');

@@ -252,11 +252,17 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
     reasons.push(`viewCount must be >= ${MIN_VIEW_COUNT}`);
   }
 
-  const creativeAge = postAgeRejection(doc.publishedAt, 'creative');
-  if (creativeAge) reasons.push(creativeAge);
+  const isStandaloneAd = doc.isAd === true && doc.isPrimaryDiscovery !== true;
+  if (!isStandaloneAd) {
+    const creativeAge = postAgeRejection(doc.publishedAt, 'creative');
+    if (creativeAge) reasons.push(creativeAge);
+  }
 
   const related = doc.relatedVideos;
-  if (!Array.isArray(related) || related.length < INGEST_QUALITY.MIN_RELATED_VIDEOS) {
+  if (
+    !isStandaloneAd &&
+    (!Array.isArray(related) || related.length < INGEST_QUALITY.MIN_RELATED_VIDEOS)
+  ) {
     reasons.push(`need at least ${INGEST_QUALITY.MIN_RELATED_VIDEOS} related videos`);
   }
 

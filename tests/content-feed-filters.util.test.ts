@@ -35,6 +35,20 @@ describe('content-feed-filters.util', () => {
     expect(f.maxFollowers).toBe(1_000_000);
   });
 
+  it('applyCreativeMetricFilters uses $expr for startDate (string or Date publishedAt)', () => {
+    const query: Record<string, unknown> = {};
+    const start = parseStartDateParam('2026-06-03');
+    applyCreativeMetricFilters(query, { startDate: start });
+    expect(query.$and).toEqual([
+      {
+        $expr: {
+          $gte: [expect.objectContaining({ $let: expect.any(Object) }), start],
+        },
+      },
+    ]);
+    expect(query.publishedAt).toBeUndefined();
+  });
+
   it('applyCreativeMetricFilters maps creator fields to Mongo paths', () => {
     const query: Record<string, unknown> = {};
     applyCreativeMetricFilters(

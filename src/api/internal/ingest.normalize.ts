@@ -12,6 +12,7 @@ import { fillProductFieldGaps } from './product-field-completeness';
 import { normalizeCategoryL2 } from '../../utils/category-l2-normalize.util';
 import { normalizeCategoryL1 } from '../../utils/category-l1-normalize.util';
 import { resolveShopStoreUrl } from '../../utils/shop-avatar.util';
+import { discoverySectionsForProduct } from '../../utils/discovery-sections.util';
 
 const SUPPLIER_VISITS_MIN = 12_000;
 const SUPPLIER_VISITS_MAX = 890_000;
@@ -311,7 +312,7 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     suppliers: normalizeSuppliers(raw.suppliers),
     aiIntelligence: normalizeAiIntelligence(raw.aiIntelligence),
     trends: normalizeTrends(raw.trends),
-    discoverySections: Array.isArray(raw.discoverySections) ? raw.discoverySections : [],
+    discoverySections: discoverySectionsForProduct(raw),
     shopName: strOrEmpty(raw.shopName),
     shopUrl:
       resolveShopStoreUrl(strOrEmpty(raw.shopUrl), strOrEmpty(raw.shopName)) ??
@@ -381,6 +382,10 @@ function normalizeMetaCreativeUrls(out: Record<string, unknown>): void {
 
 export function normalizeCreativePayload(raw: Record<string, unknown>): Record<string, unknown> {
   const out = { ...raw };
+  const published = parsePublishedAt(raw.publishedAt);
+  if (raw.publishedAt != null) {
+    out.publishedAt = published;
+  }
   normalizeMetaCreativeUrls(out);
   const pt = normalizeProductTrend(raw.productTrend);
   if (pt) out.productTrend = pt;

@@ -13,6 +13,7 @@ export const BASELINE_INGEST = {
 /** Strict rules always enforced on product/creative ingest (scraper + backend). */
 export const INGEST_QUALITY = {
   MIN_UNITS_SOLD: 200,
+  /** New product ingest only — scraper skips this on Mongo upsert updates. */
   MAX_POST_AGE_DAYS: 30,
   /** New non-angle creatives only — existing DB rows are not retroactively removed. */
   MAX_CREATIVE_AGE_HOURS: 48,

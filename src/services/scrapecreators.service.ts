@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.middleware';
 import { logger } from '../logger';
 import { extractAwemeMedia, resolveAwemeId } from '../utils/aweme-media.util';
 import type { AwemeMediaPatch } from '../utils/aweme-media.util';
+import type { IVideoMetrics } from '../types/creative.types';
 
 const log = logger.child({ module: 'scrapecreators-service' });
 
@@ -268,11 +269,23 @@ export const ScrapeCreatorsService = {
    * Locate a single aweme in a creator's profile/videos feed and extract fresh media URLs.
    * Paginates up to `maxPages` (default 5) before giving up.
    */
-  async findAwemeMedia(
+  async findAwemeEngagement(
     handle: string,
     awemeId: string,
     options: { region?: string; maxPages?: number } = {},
-  ): Promise<AwemeMediaPatch | null> {
+  ): Promise<IVideoMetrics | null> {
+    const aweme = await this.findAwemeRaw(handle, awemeId, options);
+    if (!aweme) return null;
+    const { extractAwemeEngagement } = await import('../utils/video-metrics.util');
+    const metrics = extractAwemeEngagement(aweme);
+    return metrics.viewCount > 0 ? metrics : null;
+  },
+
+  async findAwemeRaw(
+    handle: string,
+    awemeId: string,
+    options: { region?: string; maxPages?: number } = {},
+  ): Promise<Record<string, unknown> | null> {
     if (!this.isConfigured()) return null;
 
     const cleanHandle = handle.replace(/^@/, '').trim().toLowerCase();
@@ -298,14 +311,7 @@ export const ScrapeCreatorsService = {
           headers: { 'x-api-key': env.SCRAPECREATORS_API_KEY!, Accept: 'application/json' },
           signal: AbortSignal.timeout(20_000),
         });
-        if (!res.ok) {
-          log.debug('ScrapeCreators profile/videos failed', {
-            handle: cleanHandle,
-            status: res.status,
-            page,
-          });
-          return null;
-        }
+        if (!res.ok) return null;
 
         const raw = (await res.json()) as Record<string, unknown>;
         const batch = Array.isArray(raw.aweme_list) ? raw.aweme_list : [];
@@ -313,24 +319,28 @@ export const ScrapeCreatorsService = {
           if (!item || typeof item !== 'object') continue;
           const aweme = item as Record<string, unknown>;
           if (resolveAwemeId(aweme) !== targetId) continue;
-          return extractAwemeMedia(aweme);
+          return aweme;
         }
 
         if (!raw.has_more) break;
         const nextCursor = raw.max_cursor;
         cursor = nextCursor != null && String(nextCursor).trim() ? String(nextCursor) : undefined;
         if (!cursor) break;
-      } catch (err) {
-        log.warn('ScrapeCreators profile/videos error', {
-          handle: cleanHandle,
-          awemeId: targetId,
-          err: String(err),
-        });
+      } catch {
         return null;
       }
     }
 
     return null;
+  },
+
+  async findAwemeMedia(
+    handle: string,
+    awemeId: string,
+    options: { region?: string; maxPages?: number } = {},
+  ): Promise<AwemeMediaPatch | null> {
+    const aweme = await this.findAwemeRaw(handle, awemeId, options);
+    return aweme ? extractAwemeMedia(aweme) : null;
   },
 
   /** Profile stats for creator cards — lifetime likes across all posts, not one video. */

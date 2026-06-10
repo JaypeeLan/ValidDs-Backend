@@ -29,6 +29,7 @@ import {
   creativeFeedExposureMatchStage,
   creativeOneAdPerProductFeedStages,
 } from '../utils/creative-response.util';
+import { enrichCreativeRelatedVideoMetrics } from '../utils/related-video-metrics.util';
 import { expandCategoryL1FilterValues } from '../utils/category-l1-normalize.util';
 import { filterL1CategoriesWithProducts } from '../utils/product-category-catalog.util';
 import { CacheKeys, CACHE_TTL } from '../cache/cache.keys';
@@ -569,7 +570,9 @@ export async function findRelatedVideosByCreativeId(
 ): Promise<ISecondaryVideoApi[] | null> {
   const doc = await creativeModel.findById(creativeId).lean();
   if (!doc) return null;
-  const formatted = formatCreativeForApi(doc, { includeProductDescription: false });
+  const row = { ...(doc as Record<string, unknown>) };
+  await enrichCreativeRelatedVideoMetrics(row, creativeModel);
+  const formatted = formatCreativeForApi(row, { includeProductDescription: false });
   return formatted.relatedVideos ?? [];
 }
 
@@ -786,6 +789,7 @@ export const CreativeService = {
       [row],
       productModelForCreativeModel(creativeModel),
     );
+    await enrichCreativeRelatedVideoMetrics(row, creativeModel);
     return formatCreativeForApi(row, { includeProductDescription: true });
   },
 

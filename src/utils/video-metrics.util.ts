@@ -2,6 +2,53 @@ import type { IVideoMetrics } from '../types/creative.types';
 
 type MetricInput = Partial<IVideoMetrics> | null | undefined;
 
+/** Normalize play/like/comment/share from TikTok aweme JSON (profile/shop search). */
+export function extractAwemeEngagement(
+  raw: Record<string, unknown> | null | undefined,
+): IVideoMetrics {
+  if (!raw || typeof raw !== 'object') {
+    return normalizeVideoMetrics(null);
+  }
+
+  let stats: Record<string, unknown> = {};
+  for (const key of ['statistics', 'stats'] as const) {
+    const block = raw[key];
+    if (block && typeof block === 'object') {
+      stats = block as Record<string, unknown>;
+      break;
+    }
+  }
+  if (!Object.keys(stats).length && raw.video && typeof raw.video === 'object') {
+    const video = raw.video as Record<string, unknown>;
+    for (const key of ['statistics', 'stats'] as const) {
+      const block = video[key];
+      if (block && typeof block === 'object') {
+        stats = block as Record<string, unknown>;
+        break;
+      }
+    }
+  }
+
+  const pick = (...keys: string[]): number => {
+    for (const source of [stats, raw]) {
+      for (const key of keys) {
+        const val = source[key];
+        if (val == null || val === '') continue;
+        const n = Number(val);
+        if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+      }
+    }
+    return 0;
+  };
+
+  return normalizeVideoMetrics({
+    viewCount: pick('play_count', 'playCount', 'views'),
+    likeCount: pick('digg_count', 'diggCount', 'likes'),
+    commentCount: pick('comment_count', 'commentCount', 'comments'),
+    shareCount: pick('share_count', 'shareCount', 'shares'),
+  });
+}
+
 function metricInt(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;

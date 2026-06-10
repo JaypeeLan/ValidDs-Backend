@@ -31,6 +31,10 @@ properties:
   totalLikes:
     type: integer
     minimum: 0
+    description: |
+      Lifetime likes received on the creator's TikTok profile across all posts
+      (TikTok `heartCount` / `total_favorited`). This is **not** `metrics.likeCount`
+      on a single video.
   region:
     type: string
     example: US

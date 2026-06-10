@@ -551,6 +551,7 @@ function formatCreator(
     avatarS3Key: c.avatarS3Key,
     handle: c.handle,
   });
+  const displayAvatarUrl = avatarUrl ?? avatarProxyUrl;
   return {
     handle: c.handle ?? '',
     displayName: c.displayName,
@@ -560,7 +561,7 @@ function formatCreator(
     verified: Boolean(c.verified),
     region: c.region,
     isIndependentCreator: Boolean(c.isIndependentCreator),
-    ...(avatarUrl ? { avatarUrl } : {}),
+    ...(displayAvatarUrl ? { avatarUrl: displayAvatarUrl } : {}),
     ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
   };
 }

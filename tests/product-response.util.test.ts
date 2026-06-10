@@ -79,10 +79,11 @@ describe('normalizePrimaryCreatorOnProduct', () => {
     normalizePrimaryCreatorOnProduct(product, enrichment);
 
     const pc = product.primaryCreator as Record<string, unknown>;
-    expect(pc.primaryImageUrl).toBeNull();
-    expect(pc.avatarProxyUrl).toBe(
+    expect(pc.primaryImageUrl).toBe(
       '/api/v1/creatives/507f1f77bcf86cd799439099/thumbnail?index=0&kind=avatar',
     );
+    expect(pc.avatarUrl).toBe(pc.primaryImageUrl);
+    expect(pc.avatarProxyUrl).toBe(pc.primaryImageUrl);
   });
 
   it('keeps stored primaryImageUrl over creative enrichment when both exist', () => {

@@ -6,7 +6,11 @@
 import type { Model } from 'mongoose';
 import type { PipelineStage } from 'mongoose';
 import type { IProductDocument } from '../types/product.types';
-import type { CreativeCreatorFeedItem } from '../types/creative.types';
+import type { CreatorLobbyItem, ICreativeDocument } from '../types/creative.types';
+import {
+  loadCreatorAvatarEnrichmentByProductId,
+  type CreatorAvatarEnrichment,
+} from '../utils/product-response.util';
 import type { ContentMetricFilters } from '../utils/content-feed-filters.util';
 import {
   applyProductCreatorMetricFilters,
@@ -111,6 +115,7 @@ function creatorSortSpec(sortBy: string): Record<string, 1 | -1> {
       return { latestActivity: -1, creatorGmv: -1 };
     case 'engagement':
       return { maxEngagementRate: -1, creatorGmv: -1 };
+    case 'gmv_desc':
     case 'views':
     default:
       return { creatorGmv: -1, maxViews: -1 };
@@ -132,12 +137,16 @@ type AggregatedCreator = {
   maxEngagementRate?: number;
 };
 
-function formatProductCreatorFeedItem(row: AggregatedCreator): CreativeCreatorFeedItem {
+function formatProductCreatorFeedItem(
+  row: AggregatedCreator,
+  enrichment?: CreatorAvatarEnrichment | null,
+): CreatorLobbyItem {
   const top = row.topProduct ?? {};
   const creatorRaw = row.creator ?? {};
   const productId = String(top._id ?? '');
   const apiVersion = process.env.API_VERSION || 'v1';
-  const baseUrl = productId ? `/api/${apiVersion}/creatives/${productId}` : undefined;
+  const creativeId = enrichment?.creativeId;
+  const baseUrl = creativeId ? `/api/${apiVersion}/creatives/${creativeId}` : undefined;
 
   const avatarUrl =
     typeof creatorRaw.avatarUrl === 'string' && creatorRaw.avatarUrl.startsWith('https://')
@@ -145,7 +154,10 @@ function formatProductCreatorFeedItem(row: AggregatedCreator): CreativeCreatorFe
       : typeof creatorRaw.primaryImageUrl === 'string' &&
           creatorRaw.primaryImageUrl.startsWith('https://')
         ? creatorRaw.primaryImageUrl
-        : undefined;
+        : typeof enrichment?.primaryImageUrl === 'string' &&
+            enrichment.primaryImageUrl.startsWith('https://')
+          ? enrichment.primaryImageUrl
+          : undefined;
 
   const avatarProxyUrl = buildCreatorAvatarProxyUrl(baseUrl, 0, {
     avatarUrl,
@@ -153,69 +165,44 @@ function formatProductCreatorFeedItem(row: AggregatedCreator): CreativeCreatorFe
     handle: row.handle,
   });
 
-  const thumb =
+  const productImage =
     typeof top.primaryImageUrl === 'string' && top.primaryImageUrl.startsWith('https://')
       ? top.primaryImageUrl
       : Array.isArray(top.imageUrls) && typeof top.imageUrls[0] === 'string'
         ? top.imageUrls[0]
-        : undefined;
+        : null;
+
+  const updatedAt =
+    (row.latestActivity as Date | string | undefined) ??
+    (top.updatedAt as Date | string | undefined) ??
+    (top.lastIngestedAt as Date | string | undefined) ??
+    null;
 
   return {
-    id: productId,
-    productId,
-    externalVideoId: String(top.externalId ?? top.videoId ?? ''),
-    thumbnailUrl: thumb,
+    creatorGmv: row.creatorGmv,
     creator: {
       handle: row.handle,
       displayName: typeof creatorRaw.displayName === 'string' ? creatorRaw.displayName : row.handle,
       followers: row.maxFollowers,
-      following: typeof creatorRaw.following === 'number' ? creatorRaw.following : undefined,
       totalLikes: row.maxTotalLikes,
-      region: typeof creatorRaw.region === 'string' ? creatorRaw.region : undefined,
-      verified: Boolean(creatorRaw.verified),
-      isIndependentCreator: false,
-      ...(avatarUrl ? { avatarUrl } : {}),
       ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
     },
-    metrics: {
-      viewCount: Number(top.viewCount) || row.maxViews || 0,
-      likeCount: Number(top.likeCount) || 0,
-      commentCount: Number(top.commentCount) || 0,
-      shareCount: Number(top.shareCount) || 0,
-      engagementRate: typeof top.engagementRate === 'number' ? top.engagementRate : null,
+    topProduct: {
+      productId,
+      productName: typeof top.title === 'string' ? top.title : '',
+      productRating: typeof top.rating === 'number' ? top.rating : null,
+      productPrimaryImageUrl: productImage,
     },
-    section: 'trending',
-    isIndependentCreator: false,
-    productName: typeof top.title === 'string' ? top.title : undefined,
-    categoryL1: typeof top.categoryL1 === 'string' ? top.categoryL1 : undefined,
-    categoryL2: typeof top.categoryL2 === 'string' ? top.categoryL2 : undefined,
-    categoryL3: typeof top.categoryL3 === 'string' ? top.categoryL3 : undefined,
-    productRating: typeof top.rating === 'number' ? top.rating : null,
-    productTotalSales: typeof top.totalSales === 'number' ? top.totalSales : null,
-    productTotalGmv: row.creatorGmv,
-    productPrice: typeof top.price === 'number' ? top.price : null,
-    productUrl: typeof top.productUrl === 'string' ? top.productUrl : null,
-    shopName: row.shopName ?? (typeof top.shopName === 'string' ? top.shopName : null),
-    productPrimaryImageUrl: thumb ?? null,
-    publishedAt:
-      (top.publishedAt as Date | string | undefined) ??
-      (top.postCreatedAt as Date | string | undefined) ??
-      (top.lastIngestedAt as Date | string | undefined) ??
-      null,
-    ingestedAt: top.lastIngestedAt as Date | string | undefined,
-    updatedAt: top.updatedAt as Date | string | undefined,
-    hashtags: [],
-    topComments: [],
-    relatedVideos: [],
-    videoCount: row.productCount,
+    updatedAt,
   };
 }
 
 export async function findProductCreators(
   productModel: Model<IProductDocument>,
   filters: ProductCreatorFilters,
+  creativeModel?: Model<ICreativeDocument>,
 ): Promise<{
-  data: CreativeCreatorFeedItem[];
+  data: CreatorLobbyItem[];
   pagination: { total: number; page: number; limit: number; pages: number };
   groupBy: 'creator';
 }> {
@@ -262,8 +249,17 @@ export async function findProductCreators(
   const total = (facet?.meta?.[0] as { total?: number } | undefined)?.total ?? 0;
   const rows = (facet?.data ?? []) as AggregatedCreator[];
 
+  const productIds = rows
+    .map((row) => String(row.topProduct?._id ?? ''))
+    .filter((id) => id.length > 0);
+  const avatarEnrichment = creativeModel
+    ? await loadCreatorAvatarEnrichmentByProductId(productIds, creativeModel)
+    : new Map<string, CreatorAvatarEnrichment>();
+
   return {
-    data: rows.map(formatProductCreatorFeedItem),
+    data: rows.map((row) =>
+      formatProductCreatorFeedItem(row, avatarEnrichment.get(String(row.topProduct?._id ?? ''))),
+    ),
     pagination: {
       total,
       page,

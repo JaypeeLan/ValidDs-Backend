@@ -1,0 +1,61 @@
+type: object
+required:
+  - creatorGmv
+  - creator
+  - topProduct
+properties:
+  creatorGmv:
+    type: number
+    description: Sum of total GMV across all products for this creator handle.
+    example: 3000000
+  creator:
+    type: object
+    required:
+      - handle
+      - displayName
+      - followers
+      - totalLikes
+    properties:
+      handle:
+        type: string
+        example: maybelline
+      displayName:
+        type: string
+        example: Maybelline NY
+      followers:
+        type: integer
+        minimum: 0
+        example: 1065676
+      totalLikes:
+        type: integer
+        minimum: 0
+        description: Lifetime profile likes across all TikTok posts (not single-video metrics).
+        example: 3006345
+      avatarProxyUrl:
+        type: string
+        description: |
+          Profile photo — `GET /creatives/{creativeId}/thumbnail?index=0&kind=avatar`.
+          Prefer this over raw TikTok CDN URLs.
+  topProduct:
+    type: object
+    required:
+      - productId
+      - productName
+    properties:
+      productId:
+        type: string
+        description: Use for "View product" navigation (`GET /products/{id}`).
+      productName:
+        type: string
+      productRating:
+        type: number
+        nullable: true
+      productPrimaryImageUrl:
+        type: string
+        format: uri
+        nullable: true
+  updatedAt:
+    type: string
+    format: date-time
+    nullable: true
+    description: Last activity across this creator's ingested products.

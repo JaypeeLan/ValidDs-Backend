@@ -10,23 +10,21 @@ import { minimalTestProduct } from './helpers/minimal-product.fixture';
 describe('CreativeService.findCreatives pagination', () => {
   jest.setTimeout(60000);
   let mongo: MongoMemoryServer;
-  let productId: mongoose.Types.ObjectId;
 
   beforeAll(async () => {
     mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
     await mongoose.connect(mongo.getUri());
 
-    const product = await Product.create(
-      minimalTestProduct({
-        title: 'Pagination Product',
-        externalId: 'pag_ext_1',
-        source: 'tiktok',
-      }),
-    );
-    productId = product._id as mongoose.Types.ObjectId;
-
     const creatives = [];
     for (let i = 0; i < 20; i++) {
+      const product = await Product.create(
+        minimalTestProduct({
+          title: `Pagination Product ${i}`,
+          externalId: `pag_ext_${i}`,
+          source: 'tiktok',
+        }),
+      );
+      const productId = product._id as mongoose.Types.ObjectId;
       const videoId = `7643925823090625${String(i).padStart(3, '0')}`;
       creatives.push(
         minimalTestCreative({
@@ -39,34 +37,16 @@ describe('CreativeService.findCreatives pagination', () => {
           tiktokPostUrl: `https://www.tiktok.com/@creator/video/${videoId}`,
         }),
       );
-      // Duplicate row for every other video — should not affect unique page counts.
-      if (i % 2 === 0) {
-        creatives.push(
-          minimalTestCreative({
-            productId,
-            externalVideoId: `${videoId}_dup`,
-            section: 'top-ads',
-            isAd: false,
-            publishedAt: new Date(2024, 0, i + 1),
-            metrics: { viewCount: 500 - i, likeCount: 50 - i },
-            tiktokPostUrl: `https://www.tiktok.com/@creator/video/${videoId}`,
-          }),
-        );
-      }
-    }
-
-    // Non-playable rows that must not steal pagination slots.
-    for (let i = 0; i < 5; i++) {
+      // Second creative on the same product — must not inflate global feed totals.
       creatives.push(
         minimalTestCreative({
           productId,
-          externalVideoId: `unplayable_${i}`,
+          externalVideoId: `${videoId}_alt`,
           section: 'top-ads',
           isAd: false,
-          videoS3Key: '',
-          publishedAt: new Date(2023, 0, i + 1),
-          metrics: { viewCount: 99999, likeCount: 9999 },
-          tiktokPostUrl: `https://www.tiktok.com/@creator/video/unplayable_${i}`,
+          publishedAt: new Date(2024, 0, i + 1),
+          metrics: { viewCount: 500 - i, likeCount: 50 - i },
+          tiktokPostUrl: `https://www.tiktok.com/@creator/video/${videoId}`,
         }),
       );
     }

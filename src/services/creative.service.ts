@@ -17,7 +17,7 @@ import type { AwemeMediaPatch } from '../utils/aweme-media.util';
 import {
   apiSectionToDb,
   CREATIVE_COMMERCIAL_MATCH,
-  CREATIVE_META_ADS_MATCH,
+  CREATIVE_TOP_ADS_MATCH,
   formatCreativeFeedItem,
   formatCreativeCreatorFeedItem,
   formatCreativeForApi,
@@ -26,6 +26,7 @@ import {
   isVerifiedMetaCreative,
   creativeAdDedupeAggregationStages,
   creativeFeedExposureMatchStage,
+  creativeOneAdPerProductFeedStages,
 } from '../utils/creative-response.util';
 import { expandCategoryL1FilterValues } from '../utils/category-l1-normalize.util';
 import { filterL1CategoriesWithProducts } from '../utils/product-category-catalog.util';
@@ -220,17 +221,25 @@ const MAX_PAGE_FILL_ROUNDS = 8;
 
 type CreativeFeedDoc = Record<string, unknown>;
 
+type CreativeFeedStageOpts = {
+  /** Global discovery feeds: keep one creative per product. */
+  oneAdPerProduct?: boolean;
+};
+
 function buildCreativeFeedBaseStages(
   query: Record<string, unknown>,
   sortKey: string,
   sort: Record<string, unknown>,
+  opts?: CreativeFeedStageOpts,
 ): PipelineStage[] {
+  const onePerProduct = opts?.oneAdPerProduct === true;
   return [
     { $match: query },
     creativeFeedExposureMatchStage() as PipelineStage,
     ...(sortKey === 'recent' ? [] : [{ $addFields: recencyTierAddFields() }]),
     { $sort: sort as PipelineStage.Sort['$sort'] },
     ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
+    ...(onePerProduct ? (creativeOneAdPerProductFeedStages() as unknown as PipelineStage[]) : []),
     { $unset: ['productDescription', '_recencyTier', '_postDate', 'adDedupeKey'] },
     { $sort: sort as PipelineStage.Sort['$sort'] },
   ];
@@ -442,13 +451,13 @@ export async function findCreativesByProductId(
   return loadCreativesForProduct(productId, creativeModel, CREATIVE_COMMERCIAL_MATCH, limit);
 }
 
-/** Ad creatives only for a product (`GET /products/:id` → `relatedAds`). Meta + playable only. */
+/** Paid ad creatives for a product (`GET /products/:id` → `relatedAds`). Meta + TikTok ads. */
 export async function findRelatedAdsByProductId(
   productId: string,
   creativeModel: Model<ICreativeDocument> = Creative,
   limit = PRODUCT_CREATIVE_LIMIT,
 ): Promise<CreativeFeedItem[]> {
-  return loadCreativesForProduct(productId, creativeModel, CREATIVE_META_ADS_MATCH, limit);
+  return loadCreativesForProduct(productId, creativeModel, CREATIVE_TOP_ADS_MATCH, limit);
 }
 
 /** Embedded secondary videos on a creative document (`GET /creatives/:id/related-videos`). */
@@ -587,7 +596,11 @@ export const CreativeService = {
             sortKey === 'likes' ? 'likes' : sortKey === 'engagement' ? 'engagement' : 'views',
           );
 
-    const baseStages = buildCreativeFeedBaseStages(query, sortKey, sort);
+    // Global feeds: one card per product; extras live under relatedVideos / relatedAds.
+    const oneAdPerProduct = query.productId === undefined;
+    const baseStages = buildCreativeFeedBaseStages(query, sortKey, sort, {
+      oneAdPerProduct,
+    });
     const groupByCreator = groupBy === 'creator';
 
     const [total, rawData] = await Promise.all([

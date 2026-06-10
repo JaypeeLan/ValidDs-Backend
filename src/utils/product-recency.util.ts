@@ -55,12 +55,13 @@ export function postRecencyFlags(
   return { isNew3d: tier === 0, isNew7d: tier <= 1 };
 }
 
-/** Mongo $addFields: normalized post timestamp from publishedAt / postCreatedAt. */
+/** Mongo $addFields: normalized post timestamp from publishedAt / postCreatedAt / ingest time. */
 export function postDateCoalesceExpr(): Record<string, unknown> {
   return {
     $let: {
       vars: {
-        raw: { $ifNull: ['$publishedAt', '$postCreatedAt'] },
+        // Angle ads often omit publishedAt at ingest — fall back to ingestedAt/createdAt for date filters.
+        raw: { $ifNull: ['$publishedAt', '$postCreatedAt', '$ingestedAt', '$createdAt'] },
       },
       in: {
         $switch: {
@@ -132,13 +133,9 @@ export function recencyTierAddFields(): Record<string, unknown> {
   };
 }
 
-export function recencyPrioritySortSpec(
-  sortBy: GmvPrioritySortBy,
-): Record<string, 1 | -1> {
-  const metricKey =
-    sortBy === 'units-desc' || sortBy === 'units-asc' ? 'totalSales' : 'totalGmv';
-  const metricDir: 1 | -1 =
-    sortBy === 'gmv-asc' || sortBy === 'units-asc' ? 1 : -1;
+export function recencyPrioritySortSpec(sortBy: GmvPrioritySortBy): Record<string, 1 | -1> {
+  const metricKey = sortBy === 'units-desc' || sortBy === 'units-asc' ? 'totalSales' : 'totalGmv';
+  const metricDir: 1 | -1 = sortBy === 'gmv-asc' || sortBy === 'units-asc' ? 1 : -1;
   return {
     _recencyTier: 1,
     [metricKey]: metricDir,

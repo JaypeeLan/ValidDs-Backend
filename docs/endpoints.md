@@ -40,7 +40,7 @@ Returns comprehensive data for a single product.
 **Authentication:** Not required.
 **Path Parameters:** `id` (MongoDB ObjectId).
 
-**Response `data`:** `product` (full detail), `relatedProducts` (up to 8 feed cards in the same category), `relatedVideos` (all creatives for this product), `relatedAds` (top-ad/paid creatives for this product), `freshness`.
+**Response `data`:** `product` (full detail), `relatedProducts` (up to 8 feed cards in the same L2 subcategory), `relatedVideos` (all creatives for this product), `relatedAds` (top-ad/paid creatives for this product), `freshness`.
 
 ### `GET /products/:id/similar-products`
 

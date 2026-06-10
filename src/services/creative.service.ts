@@ -45,6 +45,8 @@ import {
 } from '../utils/content-feed-filters.util';
 import { enrichCreativesWithResolvedVideoS3Keys } from './meta-video-s3-resolve.service';
 import { metaAdIdFromCreative } from '../utils/meta-video-s3.util';
+import { findProductCreators } from './product-creator.service';
+import type { IProductDocument } from '../types/product.types';
 
 export {
   apiSectionToDb,
@@ -517,6 +519,7 @@ export const CreativeService = {
     filters: Record<string, unknown>,
     extraMatch?: Record<string, unknown>,
     creativeModel: Model<ICreativeDocument> = Creative,
+    productModel?: Model<IProductDocument>,
   ): Promise<{
     data: CreativeFeedItem[] | CreativeCreatorFeedItem[];
     pagination: { total: number; page: number; limit: number; pages: number };
@@ -539,6 +542,21 @@ export const CreativeService = {
       categoryL3,
       _metricFilters,
     } = filters;
+
+    // Creator lobby: unique primaryCreator handles from products (not creatives / creators collections).
+    if (groupBy === 'creator' && !productId && productModel) {
+      return findProductCreators(productModel, {
+        q: q as string | undefined,
+        page: page as number | undefined,
+        limit: limit as number | undefined,
+        sortBy: sortBy as string | undefined,
+        categoryL1: categoryL1 as string[] | undefined,
+        categoryL2: categoryL2 as string[] | undefined,
+        categoryL3: categoryL3 as string[] | undefined,
+        _metricFilters: _metricFilters as ContentMetricFilters | undefined,
+      });
+    }
+
     const query: Record<string, unknown> = {};
     if (productId) {
       query.productId = mongoose.isValidObjectId(productId)

@@ -4,6 +4,7 @@
  */
 
 import { defaultMetricTrendWindows } from '../../utils/metric-trend-days.util';
+import { sanitizeCumulativeWindows } from '../../utils/metric-trend-merge.util';
 import { INGEST_QUALITY } from './ingest-quality';
 
 const SKIP_KEYS = new Set(['_id', '__v', 'createdAt', 'updatedAt']);
@@ -142,7 +143,10 @@ function trendWithToday(value: number, trend: unknown): Record<string, unknown> 
     if (Number.isFinite(v) && v >= 0) byOffset.set(offset, v);
   }
   byOffset.set(0, Math.max(0, value));
-  t.windows = template.map((w) => ({ ...w, value: byOffset.get(w.daysAgo) ?? w.value }));
+  t.windows = sanitizeCumulativeWindows(
+    template.map((w) => ({ ...w, value: byOffset.get(w.daysAgo) ?? w.value })),
+    value,
+  );
   return t;
 }
 

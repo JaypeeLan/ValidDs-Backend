@@ -107,7 +107,7 @@ function mapReviews(reviews: unknown): Array<Record<string, unknown>> {
 function prepareProductDoc(raw: Record<string, unknown>, market: string): Record<string, unknown> {
   const title = String(raw.title ?? '')
     .trim()
-    .slice(0, 120);
+    .slice(0, 500);
   const now = new Date();
   const published = parsePublishedAt(raw.publishedAt ?? raw.postCreatedAt);
 

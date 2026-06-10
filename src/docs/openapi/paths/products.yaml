@@ -327,7 +327,7 @@ detail:
                           $ref: '../components/schemas/Product.yaml'
                         relatedProducts:
                           type: array
-                          description: Up to 8 products in the same category (feed card shape).
+                          description: Up to 8 products in the same L2 subcategory (feed card shape).
                           items:
                             $ref: '../components/schemas/ProductFeedItem.yaml'
                         relatedVideos:
@@ -353,7 +353,9 @@ relatedProducts:
     tags: [Products]
     summary: Related products for a product
     description: |
-      Same-category related products (feed card shape). Same data as `relatedProducts` on
+      Related products in the same L2 subcategory (feed card shape), including L2 alias
+      variants (e.g. Makeup vs Makeup & Cosmetics). Excludes the current product, duplicate
+      titles, and non-listable rows. Same data as `relatedProducts` on
       `GET /products/{id}` without loading the full product payload.
     parameters:
       - name: id
@@ -387,7 +389,9 @@ similarProducts:
     summary: Similar products for a product
     description: |
       Alias of `GET /products/{id}/related-products` (feed card shape).
-      Excludes items with the same `normalizedTitle` as the current product.
+      Returns products in the same L2 subcategory only (including alias variants).
+      Excludes the current product, items with the same `normalizedTitle`, and duplicate
+      listings (same title + shop).
     parameters:
       - name: id
         in: path

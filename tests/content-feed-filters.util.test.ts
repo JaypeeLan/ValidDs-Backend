@@ -1,6 +1,7 @@
 import {
   applyCreativeMetricFilters,
   applyProductCreatorMetricFilters,
+  applyProductMetricFilters,
   buildContentMetricFilters,
   parseStartDateParam,
 } from '../src/utils/content-feed-filters.util';
@@ -33,6 +34,20 @@ describe('content-feed-filters.util', () => {
     });
     expect(f.minCreatorGmv).toBe(1000);
     expect(f.maxFollowers).toBe(1_000_000);
+  });
+
+  it('applyProductMetricFilters uses $expr for startDate (string or Date publishedAt)', () => {
+    const query: Record<string, unknown> = {};
+    const start = parseStartDateParam('2026-06-03');
+    applyProductMetricFilters(query, { startDate: start });
+    expect(query.$and).toEqual([
+      {
+        $expr: {
+          $gte: [expect.objectContaining({ $let: expect.any(Object) }), start],
+        },
+      },
+    ]);
+    expect(query.publishedAt).toBeUndefined();
   });
 
   it('applyCreativeMetricFilters uses $expr for startDate (string or Date publishedAt)', () => {

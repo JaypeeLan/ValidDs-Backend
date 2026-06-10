@@ -38,6 +38,7 @@ export async function getRelatedProducts(
       id,
       product.categoryL1,
       product.categoryL2,
+      product.normalizedTitle,
       8,
       productModel,
     );

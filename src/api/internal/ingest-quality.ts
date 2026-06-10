@@ -12,8 +12,10 @@ export const BASELINE_INGEST = {
 
 /** Strict rules always enforced on product/creative ingest (scraper + backend). */
 export const INGEST_QUALITY = {
-  MIN_UNITS_SOLD: 300,
+  MIN_UNITS_SOLD: 200,
   MAX_POST_AGE_DAYS: 30,
+  /** New non-angle creatives only — existing DB rows are not retroactively removed. */
+  MAX_CREATIVE_AGE_HOURS: 48,
   MIN_RELATED_VIDEOS: 3,
   MIN_MARKETING_ANGLES: 5,
   /** Optional at ingest — text-only angles are enough; video can be backfilled later. */
@@ -27,7 +29,6 @@ export const INGEST_QUALITY = {
 export const MIN_PRODUCT_IMAGES = 3;
 export const MAX_REVIEWS_INGEST = 25;
 export const MIN_PRODUCT_RATING = 3.5;
-export const MIN_VIEW_COUNT = 1000;
 /** Minimum list price (USD or market currency) for ingest and public feeds. */
 export const MIN_PRODUCT_PRICE = 10;
 /** Minimum product revenue (sold × price) for ingest and public feeds. */
@@ -66,6 +67,26 @@ export function postAgeRejection(
     return `${label}: older than ${maxDays} days`;
   }
   return null;
+}
+
+export function postAgeRejectionHours(
+  value: unknown,
+  label: string,
+  maxHours: number = INGEST_QUALITY.MAX_CREATIVE_AGE_HOURS,
+): string | null {
+  const d = parseIngestDate(value);
+  if (!d) return `${label}: missing or invalid publishedAt`;
+  const ageMs = Date.now() - d.getTime();
+  if (ageMs < 0) return null;
+  const hours = ageMs / (1000 * 60 * 60);
+  if (hours > maxHours) {
+    return `${label}: older than ${maxHours} hours`;
+  }
+  return null;
+}
+
+export function isAngleVideoCreative(doc: Record<string, unknown>): boolean {
+  return Boolean(String(doc.angle ?? '').trim());
 }
 
 export function nonzeroPriceTrendMonths(trend: unknown): number {

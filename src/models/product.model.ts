@@ -338,7 +338,7 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     },
 
     // Content
-    title: { type: String, required: true, maxlength: 120 },
+    title: { type: String, required: true, maxlength: 500 },
     normalizedTitle: { type: String, required: true, index: true },
     description: { type: String, required: true, default: '', maxlength: 2000 },
     hashtags: { type: [String], required: true, default: [] },

@@ -39,7 +39,28 @@ export function mergeMetricTrendSnapshots(
     value: round2(daysAgo === 0 ? Math.max(0, currentValue) : (snapshots.get(daysAgo) ?? 0)),
   }));
 
-  return computeTrendFromWindows(windows);
+  return computeTrendFromWindows(sanitizeCumulativeWindows(windows, currentValue));
+}
+
+/** Cumulative sold/GMV: history cannot exceed today or more recent windows. */
+export function sanitizeCumulativeWindows(
+  windows: IMetricTrendWindow[],
+  currentValue: number,
+): IMetricTrendWindow[] {
+  const current = Math.max(0, currentValue);
+  let prev = current;
+  return windows.map((w) => {
+    if (w.daysAgo === 0) {
+      return { ...w, value: round2(current) };
+    }
+    const raw = Number(w.value) || 0;
+    if (current <= 0 || raw <= 0) {
+      return { ...w, value: 0 };
+    }
+    const value = raw > prev ? round2(prev) : round2(raw);
+    prev = value;
+    return { ...w, value };
+  });
 }
 
 function round2(n: number): number {

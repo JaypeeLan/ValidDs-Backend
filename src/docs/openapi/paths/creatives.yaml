@@ -461,9 +461,10 @@ components:
       name: groupBy
       in: query
       description: |
-        Collapse results to one row per creator. `creator` groups by `creator.handle`;
-        pagination `total` / `pages` count unique creators. Each item includes `videoCount`.
-        Response includes `groupBy: "creator"`.
+        Collapse results to one row per creator. `creator` groups by unique
+        `products.primaryCreator.handle` (shop / seller accounts tied to ingested products).
+        Does not use the `creators` scrape queue. Each item includes `videoCount` (product count).
+        Response includes `groupBy: "creator"`. With `productId`, groups promo creatives for that SKU instead.
       schema:
         type: string
         enum: [creator]

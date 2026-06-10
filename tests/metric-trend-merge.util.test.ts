@@ -49,4 +49,21 @@ describe('mergeMetricTrendSnapshots', () => {
     expect(d30?.value).toBe(2000);
     expect(merged.windows.find((w) => w.daysAgo === 0)?.value).toBe(5000);
   });
+
+  it('clamps impossible history when today is zero', () => {
+    const merged = mergeMetricTrendSnapshots(
+      {
+        direction: 'down',
+        changePercent: -100,
+        windows: [
+          { label: '30d ago', daysAgo: 30, value: 1200 },
+          { label: 'Today', daysAgo: 0, value: 0 },
+        ],
+      },
+      null,
+      0,
+    );
+    expect(merged.windows.find((w) => w.daysAgo === 0)?.value).toBe(0);
+    expect(merged.windows.find((w) => w.daysAgo === 30)?.value).toBe(0);
+  });
 });

@@ -130,6 +130,7 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     isIndependentCreator: { type: Boolean, default: false, index: true },
     isPrimaryDiscovery: { type: Boolean, default: false },
     isAd: { type: Boolean, default: null },
+    listingVerified: { type: Boolean, default: false },
 
     productName: { type: String },
     productDescription: { type: String, maxlength: 2000 },

@@ -95,6 +95,8 @@ export interface ICreative {
   isPrimaryDiscovery?: boolean;
   /** true when the video is a paid ad */
   isAd?: boolean;
+  /** true when the video's product listing was verified against the shop card / anchor */
+  listingVerified?: boolean;
   productName?: string;
   productDescription?: string;
   categoryL1?: string;
@@ -121,6 +123,8 @@ export interface ICreative {
   productTrend?: { score: number; direction: string; isTrending: boolean; reason?: string } | null;
   publishedAt?: Date | string | null;
   ingestedAt?: Date;
+  /** Stable feed/upsert key — see creativeAdDedupeKey() */
+  adDedupeKey?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -131,6 +135,8 @@ export interface ICreativeDocument extends ICreative, Document {}
 
 export interface ICreatorProfileApi extends Omit<ICreatorProfile, 'tiktokPostUrl'> {
   avatarProxyUrl?: string;
+  totalLikes?: number;
+  following?: number;
 }
 
 export interface IVideoMetricsApi {

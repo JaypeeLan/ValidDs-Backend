@@ -333,6 +333,33 @@ export const ScrapeCreatorsService = {
     return null;
   },
 
+  /** Profile stats for creator cards — lifetime likes across all posts, not one video. */
+  creatorStatsFromProfile(profile: SCUserInfo | null | undefined): {
+    followers?: number;
+    following?: number;
+    totalLikes?: number;
+    verified?: boolean;
+  } {
+    if (!profile) return {};
+    const out: {
+      followers?: number;
+      following?: number;
+      totalLikes?: number;
+      verified?: boolean;
+    } = {};
+    if (profile.followerCount != null && profile.followerCount > 0) {
+      out.followers = profile.followerCount;
+    }
+    if (profile.followingCount != null && profile.followingCount > 0) {
+      out.following = profile.followingCount;
+    }
+    if (profile.heartCount != null && profile.heartCount > 0) {
+      out.totalLikes = profile.heartCount;
+    }
+    if (profile.verified) out.verified = true;
+    return out;
+  },
+
   /** Best avatar URL from a profile lookup (largest available). */
   pickAvatarUrl(profile: SCUserInfo | null | undefined): string | undefined {
     return profile?.avatarLarger || profile?.avatarMedium || profile?.avatarThumb;

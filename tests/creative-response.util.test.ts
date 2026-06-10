@@ -61,7 +61,9 @@ describe('formatCreativeFeedItem creator avatar proxy', () => {
       productId: '507f1f77bcf86cd799439022',
     });
 
-    expect(item.creator.avatarUrl).toBeUndefined();
+    expect(item.creator.avatarUrl).toBe(
+      '/api/v1/creatives/507f1f77bcf86cd799439012/thumbnail?index=0&kind=avatar',
+    );
     expect(item.creator.avatarProxyUrl).toBe(
       '/api/v1/creatives/507f1f77bcf86cd799439012/thumbnail?index=0&kind=avatar',
     );

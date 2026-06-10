@@ -97,8 +97,10 @@ describe('findProductCreators', () => {
     expect(result.data.map((r) => r.creator.handle).sort()).toEqual(['shopa', 'shopb']);
 
     const shopA = result.data.find((r) => r.creator.handle === 'shopa');
-    expect(shopA?.videoCount).toBe(2);
-    expect(shopA?.productTotalGmv).toBe(150_000);
+    expect(shopA?.creatorGmv).toBe(150_000);
     expect(shopA?.creator.totalLikes).toBe(55_000);
+    expect(shopA?.topProduct.productName).toBe('Product A');
+    expect(shopA).not.toHaveProperty('metrics');
+    expect(shopA).not.toHaveProperty('videoCount');
   });
 });

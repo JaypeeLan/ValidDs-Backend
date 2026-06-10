@@ -30,6 +30,7 @@ export interface ICreatorProfile {
   /** Optional — not present on older ingested records from main DB */
   followers?: number;
   following?: number;
+  /** Lifetime likes received across all TikTok posts (profile `heartCount` / `total_favorited`). Not per-video `metrics.likeCount`. */
   totalLikes?: number;
   region?: string;
   verified: boolean;
@@ -135,6 +136,7 @@ export interface ICreativeDocument extends ICreative, Document {}
 
 export interface ICreatorProfileApi extends Omit<ICreatorProfile, 'tiktokPostUrl'> {
   avatarProxyUrl?: string;
+  /** Lifetime likes received across all TikTok posts (profile `heartCount` / `total_favorited`). Not per-video `metrics.likeCount`. */
   totalLikes?: number;
   following?: number;
 }
@@ -214,4 +216,30 @@ export type CreativeFeedItem = Omit<CreativeApiItem, 'productDescription'>;
 /** `GET /creatives?groupBy=creator` — one row per creator handle with total video count. */
 export interface CreativeCreatorFeedItem extends CreativeFeedItem {
   videoCount: number;
+}
+
+/** Discovery creators tab — one row per `primaryCreator.handle` (shop / seller). */
+export interface CreatorLobbyCreator {
+  handle: string;
+  displayName: string;
+  followers: number;
+  /** Lifetime profile likes across all posts — not single-video `metrics.likeCount`. */
+  totalLikes: number;
+  /** Stable avatar — `GET /creatives/{id}/thumbnail?kind=avatar`. */
+  avatarProxyUrl?: string;
+}
+
+export interface CreatorLobbyTopProduct {
+  productId: string;
+  productName: string;
+  productRating: number | null;
+  productPrimaryImageUrl: string | null;
+}
+
+export interface CreatorLobbyItem {
+  /** Sum of `totalGmv` across this creator's ingested products. */
+  creatorGmv: number;
+  creator: CreatorLobbyCreator;
+  topProduct: CreatorLobbyTopProduct;
+  updatedAt?: Date | string | null;
 }

@@ -3,6 +3,7 @@ import { Product } from '../models/product.model';
 import { getMarketModels } from '../models/market-models.factory';
 import type {
   CreativeCreatorFeedItem,
+  CreatorLobbyItem,
   CreativeFeedItem,
   ISecondaryVideoApi,
 } from '../types/creative.types';
@@ -58,6 +59,100 @@ export {
 } from '../utils/creative-response.util';
 
 const log = logger.child({ module: 'creative-service' });
+
+function productModelForCreativeModel(
+  creativeModel: Model<ICreativeDocument>,
+): Model<IProductDocument> | undefined {
+  const coll = creativeModel.collection.name;
+  if (!coll.startsWith('creatives_')) {
+    return Product as Model<IProductDocument>;
+  }
+  const market = coll.slice('creatives_'.length).toUpperCase();
+  if (!/^[A-Z]{2}$/.test(market)) return undefined;
+  return getMarketModels(market as MarketCode).Product;
+}
+
+function creatorHandlesMatch(a: unknown, b: unknown): boolean {
+  const left = String(a ?? '')
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase();
+  const right = String(b ?? '')
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase();
+  return Boolean(left && right && left === right);
+}
+
+function creatorHasStoredAvatar(creator: Record<string, unknown>): boolean {
+  const url = String(creator.avatarUrl ?? '').trim();
+  if (url.startsWith('https://')) return true;
+  return Boolean(String(creator.avatarS3Key ?? '').trim());
+}
+
+/** Fill missing creative.creator stats/avatars from the parent product's primaryCreator when handles match. */
+async function enrichCreativesWithProductCreatorStats(
+  docs: Array<Record<string, unknown>>,
+  productModel?: Model<IProductDocument>,
+): Promise<void> {
+  if (!productModel || docs.length === 0) return;
+
+  const needEnrich = docs.filter((doc) => {
+    const creator = doc.creator as Record<string, unknown> | undefined;
+    if (!creator) return false;
+    return (
+      Number(creator.followers) <= 0 ||
+      Number(creator.totalLikes) <= 0 ||
+      !creatorHasStoredAvatar(creator)
+    );
+  });
+  if (needEnrich.length === 0) return;
+
+  const productIds = [
+    ...new Set(
+      needEnrich
+        .map((doc) => String(doc.productId ?? ''))
+        .filter((id) => mongoose.isValidObjectId(id)),
+    ),
+  ];
+  if (productIds.length === 0) return;
+
+  const products = await productModel
+    .find({ _id: { $in: productIds.map((id) => new mongoose.Types.ObjectId(id)) } })
+    .select('primaryCreator')
+    .lean();
+
+  const primaryByProduct = new Map(
+    products.map((p) => [String(p._id), p.primaryCreator as Record<string, unknown> | undefined]),
+  );
+
+  for (const doc of needEnrich) {
+    const creator = doc.creator as Record<string, unknown>;
+    const primary = primaryByProduct.get(String(doc.productId ?? ''));
+    if (!primary || !creatorHandlesMatch(creator.handle, primary.handle)) continue;
+
+    if (Number(creator.followers) <= 0 && Number(primary.followers) > 0) {
+      creator.followers = primary.followers;
+    }
+    if (Number(creator.following) <= 0 && Number(primary.following) > 0) {
+      creator.following = primary.following;
+    }
+    if (Number(creator.totalLikes) <= 0 && Number(primary.totalLikes) > 0) {
+      creator.totalLikes = primary.totalLikes;
+    }
+    if (!creatorHasStoredAvatar(creator)) {
+      const avatarUrl = [primary.avatarUrl, primary.primaryImageUrl].find(
+        (v) => typeof v === 'string' && v.startsWith('https://'),
+      );
+      if (avatarUrl) creator.avatarUrl = avatarUrl;
+      const s3Key =
+        typeof primary.avatarS3Key === 'string' && primary.avatarS3Key.trim()
+          ? primary.avatarS3Key.trim()
+          : '';
+      if (s3Key) creator.avatarS3Key = s3Key;
+    }
+  }
+}
 
 /** Delete a creative; remove its product when that was the only linked creative. */
 export async function deleteCreativeAndOrphanProduct(
@@ -364,8 +459,13 @@ async function loadCreativesForProduct(
   );
 
   const docs = await fillCreativeFeedPage(creativeModel, baseStages, false, videoSort, 0, mLimit);
+  const docRows = docs.map((doc) => ({ ...(doc as Record<string, unknown>) }));
+  await enrichCreativesWithProductCreatorStats(
+    docRows,
+    productModelForCreativeModel(creativeModel),
+  );
 
-  const items = docs.map((doc) => formatCreativeFeedItem(doc));
+  const items = docRows.map((doc) => formatCreativeFeedItem(doc));
   return filterPlayableCreativeFeedItems(items);
 }
 
@@ -521,7 +621,7 @@ export const CreativeService = {
     creativeModel: Model<ICreativeDocument> = Creative,
     productModel?: Model<IProductDocument>,
   ): Promise<{
-    data: CreativeFeedItem[] | CreativeCreatorFeedItem[];
+    data: CreativeFeedItem[] | CreativeCreatorFeedItem[] | CreatorLobbyItem[];
     pagination: { total: number; page: number; limit: number; pages: number };
     groupBy?: 'creator';
   }> {
@@ -545,16 +645,20 @@ export const CreativeService = {
 
     // Creator lobby: unique primaryCreator handles from products (not creatives / creators collections).
     if (groupBy === 'creator' && !productId && productModel) {
-      return findProductCreators(productModel, {
-        q: q as string | undefined,
-        page: page as number | undefined,
-        limit: limit as number | undefined,
-        sortBy: sortBy as string | undefined,
-        categoryL1: categoryL1 as string[] | undefined,
-        categoryL2: categoryL2 as string[] | undefined,
-        categoryL3: categoryL3 as string[] | undefined,
-        _metricFilters: _metricFilters as ContentMetricFilters | undefined,
-      });
+      return findProductCreators(
+        productModel,
+        {
+          q: q as string | undefined,
+          page: page as number | undefined,
+          limit: limit as number | undefined,
+          sortBy: sortBy as string | undefined,
+          categoryL1: categoryL1 as string[] | undefined,
+          categoryL2: categoryL2 as string[] | undefined,
+          categoryL3: categoryL3 as string[] | undefined,
+          _metricFilters: _metricFilters as ContentMetricFilters | undefined,
+        },
+        creativeModel,
+      );
     }
 
     const query: Record<string, unknown> = {};
@@ -626,15 +730,23 @@ export const CreativeService = {
       fillCreativeFeedPage(creativeModel, baseStages, groupByCreator, sort, skip, mLimit),
     ]);
 
+    const feedDocs = rawData.map((doc) => ({ ...(doc as Record<string, unknown>) }));
+    if (!groupByCreator) {
+      await enrichCreativesWithProductCreatorStats(
+        feedDocs,
+        productModel ?? productModelForCreativeModel(creativeModel),
+      );
+    }
+
     const rawItems = groupByCreator
-      ? rawData.map((doc) => {
+      ? feedDocs.map((doc) => {
           const { videoCount, ...creative } = doc;
           return formatCreativeCreatorFeedItem(
             creative,
             typeof videoCount === 'number' ? videoCount : Number(videoCount) || 0,
           );
         })
-      : rawData.map((doc) => formatCreativeFeedItem(doc));
+      : feedDocs.map((doc) => formatCreativeFeedItem(doc));
     const data = filterPlayableCreativeFeedItems(rawItems);
     return {
       data,
@@ -669,7 +781,12 @@ export const CreativeService = {
       [doc as Record<string, unknown>],
       creativeModel,
     );
-    return formatCreativeForApi(enriched ?? doc, { includeProductDescription: true });
+    const row = { ...((enriched ?? doc) as Record<string, unknown>) };
+    await enrichCreativesWithProductCreatorStats(
+      [row],
+      productModelForCreativeModel(creativeModel),
+    );
+    return formatCreativeForApi(row, { includeProductDescription: true });
   },
 
   findByProductId: findCreativesByProductId,
@@ -728,6 +845,7 @@ export const CreativeService = {
 
       const profile = handle ? await ScrapeCreatorsService.getUserInfo(handle) : null;
       const profileAvatar = ScrapeCreatorsService.pickAvatarUrl(profile);
+      const profileStats = ScrapeCreatorsService.creatorStatsFromProfile(profile);
 
       if (!media?.thumbnailUrl && postUrl) {
         const oembedThumb = await fetchOembedThumbnail(postUrl);
@@ -740,10 +858,11 @@ export const CreativeService = {
 
       const patch: AwemeMediaPatch = {
         ...(media ?? {}),
-        ...(profileAvatar || media?.creator
+        ...(profileAvatar || media?.creator || Object.keys(profileStats).length > 0
           ? {
               creator: {
                 ...(media?.creator ?? {}),
+                ...profileStats,
                 ...(profileAvatar ? { avatarUrl: profileAvatar } : {}),
               },
             }

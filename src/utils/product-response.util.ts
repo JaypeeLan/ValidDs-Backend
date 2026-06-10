@@ -83,6 +83,7 @@ export function normalizePrimaryCreatorOnProduct(
   const avatarProxyUrl = enrichment?.creativeId
     ? creatorAvatarProxyPath(enrichment.creativeId)
     : pickUrl(pc.avatarProxyUrl);
+  const displayAvatarUrl = primaryImageUrl ?? avatarProxyUrl ?? null;
 
   const apiCreator: IPrimaryCreatorApi = {
     handle: typeof pc.handle === 'string' ? pc.handle : '',
@@ -95,8 +96,8 @@ export function normalizePrimaryCreatorOnProduct(
     region: typeof pc.region === 'string' ? pc.region : '',
     verified: typeof pc.verified === 'boolean' ? pc.verified : false,
     tiktokPostUrl: typeof pc.tiktokPostUrl === 'string' ? pc.tiktokPostUrl : '',
-    primaryImageUrl,
-    avatarUrl: primaryImageUrl,
+    primaryImageUrl: displayAvatarUrl,
+    avatarUrl: displayAvatarUrl,
     ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
   };
   product.primaryCreator = apiCreator;

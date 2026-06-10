@@ -463,8 +463,9 @@ components:
       description: |
         Collapse results to one row per creator. `creator` groups by unique
         `products.primaryCreator.handle` (shop / seller accounts tied to ingested products).
-        Does not use the `creators` scrape queue. Each item includes `videoCount` (product count).
-        Response includes `groupBy: "creator"`. With `productId`, groups promo creatives for that SKU instead.
+        Without `productId`, each item is a slim `CreatorLobbyItem` (creator card fields only).
+        With `productId`, groups promo creatives for that SKU and returns full creative cards plus `videoCount`.
+        Response includes `groupBy: "creator"`.
       schema:
         type: string
         enum: [creator]

@@ -28,6 +28,7 @@ export interface IPrimaryCreator {
   bio?: string;
   followers?: number;
   following?: number;
+  /** Lifetime likes across all TikTok posts (profile heartCount). Not single-video metrics. */
   totalLikes?: number;
   region?: string;
   verified?: boolean;

@@ -173,6 +173,61 @@ export async function loadCreatorAvatarEnrichmentByProductId(
   return map;
 }
 
+/** Top creative per handle (by views) — fallback when top product has no linked creative. */
+export async function loadCreatorAvatarEnrichmentByHandle(
+  handles: string[],
+  creativeModel: Model<ICreativeDocument> = Creative,
+): Promise<Map<string, CreatorAvatarEnrichment>> {
+  const normalized = [
+    ...new Set(
+      handles.map((h) => h.trim().toLowerCase().replace(/^@/, '')).filter((h) => h.length > 0),
+    ),
+  ];
+  if (!normalized.length) return new Map();
+
+  const rows = await creativeModel
+    .aggregate<{
+      _id: string;
+      creativeId: mongoose.Types.ObjectId;
+      avatarUrl?: string;
+    }>([
+      {
+        $match: {
+          'creator.handle': { $type: 'string', $regex: /\S/ },
+          $or: [
+            { 'creator.avatarUrl': { $type: 'string', $regex: /^https:\/\// } },
+            { 'creator.avatarS3Key': { $type: 'string', $regex: /\S/ } },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          handleKey: { $toLower: { $trim: { input: '$creator.handle' } } },
+          displayAvatar: '$creator.avatarUrl',
+        },
+      },
+      { $match: { handleKey: { $in: normalized } } },
+      { $sort: { 'metrics.viewCount': -1 } },
+      {
+        $group: {
+          _id: '$handleKey',
+          creativeId: { $first: '$_id' },
+          avatarUrl: { $first: '$displayAvatar' },
+        },
+      },
+    ])
+    .option({ maxTimeMS: 15_000 });
+
+  const map = new Map<string, CreatorAvatarEnrichment>();
+  for (const row of rows) {
+    map.set(row._id, {
+      creativeId: String(row.creativeId),
+      primaryImageUrl: typeof row.avatarUrl === 'string' ? row.avatarUrl : undefined,
+    });
+  }
+  return map;
+}
+
 export async function enrichProductsWithCreatorAvatars(
   products: Record<string, unknown>[],
   creativeModel: Model<ICreativeDocument> = Creative,

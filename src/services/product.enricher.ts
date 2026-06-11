@@ -240,7 +240,10 @@ export const ProductEnricher = {
     const [adsCount, totalCount, reviewsCount] = await Promise.all([
       Creative.countDocuments({ productId: product._id, isAd: true }),
       Creative.countDocuments({ productId: product._id }),
-      Creative.countDocuments({ productId: product._id, section: 'influencer-reviews' }),
+      Creative.countDocuments({
+        productId: product._id,
+        'creator.isIndependentCreator': true,
+      }),
     ]);
 
     // 11. Final update

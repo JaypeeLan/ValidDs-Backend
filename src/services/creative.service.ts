@@ -715,11 +715,13 @@ export const CreativeService = {
     const mLimit = Number(limit);
     const sortKey = String(sortBy);
     const sort =
-      sortKey === 'recent'
-        ? { publishedAt: -1 as const }
-        : creativeRecencyPrioritySortSpec(
-            sortKey === 'likes' ? 'likes' : sortKey === 'engagement' ? 'engagement' : 'views',
-          );
+      source === 'meta'
+        ? ({ metaAdRelevanceScore: -1, publishedAt: -1 } as Record<string, unknown>)
+        : sortKey === 'recent'
+          ? { publishedAt: -1 as const }
+          : creativeRecencyPrioritySortSpec(
+              sortKey === 'likes' ? 'likes' : sortKey === 'engagement' ? 'engagement' : 'views',
+            );
 
     // Global feeds: one card per product; extras live under relatedVideos / relatedAds.
     const oneAdPerProduct = query.productId === undefined;

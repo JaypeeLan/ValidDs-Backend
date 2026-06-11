@@ -1,6 +1,6 @@
 import { ensureCreatorAvatarCached, ensureShopAvatarCached } from './creator-avatar-cache.service';
 import { extractTikTokVideoId } from '../utils/tiktok-url.util';
-import { isMetaCreative } from '../utils/meta-video-s3.util';
+import { isMetaCreative, metaAdIdFromCreative, metaAdMp4S3Key } from '../utils/meta-video-s3.util';
 import { s3ObjectExists, tiktokVideoMp4S3Key } from '../utils/s3-video.util';
 
 function httpsUrls(...values: unknown[]): string[] {
@@ -68,11 +68,27 @@ async function attachTikTokVideoS3IfPresent(slot: Record<string, unknown>): Prom
   }
 }
 
-/** Link Bright Data MP4s already in S3 onto the creative payload before Mongo write. */
+async function attachMetaVideoS3IfPresent(payload: Record<string, unknown>): Promise<void> {
+  if (!isMetaCreative(payload)) return;
+  const existing = String(payload.videoS3Key ?? '').trim();
+  if (existing) return;
+
+  const adId = metaAdIdFromCreative(payload);
+  if (!adId) return;
+  const key = metaAdMp4S3Key(adId);
+  if (!key) return;
+  if (await s3ObjectExists(key)) {
+    payload.videoS3Key = key;
+    payload.videoDownloadReadyAt = new Date();
+  }
+}
+
+/** Link MP4s already in S3 onto the creative payload before Mongo write. */
 export async function enrichCreativeVideoS3ForIngest(
   payload: Record<string, unknown>,
 ): Promise<void> {
   await attachTikTokVideoS3IfPresent(payload);
+  await attachMetaVideoS3IfPresent(payload);
 
   const related = payload.relatedVideos;
   if (!Array.isArray(related)) return;

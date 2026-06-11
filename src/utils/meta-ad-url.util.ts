@@ -7,7 +7,9 @@ export function extractMetaAdIdFromUrl(url: string): string | null {
   if (!raw) return null;
   if (raw.startsWith('meta:')) {
     const tail = raw.slice(5).trim();
-    return META_AD_ID_RE.test(tail) ? tail : null;
+    if (META_AD_ID_RE.test(tail)) return tail;
+    const head = tail.split(':')[0]?.trim() ?? '';
+    return META_AD_ID_RE.test(head) ? head : null;
   }
   const m = raw.match(META_ID_FROM_URL_RE);
   if (m && META_AD_ID_RE.test(m[1]!)) return m[1]!;

@@ -134,8 +134,8 @@ analyticsProducts:
                       admin: 12
                       scarper: 1000
                     topCategories:
-                      "Home & Kitchen": 400
-                      "Beauty & Personal Care": 350
+                      'Home & Kitchen': 400
+                      'Beauty & Personal Care': 350
 
 analyticsCreatives:
   get:
@@ -208,16 +208,13 @@ analyticsCreatives:
                     freshCreatives24h: 40
                     creativesBySection:
                       trending: 300
-                      top-ads: 100
-                      influencer-reviews: 150
-                      tutorials: 120
-                      viral-unboxings: 130
+                      top-ads: 500
                     creativesByAdType:
                       ads: 200
                       organic: 600
                     topCategories:
-                      "Home & Kitchen": 250
-                      "Beauty & Personal Care": 180
+                      'Home & Kitchen': 250
+                      'Beauty & Personal Care': 180
 
 users:
   get:
@@ -764,10 +761,10 @@ waitlist:
                           items:
                             type: object
                             properties:
-                              _id:       { type: string }
-                              email:     { type: string, format: email }
-                              source:    { type: string, nullable: true }
-                              referrer:  { type: string, nullable: true }
+                              _id: { type: string }
+                              email: { type: string, format: email }
+                              source: { type: string, nullable: true }
+                              referrer: { type: string, nullable: true }
                               ipAddress: { type: string, nullable: true }
                               userAgent: { type: string, nullable: true }
                               createdAt: { type: string, format: date-time }
@@ -777,8 +774,8 @@ waitlist:
                         stats:
                           type: object
                           properties:
-                            total:       { type: integer, example: 1248 }
-                            last7Days:   { type: integer, example: 137 }
+                            total: { type: integer, example: 1248 }
+                            last7Days: { type: integer, example: 137 }
                             last24Hours: { type: integer, example: 21 }
       '401':
         $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'

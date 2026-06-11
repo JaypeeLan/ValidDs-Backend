@@ -358,7 +358,7 @@ properties:
     description: Discovery buckets this product belongs to.
     items:
       type: string
-      enum: [top-ads, trending, top-rated, viral, influencer-reviews, tutorials, viral-unboxings]
+      enum: [top-ads, trending, new-3d, new-7d]
 
   isTopAd:
     type: boolean

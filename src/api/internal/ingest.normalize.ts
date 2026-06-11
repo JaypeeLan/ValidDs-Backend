@@ -407,5 +407,11 @@ export function normalizeCreativePayload(raw: Record<string, unknown>): Record<s
   }
   out.relatedVideos = normalizeRelatedVideos(out.relatedVideos);
   out.adDedupeKey = creativeAdDedupeKey(out);
+  const originalCaption = String(out.originalCaption ?? '').trim();
+  if (originalCaption) {
+    out.originalCaption = originalCaption.slice(0, 2000);
+  } else {
+    delete out.originalCaption;
+  }
   return out;
 }

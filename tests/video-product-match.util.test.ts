@@ -50,4 +50,18 @@ describe('video-product-match.util', () => {
       }),
     ).toBe(false);
   });
+
+  it('uses originalCaption for angle ads when present', () => {
+    expect(
+      creativeVideoProductMatchReason({
+        externalVideoId: '7640286993921953055',
+        productName: 'tarte colored clay CC undereye',
+        description: 'This creator demonstrates how the Tarte Shape Tape Cloud CC Cream works',
+        originalCaption: 'Medicube deodorant fresh that lasts review',
+        isAd: true,
+        isPrimaryDiscovery: false,
+        angle: 'Ultimate under-eye corrector',
+      }),
+    ).toContain('video caption does not match product');
+  });
 });

@@ -23,7 +23,7 @@ properties:
     example: 60b9b3b3e2b4f9a0c8b2c1d4
   externalVideoId:
     type: string
-    example: "7628237127481969942"
+    example: '7628237127481969942'
   embedUrl:
     type: string
     format: uri
@@ -51,7 +51,7 @@ properties:
 
   section:
     type: string
-    enum: [top-ads, trending, influencer-reviews, tutorials, viral-unboxings]
+    enum: [top-ads, trending]
     description: |
       API-facing section label. Ingestion stores inverted labels for the two main buckets:
       API `trending` ↔ DB `top-ads` (default list ~462 US); API `top-ads` ↔ DB `trending` (~19).
@@ -87,7 +87,7 @@ properties:
     type: string
   categoryPath:
     type: string
-    example: "Beauty & Personal Care > Skincare > Face Serums"
+    example: 'Beauty & Personal Care > Skincare > Face Serums'
 
   description:
     type: string

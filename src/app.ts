@@ -70,48 +70,63 @@ export async function createApp(): Promise<Application> {
       crossOriginOpenerPolicy: true,
       crossOriginResourcePolicy: { policy: 'same-origin' },
       hsts: {
-        maxAge: 31536000,      // 1 year
+        maxAge: 31536000, // 1 year
         includeSubDomains: true,
         preload: true,
       },
       noSniff: true,
       frameguard: { action: 'deny' },
       xssFilter: true,
-    })
+    }),
   );
 
   // ── 3. CORS ───────────────────────────────────────────────────────────────
   const allowedOrigins = getAllowedOrigins();
-  app.use(
+  const corsMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as const;
+  // Per-request wrapper so we can allow same-host browser calls (Swagger UI at /docs).
+  app.use((req, res, next) => {
     cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. server-to-server, Postman in dev)
+        // Allow requests with no origin (curl, Postman, server-to-server)
         if (!origin || env.NODE_ENV === 'development') {
           return callback(null, true);
         }
         if (allowedOrigins.includes(origin)) {
           return callback(null, true);
         }
-        callback(new Error(`Origin ${origin} not allowed by CORS policy`));
+        // Swagger UI at /docs sends Origin matching this API host.
+        const host = req.headers['x-forwarded-host'] ?? req.headers.host;
+        const proto = req.headers['x-forwarded-proto'] ?? req.protocol;
+        if (host && origin === `${proto}://${host}`) {
+          return callback(null, true);
+        }
+        // Reject without throwing — Error() becomes a 500 in the global handler.
+        callback(null, false);
       },
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Api-Key', 'X-Ingest-Key', 'X-Request-Id'],
+      methods: [...corsMethods],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Api-Key',
+        'X-Ingest-Key',
+        'X-Request-Id',
+      ],
       exposedHeaders: ['X-Request-Id', 'RateLimit-Limit', 'RateLimit-Remaining'],
       credentials: true,
       maxAge: 86400, // Cache preflight for 24 hours
-    })
-  );
+    })(req, res, next);
+  });
 
   // ── 4. Webhooks (raw body required for signature verification) ────────────
   app.post(
     `/api/${env.API_VERSION}/webhooks/stripe`,
     express.raw({ type: 'application/json' }),
-    handleStripeWebhook
+    handleStripeWebhook,
   );
   app.post(
     `/api/${env.API_VERSION}/webhooks/shopify`,
     express.raw({ type: 'application/json' }),
-    handleShopifyWebhook
+    handleShopifyWebhook,
   );
 
   // ── 5. Body parsers ───────────────────────────────────────────────────────
@@ -130,7 +145,10 @@ export async function createApp(): Promise<Application> {
   // ── 7.7 Swagger Documentation ─────────────────────────────────────────────
   // Use `serveFiles` (not shared `serve`) so each mount gets its own swagger-ui-init.js;
   // otherwise the global init script is overwritten and /docs shows the last-registered spec (admin).
-  const [swaggerSpec, adminSwaggerSpec] = await Promise.all([getSwaggerSpec(), getAdminSwaggerSpec()]);
+  const [swaggerSpec, adminSwaggerSpec] = await Promise.all([
+    getSwaggerSpec(),
+    getAdminSwaggerSpec(),
+  ]);
   const docsSwaggerUiOpts = {
     customSiteTitle: 'ValidDs API — /docs',
     swaggerOptions: {
@@ -153,7 +171,11 @@ export async function createApp(): Promise<Application> {
       operationsSorter: 'alpha',
     },
   };
-  app.use('/docs', swaggerUi.serveFiles(swaggerSpec, docsSwaggerUiOpts), swaggerUi.setup(swaggerSpec, docsSwaggerUiOpts));
+  app.use(
+    '/docs',
+    swaggerUi.serveFiles(swaggerSpec, docsSwaggerUiOpts),
+    swaggerUi.setup(swaggerSpec, docsSwaggerUiOpts),
+  );
   app.use(
     '/admin-docs',
     swaggerUi.serveFiles(adminSwaggerSpec, adminSwaggerUiOpts),

@@ -36,7 +36,12 @@ import { resolveEngagementTrend } from '../../utils/product-trend.util';
 import { resolveBuyingSentimentLabel, type SentimentLabel } from '../../utils/sentiment.util';
 import { postRecencyFlags } from '../../utils/product-recency.util';
 import { buildProductItemFreshness } from '../../utils/product-freshness.util';
-import { formatCreativeFeedItem, imageAssetKey } from '../../utils/creative-response.util';
+import {
+  formatCreativeFeedItem,
+  imageAssetKey,
+  shouldExposeCreativeInFeed,
+} from '../../utils/creative-response.util';
+import { enrichCreativesWithResolvedVideoS3Keys } from '../../services/meta-video-s3-resolve.service';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: IAIIntelligence;
@@ -444,13 +449,19 @@ export const ProductController = {
 
       const creatives = await Creative.find({ productId: id })
         .sort({ 'metrics.viewCount': -1 })
-        .limit(100);
+        .limit(100)
+        .lean();
+
+      const enriched = await enrichCreativesWithResolvedVideoS3Keys(
+        creatives as Record<string, unknown>[],
+        Creative,
+      );
 
       const creatorsMap = new Map<string, any>();
 
-      for (const doc of creatives) {
-        const creative = doc.toObject();
-        const handle = creative.creator?.handle || 'unknown';
+      for (const creative of enriched) {
+        if (!shouldExposeCreativeInFeed(creative)) continue;
+        const handle = (creative.creator as { handle?: string } | undefined)?.handle || 'unknown';
 
         if (!creatorsMap.has(handle)) {
           creatorsMap.set(handle, {

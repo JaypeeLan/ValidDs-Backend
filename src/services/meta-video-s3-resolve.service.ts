@@ -2,7 +2,7 @@ import { Creative, type ICreativeDocument } from '../models/creative.model';
 import { logger } from '../logger';
 import type { Model } from 'mongoose';
 import { isMetaCreative, metaAdIdFromCreative, metaAdMp4S3Key } from '../utils/meta-video-s3.util';
-import { s3ObjectExists } from '../utils/s3-video.util';
+import { s3ObjectExists, tiktokVideoMp4S3Key } from '../utils/s3-video.util';
 
 const log = logger.child({ module: 'meta-video-s3-resolve' });
 
@@ -19,13 +19,22 @@ function pickStoredVideoS3Key(creative: CreativePlain, index: number): string | 
   return typeof k === 'string' && k.trim() ? k.trim() : undefined;
 }
 
+async function keyExistsInS3(key: string | undefined): Promise<boolean> {
+  if (!key) return false;
+  return s3ObjectExists(key);
+}
+
 async function resolveMetaS3KeyForSlot(
   creative: CreativePlain,
   index: number,
 ): Promise<string | undefined> {
+  if (index > 0) {
+    const stored = pickStoredVideoS3Key(creative, index);
+    return (await keyExistsInS3(stored)) ? stored : undefined;
+  }
+
   const stored = pickStoredVideoS3Key(creative, index);
-  if (stored) return stored;
-  if (index > 0) return undefined;
+  if (stored && (await keyExistsInS3(stored))) return stored;
 
   if (!isMetaCreative(creative)) return undefined;
   const adId = metaAdIdFromCreative(creative);
@@ -34,8 +43,31 @@ async function resolveMetaS3KeyForSlot(
   const key = metaAdMp4S3Key(adId);
   if (!key) return undefined;
 
-  const exists = await s3ObjectExists(key);
-  return exists ? key : undefined;
+  return (await keyExistsInS3(key)) ? key : undefined;
+}
+
+async function resolveTikTokS3KeyForSlot(
+  creative: CreativePlain,
+  index: number,
+): Promise<string | undefined> {
+  const stored = pickStoredVideoS3Key(creative, index);
+  if (stored && (await keyExistsInS3(stored))) return stored;
+
+  if (index > 0) return undefined;
+
+  const ext = String(creative.externalVideoId ?? '').trim();
+  if (!/^\d+$/.test(ext)) return undefined;
+
+  const key = tiktokVideoMp4S3Key(ext);
+  return (await keyExistsInS3(key)) ? key : undefined;
+}
+
+async function resolvePlayableVideoS3Key(
+  creative: CreativePlain,
+  index: number,
+): Promise<string | undefined> {
+  if (isMetaCreative(creative)) return resolveMetaS3KeyForSlot(creative, index);
+  return resolveTikTokS3KeyForSlot(creative, index);
 }
 
 function queuePersistVideoS3Key(
@@ -55,9 +87,67 @@ function queuePersistVideoS3Key(
     });
 }
 
+function queueClearStaleVideoS3Key(
+  creativeId: string,
+  creativeModel: Model<ICreativeDocument>,
+): void {
+  void creativeModel
+    .updateOne({ _id: creativeId }, { $unset: { videoS3Key: '' } })
+    .then((res) => {
+      if (res.matchedCount) {
+        log.debug('Cleared stale videoS3Key (S3 object missing)', { creativeId });
+      }
+    })
+    .catch((err) => {
+      log.debug('Failed to clear stale videoS3Key', { creativeId, err: String(err) });
+    });
+}
+
+async function enrichPrimaryVideoS3Key(
+  doc: CreativePlain,
+  creativeModel: Model<ICreativeDocument>,
+): Promise<void> {
+  const stored = pickStoredVideoS3Key(doc, 0);
+  const resolved = await resolvePlayableVideoS3Key(doc, 0);
+  const id = String(doc._id ?? doc.id ?? '');
+
+  if (resolved) {
+    doc.videoS3Key = resolved;
+    if (resolved !== stored && id) queuePersistVideoS3Key(id, resolved, creativeModel);
+    return;
+  }
+
+  delete doc.videoS3Key;
+  if (stored && id) queueClearStaleVideoS3Key(id, creativeModel);
+}
+
+async function enrichRelatedVideoS3Keys(doc: CreativePlain): Promise<void> {
+  const related = Array.isArray(doc.relatedVideos) ? doc.relatedVideos : [];
+  if (!related.length) return;
+
+  const next: CreativePlain[] = [];
+  for (let i = 0; i < related.length; i++) {
+    const slot = related[i];
+    if (!slot || typeof slot !== 'object') continue;
+    const row = { ...(slot as CreativePlain) };
+    const stored =
+      typeof row.videoS3Key === 'string' && row.videoS3Key.trim() ? row.videoS3Key.trim() : '';
+    const resolved = await resolvePlayableVideoS3Key(doc, i + 1);
+    if (resolved) {
+      row.videoS3Key = resolved;
+      next.push(row);
+      continue;
+    }
+    if (stored) continue;
+    // Keep slots without a stored key (legacy); they still won't get videoProxyUrl.
+    next.push(row);
+  }
+  doc.relatedVideos = next;
+}
+
 /**
- * Attach `videoS3Key` when the MP4 exists in S3 but Mongo was never patched
- * (common after async Meta video download).
+ * Verify S3 MP4 exists before exposing videoS3Key on API responses.
+ * Clears stale Mongo keys when the object is missing from S3.
  */
 export async function enrichCreativesWithResolvedVideoS3Keys(
   docs: CreativePlain[],
@@ -68,15 +158,8 @@ export async function enrichCreativesWithResolvedVideoS3Keys(
   const out = docs.map((d) => ({ ...d }));
   await Promise.all(
     out.map(async (doc) => {
-      const stored = pickStoredVideoS3Key(doc, 0);
-      if (stored) return;
-
-      const resolved = await resolveMetaS3KeyForSlot(doc, 0);
-      if (!resolved) return;
-
-      doc.videoS3Key = resolved;
-      const id = String(doc._id ?? doc.id ?? '');
-      if (id) queuePersistVideoS3Key(id, resolved, creativeModel);
+      await enrichPrimaryVideoS3Key(doc, creativeModel);
+      await enrichRelatedVideoS3Keys(doc);
     }),
   );
   return out;
@@ -89,15 +172,20 @@ export async function resolveCreativeVideoS3Key(
   creativeModel: Model<ICreativeDocument> = Creative,
 ): Promise<string | undefined> {
   const stored = pickStoredVideoS3Key(creative, index);
-  if (stored) return stored;
-
-  const resolved = await resolveMetaS3KeyForSlot(creative, index);
-  if (!resolved) return undefined;
+  const resolved = await resolvePlayableVideoS3Key(creative, index);
+  if (!resolved) {
+    if (stored && index <= 0) {
+      const id = String(creative._id ?? creative.id ?? '');
+      if (id) queueClearStaleVideoS3Key(id, creativeModel);
+      delete creative.videoS3Key;
+    }
+    return undefined;
+  }
 
   if (index <= 0) {
     creative.videoS3Key = resolved;
     const id = String(creative._id ?? creative.id ?? '');
-    if (id) queuePersistVideoS3Key(id, resolved, creativeModel);
+    if (id && resolved !== stored) queuePersistVideoS3Key(id, resolved, creativeModel);
   }
   return resolved;
 }

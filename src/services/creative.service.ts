@@ -792,6 +792,7 @@ export const CreativeService = {
       productModelForCreativeModel(creativeModel),
     );
     await enrichCreativeRelatedVideoMetrics(row, creativeModel);
+    if (!shouldExposeCreativeInFeed(row)) return null;
     return formatCreativeForApi(row, { includeProductDescription: true });
   },
 

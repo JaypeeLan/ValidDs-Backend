@@ -100,12 +100,15 @@ export const isMetaProductPlaceholderThumb = isProductHeroThumbnail;
 export function creativeAdDedupeKey(creative: Record<string, unknown>): string {
   const ext = String(creative.externalVideoId ?? '').trim();
   const pid = String(creative.productId ?? '').trim();
+  const isMeta = ext.startsWith('meta:');
 
+  // Hero listing image — collapse look-alikes within the same platform only.
+  // Meta Ad Library rows must not evict TikTok videos (or vice versa) on ingest.
   if (isProductHeroThumbnail(creative) && pid) {
-    return `product-card:${pid}`;
+    return isMeta ? `meta:product-card:${pid}` : `tiktok:product-card:${pid}`;
   }
 
-  if (ext.startsWith('meta:')) {
+  if (isMeta) {
     const page = String(
       creative.metaPageId ??
         (creative.creator as Record<string, unknown> | undefined)?.handle ??
@@ -277,13 +280,27 @@ function mongoTiktokVideoDedupeKeyExpr(): Record<string, unknown> {
 }
 
 /**
- * Mongo stages: one creative per product in global discovery feeds.
- * Run after $sort so the highest-ranked creative per product is kept.
+ * Mongo stages: one organic TikTok + one Meta/paid row per product in global feeds.
+ * Run after $sort so the highest-ranked creative per product slot is kept.
  */
 export function creativeOneAdPerProductFeedStages(): Record<string, unknown>[] {
+  const isMeta = {
+    $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' },
+  };
   return [
-    { $group: { _id: '$productId', doc: { $first: '$$ROOT' } } },
+    {
+      $addFields: {
+        _productFeedSlot: { $cond: [isMeta, 'meta', 'tiktok'] },
+      },
+    },
+    {
+      $group: {
+        _id: { productId: '$productId', slot: '$_productFeedSlot' },
+        doc: { $first: '$$ROOT' },
+      },
+    },
     { $replaceRoot: { newRoot: '$doc' } },
+    { $unset: ['_productFeedSlot'] },
   ];
 }
 
@@ -293,7 +310,10 @@ export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
   const productThumb = mongoImageAssetKeyExpr('$productPrimaryImageUrl');
   const pid = { $toString: '$productId' };
 
-  // Order must match creativeAdDedupeKey(): product hero → meta → tiktok video id.
+  const isMeta = {
+    $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' },
+  };
+  // Order must match creativeAdDedupeKey(): hero (per platform) → meta → tiktok video id.
   const computedKey = {
     $cond: [
       {
@@ -304,13 +324,15 @@ export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
           { $ne: [pid, ''] },
         ],
       },
-      { $concat: ['product-card:', pid] },
       {
         $cond: [
-          { $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' } },
-          mongoMetaAdDedupeKeyExpr(),
-          mongoTiktokVideoDedupeKeyExpr(),
+          isMeta,
+          { $concat: ['meta:product-card:', pid] },
+          { $concat: ['tiktok:product-card:', pid] },
         ],
+      },
+      {
+        $cond: [isMeta, mongoMetaAdDedupeKeyExpr(), mongoTiktokVideoDedupeKeyExpr()],
       },
     ],
   };
@@ -571,10 +593,15 @@ function buildCreativeProxyUrls(
   index: number,
   baseUrl?: string,
 ): { videoProxyUrl?: string; thumbnailProxyUrl?: string } {
-  if (!baseUrl || !creativeHasPlayableVideo(creative, index)) return {};
+  if (!baseUrl) return {};
+  const hasVideo = creativeHasPlayableVideo(creative, index);
+  const hasThumb = Boolean(pickCreativeThumbnailUrl(creative, index, 'thumbnail'));
+  if (!hasVideo && !hasThumb) return {};
   return {
-    videoProxyUrl: `${baseUrl}/video?index=${index}`,
-    thumbnailProxyUrl: `${baseUrl}/thumbnail?index=${index}&kind=thumbnail`,
+    ...(hasVideo ? { videoProxyUrl: `${baseUrl}/video?index=${index}` } : {}),
+    ...(hasThumb || hasVideo
+      ? { thumbnailProxyUrl: `${baseUrl}/thumbnail?index=${index}&kind=thumbnail` }
+      : {}),
   };
 }
 

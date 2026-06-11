@@ -1,0 +1,449 @@
+================================================================================
+ValidDs — Shopify Store Connection
+Frontend Engineer Handoff
+================================================================================
+
+Last updated: 2026-06-11
+Backend source: src/api/stores/store.routes.ts, store.controller.ts, shopify.service.ts
+Related docs: docs/frontend-shopify-integration.md, docs/third-party/shopify-oauth.md
+
+================================================================================
+1. OVERVIEW
+================================================================================
+
+ValidDs users connect their own Shopify store via OAuth. After connection, the
+backend stores an encrypted Admin API access token on the user document. The
+frontend never sees or handles that token.
+
+Your job on the frontend:
+  - Show connection status
+  - Start OAuth when the user clicks "Connect"
+  - Handle the browser return URL after OAuth
+  - (Optional) Disconnect, push products — see separate push section at end
+
+Auth rule:
+  Send  Authorization: Bearer <JWT>  on every JSON API call EXCEPT the OAuth
+  callback (Shopify calls the backend directly; your SPA does not call it).
+
+Response envelope (all JSON endpoints):
+  {
+    "success": true | false,
+    "message": "...",
+    "statusCode": 200,
+    "data": { ... }
+  }
+
+Base path:  /api/v1/stores/shopify/...
+
+Staging API:  https://validds-backend-g196.onrender.com/api/v1
+Staging SPA:  https://valid-ds-frontend.vercel.app
+              (must match backend FRONTEND_URL / CORS_ALLOWED_ORIGINS)
+
+
+================================================================================
+2. ENDPOINTS (CONNECTION ONLY)
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1  GET /stores/shopify/status
+--------------------------------------------------------------------------------
+When:     On "My Shopify" tab load, after OAuth return, after disconnect/claim.
+Auth:     JWT required.
+
+Request:
+  GET /api/v1/stores/shopify/status
+  Authorization: Bearer <token>
+
+Response 200 — not connected:
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": {
+      "connected": false,
+      "shopifyConfigured": true,
+      "connection": null
+    }
+  }
+
+Response 200 — connected:
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": {
+      "connected": true,
+      "shopifyConfigured": true,
+      "connection": {
+        "shop": "my-store.myshopify.com",
+        "shopName": "My Store",
+        "shopEmail": "owner@example.com",
+        "shopOwner": "Jane Doe",
+        "shopCountry": "United States",
+        "shopCurrency": "USD",
+        "scope": "write_products",
+        "installedAt": "2026-05-18T14:37:58.167Z",
+        "lastSyncedAt": "2026-06-11T14:40:40.751Z",
+        "adminUrl": "https://my-store.myshopify.com/admin"
+      }
+    }
+  }
+
+UI mapping:
+  shopifyConfigured === false  →  Hide connect UI; show "Shopify not available"
+  connected === false          →  Show shop input + "Connect" button
+  connected === true           →  Show store name, admin link, "Disconnect"
+
+
+--------------------------------------------------------------------------------
+2.2  GET /stores/shopify/install
+--------------------------------------------------------------------------------
+When:     User enters shop domain and clicks "Connect" / "Link store".
+Auth:     JWT required.
+
+Request (user has a store):
+  GET /api/v1/stores/shopify/install?shop=my-store.myshopify.com
+  Authorization: Bearer <token>
+
+Shop input normalization (backend also normalizes):
+  Accept:  "my-store", "my-store.myshopify.com", "https://my-store.myshopify.com"
+
+Request (user has NO store yet — omit shop):
+  GET /api/v1/stores/shopify/install
+  Authorization: Bearer <token>
+
+Response 200 — start OAuth (action: connect):
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": {
+      "action": "connect",
+      "authorizeUrl": "https://my-store.myshopify.com/admin/oauth/authorize?client_id=...&scope=read_products%2Cwrite_products&redirect_uri=...&state=...",
+      "state": "<signed-jwt>"
+    }
+  }
+
+  FRONTEND ACTION:
+    window.location.href = data.authorizeUrl;
+
+  Do NOT:
+    - fetch() the authorizeUrl
+    - open authorizeUrl in a popup (use same-tab redirect)
+    - store or manually append state (already in authorizeUrl)
+
+Response 200 — send user to Shopify signup (action: signup):
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": {
+      "action": "signup",
+      "signupUrl": "https://www.shopify.com/signup?...",
+      "message": "It looks like you don't have a Shopify store yet..."
+    }
+  }
+
+  FRONTEND ACTION:
+    window.open(data.signupUrl, '_blank');  // or same window
+
+Response 503 — server not configured:
+  error.code: SHOPIFY_NOT_CONFIGURED
+  Show a generic support message; user cannot fix this in the UI.
+
+
+--------------------------------------------------------------------------------
+2.3  GET /stores/shopify/callback  (DO NOT CALL FROM FRONTEND)
+--------------------------------------------------------------------------------
+Who calls it:  Shopify redirects the user's browser here after OAuth approval.
+Auth:          None (HMAC + signed state instead).
+
+URL (backend, not SPA):
+  https://validds-backend-g196.onrender.com/api/v1/stores/shopify/callback
+    ?code=...
+    &hmac=...
+    &shop=my-store.myshopify.com
+    &state=...
+
+Backend then:
+  1. Verifies HMAC
+  2. Verifies state JWT (links OAuth to ValidDs user + shop)
+  3. Exchanges code for permanent access token
+  4. Fetches shop info from Shopify
+  5. Encrypts and saves token on user.shopifyConnection
+  6. HTTP 302 redirect to the SPA (see section 3)
+
+Your SPA never calls this endpoint.
+
+
+--------------------------------------------------------------------------------
+2.4  POST /stores/shopify/claim  (Partner App URL flow only)
+--------------------------------------------------------------------------------
+When:     OAuth finished via Shopify Partner "App URL" install AND user was not
+          logged in during install. Return URL includes shopify_pending=1.
+Auth:     JWT required.
+
+Request:
+  POST /api/v1/stores/shopify/claim
+  Authorization: Bearer <token>
+  Content-Type: application/json
+
+  { "shop": "my-store.myshopify.com" }
+
+Response 200:
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": {
+      "connection": { ...same shape as status.connection... }
+    }
+  }
+
+Most ValidDs users connect from the in-app "My Shopify" flow and will NOT need
+claim. Only implement if you support App Store / Partner dashboard installs.
+
+
+--------------------------------------------------------------------------------
+2.5  POST /stores/shopify/disconnect
+--------------------------------------------------------------------------------
+When:     User clicks "Disconnect" in ValidDs.
+Auth:     JWT required.
+
+Request:
+  POST /api/v1/stores/shopify/disconnect
+  Authorization: Bearer <token>
+
+Response 200:
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": { "disconnected": true }
+  }
+
+Note: This clears the token in ValidDs only. Tell the user they may also need to
+uninstall the app inside Shopify Admin for full revocation.
+
+
+================================================================================
+3. OAUTH RETURN URL — WHAT TO HANDLE IN THE SPA
+================================================================================
+
+After a successful in-app connect (normal flow), the backend redirects to:
+
+  {FRONTEND_URL}/?shopify_status=success&shop=my-store.myshopify.com
+
+On error:
+
+  {FRONTEND_URL}/?shopify_status=error&code=SHOPIFY_INVALID_HMAC&message=...
+
+Partner App URL install (pending claim):
+
+  {FRONTEND_URL}/?shopify_status=success&shop=my-store.myshopify.com&shopify_pending=1
+
+IMPORTANT:
+  - Query param is  shopify_status  (not "status")
+  - Handle on SPA root "/" OR any route with a Vercel rewrite — a direct hit to
+    /stores/shopify/callback may 404 on Vercel if that path has no rewrite rule.
+  - Backend builds URL from env FRONTEND_URL (trailing slash stripped).
+
+Return URL handler (run on app boot / route mount):
+
+  1. Parse query: shopify_status, shop, code, message, shopify_pending
+  2. If shopify_status === 'success':
+       - If shopify_pending === '1' AND user logged in → POST /shopify/claim
+       - If shopify_pending === '1' AND not logged in → prompt login, then claim
+       - Show success toast
+     If shopify_status === 'error':
+       - Show error toast (use message; code for logging)
+  3. window.history.replaceState to strip query params
+  4. GET /stores/shopify/status to refresh UI
+
+
+================================================================================
+4. COMPLETE UI FLOW (HAPPY PATH)
+================================================================================
+
+Step 1 — User opens "My Shopify"
+  → GET /stores/shopify/status
+  → If connected: show store info + Disconnect
+  → If not connected: show shop input + Connect
+
+Step 2 — User enters "my-store" and clicks Connect
+  → GET /stores/shopify/install?shop=my-store
+  → data.action === 'connect'
+  → window.location.href = data.authorizeUrl
+
+Step 3 — User approves on Shopify (browser leaves ValidDs)
+  → Shopify redirects to backend /stores/shopify/callback
+  → Backend saves connection
+  → Backend redirects to SPA with shopify_status=success
+
+Step 4 — SPA loads with query params
+  → Parse shopify_status
+  → Show success toast
+  → Strip params
+  → GET /stores/shopify/status
+  → connected === true → show "Store connected"
+
+
+================================================================================
+5. REFERENCE TYPESCRIPT
+================================================================================
+
+const API = import.meta.env.VITE_API_URL; // e.g. https://validds-backend-g196.onrender.com/api/v1
+
+async function loadShopifyStatus(token: string) {
+  const r = await fetch(`${API}/stores/shopify/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await r.json();
+  if (!r.ok) throw new Error(body.message ?? 'Status failed');
+  return body.data as {
+    connected: boolean;
+    shopifyConfigured: boolean;
+    connection: ShopifyConnection | null;
+  };
+}
+
+async function connectShopifyStore(token: string, shopInput: string) {
+  const q = new URLSearchParams({ shop: shopInput.trim() });
+  const r = await fetch(`${API}/stores/shopify/install?${q}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await r.json();
+  if (!r.ok) throw new Error(body.message ?? 'Install failed');
+
+  const { action, authorizeUrl, signupUrl } = body.data;
+  if (action === 'signup') {
+    window.open(signupUrl, '_blank');
+    return;
+  }
+  if (action === 'connect' && authorizeUrl) {
+    window.location.href = authorizeUrl; // leaves SPA — OAuth continues in browser
+    return;
+  }
+  throw new Error('Unexpected install response');
+}
+
+function handleShopifyOAuthReturn(token: string | null) {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get('shopify_status');
+  if (!status) return;
+
+  const shop = params.get('shop') ?? '';
+  const pending = params.get('shopify_pending') === '1';
+  const message = params.get('message') ?? '';
+  const code = params.get('code') ?? '';
+
+  window.history.replaceState({}, '', window.location.pathname);
+
+  if (status === 'error') {
+    // toast.error(message || code);
+    return;
+  }
+
+  if (status === 'success' && pending && token && shop) {
+  // await fetch(`${API}/stores/shopify/claim`, {
+  //   method: 'POST',
+  //   headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  //   body: JSON.stringify({ shop }),
+  // });
+  }
+
+  // toast.success('Shopify store connected');
+  // await loadShopifyStatus(token);
+}
+
+async function disconnectShopify(token: string) {
+  const r = await fetch(`${API}/stores/shopify/disconnect`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await r.json();
+  if (!r.ok) throw new Error(body.message ?? 'Disconnect failed');
+  return body.data;
+}
+
+
+================================================================================
+6. ERROR CODES (OAuth return & API)
+================================================================================
+
+Code                      When
+------------------------  ----------------------------------------------------
+SHOPIFY_NOT_CONFIGURED    Backend missing Shopify env (503 on /install)
+SHOPIFY_INVALID_SHOP      Bad shop domain format (400)
+SHOPIFY_INVALID_HMAC      Tampered callback or wrong API secret
+SHOPIFY_INVALID_STATE     Expired or invalid state JWT — user should retry connect
+SHOPIFY_SHOP_MISMATCH     Shop in callback does not match state
+SHOPIFY_TOKEN_EXCHANGE_FAILED  Shopify rejected code exchange
+SHOPIFY_NOT_CONNECTED     Push/disconnect when no store linked (400)
+SHOPIFY_AUTH_REVOKED      Token revoked in Shopify — prompt reconnect
+SHOPIFY_PENDING_NOT_FOUND  Claim called but no pending install for that shop
+
+
+================================================================================
+7. COMMON MISTAKES
+================================================================================
+
+1. Using fetch() for authorizeUrl instead of window.location.href
+2. Expecting connected:true immediately after /install (connection happens only
+   after Shopify callback completes)
+3. Calling /stores/shopify/callback from the frontend
+4. Looking for ?status=success instead of ?shopify_status=success
+5. Only handling /stores/shopify/callback route — backend redirects to SPA root
+6. Opening OAuth in a popup (breaks redirect chain on some browsers)
+7. Not re-fetching GET /status after OAuth return
+
+
+================================================================================
+8. MANUAL TEST CHECKLIST
+================================================================================
+
+[ ] GET /status when logged out → 401
+[ ] GET /status when not connected → connected:false
+[ ] GET /install?shop=<dev-store> → action:connect + authorizeUrl
+[ ] Redirect to authorizeUrl → approve on Shopify → land on SPA with shopify_status
+[ ] GET /status after return → connected:true + connection object
+[ ] GET /install without shop → action:signup + signupUrl
+[ ] POST /disconnect → connected:false
+[ ] Reconnect end-to-end
+[ ] Error path: cancel OAuth on Shopify → appropriate error on return (if any)
+
+Staging test store used in QA: jaypee-test-wrd491pc.myshopify.com
+
+
+================================================================================
+9. PUSH PRODUCT (BRIEF — FOR PRODUCT DETAIL PAGE)
+================================================================================
+
+Only when connected === true.
+
+  POST /api/v1/stores/shopify/products
+  Authorization: Bearer <token>
+  Content-Type: application/json
+
+  {
+    "productId": "<24-char MongoDB ObjectId>",
+    "status": "draft",
+    "price": 19.99
+  }
+
+  productId  — required
+  status     — optional: draft | active | archived (recommend draft in UI)
+  price      — optional positive number
+  market     — optional; defaults to user contentRegion
+
+Response 201:
+  data.product.adminUrl  → open in new tab for merchant review
+
+Full examples: docs/frontend-shopify-integration.md section 4.
+
+
+================================================================================
+10. QUESTIONS / BACKEND CONTACTS
+================================================================================
+
+OpenAPI (Stores tag):  src/docs/openapi/paths/stores.yaml
+Partner OAuth setup:   docs/third-party/shopify-oauth.md
+Live Swagger:          {API_ORIGIN}/admin-docs  (when server is running)
+
+================================================================================
+END OF DOCUMENT
+================================================================================

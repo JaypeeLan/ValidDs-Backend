@@ -107,6 +107,27 @@ describe('formatCreativeFeedItem videoProxyUrl', () => {
     expect(withoutVideo.videoProxyUrl).toBeUndefined();
   });
 
+  it('sets thumbnailProxyUrl when thumbnail exists but videoS3Key is missing', () => {
+    const item = formatCreativeFeedItem({
+      _id: '507f1f77bcf86cd799439015',
+      externalVideoId: '7123456790',
+      thumbnailUrl: 'https://cdn.example.com/thumb.jpg',
+      tiktokPostUrl: 'https://www.tiktok.com/@user/video/7123456790',
+      creator: {
+        handle: 'user',
+        verified: false,
+        tiktokPostUrl: 'https://www.tiktok.com/@user/video/7123456790',
+      },
+      metrics: { viewCount: 1, likeCount: 0, commentCount: 0, shareCount: 0 },
+      section: 'top-ads',
+      productId: '507f1f77bcf86cd799439022',
+    });
+    expect(item.videoProxyUrl).toBeUndefined();
+    expect(item.thumbnailProxyUrl).toBe(
+      '/api/v1/creatives/507f1f77bcf86cd799439015/thumbnail?index=0&kind=thumbnail',
+    );
+  });
+
   it('sets videoProxyUrl for verified Meta creative with S3 key', () => {
     const item = formatCreativeFeedItem({
       _id: '507f1f77bcf86cd799439014',

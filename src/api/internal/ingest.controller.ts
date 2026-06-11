@@ -309,6 +309,7 @@ export async function ingestCreative(
     if (adDedupeKey) {
       const removed = await Creative.deleteMany({
         adDedupeKey,
+        productId: payload.productId,
         _id: { $ne: saved._id },
       });
       if (removed.deletedCount > 0) {

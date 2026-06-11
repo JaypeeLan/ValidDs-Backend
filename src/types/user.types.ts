@@ -32,10 +32,15 @@ export interface ILocalAuth {
  * The `accessToken` is encrypted at rest using AES-256-GCM (see security/encryption.ts).
  */
 export interface IShopifyConnection {
-  shop: string;                     // e.g. "my-store.myshopify.com"
-  accessTokenCiphertext: string;    // hex
-  accessTokenIv: string;            // hex
-  accessTokenAuthTag: string;       // hex
+  shop: string; // e.g. "my-store.myshopify.com"
+  accessTokenCiphertext: string; // hex
+  accessTokenIv: string; // hex
+  accessTokenAuthTag: string; // hex
+  refreshTokenCiphertext?: string;
+  refreshTokenIv?: string;
+  refreshTokenAuthTag?: string;
+  accessTokenExpiresAt?: Date;
+  refreshTokenExpiresAt?: Date;
   scope?: string;
   shopName?: string;
   shopEmail?: string;

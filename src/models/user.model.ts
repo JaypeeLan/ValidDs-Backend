@@ -54,14 +54,43 @@ export type {
 
 // ── Plan limits ───────────────────────────────────────────────────────────────
 
-export const PLAN_LIMITS: Record<UserPlan, { creditsPerMonth: number; productsPerDay: number; searchesPerDay: number; savedProductsMax: number }> = {
-  free:     { creditsPerMonth: 1000,   productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
-  explorer: { creditsPerMonth: 15000,  productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 },
-  pro:      { creditsPerMonth: 60000,  productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
-  premium:  { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 },
+export const PLAN_LIMITS: Record<
+  UserPlan,
+  {
+    creditsPerMonth: number;
+    productsPerDay: number;
+    searchesPerDay: number;
+    savedProductsMax: number;
+  }
+> = {
+  free: { creditsPerMonth: 1000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 50 },
+  explorer: {
+    creditsPerMonth: 15000,
+    productsPerDay: -1,
+    searchesPerDay: -1,
+    savedProductsMax: 500,
+  },
+  pro: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 },
+  premium: {
+    creditsPerMonth: 200000,
+    productsPerDay: -1,
+    searchesPerDay: -1,
+    savedProductsMax: -1,
+  },
 };
 
-export const ALLOWED_CONTENT_REGIONS = ['US', 'CA', 'MX', 'UK', 'ES', 'DE', 'IT', 'FR', 'AU', 'NZ'] as const;
+export const ALLOWED_CONTENT_REGIONS = [
+  'US',
+  'CA',
+  'MX',
+  'UK',
+  'ES',
+  'DE',
+  'IT',
+  'FR',
+  'AU',
+  'NZ',
+] as const;
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -71,7 +100,7 @@ const GoogleAuthSchema = new Schema<IGoogleAuth>(
     refreshToken: { type: String },
     tokenExpiresAt: { type: Date },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const TikTokAuthSchema = new Schema<ITikTokAuth>(
@@ -79,25 +108,30 @@ const TikTokAuthSchema = new Schema<ITikTokAuth>(
     openId: { type: String, required: true },
     unionId: { type: String },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const ShopifyConnectionSchema = new Schema<IShopifyConnection>(
   {
-    shop:                  { type: String, required: true, trim: true, lowercase: true },
+    shop: { type: String, required: true, trim: true, lowercase: true },
     accessTokenCiphertext: { type: String, required: true },
-    accessTokenIv:         { type: String, required: true },
-    accessTokenAuthTag:    { type: String, required: true },
-    scope:                 { type: String },
-    shopName:              { type: String },
-    shopEmail:             { type: String },
-    shopOwner:             { type: String },
-    shopCountry:           { type: String },
-    shopCurrency:          { type: String },
-    installedAt:           { type: Date, required: true, default: Date.now },
-    lastSyncedAt:          { type: Date },
+    accessTokenIv: { type: String, required: true },
+    accessTokenAuthTag: { type: String, required: true },
+    refreshTokenCiphertext: { type: String },
+    refreshTokenIv: { type: String },
+    refreshTokenAuthTag: { type: String },
+    accessTokenExpiresAt: { type: Date },
+    refreshTokenExpiresAt: { type: Date },
+    scope: { type: String },
+    shopName: { type: String },
+    shopEmail: { type: String },
+    shopOwner: { type: String },
+    shopCountry: { type: String },
+    shopCurrency: { type: String },
+    installedAt: { type: Date, required: true, default: Date.now },
+    lastSyncedAt: { type: Date },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const LocalAuthSchema = new Schema<ILocalAuth>(
@@ -110,7 +144,7 @@ const LocalAuthSchema = new Schema<ILocalAuth>(
     emailVerificationCodeHash: { type: String },
     emailVerificationExpiresAt: { type: Date },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const UsageStatsSchema = new Schema<IUsageStats>(
@@ -122,7 +156,7 @@ const UsageStatsSchema = new Schema<IUsageStats>(
     lastActivityAt: { type: Date, default: Date.now },
     usageResetAt: { type: Date, default: Date.now },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const SavedProductSchema = new Schema<ISavedProduct>(
@@ -132,7 +166,7 @@ const SavedProductSchema = new Schema<ISavedProduct>(
     notes: { type: String, maxlength: 500 },
     tags: [{ type: String, maxlength: 50 }],
   },
-  { _id: true }
+  { _id: true },
 );
 
 const SearchHistorySchema = new Schema<ISearchHistoryEntry>(
@@ -142,7 +176,7 @@ const SearchHistorySchema = new Schema<ISearchHistoryEntry>(
     searchedAt: { type: Date, default: Date.now },
     resultCount: { type: Number },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const NotificationPrefsSchema = new Schema<INotificationPrefs>(
@@ -151,7 +185,7 @@ const NotificationPrefsSchema = new Schema<INotificationPrefs>(
     emailOnSavedProductUpdate: { type: Boolean, default: true },
     emailMarketing: { type: Boolean, default: false },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const UserSchema = new Schema<IUserDocument, IUserModel>(
@@ -181,14 +215,14 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
       enum: ['user', 'admin'] as UserRole[],
       default: 'user',
       trim: true,
-      set: (v: string) => v ? v.trim().toLowerCase() : v
+      set: (v: string) => (v ? v.trim().toLowerCase() : v),
     },
     plan: {
       type: String,
       enum: ['free', 'explorer', 'pro', 'premium'] as UserPlan[],
       default: 'free',
       trim: true,
-      set: (v: string) => v ? v.trim().toLowerCase() : v
+      set: (v: string) => (v ? v.trim().toLowerCase() : v),
     },
     planExpiresAt: { type: Date },
 
@@ -225,7 +259,7 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     contentRegion: {
       type: String,
       enum: ALLOWED_CONTENT_REGIONS,
-      default: 'US'
+      default: 'US',
     },
 
     // Account status
@@ -234,7 +268,7 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
       enum: ['active', 'suspended', 'deleted'] as UserStatus[],
       default: 'active',
       trim: true,
-      set: (v: string) => v ? v.trim().toLowerCase() : v
+      set: (v: string) => (v ? v.trim().toLowerCase() : v),
     },
     lastLoginAt: { type: Date },
     lastLoginIp: { type: String },
@@ -255,7 +289,7 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
         return ret;
       },
     },
-  }
+  },
 );
 
 // ── Indexes ───────────────────────────────────────────────────────────────────

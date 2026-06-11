@@ -155,7 +155,13 @@ function computedAdDedupeKeyExpr() {
           { $ne: [pid, ''] },
         ],
       },
-      { $concat: ['product-card:', pid] },
+      {
+        $cond: [
+          { $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' } },
+          { $concat: ['meta:product-card:', pid] },
+          { $concat: ['tiktok:product-card:', pid] },
+        ],
+      },
       {
         $cond: [
           { $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' } },

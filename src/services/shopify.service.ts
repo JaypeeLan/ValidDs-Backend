@@ -69,6 +69,9 @@ export interface ShopifyProductCreateResult {
 interface ShopifyAccessTokenResponse {
   access_token: string;
   scope: string;
+  expires_in?: number;
+  refresh_token?: string;
+  refresh_token_expires_in?: number;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -372,11 +375,14 @@ export const ShopifyService = {
     return { userId: parsed.userId, shop: parsed.shop, nonce: parsed.nonce };
   },
 
-  /**
-   * Exchange the authorization code for a permanent Admin API access token.
-   * Shopify endpoint: POST https://<shop>/admin/oauth/access_token
-   */
   async exchangeCodeForToken(shop: string, code: string): Promise<ShopifyAccessTokenResponse> {
+    return this.requestAccessToken(shop, { code, expiring: 1 });
+  },
+
+  async requestAccessToken(
+    shop: string,
+    body: Record<string, string | number>,
+  ): Promise<ShopifyAccessTokenResponse> {
     this.assertConfigured();
 
     const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
@@ -385,13 +391,13 @@ export const ShopifyService = {
       body: JSON.stringify({
         client_id: env.SHOPIFY_API_KEY,
         client_secret: env.SHOPIFY_API_SECRET,
-        code,
+        ...body,
       }),
     });
 
     if (!res.ok) {
-      const body = await safeReadText(res);
-      log.warn('Shopify token exchange failed', { status: res.status, body });
+      const text = await safeReadText(res);
+      log.warn('Shopify token request failed', { status: res.status, body: text, shop });
       throw new AppError(
         401,
         'Failed to authenticate with Shopify — please try connecting again',
@@ -404,6 +410,126 @@ export const ShopifyService = {
       throw new AppError(401, 'Shopify did not return an access token', 'SHOPIFY_TOKEN_MISSING');
     }
     return data;
+  },
+
+  applyTokenResponse(connection: IShopifyConnection, tokenRes: ShopifyAccessTokenResponse): void {
+    const accessEnc = encrypt(tokenRes.access_token);
+    connection.accessTokenCiphertext = accessEnc.data;
+    connection.accessTokenIv = accessEnc.iv;
+    connection.accessTokenAuthTag = accessEnc.tag;
+    connection.scope = tokenRes.scope;
+
+    if (tokenRes.refresh_token) {
+      const refreshEnc = encrypt(tokenRes.refresh_token);
+      connection.refreshTokenCiphertext = refreshEnc.data;
+      connection.refreshTokenIv = refreshEnc.iv;
+      connection.refreshTokenAuthTag = refreshEnc.tag;
+    }
+
+    if (tokenRes.expires_in) {
+      connection.accessTokenExpiresAt = new Date(Date.now() + tokenRes.expires_in * 1000);
+    }
+    if (tokenRes.refresh_token_expires_in) {
+      connection.refreshTokenExpiresAt = new Date(
+        Date.now() + tokenRes.refresh_token_expires_in * 1000,
+      );
+    }
+  },
+
+  applyShopInfo(connection: IShopifyConnection, shopInfo: ShopifyShopInfo): void {
+    if (shopInfo.name) connection.shopName = shopInfo.name;
+    if (shopInfo.email) connection.shopEmail = shopInfo.email;
+    if (shopInfo.shop_owner) connection.shopOwner = shopInfo.shop_owner;
+    if (shopInfo.country_name) connection.shopCountry = shopInfo.country_name;
+    if (shopInfo.currency) connection.shopCurrency = shopInfo.currency;
+    connection.lastSyncedAt = new Date();
+  },
+
+  /**
+   * Migrate legacy non-expiring tokens or refresh expiring ones before Admin API calls.
+   */
+  async ensureValidAccessToken(
+    userId: string,
+    connection: IShopifyConnection,
+  ): Promise<{ shop: string; accessToken: string; connection: IShopifyConnection }> {
+    const shop = connection.shop;
+    let accessToken = decrypt({
+      data: connection.accessTokenCiphertext,
+      iv: connection.accessTokenIv,
+      tag: connection.accessTokenAuthTag,
+    });
+
+    const needsMigration = !connection.refreshTokenCiphertext;
+    const expiresAt = connection.accessTokenExpiresAt?.getTime();
+    const expiringSoon = expiresAt != null && expiresAt <= Date.now() + 5 * 60 * 1000;
+
+    if (!needsMigration && !expiringSoon) {
+      return { shop, accessToken, connection };
+    }
+
+    let tokenRes: ShopifyAccessTokenResponse;
+
+    if (needsMigration) {
+      log.info('Migrating Shopify connection to expiring offline token', { userId, shop });
+      tokenRes = await this.requestAccessToken(shop, {
+        grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+        subject_token: accessToken,
+        subject_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+        requested_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+        expiring: 1,
+      });
+    } else {
+      const refreshToken = decrypt({
+        data: connection.refreshTokenCiphertext!,
+        iv: connection.refreshTokenIv!,
+        tag: connection.refreshTokenAuthTag!,
+      });
+      log.info('Refreshing Shopify access token', { userId, shop });
+      tokenRes = await this.requestAccessToken(shop, {
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      });
+    }
+
+    this.applyTokenResponse(connection, tokenRes);
+    await User.updateOne({ _id: userId }, { $set: { shopifyConnection: connection } });
+
+    accessToken = tokenRes.access_token;
+    return { shop, accessToken, connection };
+  },
+
+  /** Backfill owner/country/currency when missing (e.g. after legacy token migration). */
+  async refreshConnectionMetadata(userId: string): Promise<IShopifyConnection | null> {
+    const user = await User.findById(userId).select('+shopifyConnection');
+    const connection = user?.shopifyConnection;
+    if (!user || !connection) return null;
+
+    const needsMetadata =
+      !connection.shopOwner ||
+      !connection.shopCountry ||
+      !connection.shopCurrency ||
+      !connection.shopEmail;
+
+    if (!needsMetadata) return connection;
+
+    try {
+      const {
+        shop,
+        accessToken,
+        connection: conn,
+      } = await this.ensureValidAccessToken(userId, connection);
+      const shopInfo = await this.fetchShopInfo(shop, accessToken);
+      this.applyShopInfo(conn, shopInfo);
+      await User.updateOne({ _id: userId }, { $set: { shopifyConnection: conn } });
+      return conn;
+    } catch (err) {
+      log.warn('Failed to refresh Shopify connection metadata', {
+        userId,
+        shop: connection.shop,
+        err: err instanceof Error ? err.message : err,
+      });
+      return connection;
+    }
   },
 
   /**
@@ -450,10 +576,9 @@ export const ShopifyService = {
         shop {
           name
           email
-          shopOwnerName
           currencyCode
           myshopifyDomain
-          billingAddress { country }
+          billingAddress { country countryCodeV2 }
         }
       }
     `;
@@ -482,24 +607,21 @@ export const ShopifyService = {
         shop?: {
           name?: string;
           email?: string;
-          shopOwnerName?: string;
           currencyCode?: string;
           myshopifyDomain?: string;
-          billingAddress?: { country?: string };
+          billingAddress?: { country?: string; countryCodeV2?: string };
         };
       };
-      errors?: Array<{ message?: string }>;
+      errors?: unknown;
     };
 
-    if (!res.ok || body.errors?.length) {
-      const detail =
-        body.errors
-          ?.map((e) => e.message)
-          .filter(Boolean)
-          .join('; ') ?? '';
+    const graphqlError = formatGraphqlErrors(body.errors);
+    if (!res.ok || graphqlError) {
       throw new AppError(
         502,
-        detail ? `Shopify GraphQL error: ${detail}` : `Shopify GraphQL error (${res.status})`,
+        graphqlError
+          ? `Shopify GraphQL error: ${graphqlError}`
+          : `Shopify GraphQL error (${res.status})`,
         'SHOPIFY_API_ERROR',
       );
     }
@@ -509,14 +631,25 @@ export const ShopifyService = {
       throw new AppError(502, 'Shopify GraphQL returned no shop data', 'SHOPIFY_API_ERROR');
     }
 
-    return {
+    const info: ShopifyShopInfo = {
       name: shopNode.name,
       email: shopNode.email,
-      shop_owner: shopNode.shopOwnerName,
       currency: shopNode.currencyCode,
-      country_name: shopNode.billingAddress?.country,
+      country_name: shopNode.billingAddress?.country ?? shopNode.billingAddress?.countryCodeV2,
       myshopify_domain: shopNode.myshopifyDomain ?? shop,
     };
+
+    // shop_owner lives on REST Shop only (GraphQL accountOwner needs read_users).
+    try {
+      const rest = await this.fetchShopInfoRest(shop, accessToken);
+      if (rest.shop_owner) info.shop_owner = rest.shop_owner;
+      if (!info.email && rest.email) info.email = rest.email;
+      if (!info.name && rest.name) info.name = rest.name;
+    } catch {
+      // GraphQL fields are enough for connect; owner is optional.
+    }
+
+    return info;
   },
 
   // ── Persistence ───────────────────────────────────────────────────────────
@@ -528,26 +661,19 @@ export const ShopifyService = {
   async saveConnection(
     userId: string,
     shop: string,
-    accessToken: string,
-    scope: string,
+    tokenRes: ShopifyAccessTokenResponse,
     shopInfo: ShopifyShopInfo,
   ): Promise<IShopifyConnection> {
-    const enc = encrypt(accessToken);
-
     const connection: IShopifyConnection = {
       shop,
-      accessTokenCiphertext: enc.data,
-      accessTokenIv: enc.iv,
-      accessTokenAuthTag: enc.tag,
-      scope,
-      shopName: shopInfo.name,
-      shopEmail: shopInfo.email,
-      shopOwner: shopInfo.shop_owner,
-      shopCountry: shopInfo.country_name,
-      shopCurrency: shopInfo.currency,
+      accessTokenCiphertext: '',
+      accessTokenIv: '',
+      accessTokenAuthTag: '',
       installedAt: new Date(),
-      lastSyncedAt: new Date(),
     };
+
+    this.applyTokenResponse(connection, tokenRes);
+    this.applyShopInfo(connection, shopInfo);
 
     await User.updateOne({ _id: userId }, { $set: { shopifyConnection: connection } });
 
@@ -556,11 +682,10 @@ export const ShopifyService = {
 
   async savePendingConnection(
     shop: string,
-    accessToken: string,
-    scope: string,
+    tokenRes: ShopifyAccessTokenResponse,
     shopInfo: ShopifyShopInfo,
   ): Promise<void> {
-    const enc = encrypt(accessToken);
+    const enc = encrypt(tokenRes.access_token);
 
     await ShopifyPendingConnection.findOneAndUpdate(
       { shop },
@@ -569,7 +694,7 @@ export const ShopifyService = {
         accessTokenCiphertext: enc.data,
         accessTokenIv: enc.iv,
         accessTokenAuthTag: enc.tag,
-        scope,
+        scope: tokenRes.scope,
         shopName: shopInfo.name,
         shopEmail: shopInfo.email,
         shopOwner: shopInfo.shop_owner,
@@ -642,13 +767,7 @@ export const ShopifyService = {
         'SHOPIFY_NOT_CONNECTED',
       );
     }
-    const c = user.shopifyConnection;
-    const accessToken = decrypt({
-      data: c.accessTokenCiphertext,
-      iv: c.accessTokenIv,
-      tag: c.accessTokenAuthTag,
-    });
-    return { shop: c.shop, accessToken, connection: c };
+    return this.ensureValidAccessToken(userId, user.shopifyConnection);
   },
 
   /**
@@ -822,6 +941,18 @@ function mapProductToShopify(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatGraphqlErrors(errors: unknown): string {
+  if (!errors) return '';
+  if (typeof errors === 'string') return errors;
+  if (Array.isArray(errors)) {
+    return errors
+      .map((e) => (typeof e === 'string' ? e : (e as { message?: string }).message))
+      .filter(Boolean)
+      .join('; ');
+  }
+  return String(errors);
+}
 
 function fallbackShopInfo(shop: string): ShopifyShopInfo {
   const slug = shop.replace(/\.myshopify\.com$/, '');

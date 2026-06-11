@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../../middleware/error.middleware';
 import { logger } from '../../logger';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
-import { User } from '../../models/user.model';
 import { getMarketModels } from '../../models/market-models.factory';
 import { toMarketCode } from '../../utils/markets';
 import { ShopifyService } from '../../services/shopify.service';
@@ -153,25 +152,14 @@ export const StoreController = {
       const shopInfo = await ShopifyService.fetchShopInfo(shop, tokenRes.access_token);
 
       if (oauthState.purpose === 'shopify_oauth_install') {
-        await ShopifyService.savePendingConnection(
-          shop,
-          tokenRes.access_token,
-          tokenRes.scope,
-          shopInfo,
-        );
+        await ShopifyService.savePendingConnection(shop, tokenRes, shopInfo);
         log.info('Shopify App URL install — pending link', { shop });
         // Land on API host first (same domain as App URL), then SPA — Partner install checks.
         res.redirect(302, ShopifyService.installConnectedUrl(shop));
         return;
       }
 
-      await ShopifyService.saveConnection(
-        oauthState.userId,
-        shop,
-        tokenRes.access_token,
-        tokenRes.scope,
-        shopInfo,
-      );
+      await ShopifyService.saveConnection(oauthState.userId, shop, tokenRes, shopInfo);
 
       log.info('Shopify store connected', { userId: oauthState.userId, shop });
       res.redirect(ShopifyService.appUiRedirectUrl({ status: 'success', shop }));
@@ -221,15 +209,14 @@ export const StoreController = {
    */
   async status(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      // shopifyConnection is select:false by default — re-query with it included.
-      const userWithConn = await User.findById(req.user!._id).select('+shopifyConnection');
-      const conn = userWithConn?.shopifyConnection;
+      const userId = String(req.user!._id);
+      const connection = await ShopifyService.refreshConnectionMetadata(userId);
       res.json(
         successResponse(
           {
-            connected: Boolean(conn),
+            connected: Boolean(connection),
             shopifyConfigured: ShopifyService.isConfigured(),
-            connection: ShopifyService.publicConnectionView(conn),
+            connection: ShopifyService.publicConnectionView(connection),
           },
           ResponseMessage.SUCCESS,
           200,

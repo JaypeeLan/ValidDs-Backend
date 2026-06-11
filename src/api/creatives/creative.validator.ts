@@ -14,10 +14,11 @@ const CreativeListQueryBaseSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{24}$/, 'Invalid productId format')
     .optional(),
-  source: z.enum(['tiktok', 'meta']).optional(),
-  section: z
-    .enum(['top-ads', 'trending', 'influencer-reviews', 'tutorials', 'viral-unboxings'])
-    .optional(),
+  source: z.preprocess(
+    (v) => (typeof v === 'string' ? v.toLowerCase() : v),
+    z.enum(['tiktok', 'meta']).optional(),
+  ),
+  section: z.enum(['top-ads', 'trending']).optional(),
   isAd: z.coerce.boolean().optional(),
   region: z
     .string()

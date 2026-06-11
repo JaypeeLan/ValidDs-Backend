@@ -428,7 +428,7 @@ components:
       description: Filter by API section label (mapped to DB before query).
       schema:
         type: string
-        enum: [top-ads, trending, influencer-reviews, tutorials, viral-unboxings]
+        enum: [top-ads, trending]
     isAd:
       name: isAd
       in: query

@@ -13,12 +13,8 @@ export interface IMetricTrend {
   windows: IMetricTrendWindow[];
 }
 
-export type CreativeSection =
-  | 'top-ads'
-  | 'trending'
-  | 'influencer-reviews'
-  | 'tutorials'
-  | 'viral-unboxings';
+/** UI buckets — paid/Meta vs organic TikTok (API labels invert DB storage; see creative-response.util). */
+export type CreativeSection = 'top-ads' | 'trending';
 
 export interface ICreatorProfile {
   handle: string;
@@ -98,6 +94,8 @@ export interface ICreative {
   isAd?: boolean;
   /** true when the video's product listing was verified against the shop card / anchor */
   listingVerified?: boolean;
+  /** Raw TikTok post caption before angle/description extraction */
+  originalCaption?: string | null;
   productName?: string;
   productDescription?: string;
   categoryL1?: string;

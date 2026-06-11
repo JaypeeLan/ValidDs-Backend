@@ -21,6 +21,7 @@ import {
 } from '../../services/ingest-media-s3.service';
 import { isProductHeroThumbnail } from '../../utils/creative-response.util';
 import { mergeMetricTrendSnapshots } from '../../utils/metric-trend-merge.util';
+import { extractMetaAdIdFromUrl } from '../../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../../utils/tiktok-url.util';
 import { logger } from '../../logger';
 
@@ -268,7 +269,7 @@ export async function ingestCreative(
 
     const adDedupeKey = String(payload.adDedupeKey ?? '').trim();
     const isMetaAd = externalVideoId.startsWith('meta:');
-    // Meta rows upsert by Ad Library id; TikTok rows use stable adDedupeKey when set.
+    // Meta rows upsert by externalVideoId (`meta:{adId}:{productId}` — shared S3 MP4 per ad id).
     const upsertFilter = isMetaAd
       ? { externalVideoId }
       : adDedupeKey
@@ -284,6 +285,25 @@ export async function ingestCreative(
     if (!saved) {
       res.status(500).json({ success: false, error: 'upsert failed' });
       return;
+    }
+
+    if (isMetaAd && externalVideoId.includes(':')) {
+      const adId = extractMetaAdIdFromUrl(externalVideoId);
+      if (adId) {
+        const legacyRemoved = await Creative.deleteMany({
+          productId: payload.productId,
+          externalVideoId: `meta:${adId}`,
+          _id: { $ne: saved._id },
+        });
+        if (legacyRemoved.deletedCount > 0) {
+          log.info('Removed legacy Meta creative row', {
+            market,
+            productId: String(payload.productId),
+            adId,
+            deletedCount: legacyRemoved.deletedCount,
+          });
+        }
+      }
     }
 
     if (adDedupeKey) {

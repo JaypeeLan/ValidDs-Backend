@@ -123,7 +123,7 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
 
     section: {
       type: String,
-      enum: ['top-ads', 'trending', 'influencer-reviews', 'tutorials', 'viral-unboxings'],
+      enum: ['top-ads', 'trending'],
       required: true,
       index: true,
     },
@@ -131,6 +131,7 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     isPrimaryDiscovery: { type: Boolean, default: false },
     isAd: { type: Boolean, default: null },
     listingVerified: { type: Boolean, default: false },
+    originalCaption: { type: String, maxlength: 2000, default: null },
 
     productName: { type: String },
     productDescription: { type: String, maxlength: 2000 },

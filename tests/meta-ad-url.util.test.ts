@@ -3,9 +3,16 @@ import {
   enrichAnglesWithVideoProxyUrls,
   stripNonPlayableAngleVideoUrls,
 } from '../src/utils/marketing-angles.util';
-import { normalizeMetaAdLibraryUrl } from '../src/utils/meta-ad-url.util';
+import { extractMetaAdIdFromUrl, normalizeMetaAdLibraryUrl } from '../src/utils/meta-ad-url.util';
+import type { IMarketingAngle } from '../src/types/product.types';
 
 describe('meta-ad-url.util', () => {
+  it('extracts ad id from meta:{adId}:{productId} externalVideoId', () => {
+    expect(extractMetaAdIdFromUrl('meta:26554476934242686:6a194abe8cb16a299d5ab2d9')).toBe(
+      '26554476934242686',
+    );
+  });
+
   it('normalizes render_ad snapshot URLs', () => {
     expect(
       normalizeMetaAdLibraryUrl(
@@ -41,7 +48,7 @@ describe('playable angle videos', () => {
       ],
       index,
       'v1',
-    );
+    ) as IMarketingAngle[];
     expect(out[0]?.videoProxyUrl).toBe('/api/v1/creatives/creative123/video?index=0');
   });
 
@@ -49,7 +56,7 @@ describe('playable angle videos', () => {
     const out = attachMetaAdLibraryUrlsToAngles(
       [{ hook: 'h', body: 'b', target: 't' }],
       ['https://www.facebook.com/ads/library/?id=22222222222'],
-    );
+    ) as IMarketingAngle[];
     expect(out[0]?.metaAdLibraryUrl).toBe('https://www.facebook.com/ads/library/?id=22222222222');
   });
 });

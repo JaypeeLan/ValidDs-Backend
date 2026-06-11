@@ -184,10 +184,23 @@ export function creativeVideoProductMatchReason(doc: Record<string, unknown>): s
   const productTitle = String(doc.productName ?? '').trim();
   if (productTitle.length < 4) return null;
 
+  const originalCaption = String(doc.originalCaption ?? '').trim();
   const item = {
-    description: doc.description,
+    description: originalCaption || doc.description,
     hashtags: doc.hashtags,
   };
+  if (originalCaption && doc.angle) {
+    if (
+      !videoMatchesProduct(item, productTitle, {
+        minScore: 0.28,
+        minOverlap: 2,
+        minDistinctiveOverlap: 1,
+      })
+    ) {
+      return `video caption does not match product ${productTitle.slice(0, 60)}`;
+    }
+    return null;
+  }
   if (!videoItemText(item).trim()) {
     return 'video caption missing — cannot verify product match';
   }

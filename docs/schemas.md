@@ -8,24 +8,24 @@ Mongoose models in **`src/models/product.model.ts`** and **`src/models/creative.
 
 One document per product surfaced through ingestion/enrichment (TikTok-aligned content, AI extraction, supplier data, etc.). **Unique index:** `externalId` + `source`. **`status`:** `active` | `stale` | `archived` (when used).
 
-| Area | Fields (summary) |
-|------|-------------------|
-| Identity | `externalId`, `source`, `status` |
-| Content | `title`, `normalizedTitle`, `description`, `hashtags[]` |
-| Taxonomy | `categoryL1`, `categoryL2`, `categoryL3`, `categoryPath` |
-| Media | `primaryImageUrl`, `imageUrls[]`, and related source/timestamp fields when present |
-| Pricing | `price`, `currency`, `suppliers[]` |
-| Market | `rating`, `reviewCount`, `salesEvidence`, `ratingSources[]` |
-| Reviews | `reviews[]` — TikTok Shop uses `name` + `review`; AI extraction uses `author` + `content` |
-| Suppliers | `suppliers[]` — `source`, optional `platform`, `onSale`, `soldLast30Days`, Shopify App + Amazon rows |
-| Social | `topComments[]` — TikTok-style comment snippets when captured |
-| Engagement | `viewCount`, `likeCount`, `commentCount`, `shareCount`, `engagementRate` |
-| Creator | `primaryCreator` — handle, display name, TikTok URLs, followers when known |
-| AI | `aiIntelligence` — confidence, brand hints, sentiment, `marketingAnalysis` (insight + `angles[]` hook/body/target) |
-| Trend | `trend` — score, direction, reason, `isTrending`, timestamps |
-| Discovery | `discoverySections[]`, `relatedProducts[]` when populated |
-| Creatives rollup | `creativeCounts` { ads, organic, reviews, total } |
-| Freshness | `lastIngestedAt`, `dataSourceUpdatedAt`, `createdAt`, `updatedAt` |
+| Area             | Fields (summary)                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Identity         | `externalId`, `source`, `status`                                                                                   |
+| Content          | `title`, `normalizedTitle`, `description`, `hashtags[]`                                                            |
+| Taxonomy         | `categoryL1`, `categoryL2`, `categoryL3`, `categoryPath`                                                           |
+| Media            | `primaryImageUrl`, `imageUrls[]`, and related source/timestamp fields when present                                 |
+| Pricing          | `price`, `currency`, `suppliers[]`                                                                                 |
+| Market           | `rating`, `reviewCount`, `salesEvidence`, `ratingSources[]`                                                        |
+| Reviews          | `reviews[]` — TikTok Shop uses `name` + `review`; AI extraction uses `author` + `content`                          |
+| Suppliers        | `suppliers[]` — `source`, optional `platform`, `onSale`, `soldLast30Days`, Shopify App + Amazon rows               |
+| Social           | `topComments[]` — TikTok-style comment snippets when captured                                                      |
+| Engagement       | `viewCount`, `likeCount`, `commentCount`, `shareCount`, `engagementRate`                                           |
+| Creator          | `primaryCreator` — handle, display name, TikTok URLs, followers when known                                         |
+| AI               | `aiIntelligence` — confidence, brand hints, sentiment, `marketingAnalysis` (insight + `angles[]` hook/body/target) |
+| Trend            | `trend` — score, direction, reason, `isTrending`, timestamps                                                       |
+| Discovery        | `discoverySections[]`, `relatedProducts[]` when populated                                                          |
+| Creatives rollup | `creativeCounts` { ads, organic, reviews, total }                                                                  |
+| Freshness        | `lastIngestedAt`, `dataSourceUpdatedAt`, `createdAt`, `updatedAt`                                                  |
 
 **Text search:** MongoDB text index on `title` + `description` supports `GET /api/v1/products?q=…` when configured.
 
@@ -37,37 +37,37 @@ Legacy MongoDB documents may still carry older field shapes or `source` values f
 
 One document per TikTok video tied to a product (`productId`).
 
-| Area | Fields (summary) |
-|------|-------------------|
-| Identity | `productId`, `externalVideoId` |
-| Media | `videoPlayUrl`, `thumbnailUrl` |
-| Creator | `creator` (tiktokUserId, handle, displayName, followers, verified, tiktokPostUrl, …) |
-| Metrics | `metrics` (views, likes, comments, shares, engagementRate, source, fetchedAt) |
-| Classification | `section` (`top-ads` \| `trending` \| `influencer-reviews` \| `tutorials` \| `viral-unboxings`), `isAd` |
-| Copy | `productName`, `productDescription`, `description`, `angle`, `hashtags[]`, `topComments[]` |
-| Related | `relatedVideos[]` (nested creator, metrics, topComments, publishedAt) |
-| Timing | `publishedAt`, `ingestedAt`, `createdAt`, `updatedAt` |
+| Area           | Fields (summary)                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| Identity       | `productId`, `externalVideoId`                                                             |
+| Media          | `videoPlayUrl`, `thumbnailUrl`                                                             |
+| Creator        | `creator` (tiktokUserId, handle, displayName, followers, verified, tiktokPostUrl, …)       |
+| Metrics        | `metrics` (views, likes, comments, shares, engagementRate, source, fetchedAt)              |
+| Classification | `section` (`top-ads` \| `trending`), `isAd`                                                |
+| Copy           | `productName`, `productDescription`, `description`, `angle`, `hashtags[]`, `topComments[]` |
+| Related        | `relatedVideos[]` (nested creator, metrics, topComments, publishedAt)                      |
+| Timing         | `publishedAt`, `ingestedAt`, `createdAt`, `updatedAt`                                      |
 
 ---
 
 ## 3. API response shapes (Product)
 
-| Endpoint | Schema | Notes |
-|----------|--------|--------|
-| `GET /products` | **`ProductFeedItem`** | Discovery cards only — no suppliers blob, marketing analysis, reviews, etc. |
-| `GET /products/:id` | **`Product`** (full) | Detail drawer/page including `aiInsight.marketingAnalysis`, history, suppliers |
+| Endpoint            | Schema                | Notes                                                                          |
+| ------------------- | --------------------- | ------------------------------------------------------------------------------ |
+| `GET /products`     | **`ProductFeedItem`** | Discovery cards only — no suppliers blob, marketing analysis, reviews, etc.    |
+| `GET /products/:id` | **`Product`** (full)  | Detail drawer/page including `aiInsight.marketingAnalysis`, history, suppliers |
 
 ### API-only fields (detail + feed)
 
 Returned by controllers, not always stored as separate columns:
 
-| Field | Meaning |
-|-------|---------|
-| `isTopAd` | `true` when `discoverySections` contains `top-ads` |
-| `aiInsight` | Reshaped `aiIntelligence`: confidence, buyingSentiment, **marketingAnalysis**, brand, niche, audience, problem/value statements |
-| `ratings` | Alias for the resolved numeric rating in list/detail payloads |
-| `salesHistory` / `salesTrend` | Unit-sales snapshots and windowed trend (`windows[].value` = units) |
-| `revenueHistory` / `revenueTrend` | GMV snapshots and windowed trend (`windows[].value` = revenue) |
+| Field                             | Meaning                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `isTopAd`                         | `true` when `discoverySections` contains `top-ads`                                                                              |
+| `aiInsight`                       | Reshaped `aiIntelligence`: confidence, buyingSentiment, **marketingAnalysis**, brand, niche, audience, problem/value statements |
+| `ratings`                         | Alias for the resolved numeric rating in list/detail payloads                                                                   |
+| `salesHistory` / `salesTrend`     | Unit-sales snapshots and windowed trend (`windows[].value` = units)                                                             |
+| `revenueHistory` / `revenueTrend` | GMV snapshots and windowed trend (`windows[].value` = revenue)                                                                  |
 
 ---
 
@@ -85,14 +85,14 @@ User, auth, bookmarks, jobs, and admin analytics live in their respective models
 
 Captured from the public `POST /api/v1/waitlist` endpoint. Read-only for admins via `GET /api/v1/admin/waitlist` (see [`admin-docs/endpoints.md`](../admin-docs/endpoints.md)).
 
-| Field       | Type     | Notes                                                                |
-|-------------|----------|----------------------------------------------------------------------|
-| `email`     | string   | Trimmed + lowercased, **unique index**                              |
-| `source`    | string?  | Optional attribution tag from the request body (≤ 64 chars)         |
-| `referrer`  | string?  | From body, falls back to the `Referer` request header (≤ 512 chars) |
-| `ipAddress` | string?  | `req.ip` at the time of signup                                       |
-| `userAgent` | string?  | `User-Agent` header (≤ 512 chars)                                   |
-| `createdAt` | Date     | Auto-managed via `timestamps`                                        |
-| `updatedAt` | Date     | Auto-managed via `timestamps`                                        |
+| Field       | Type    | Notes                                                               |
+| ----------- | ------- | ------------------------------------------------------------------- |
+| `email`     | string  | Trimmed + lowercased, **unique index**                              |
+| `source`    | string? | Optional attribution tag from the request body (≤ 64 chars)         |
+| `referrer`  | string? | From body, falls back to the `Referer` request header (≤ 512 chars) |
+| `ipAddress` | string? | `req.ip` at the time of signup                                      |
+| `userAgent` | string? | `User-Agent` header (≤ 512 chars)                                   |
+| `createdAt` | Date    | Auto-managed via `timestamps`                                       |
+| `updatedAt` | Date    | Auto-managed via `timestamps`                                       |
 
 Duplicate submissions are a no-op: the service layer does an explicit `findOne` before insert and responds with the existing entry and `alreadyOnWaitlist: true` (E11000 race conditions are also handled gracefully).

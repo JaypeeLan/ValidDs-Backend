@@ -185,7 +185,7 @@ export function filterMarketingAnglesWithPlayableVideo<T>(angles: T[] | undefine
 }
 
 /** Optional: keep normalized Ad Library link separate from videoUrl (not for inline player). */
-export function attachMetaAdLibraryUrlsToAngles<T extends Record<string, unknown>>(
+export function attachMetaAdLibraryUrlsToAngles<T extends object>(
   angles: T[],
   metaViewerUrls: string[],
 ): T[] {

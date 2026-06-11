@@ -52,8 +52,7 @@ feed:
         description: Require this discovery section slug on the product (e.g. `top-ads` for top ads).
         schema:
           type: string
-          enum:
-            [top-ads, trending, top-rated, viral, influencer-reviews, tutorials, viral-unboxings]
+          enum: [top-ads, trending, new-3d, new-7d]
       - name: feed
         in: query
         required: false

@@ -17,38 +17,23 @@ export const DiscoveryService = {
 
     try {
       // 1. Top Ads Logic (creatives + high view counts; no external shopping SERP)
-      const creativeAdsCount = await Creative.countDocuments({ 
-        productId: product._id, 
-        isAd: true 
+      const creativeAdsCount = await Creative.countDocuments({
+        productId: product._id,
+        isAd: true,
       });
       const viewCount = Math.max(0, Number(product.viewCount) || 0);
 
-      if (
-        creativeAdsCount >= 1 ||
-        viewCount >= TOP_AD_ABSOLUTE_VIEW_FLOOR
-      ) {
+      if (creativeAdsCount >= 1 || viewCount >= TOP_AD_ABSOLUTE_VIEW_FLOOR) {
         sections.add('top-ads');
       }
 
-      // 2. Trending Logic
-      if ((product.trend?.score || 0) > 80 || product.viewCount > 1_000_000) {
+      // 2. Trending Logic — organic / high-momentum products
+      if (
+        !sections.has('top-ads') ||
+        (product.trend?.score || 0) > 80 ||
+        (product.viewCount ?? 0) > 1_000_000
+      ) {
         sections.add('trending');
-      }
-
-      // 3. Top Rated Logic
-      const topRated = (Number(product.rating || 0) >= 4.5) && (Number(product.reviewCount || 0) > 100);
-      if (topRated) {
-        sections.add('top-rated');
-      }
-
-      // 4. Viral Logic
-      const viralCreatives = await Creative.countDocuments({
-        productId: product._id,
-        'metrics.engagementRate': { $gt: 15 }
-      });
-      
-      if (viralCreatives >= 3 || (product.engagementRate || 0) > 10) {
-        sections.add('viral');
       }
 
       const postDate = product.publishedAt ?? product.postCreatedAt;
@@ -63,5 +48,5 @@ export const DiscoveryService = {
       log.error('Product categorization failed', { error: String(err) });
       return Array.from(sections);
     }
-  }
+  },
 };

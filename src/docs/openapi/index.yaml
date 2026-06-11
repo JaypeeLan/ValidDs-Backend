@@ -21,12 +21,12 @@ info:
     url: https://validds.com/support
 
 servers:
-  - url: /
-    description: Current host (e.g. localhost:4000 when running `npm run dev` — match PORT in .env)
-  - url: http://localhost:4000
-    description: Local development (default PORT in many .env files)
   - url: https://validds-backend-g196.onrender.com
-    description: Staging / production API
+    description: Staging API on Render (default)
+  - url: /
+    description: Current host (same origin as /docs)
+  - url: http://localhost:4000
+    description: Local development (match PORT in .env)
 
 tags:
   - name: Categories

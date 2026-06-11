@@ -409,8 +409,32 @@ export const ShopifyService = {
   /**
    * Fetch basic shop info (name, owner, country, currency) using the freshly
    * issued access token, so we can store a friendly label on the connection.
+   *
+   * Public Partner apps often reject REST `/shop.json` (403) even after a valid
+   * OAuth install — GraphQL `shop` is the supported path for new apps.
    */
   async fetchShopInfo(shop: string, accessToken: string): Promise<ShopifyShopInfo> {
+    try {
+      return await this.fetchShopInfoGraphql(shop, accessToken);
+    } catch (graphqlErr) {
+      log.warn('Shopify GraphQL shop info failed, trying REST', {
+        shop,
+        err: graphqlErr instanceof Error ? graphqlErr.message : graphqlErr,
+      });
+    }
+
+    try {
+      return await this.fetchShopInfoRest(shop, accessToken);
+    } catch (restErr) {
+      log.warn('Shopify REST shop info failed, using minimal shop metadata', {
+        shop,
+        err: restErr instanceof Error ? restErr.message : restErr,
+      });
+      return fallbackShopInfo(shop);
+    }
+  },
+
+  async fetchShopInfoRest(shop: string, accessToken: string): Promise<ShopifyShopInfo> {
     const res = await this.adminApi<{ shop: ShopifyShopInfo }>(
       shop,
       accessToken,
@@ -418,6 +442,81 @@ export const ShopifyService = {
       '/shop.json',
     );
     return res.shop ?? {};
+  },
+
+  async fetchShopInfoGraphql(shop: string, accessToken: string): Promise<ShopifyShopInfo> {
+    const query = `
+      query ValidDsShopInfo {
+        shop {
+          name
+          email
+          shopOwnerName
+          currencyCode
+          myshopifyDomain
+          billingAddress { country }
+        }
+      }
+    `;
+
+    const url = `https://${shop}/admin/api/${env.SHOPIFY_API_VERSION}/graphql.json`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (res.status === 401) {
+      throw new AppError(
+        401,
+        'Shopify rejected our access token. Please reconnect your store.',
+        'SHOPIFY_AUTH_REVOKED',
+      );
+    }
+
+    const body = (await res.json()) as {
+      data?: {
+        shop?: {
+          name?: string;
+          email?: string;
+          shopOwnerName?: string;
+          currencyCode?: string;
+          myshopifyDomain?: string;
+          billingAddress?: { country?: string };
+        };
+      };
+      errors?: Array<{ message?: string }>;
+    };
+
+    if (!res.ok || body.errors?.length) {
+      const detail =
+        body.errors
+          ?.map((e) => e.message)
+          .filter(Boolean)
+          .join('; ') ?? '';
+      throw new AppError(
+        502,
+        detail ? `Shopify GraphQL error: ${detail}` : `Shopify GraphQL error (${res.status})`,
+        'SHOPIFY_API_ERROR',
+      );
+    }
+
+    const shopNode = body.data?.shop;
+    if (!shopNode) {
+      throw new AppError(502, 'Shopify GraphQL returned no shop data', 'SHOPIFY_API_ERROR');
+    }
+
+    return {
+      name: shopNode.name,
+      email: shopNode.email,
+      shop_owner: shopNode.shopOwnerName,
+      currency: shopNode.currencyCode,
+      country_name: shopNode.billingAddress?.country,
+      myshopify_domain: shopNode.myshopifyDomain ?? shop,
+    };
   },
 
   // ── Persistence ───────────────────────────────────────────────────────────
@@ -723,6 +822,14 @@ function mapProductToShopify(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+function fallbackShopInfo(shop: string): ShopifyShopInfo {
+  const slug = shop.replace(/\.myshopify\.com$/, '');
+  return {
+    name: slug.replace(/-/g, ' '),
+    myshopify_domain: shop,
+  };
+}
 
 async function safeReadText(res: Response): Promise<string> {
   try {

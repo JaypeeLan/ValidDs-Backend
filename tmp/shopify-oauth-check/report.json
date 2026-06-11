@@ -1,0 +1,12 @@
+{
+  "startUrl": "https://jaypee-test-wrd491pc.myshopify.com/admin/oauth/authorize?client_id=dcb83292758ad41ea2f7126ee70b18e8&scope=read_products%2Cwrite_products&redirect_uri=https%3A%2F%2Fvalidds-backend-g196.onrender.com%2Fapi%2Fv1%2Fstores%2Fshopify%2Fcallback&state=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OWUyNTVlNjEwYmJjOTgyMTYxNzI2NWUiLCJzaG9wIjoiamF5cGVlLXRlc3Qtd3JkNDkxcGMubXlzaG9waWZ5LmNvbSIsIm5vbmNlIjoiZWEzN2Q0YjY1NzMyNDdiZWVlOTY4MjllODFiZjRjMjEiLCJwdXJwb3NlIjoic2hvcGlmeV9vYXV0aCIsImlhdCI6MTc4MTIwOTAyMywiZXhwIjoxNzgxODEzODIzfQ.dJ05jMmaKmlbaCwDq1Fh0_1ioIYHSJ__mUaD4YFMrO8",
+  "finalUrl": "https://accounts.shopify.com/lookup?rid=00f39716-841f-46e3-a577-5e9e603aa9a6&verify=1781209086-NH2zTfr0fhZfUC48K3gLlUjYgj2KgbHhRTXnrmsqkRI%3D",
+  "title": "Log in — Shopify",
+  "log": [
+    "NAV https://admin.shopify.com/store/jaypee-test-wrd491pc/oauth/authorize?client_id=dcb83292758ad41ea2f7126ee70b18e8&scope=read_products%2Cwrite_products&redirect_uri=https%3A%2F%2Fvalidds-backend-g196.onrender.com%2Fapi%2Fv1%2Fstores%2Fshopify%2Fcallback&state=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OWUyNTVlNjEwYmJjOTgyMTYxNzI2NWUiLCJzaG9wIjoiamF5cGVlLXRlc3Qtd3JkNDkxcGMubXlzaG9waWZ5LmNvbSIsIm5vbmNlIjoiZWEzN2Q0YjY1NzMyNDdiZWVlOTY4MjllODFiZjRjMjEiLCJwdXJwb3NlIjoic2hvcGlmeV9vYXV0aCIsImlhdCI6MTc4MTIwOTAyMywiZXhwIjoxNzgxODEzODIzfQ.dJ05jMmaKmlbaCwDq1Fh0_1ioIYHSJ__mUaD4YFMrO8",
+    "NAV https://admin.shopify.com/login?errorHint=no_cookie_session",
+    "NAV https://accounts.shopify.com/lookup?rid=00f39716-841f-46e3-a577-5e9e603aa9a6&verify=1781209086-NH2zTfr0fhZfUC48K3gLlUjYgj2KgbHhRTXnrmsqkRI%3D"
+  ],
+  "textPreview": "Log in Continue to Shopify Email Password Continue with email or Sign in with passkey Continue with Google Continue with Apple Continue with Facebook Continue with WhatsApp New to Shopify? Get started Need Help? By continuing, you agree to the Terms and Privacy Policy, and to receive marketing emails from Shopify. Unsubscribe anytime.",
+  "errorSnippets": []
+}

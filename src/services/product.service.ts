@@ -63,6 +63,7 @@ export type ProductServiceType = {
     id: string,
     productModel?: IProductModel,
     market?: MarketCode,
+    creativeModel?: import('mongoose').Model<import('../types/creative.types').ICreativeDocument>,
   ) => Promise<{
     product: IProductDocument;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
@@ -155,13 +156,19 @@ export const ProductService: ProductServiceType = {
     id: string,
     /** Market-specific Product model from req.models.Product. Defaults to global model (US). */
     productModel?: IProductModel,
-    _market: MarketCode = DEFAULT_MARKET,
+    market: MarketCode = DEFAULT_MARKET,
+    creativeModel?: import('mongoose').Model<import('../types/creative.types').ICreativeDocument>,
   ): Promise<{
     product: IProductDocument;
     freshness: Awaited<ReturnType<typeof FreshnessService.getResponseMetadata>>;
   }> {
     const product = await ProductRepository.findById(id, productModel);
     if (!product) throw new NotFoundError('Product');
+
+    const { getMarketModels } = await import('../models/market-models.factory');
+    const Creative = creativeModel ?? getMarketModels(market).Creative;
+    const hasCreative = await ProductRepository.hasPlayableCreative(id, Creative);
+    if (!hasCreative) throw new NotFoundError('Product');
 
     const freshness = await FreshnessService.getResponseMetadata('product');
     return { product, freshness };

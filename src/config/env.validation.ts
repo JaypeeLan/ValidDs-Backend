@@ -211,14 +211,6 @@ const envSchema = z.object({
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional(),
   ),
-  APIFY_SHOPIFY_MAX_ITEMS: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.coerce.number().int().positive().optional().default(20),
-  ),
-  APIFY_ACTOR_TIMEOUT_MS: z.preprocess(
-    (val) => (val === '' ? undefined : val),
-    z.coerce.number().int().positive().optional().default(30000),
-  ),
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900000),

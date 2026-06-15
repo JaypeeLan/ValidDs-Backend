@@ -496,6 +496,41 @@ export function creativeFeedExposureMatchStage(): Record<string, unknown> {
   return { $match: { $expr: mongoShouldExposeCreativeInFeedExpr() } };
 }
 
+/** Map `products_us` → `creatives_us` (per-market collections). */
+export function creativeCollectionForProductCollection(productCollection: string): string {
+  if (productCollection.startsWith('products_')) {
+    return productCollection.replace(/^products_/, 'creatives_');
+  }
+  if (productCollection === 'products') return 'creatives';
+  return productCollection.replace(/^products/, 'creatives');
+}
+
+/**
+ * Aggregation stages: keep only products with ≥1 feed-safe creative (playable video).
+ * Insert after the product `$match`, before sort/dedupe.
+ */
+export function productPlayableCreativeLookupStages(
+  creativeCollection: string,
+): Record<string, unknown>[] {
+  return [
+    {
+      $lookup: {
+        from: creativeCollection,
+        let: { pid: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$productId', '$$pid'] } } },
+          { $match: { $expr: mongoShouldExposeCreativeInFeedExpr() } },
+          { $limit: 1 },
+          { $project: { _id: 1 } },
+        ],
+        as: '_playableCreatives',
+      },
+    },
+    { $match: { '_playableCreatives.0': { $exists: true } } },
+    { $unset: '_playableCreatives' },
+  ];
+}
+
 function pickUrl(...vals: unknown[]): string | undefined {
   for (const v of vals) {
     if (typeof v === 'string' && v.trim()) return v.trim();

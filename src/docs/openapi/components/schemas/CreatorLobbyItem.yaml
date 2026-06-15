@@ -6,7 +6,7 @@ required:
 properties:
   creatorGmv:
     type: number
-    description: Sum of total GMV across all products for this creator handle.
+    description: TikTok shop GMV (`storeGmv`) for this creator — shop-wide, independent of how many SKUs are ingested.
     example: 3000000
   creator:
     type: object

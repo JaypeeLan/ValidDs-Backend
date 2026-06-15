@@ -97,3 +97,49 @@ describe('creativeFeedExposureMatchStage', () => {
     expect(shouldExposeCreativeInFeed(doc)).toBe(false);
   });
 });
+
+describe('productPlayableCreativeLookupStages', () => {
+  jest.setTimeout(30000);
+  let mongo: MongoMemoryServer;
+
+  beforeAll(async () => {
+    mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 30000 } });
+    await mongoose.connect(mongo.getUri());
+  });
+
+  afterAll(async () => {
+    await mongoose.disconnect();
+    await mongo.stop();
+  });
+
+  it('keeps products with a feed-safe creative and drops orphans', async () => {
+    const { productPlayableCreativeLookupStages } =
+      await import('../src/utils/creative-response.util');
+    const products = mongoose.connection.collection('products_playable_probe');
+    const creatives = mongoose.connection.collection('creatives_playable_probe');
+    await products.deleteMany({});
+    await creatives.deleteMany({});
+
+    const withCreative = new mongoose.Types.ObjectId();
+    const orphan = new mongoose.Types.ObjectId();
+    await products.insertMany([
+      { _id: withCreative, title: 'Has video' },
+      { _id: orphan, title: 'No video' },
+    ]);
+    await creatives.insertOne({
+      productId: withCreative,
+      externalVideoId: '7643925823090625822',
+      videoS3Key: 'brightdata/tiktok-videos/7643925823090625822.mp4',
+    });
+
+    const rows = await products
+      .aggregate([
+        { $match: { _id: { $in: [withCreative, orphan] } } },
+        ...productPlayableCreativeLookupStages('creatives_playable_probe'),
+        { $project: { title: 1 } },
+      ])
+      .toArray();
+
+    expect(rows.map((r) => r.title)).toEqual(['Has video']);
+  });
+});

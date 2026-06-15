@@ -21,8 +21,21 @@ import {
   normalizeCategoryL2,
 } from '../../utils/category-l2-normalize.util';
 import { expandCategoryL1FilterValues } from '../../utils/category-l1-normalize.util';
+import {
+  creativeCollectionForProductCollection,
+  creativeFeedExposureMatchStage,
+  productPlayableCreativeLookupStages,
+} from '../../utils/creative-response.util';
+import type { ICreativeDocument } from '../../types/creative.types';
+import type { Model } from 'mongoose';
 
 const log = logger.child({ module: 'product-repository' });
+
+function playableCreativeStagesForModel(model: IProductModel): Record<string, unknown>[] {
+  return productPlayableCreativeLookupStages(
+    creativeCollectionForProductCollection(model.collection.name),
+  );
+}
 
 /**
  * Inclusion projection for discovery grid (`GET /products`).
@@ -386,12 +399,14 @@ async function runProductFeedQuery(
   const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
   const skip = (page - 1) * limit;
   const sortBy = filters.sortBy ?? 'gmv-desc';
+  const playableStages = playableCreativeStagesForModel(model);
 
   if (usesRecencyPriorityWithGmv(sortBy)) {
     const sort = recencyPrioritySortSpec(sortBy);
     const [facet] = await model
       .aggregate([
         { $match: match },
+        ...playableStages,
         { $addFields: recencyTierAddFields() },
         { $sort: { ...sort, soldCount: -1, totalGmv: -1 } },
         ...PRODUCT_LISTING_DEDUPE_STAGES,
@@ -428,20 +443,32 @@ async function runProductFeedQuery(
   }
 
   const sort = resolveProductSort(sortBy);
-  const [data, total] = await Promise.all([
-    model
-      .find(match)
-      .select(PRODUCT_LISTING_FIELD_PROJECTION)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-    model.countDocuments(match),
-  ]);
+  const [facet] = await model
+    .aggregate([
+      { $match: match },
+      ...playableStages,
+      { $sort: sort },
+      ...PRODUCT_LISTING_DEDUPE_STAGES,
+      {
+        $facet: {
+          data: [
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limit },
+            { $project: PRODUCT_LISTING_FIELD_PROJECTION },
+          ],
+          total: [{ $count: 'count' }],
+        },
+      },
+    ])
+    .option({ maxTimeMS: 30_000 })
+    .exec();
 
+  const data = (facet?.data ?? []) as unknown as IProductDocument[];
+  const total = facet?.total?.[0]?.count ?? 0;
   const totalPages = Math.ceil(total / limit);
   return {
-    data: data as unknown as IProductDocument[],
+    data,
     pagination: {
       page,
       limit,
@@ -465,6 +492,7 @@ async function runProductSearchQuery(
   const skip = (page - 1) * limit;
   const normalizedQ = rawQuery.trim().toLowerCase();
   const searchStrings = buildProductTextSearchStrings(rawQuery);
+  const playableStages = playableCreativeStagesForModel(model);
 
   for (const searchText of searchStrings) {
     const match: Record<string, unknown> = {
@@ -475,6 +503,7 @@ async function runProductSearchQuery(
     const [facet] = await model
       .aggregate([
         { $match: match },
+        ...playableStages,
         {
           $addFields: {
             _textScore: { $meta: 'textScore' },
@@ -871,6 +900,7 @@ export const ProductRepository = {
     const rows = await model
       .aggregate([
         { $match: match },
+        ...playableCreativeStagesForModel(model),
         { $sort: sort },
         ...PRODUCT_LISTING_DEDUPE_STAGES,
         { $sort: sort },
@@ -883,18 +913,41 @@ export const ProductRepository = {
     return rows as unknown as IProductDocument[];
   },
 
+  /** True when the product has at least one feed-safe creative (playable video). */
+  async hasPlayableCreative(
+    productId: string,
+    creativeModel: Model<ICreativeDocument>,
+  ): Promise<boolean> {
+    if (!mongoose.isValidObjectId(productId)) return false;
+    const [hit] = await creativeModel
+      .aggregate([
+        { $match: { productId: new mongoose.Types.ObjectId(productId) } },
+        creativeFeedExposureMatchStage(),
+        { $limit: 1 },
+        { $project: { _id: 1 } },
+      ])
+      .option({ maxTimeMS: 10_000 })
+      .exec();
+    return Boolean(hit);
+  },
+
   /** Distinct L1 category names that have at least one listable product. */
   async getDistinctCategoryL1(model: IProductModel = Product): Promise<string[]> {
     const values = await model
-      .distinct('categoryL1', {
-        ...LISTABLE_PRODUCT_FILTER,
-        categoryL1: NON_EMPTY_STRING,
-      })
-      .maxTimeMS(30_000);
-    return (values as string[])
-      .map((v) => String(v).trim())
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b));
+      .aggregate<{ _id: string }>([
+        {
+          $match: {
+            ...LISTABLE_PRODUCT_FILTER,
+            categoryL1: NON_EMPTY_STRING,
+          },
+        },
+        ...playableCreativeStagesForModel(model),
+        { $group: { _id: '$categoryL1' } },
+        { $sort: { _id: 1 } },
+      ])
+      .option({ maxTimeMS: 30_000 })
+      .exec();
+    return values.map((row) => String(row._id ?? '').trim()).filter(Boolean);
   },
 
   /** L1 → distinct L2 subcategories that have at least one listable product. */
@@ -910,6 +963,7 @@ export const ProductRepository = {
             categoryL2: NON_EMPTY_STRING,
           },
         },
+        ...playableCreativeStagesForModel(model),
         { $group: { _id: '$categoryL1', subs: { $addToSet: '$categoryL2' } } },
         { $sort: { _id: 1 } },
       ])

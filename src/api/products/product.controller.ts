@@ -352,7 +352,7 @@ export const ProductController = {
       const productModel = req.models?.Product;
       const creativeModel = req.models?.Creative;
 
-      await ProductService.getById(id, productModel, req.market);
+      await ProductService.getById(id, productModel, req.market, creativeModel);
       const relatedDocs = await getRelatedProducts(id, productModel, req.market);
       const relatedPlains = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages(relatedDocs as unknown as ProductLike[]),
@@ -378,7 +378,7 @@ export const ProductController = {
       const productModel = req.models?.Product;
       const creativeModel = req.models?.Creative;
 
-      await ProductService.getById(id, productModel, req.market);
+      await ProductService.getById(id, productModel, req.market, creativeModel);
       const relatedVideos = await findCreativesByProductId(id, creativeModel, query.limit);
 
       res.json(successResponse({ relatedVideos }, ResponseMessage.CREATIVES_RETRIEVED, 200));
@@ -394,7 +394,7 @@ export const ProductController = {
       const productModel = req.models?.Product;
       const creativeModel = req.models?.Creative;
 
-      await ProductService.getById(id, productModel, req.market);
+      await ProductService.getById(id, productModel, req.market, creativeModel);
       const relatedAds = await findRelatedAdsByProductId(id, creativeModel, query.limit);
 
       res.json(successResponse({ relatedAds }, ResponseMessage.CREATIVES_RETRIEVED, 200));
@@ -410,7 +410,7 @@ export const ProductController = {
       const creativeModel = req.models?.Creative;
 
       const [{ product, freshness }, relatedDocs, relatedVideos, relatedAds] = await Promise.all([
-        ProductService.getById(id, productModel, req.market),
+        ProductService.getById(id, productModel, req.market, creativeModel),
         getRelatedProducts(id, productModel, req.market),
         findCreativesByProductId(id, creativeModel),
         findRelatedAdsByProductId(id, creativeModel),

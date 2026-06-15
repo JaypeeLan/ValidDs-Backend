@@ -235,7 +235,7 @@ export interface CreatorLobbyTopProduct {
 }
 
 export interface CreatorLobbyItem {
-  /** Sum of `totalGmv` across this creator's ingested products. */
+  /** TikTok shop GMV (`storeGmv`) — shop-wide, not summed across ingested SKUs. */
   creatorGmv: number;
   creator: CreatorLobbyCreator;
   topProduct: CreatorLobbyTopProduct;

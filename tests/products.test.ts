@@ -2,7 +2,25 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { Server } from 'http';
 import http from 'http';
 import { minimalTestProduct } from './helpers/minimal-product.fixture';
+import { minimalTestCreative } from './helpers/minimal-creative.fixture';
 import { getSeededTestMarketModels } from './helpers/market-test-models';
+
+async function attachPlayableCreatives(
+  products: Array<{ _id?: unknown } | null | undefined>,
+): Promise<void> {
+  const { Creative } = await getSeededTestMarketModels();
+  const docs = products
+    .filter((p): p is { _id: unknown } => p != null && p._id != null)
+    .map((p, index) =>
+      minimalTestCreative({
+        productId: p._id,
+        externalVideoId: `vid_test_${String(p._id)}_${index}`,
+      }),
+    );
+  if (docs.length > 0) {
+    await Creative.create(docs);
+  }
+}
 
 function httpJson(opts: {
   baseUrl: string;
@@ -120,7 +138,7 @@ describe('Products Endpoints', () => {
 
   it('GET /api/v1/products search ranks by relevance, not sortBy', async () => {
     const { Product } = await getSeededTestMarketModels();
-    await Product.create([
+    const searchProducts = await Product.create([
       minimalTestProduct({
         externalId: 'search_high_gmv',
         source: 'tiktok',
@@ -141,6 +159,7 @@ describe('Products Endpoints', () => {
         totalGmv: 1500,
       }),
     ]);
+    await attachPlayableCreatives(searchProducts);
     await Product.syncIndexes();
 
     const res = await httpJson({
@@ -158,7 +177,7 @@ describe('Products Endpoints', () => {
 
   it('GET /api/v1/products should return correctly formatted products and strip AI internals', async () => {
     const { Product } = await getSeededTestMarketModels();
-    await Product.create(
+    const clipProduct = await Product.create(
       minimalTestProduct({
         externalId: 'vid_primary_1',
         source: 'tiktok',
@@ -231,6 +250,7 @@ describe('Products Endpoints', () => {
         },
       }),
     );
+    await attachPlayableCreatives([clipProduct]);
 
     const res = await httpJson({
       baseUrl,
@@ -265,7 +285,7 @@ describe('Products Endpoints', () => {
   it('GET /api/v1/products filters OR across multiple subcategories (comma-separated)', async () => {
     const { Product } = await getSeededTestMarketModels();
     const prefix = 'MultiSub OR';
-    await Product.create([
+    const multiSubProducts = await Product.create([
       minimalTestProduct({
         externalId: 'ms_or_skincare',
         source: 'tiktok',
@@ -297,6 +317,7 @@ describe('Products Endpoints', () => {
         totalGmv: 99_000,
       }),
     ]);
+    await attachPlayableCreatives(multiSubProducts);
 
     const category = encodeURIComponent('Beauty & Personal Care');
     const subcategory = encodeURIComponent('Skincare,Hair Care');
@@ -322,7 +343,7 @@ describe('Products Endpoints', () => {
   it('GET /api/v1/products filters OR across repeated subcategory query params', async () => {
     const { Product } = await getSeededTestMarketModels();
     const prefix = 'MultiSub Repeat';
-    await Product.create([
+    const repeatSubProducts = await Product.create([
       minimalTestProduct({
         externalId: 'ms_rep_skincare',
         source: 'tiktok',
@@ -351,6 +372,7 @@ describe('Products Endpoints', () => {
         totalGmv: 50_000,
       }),
     ]);
+    await attachPlayableCreatives(repeatSubProducts);
 
     const category = encodeURIComponent('Beauty & Personal Care');
     const res = await httpJson({
@@ -388,7 +410,7 @@ describe('Products Endpoints', () => {
         totalGmv: 20_000,
       }),
     );
-    await Product.create([
+    const relatedProducts = await Product.create([
       minimalTestProduct({
         externalId: 'rel_l2_canonical',
         source: 'tiktok',
@@ -428,6 +450,7 @@ describe('Products Endpoints', () => {
         totalGmv: 40_000,
       }),
     ]);
+    await attachPlayableCreatives([anchor, ...relatedProducts]);
 
     const id = String(anchor._id);
     const res = await httpJson({
@@ -439,7 +462,9 @@ describe('Products Endpoints', () => {
 
     expect(res.status).toBe(200);
     const body = JSON.parse(res.text);
-    const titles = (body.data.relatedProducts as { title: string }[]).map((p) => p.title);
+    const titles = (body.data.relatedProducts as { title: string }[])
+      .filter((p) => p.title.startsWith(prefix))
+      .map((p) => p.title);
     expect(titles).toEqual([`${prefix} Canonical Blush`]);
     expect(titles).not.toContain(`${prefix} Wrong L2 Shampoo`);
     expect(titles).not.toContain(`${prefix} Anchor Lipstick Duplicate`);

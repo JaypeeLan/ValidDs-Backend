@@ -1,6 +1,6 @@
 /**
  * Creator lobby — one row per unique product primaryCreator.handle (shop / seller).
- * Does not use the `creators` scrape queue or require creative documents.
+ * Only includes products that have at least one feed-safe creative.
  */
 
 import type { Model } from 'mongoose';
@@ -20,6 +20,10 @@ import {
 import { LISTABLE_PRODUCT_FILTER } from '../db/repositories/product.repository';
 import { expandCategoryL1FilterValues } from '../utils/category-l1-normalize.util';
 import { buildCreatorAvatarProxyUrl } from '../utils/creator-avatar.util';
+import {
+  creativeCollectionForProductCollection,
+  productPlayableCreativeLookupStages,
+} from '../utils/creative-response.util';
 
 type ProductCreatorFilters = {
   q?: string;
@@ -85,17 +89,16 @@ function buildProductCreatorMatch(
     maxCreatorLikes: metric.maxCreatorLikes,
   });
 
-  const gmvFloors = [metric.minGmv, metric.minCreatorGmv].filter((n): n is number => n != null);
-  if (gmvFloors.length) {
-    const floor = Math.max(...gmvFloors);
+  if (metric.minGmv != null) {
     const existing = query.totalGmv as Record<string, number> | undefined;
-    query.totalGmv = { ...(existing ?? {}), $gte: Math.max(existing?.$gte ?? 0, floor) };
+    query.totalGmv = {
+      ...(existing ?? {}),
+      $gte: Math.max(existing?.$gte ?? 0, metric.minGmv),
+    };
   }
-  if (metric.maxGmv != null || metric.maxCreatorGmv != null) {
-    const caps = [metric.maxGmv, metric.maxCreatorGmv].filter((n): n is number => n != null);
-    const cap = Math.min(...caps);
+  if (metric.maxGmv != null) {
     const existing = query.totalGmv as Record<string, number> | undefined;
-    query.totalGmv = { ...(existing ?? {}), $lte: cap };
+    query.totalGmv = { ...(existing ?? {}), $lte: metric.maxGmv };
   }
 
   if (metric.minUnits != null || metric.maxUnits != null) {
@@ -247,7 +250,10 @@ export async function findProductCreators(
 
   const pipeline: PipelineStage[] = [
     { $match: match },
-    { $sort: { totalGmv: -1, lastIngestedAt: -1 } },
+    ...productPlayableCreativeLookupStages(
+      creativeCollectionForProductCollection(productModel.collection.name),
+    ),
+    { $sort: { storeGmv: -1, totalGmv: -1, lastIngestedAt: -1 } },
     {
       $group: {
         _id: { $toLower: { $trim: { input: '$primaryCreator.handle' } } },
@@ -255,7 +261,7 @@ export async function findProductCreators(
         creator: { $first: '$primaryCreator' },
         shopName: { $first: '$shopName' },
         productCount: { $sum: 1 },
-        creatorGmv: { $sum: { $ifNull: ['$totalGmv', 0] } },
+        creatorGmv: { $max: { $ifNull: ['$storeGmv', 0] } },
         topProduct: { $first: '$$ROOT' },
         maxFollowers: { $max: { $ifNull: ['$primaryCreator.followers', 0] } },
         maxTotalLikes: { $max: { $ifNull: ['$primaryCreator.totalLikes', 0] } },

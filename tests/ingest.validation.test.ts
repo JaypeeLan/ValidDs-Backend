@@ -83,7 +83,11 @@ function minimalProduct(overrides: Record<string, unknown> = {}): Record<string,
     productUrl: 'https://example.com/p',
     market: 'US',
     creativeCounts: { ads: 0, organic: 1, reviews: 0, total: 1 },
-    suppliers: [{ monthlyTraffic: 10_000 }, { monthlyTraffic: 20_000 }, { monthlyTraffic: 30_000 }],
+    suppliers: [
+      { source: 'apify_store_leads', platform: 'Shopify', monthlyTraffic: 10_000 },
+      { source: 'apify_store_leads', platform: 'Shopify', monthlyTraffic: 20_000 },
+      { source: 'apify_store_leads', platform: 'Shopify', monthlyTraffic: 30_000 },
+    ],
     aiIntelligence: {
       buyingSentimentLabel: 'positive',
       buyingSentimentReason: 'Strong purchase intent in reviews.',
@@ -189,7 +193,11 @@ describe('validateProductForIngest', () => {
 
     const badTraffic = validateProductForIngest(
       minimalProduct({
-        suppliers: [{ monthlyTraffic: 0 }, { monthlyTraffic: 10_000 }, { monthlyTraffic: 20_000 }],
+        suppliers: [
+          { source: 'apify_store_leads', platform: 'Shopify', monthlyTraffic: 0 },
+          { source: 'apify_store_leads', platform: 'Shopify', monthlyTraffic: 10_000 },
+          { source: 'apify_store_leads', platform: 'Shopify', monthlyTraffic: 20_000 },
+        ],
       }),
       'US',
     );

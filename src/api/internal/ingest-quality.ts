@@ -16,7 +16,7 @@ export const INGEST_QUALITY = {
   /** New product ingest only — scraper skips this on Mongo upsert updates. */
   MAX_POST_AGE_DAYS: 30,
   /** New non-angle creatives only — existing DB rows are not retroactively removed. */
-  MAX_CREATIVE_AGE_HOURS: 48,
+  MAX_CREATIVE_AGE_HOURS: 72,
   MIN_RELATED_VIDEOS: 3,
   MIN_MARKETING_ANGLES: 5,
   /** Optional at ingest — text-only angles are enough; video can be backfilled later. */
@@ -217,6 +217,15 @@ export function strictProductQualityReasons(
     reasons.push(
       `need at least ${INGEST_QUALITY.MIN_SUPPLIERS} suppliers (Apify Shopify store leads); got ${n}`,
     );
+  } else {
+    suppliers.forEach((s, i) => {
+      if (!s || typeof s !== 'object') return;
+      const row = s as Record<string, unknown>;
+      if (row.platform === 'TikTok Shop') return;
+      if (row.source !== 'apify_store_leads') {
+        reasons.push(`supplier[${i}] must use apify_store_leads (got ${String(row.source ?? '')})`);
+      }
+    });
   }
 
   return reasons;

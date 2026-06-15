@@ -1,19 +1,32 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { ProductSchema } from '../src/models/product.model';
+import { CreativeSchema } from '../src/models/creative.model';
 import type { IProductDocument } from '../src/types/product.types';
+import type { ICreativeDocument } from '../src/types/creative.types';
 import { findProductCreators } from '../src/services/product-creator.service';
 import { minimalTestProduct } from './helpers/minimal-product.fixture';
+import { minimalTestCreative } from './helpers/minimal-creative.fixture';
 
 describe('findProductCreators', () => {
   jest.setTimeout(30000);
   let mongo: MongoMemoryServer;
   let Product: mongoose.Model<IProductDocument>;
+  let Creative: mongoose.Model<ICreativeDocument>;
 
   beforeAll(async () => {
     mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 30000 } });
     await mongoose.connect(mongo.getUri());
-    Product = mongoose.model<IProductDocument>('Product_us_test', ProductSchema);
+    Product = mongoose.model<IProductDocument>(
+      'Product_us_test',
+      ProductSchema,
+      'products_us_test',
+    );
+    Creative = mongoose.model<ICreativeDocument>(
+      'Creative_us_test',
+      CreativeSchema,
+      'creatives_us_test',
+    );
   });
 
   afterAll(async () => {
@@ -23,10 +36,11 @@ describe('findProductCreators', () => {
 
   beforeEach(async () => {
     await Product.deleteMany({});
+    await Creative.deleteMany({});
   });
 
   it('returns unique primaryCreator handles from products only', async () => {
-    await Product.insertMany([
+    const products = await Product.insertMany([
       minimalTestProduct({
         externalId: 'sku-a',
         title: 'Product A',
@@ -43,6 +57,7 @@ describe('findProductCreators', () => {
           avatarUrl: '',
         },
         totalGmv: 100_000,
+        storeGmv: 500_000,
         publishedAt: new Date('2026-06-01'),
         postCreatedAt: new Date('2026-06-01'),
       }),
@@ -62,6 +77,7 @@ describe('findProductCreators', () => {
           avatarUrl: '',
         },
         totalGmv: 50_000,
+        storeGmv: 480_000,
         publishedAt: new Date('2026-06-02'),
         postCreatedAt: new Date('2026-06-02'),
       }),
@@ -81,10 +97,19 @@ describe('findProductCreators', () => {
           avatarUrl: '',
         },
         totalGmv: 200_000,
+        storeGmv: 800_000,
         publishedAt: new Date('2026-06-03'),
         postCreatedAt: new Date('2026-06-03'),
       }),
     ]);
+    await Creative.insertMany(
+      products.map((product, index) =>
+        minimalTestCreative({
+          productId: product._id,
+          externalVideoId: `vid_pc_test_${index}`,
+        }),
+      ),
+    );
 
     const result = await findProductCreators(Product, {
       page: 1,
@@ -98,7 +123,7 @@ describe('findProductCreators', () => {
 
     const shopA = result.data.find((r) => r.creator.handle === 'shopa');
     expect(shopA?.videoCount).toBe(2);
-    expect(shopA?.productTotalGmv).toBe(150_000);
+    expect(shopA?.productTotalGmv).toBe(500_000);
     expect(shopA?.creator.totalLikes).toBe(55_000);
     expect(shopA?.productName).toBe('Product A');
   });

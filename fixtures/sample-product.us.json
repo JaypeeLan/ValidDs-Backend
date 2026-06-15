@@ -172,7 +172,7 @@
   "storeTotalSales": 89,
   "suppliers": [
     {
-      "source": "shopify",
+      "source": "apify_store_leads",
       "externalId": "1369028",
       "title": "ALEX AND ANI",
       "price": 38,
@@ -199,7 +199,7 @@
       "competitorScore": null
     },
     {
-      "source": "shopify",
+      "source": "apify_store_leads",
       "externalId": "130360",
       "title": "Misty and Molly",
       "price": 35900,
@@ -226,7 +226,7 @@
       "competitorScore": null
     },
     {
-      "source": "shopify",
+      "source": "apify_store_leads",
       "externalId": "12348019",
       "title": "Figi Jewels",
       "price": 24.99,
@@ -253,7 +253,7 @@
       "competitorScore": null
     },
     {
-      "source": "shopify",
+      "source": "apify_store_leads",
       "externalId": "2307409",
       "title": "edikted",
       "price": 4.5,
@@ -280,7 +280,7 @@
       "competitorScore": null
     },
     {
-      "source": "shopify",
+      "source": "apify_store_leads",
       "externalId": "19595539",
       "title": "Designature Newyork",
       "price": 15,

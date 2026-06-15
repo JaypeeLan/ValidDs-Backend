@@ -10,7 +10,6 @@ import jobsRouter from './jobs/jobs.routes';
 import adminRouter from './admin/admin.routes';
 import billingRouter from './billing/billing.routes';
 import waitlistRouter from './waitlist/waitlist.routes';
-import scraperRouter from './scrapers/scraper.routes';
 import storeRouter from './stores/store.routes';
 import tiktokRouter from './tiktok/tiktok.routes';
 
@@ -24,7 +23,6 @@ apiRouter.use('/jobs', jobsRouter);
 apiRouter.use('/admin', adminRouter);
 apiRouter.use('/billing', billingRouter);
 apiRouter.use('/waitlist', waitlistRouter);
-apiRouter.use('/scrapers', scraperRouter);
 apiRouter.use('/stores', storeRouter);
 apiRouter.use('/tiktok', tiktokRouter);
 

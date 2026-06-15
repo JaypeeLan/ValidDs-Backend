@@ -1,5 +1,7 @@
 /** Minimal Creative document for integration tests. */
 
+import type { Types } from 'mongoose';
+
 export function minimalTestCreative(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
@@ -33,4 +35,12 @@ export function minimalTestCreative(
     },
     ...overrides,
   };
+}
+
+/** Feed-safe creative linked to a product (required for product list/detail APIs). */
+export function playableCreativeForProduct(
+  productId: Types.ObjectId,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return minimalTestCreative({ productId, ...overrides });
 }

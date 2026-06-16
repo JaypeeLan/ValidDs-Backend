@@ -70,6 +70,9 @@ const PrimaryCreatorSchema = new Schema<IPrimaryCreator>(
     primaryImageUrl: { type: String, default: '' },
     avatarUrl: { type: String, default: '' },
     avatarS3Key: { type: String, default: '' },
+    shopGmv: { type: Number, min: 0, default: 0 },
+    shopTotalSales: { type: Number, min: 0, default: 0 },
+    shopGmvSource: { type: String, default: '' },
   },
   STRICT_SUB,
 );
@@ -451,6 +454,14 @@ ProductSchema.pre(
 // ── Indexes ───────────────────────────────────────────────────────────────────
 
 ProductSchema.index({ externalId: 1, source: 1 }, { unique: true });
+
+// Compound indexes: status prefix + sort field lets the planner satisfy
+// `status: { $nin: ['archived','invalid'] }` + sort in a single index scan.
+ProductSchema.index({ status: 1, totalGmv: -1 });
+ProductSchema.index({ status: 1, totalSales: -1 });
+ProductSchema.index({ status: 1, 'trends.engagement.score': -1 });
+ProductSchema.index({ status: 1, lastIngestedAt: -1 });
+
 ProductSchema.index({ 'trends.engagement.score': -1 });
 ProductSchema.index({ 'trends.engagement.direction': 1 });
 ProductSchema.index({ totalSales: -1 });

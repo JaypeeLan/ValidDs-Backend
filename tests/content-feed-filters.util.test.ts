@@ -79,13 +79,15 @@ describe('content-feed-filters.util', () => {
     expect(query['creator.totalLikes']).toEqual({ $gte: 2000 });
   });
 
-  it('applyProductCreatorMetricFilters uses storeGmv and primaryCreator', () => {
+  it('applyProductCreatorMetricFilters uses shopGmv coalesce via $expr', () => {
     const query: Record<string, unknown> = {};
     applyProductCreatorMetricFilters(query, {
       minCreatorGmv: 800,
       maxFollowers: 500_000,
     });
-    expect(query.storeGmv).toEqual({ $gte: 800 });
+    expect(query.$expr).toEqual({
+      $gte: [{ $ifNull: ['$primaryCreator.shopGmv', '$storeGmv', 0] }, 800],
+    });
     expect(query['primaryCreator.followers']).toEqual({ $lte: 500_000 });
   });
 });

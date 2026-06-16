@@ -55,6 +55,9 @@ describe('findProductCreators', () => {
           tiktokPostUrl: 'https://www.tiktok.com/@shopa/video/1',
           primaryImageUrl: '',
           avatarUrl: '',
+          shopGmv: 2_000_000,
+          shopTotalSales: 40_000,
+          shopGmvSource: 'shop_catalog',
         },
         totalGmv: 100_000,
         storeGmv: 500_000,
@@ -123,7 +126,7 @@ describe('findProductCreators', () => {
 
     const shopA = result.data.find((r) => r.creator.handle === 'shopa');
     expect(shopA?.videoCount).toBe(2);
-    expect(shopA?.productTotalGmv).toBe(500_000);
+    expect(shopA?.productTotalGmv).toBe(2_000_000);
     expect(shopA?.creator.totalLikes).toBe(55_000);
     expect(shopA?.productName).toBe('Product A');
   });

@@ -26,6 +26,12 @@ export function normalizePrimaryCreatorForStorage(
   creator: PrimaryCreatorStorageInput,
 ): IPrimaryCreator {
   const primaryImageUrl = pickUrl(creator.primaryImageUrl, creator.avatarUrl) ?? '';
+  const shopGmv =
+    typeof creator.shopGmv === 'number' && Number.isFinite(creator.shopGmv) ? creator.shopGmv : 0;
+  const shopTotalSales =
+    typeof creator.shopTotalSales === 'number' && Number.isFinite(creator.shopTotalSales)
+      ? creator.shopTotalSales
+      : 0;
   return {
     tiktokUserId: creator.tiktokUserId ?? '',
     handle: creator.handle,
@@ -39,6 +45,8 @@ export function normalizePrimaryCreatorForStorage(
     tiktokPostUrl: creator.tiktokPostUrl ?? '',
     primaryImageUrl,
     avatarUrl: primaryImageUrl,
+    ...(shopGmv > 0 ? { shopGmv, shopTotalSales } : {}),
+    ...(creator.shopGmvSource ? { shopGmvSource: String(creator.shopGmvSource) } : {}),
   };
 }
 

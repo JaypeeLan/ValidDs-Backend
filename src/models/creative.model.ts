@@ -171,6 +171,9 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
 
 // ── Indexes ───────────────────────────────────────────────────────────────────
 
+// Covering index for the playable-creative $lookup in feed queries:
+// inner pipeline matches productId then checks videoS3Key non-empty.
+CreativeSchema.index({ productId: 1, videoS3Key: 1 });
 CreativeSchema.index({ productId: 1, section: 1 });
 CreativeSchema.index(
   { adDedupeKey: 1 },

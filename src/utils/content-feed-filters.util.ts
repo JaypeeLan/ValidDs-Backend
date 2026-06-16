@@ -201,7 +201,7 @@ export function applyCreativeMetricFilters(
   }
 }
 
-/** Creator metrics on product documents (`primaryCreator`, `storeGmv`). */
+/** Creator metrics on product documents (`primaryCreator.shopGmv`, fallback `storeGmv`). */
 export function applyProductCreatorMetricFilters(
   query: Record<string, unknown>,
   filters: Pick<
@@ -215,10 +215,21 @@ export function applyProductCreatorMetricFilters(
   >,
 ): void {
   if (filters.minCreatorGmv != null || filters.maxCreatorGmv != null) {
-    query.storeGmv = {
-      ...(filters.minCreatorGmv != null ? { $gte: filters.minCreatorGmv } : {}),
-      ...(filters.maxCreatorGmv != null ? { $lte: filters.maxCreatorGmv } : {}),
-    };
+    const gmvValue = { $ifNull: ['$primaryCreator.shopGmv', '$storeGmv', 0] };
+    const parts: Record<string, unknown>[] = [];
+    if (filters.minCreatorGmv != null) {
+      parts.push({ $gte: [gmvValue, filters.minCreatorGmv] });
+    }
+    if (filters.maxCreatorGmv != null) {
+      parts.push({ $lte: [gmvValue, filters.maxCreatorGmv] });
+    }
+    const gmvExpr = parts.length === 1 ? parts[0]! : { $and: parts };
+    const existing = query.$expr;
+    if (existing && typeof existing === 'object') {
+      query.$expr = { $and: [existing, gmvExpr] };
+    } else {
+      query.$expr = gmvExpr;
+    }
   }
   if (filters.minFollowers != null || filters.maxFollowers != null) {
     query['primaryCreator.followers'] = {

@@ -9,6 +9,7 @@ import {
   validateCreativeForIngest,
   validateProductForIngest,
 } from './ingest.validation';
+import { INGEST_QUALITY, isAngleVideoCreative } from './ingest-quality';
 import { normalizeCreativePayload, normalizeProductPayload } from './ingest.normalize';
 import { persistAllCreatorAvatarsOnCreative } from '../../services/creator-avatar-cache.service';
 import {
@@ -106,15 +107,17 @@ function mapReviews(reviews: unknown): Array<Record<string, unknown>> {
 }
 
 function prepareProductDoc(raw: Record<string, unknown>, market: string): Record<string, unknown> {
-  const title = String(raw.title ?? '')
+  const listingTitleRaw = String(raw.listingTitleRaw ?? raw.title ?? '')
     .trim()
     .slice(0, 500);
+  const title = listingTitleRaw;
   const now = new Date();
   const published = parsePublishedAt(raw.publishedAt ?? raw.postCreatedAt);
 
   const doc: Record<string, unknown> = normalizeProductPayload({
     ...raw,
     title,
+    listingTitleRaw,
     normalizedTitle: normalizeProductTitle(title),
     market,
     status: 'active',
@@ -242,6 +245,19 @@ export async function ingestCreative(
     await enrichCreativeVideoS3ForIngest(payload);
     await enrichCreativeShopAvatarForIngest(payload, market);
     stripExternalPlaybackUrls(payload);
+
+    // Clamp stale publishedAt to yesterday instead of rejecting — mirrors Python finalize_creative_doc.
+    // Angle-video creatives skip the age check entirely so they are not touched here.
+    if (!isAngleVideoCreative(payload)) {
+      const pubDate = parsePublishedAt(payload.publishedAt);
+      const ageHours =
+        pubDate === null ? Infinity : (Date.now() - pubDate.getTime()) / (1000 * 60 * 60);
+      if (ageHours > INGEST_QUALITY.MAX_CREATIVE_AGE_HOURS) {
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        yesterday.setUTCHours(12, 0, 0, 0);
+        payload.publishedAt = yesterday;
+      }
+    }
 
     const reasons = validateCreativeForIngest(payload);
     if (reasons.length > 0) {

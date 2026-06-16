@@ -257,6 +257,9 @@ function normalizePrimaryCreatorField(
     tiktokPostUrl: strOrEmpty(pc.tiktokPostUrl),
     primaryImageUrl: strOrEmpty(pc.primaryImageUrl) || strOrEmpty(pc.avatarUrl),
     avatarUrl: strOrEmpty(pc.avatarUrl) || strOrEmpty(pc.primaryImageUrl),
+    shopGmv: numOrZero(pc.shopGmv),
+    shopTotalSales: numOrZero(pc.shopTotalSales),
+    shopGmvSource: strOrEmpty(pc.shopGmvSource),
   });
 }
 

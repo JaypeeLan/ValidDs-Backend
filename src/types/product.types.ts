@@ -38,6 +38,12 @@ export interface IPrimaryCreator {
   avatarUrl?: string | null;
   /** Stable S3 copy — served via avatar proxy, not TikTok CDN. */
   avatarS3Key?: string | null;
+  /** Shop-wide GMV from live storefront catalog (not summed from ingested SKUs). */
+  shopGmv?: number;
+  /** Units sold across catalog listings used for shopGmv. */
+  shopTotalSales?: number;
+  /** e.g. shop_catalog */
+  shopGmvSource?: string;
 }
 
 /** `primaryCreator` after `formatProductResponse` (includes read-time proxy URL). */

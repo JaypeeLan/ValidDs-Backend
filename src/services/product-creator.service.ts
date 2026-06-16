@@ -253,7 +253,7 @@ export async function findProductCreators(
     ...productPlayableCreativeLookupStages(
       creativeCollectionForProductCollection(productModel.collection.name),
     ),
-    { $sort: { storeGmv: -1, totalGmv: -1, lastIngestedAt: -1 } },
+    { $sort: { 'primaryCreator.shopGmv': -1, storeGmv: -1, totalGmv: -1, lastIngestedAt: -1 } },
     {
       $group: {
         _id: { $toLower: { $trim: { input: '$primaryCreator.handle' } } },
@@ -261,7 +261,11 @@ export async function findProductCreators(
         creator: { $first: '$primaryCreator' },
         shopName: { $first: '$shopName' },
         productCount: { $sum: 1 },
-        creatorGmv: { $max: { $ifNull: ['$storeGmv', 0] } },
+        creatorGmv: {
+          $max: {
+            $ifNull: ['$primaryCreator.shopGmv', { $ifNull: ['$storeGmv', 0] }],
+          },
+        },
         topProduct: { $first: '$$ROOT' },
         maxFollowers: { $max: { $ifNull: ['$primaryCreator.followers', 0] } },
         maxTotalLikes: { $max: { $ifNull: ['$primaryCreator.totalLikes', 0] } },

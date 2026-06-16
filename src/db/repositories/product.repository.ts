@@ -446,8 +446,11 @@ async function runProductFeedQuery(
   const [facet] = await model
     .aggregate([
       { $match: match },
-      ...playableStages,
+      // Sort BEFORE the creative lookup so it can use a product index (the lookup only
+      // filters, preserving order). Running it after the lookup forced a blocking
+      // in-memory sort of the whole matched set on every request.
       { $sort: sort },
+      ...playableStages,
       ...PRODUCT_LISTING_DEDUPE_STAGES,
       {
         $facet: {
@@ -988,9 +991,9 @@ export const ProductRepository = {
     /** Pass req.models.Product to query the correct market collection. Defaults to the global US model. */
     model: IProductModel = Product,
   ): Promise<import('../../utils/pagination.util').PaginatedResponse<IProductDocument>> {
-    const filter: Record<string, unknown> = {
-      status: { $ne: 'archived' },
-    };
+    // Match feed eligibility: exclude archived AND invalid (was $ne 'archived', which
+    // leaked invalid products into search results).
+    const filter: Record<string, unknown> = { ...LISTABLE_PRODUCT_FILTER };
     applyProductFeedFilters(filter, filters);
 
     return runProductSearchQuery(model, filter, filters, query);

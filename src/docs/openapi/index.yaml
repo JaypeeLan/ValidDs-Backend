@@ -15,6 +15,7 @@ info:
     ### Quick reference
     - **Categories** — `GET /products/categories`, `GET /products/subcategories`
     - **Personalization** — `GET /products/for-you` (JWT), `GET /products/{id}/you-may-like` (optional JWT)
+    - **Compare** — `GET /products/compare?ids=id1,id2` (2–5 product IDs)
     - **Region** — `GET /profile/content-region`, `PATCH /profile/content-region`
   version: 1.0.0
   contact:

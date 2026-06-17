@@ -373,7 +373,7 @@ compare:
         required: true
         description: |
           Comma-separated MongoDB ObjectIds, or repeat the parameter for multiple IDs
-          (e.g. `?ids=id1,id2` or `?ids=id1&ids=id2`).
+          (e.g. `?ids=id1,id2` or `?ids=id1&ids=id2`). **Minimum 2, maximum 5** IDs.
         schema:
           oneOf:
             - type: string
@@ -440,7 +440,16 @@ detail:
                   properties:
                     data:
                       type: object
-                      required: [product, relatedProducts, relatedVideos, relatedAds, freshness]
+                      required:
+                        [
+                          product,
+                          relatedProducts,
+                          youMayLike,
+                          personalized,
+                          relatedVideos,
+                          relatedAds,
+                          freshness,
+                        ]
                       properties:
                         product:
                           $ref: '../components/schemas/Product.yaml'

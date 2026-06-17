@@ -287,7 +287,8 @@ properties:
     type: object
     description: |
       Client-facing AI intelligence (`aiIntelligence` reshaped on read).
-      `marketingAnalysis` and extended fields are populated on `GET /products/:id`; feed cards usually omit `marketingAnalysis`.
+      `marketingAnalysis`, `pageSummary`, and `reviewSummary` are populated on `GET /products/:id`;
+      feed cards usually omit `marketingAnalysis` and summaries.
     properties:
       confidence:
         type: object
@@ -311,6 +312,30 @@ properties:
             type: string
             enum: [positive, neutral, negative]
             description: Human-readable demand/sentiment bucket derived from score when not stored.
+      reviewSummary:
+        type: object
+        nullable: true
+        description: Review-grounded summary generated from customer reviews.
+        properties:
+          summary:
+            type: string
+          generatedAt:
+            type: string
+            format: date-time
+      pageSummary:
+        type: object
+        nullable: true
+        description: Full product-detail page narrative (traction, content, opportunity).
+        properties:
+          text:
+            type: string
+          highlights:
+            type: array
+            items:
+              type: string
+          generatedAt:
+            type: string
+            format: date-time
       marketingAnalysis:
         allOf:
           - $ref: ./MarketingAnalysis.yaml

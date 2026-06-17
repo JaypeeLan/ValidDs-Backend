@@ -33,6 +33,8 @@ Returns a paginated list of products (full catalog by page). Supports optional f
 - `feed` _(string, optional)_: Convenience UI tab selector: `discover` or `top-opportunities`. Only used when `sortBy` is omitted.
 - `sortBy` _(string, optional)_: `gmv_desc`, `gmv_asc`, `units_sold_desc`, `units_sold_asc`, `last_ingested` (alias `recent`), `trendScore`, `views`, `engagement`. If omitted, defaults depend on `feed` (`discover` → `recent`, `top-opportunities` → `gmv`, otherwise `gmv`).
 
+**Feed card fields** (each item in `data.products`): `price`, optional `originalPrice` (strikethrough/was price when higher than `price`), `storeLinks` (TikTok Shop + merchant DTC links), `officialWebsiteUrl`, plus standard metrics (`totalGmv`, `totalSales`, `aiInsight`, etc.). See OpenAPI `ProductFeedItem` schema.
+
 ### `GET /products/for-you`
 
 Personalized product recommendations for the signed-in user (saved products, search history, Shopify import history).
@@ -51,17 +53,28 @@ Products you may like for a specific product detail context. Blends personalizat
 
 **Response `data`:** `{ youMayLike, personalized }`
 
-`GET /products/:id` also includes `youMayLike` and `personalized` on the detail payload when available.
+### `GET /products/compare`
 
-- `region` _(string, optional)_: Echoed in the response; defaults from the user profile when omitted.
+AI-assisted comparison of 2–5 products by MongoDB ObjectId.
+**Authentication:** Not required.
+
+- `ids` _(string, required)_: Comma-separated ObjectIds, or repeat the query param (`?ids=id1,id2` or `?ids=id1&ids=id2`). Minimum 2, maximum 5.
+
+**Response `data`:** `{ products, analysis, notFound }`
+
+- `products` — lean snapshot per product (`ProductCompareItem` schema): title, price, category, GMV, trend, etc.
+- `analysis` — AI-generated comparison (`summary`, `recommendation`, per-product `pros`/`cons`/`bestFor`, dimension leaders). `null` when fewer than two valid products are found.
+- `notFound` — requested IDs that were missing or not listable.
 
 ### `GET /products/:id`
 
 Returns comprehensive data for a single product.
-**Authentication:** Not required.
+**Authentication:** Not required (optional JWT improves `youMayLike` personalization).
 **Path Parameters:** `id` (MongoDB ObjectId).
 
-**Response `data`:** `product` (full detail), `relatedProducts` (up to 8 feed cards in the same L2 subcategory), `relatedVideos` (all creatives for this product), `relatedAds` (top-ad/paid creatives for this product), `freshness`.
+**Response `data`:** `product` (full detail), `relatedProducts` (up to 8 feed cards in the same L2 subcategory), `youMayLike` (personalized or related-only feed cards), `personalized` (`true` when user activity was used), `relatedVideos` (commercial/non-ad creatives), `relatedAds` (top-ad/paid creatives), `freshness`.
+
+**Product detail highlights:** `originalPrice`, `storeLinks`, `officialWebsiteUrl`, `officialProductUrl`, and `aiInsight.pageSummary` / `aiInsight.reviewSummary` on `GET /products/:id` when populated by ingest.
 
 ### `GET /products/:id/similar-products`
 
@@ -85,7 +98,26 @@ Full L1 → L2 → L3 taxonomy tree.
 
 ---
 
-## 2. Authentication Endpoints (`/auth`)
+## 2. Creative Endpoints (`/creatives`)
+
+Public discovery and detail for TikTok/Meta ad creatives. **OpenAPI:** `src/docs/openapi/paths/creatives.yaml`.
+
+### `GET /creatives`
+
+Paginated creative feed with filters (category, product, section, engagement, etc.).
+**Authentication:** Not required.
+
+- `sortBy` _(string, optional)_: `views` (default), `likes`, `recent` (post publish date), `last_ingested` (when ValidDs ingested the creative; aliases `last-ingested`, `ingested_desc`), `engagement`.
+
+**Creative card fields** include `tiktokUrl` (direct TikTok post link; `null` for Meta Ad Library creatives), `embedUrl`, `videoProxyUrl`, `thumbnailProxyUrl`, nested `relatedVideos`, and linked `product` summary.
+
+### `GET /creatives/:id`
+
+Single creative detail. Same schema as list items.
+
+---
+
+## 3. Authentication Endpoints (`/auth`)
 
 ### `POST /auth/register`
 
@@ -131,7 +163,7 @@ Handles password recovery flows.
 
 ---
 
-## 3. Profile & Account Endpoints (`/profile`)
+## 4. Profile & Account Endpoints (`/profile`)
 
 ### `GET /profile`
 
@@ -174,7 +206,7 @@ Removes a product from the user's saved list.
 
 ---
 
-## 4. TikTok Live (`/tiktok/live`)
+## 5. TikTok Live (`/tiktok/live`)
 
 ### `GET /tiktok/live/discover`
 
@@ -194,7 +226,7 @@ Adds a TikTok **handle** to the shared live-monitoring watchlist (`TrackedStore`
 
 ---
 
-## 5. Background Job Endpoints (`/jobs`)
+## 6. Background Job Endpoints (`/jobs`)
 
 These endpoints are used for monitoring and triggering ingestion/cleanup jobs from external cron services.
 See **`docs/cron-jobs.md`** for Render/GitHub/crontab setup (`render.yaml`, `cron/trigger-job.mjs`).
@@ -236,7 +268,7 @@ Runs TikTok live discovery: ScrapeCreators live checks on **active watchlist han
 
 ---
 
-## 6. Ingestion Endpoints (`/ingestion`)
+## 7. Ingestion Endpoints (`/ingestion`)
 
 ### `POST /ingestion/trigger`
 
@@ -246,13 +278,13 @@ Wait times depend on downstream AI providers (DeepSeek, OpenAI).
 
 ---
 
-## 7. Admin Endpoints (`/admin`)
+## 8. Admin Endpoints (`/admin`)
 
 Admin route reference (health, analytics, users, transactions, waitlist) lives in **[`admin-docs/endpoints.md`](../admin-docs/endpoints.md)** at the repository root. Same `/api/v1` base path and response envelopes as the rest of this file. **OpenAPI (Swagger):** **`/admin-docs`** on the running server.
 
 ---
 
-## 8. Waitlist Endpoints (`/waitlist`)
+## 9. Waitlist Endpoints (`/waitlist`)
 
 ### `POST /waitlist`
 
@@ -263,7 +295,7 @@ Public endpoint. Adds an email to the pre-launch waitlist. Idempotent — a dupl
 
 ---
 
-## 9. Shopify store integration (`/stores/shopify`)
+## 10. Shopify store integration (`/stores/shopify`)
 
 Connect a merchant’s Shopify store (OAuth) and push ValidDs products into their catalog. Routes are mounted under **`/api/v1/stores`**. Responses use the standard envelope in `docs/api-responses.md`. **OpenAPI:** `src/docs/openapi/paths/stores.yaml` (tag **Stores** in `src/docs/openapi/index.yaml`).
 
@@ -322,7 +354,7 @@ Connect a merchant’s Shopify store (OAuth) and push ValidDs products into thei
 
 ---
 
-## 10. System Health Endpoints
+## 11. System Health Endpoints
 
 ### `GET /health`
 

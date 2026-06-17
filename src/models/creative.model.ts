@@ -185,6 +185,7 @@ CreativeSchema.index(
 CreativeSchema.index({ 'metrics.viewCount': -1 });
 CreativeSchema.index({ 'creator.followers': -1 });
 CreativeSchema.index({ publishedAt: -1 });
+CreativeSchema.index({ ingestedAt: -1 });
 CreativeSchema.index({ 'creator.handle': 1 });
 
 // ── Export ────────────────────────────────────────────────────────────────────

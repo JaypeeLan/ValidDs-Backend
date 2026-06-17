@@ -84,7 +84,7 @@ const ProductFeedQueryBaseSchema = z.object({
   isAd: z.coerce.boolean().optional(),
   section: z.enum(PRODUCT_DISCOVERY_SECTIONS).optional(),
   feed: z.enum(['discover', 'top-opportunities']).optional(),
-  /** Frontend: gmv_desc, units_sold_desc, recent, views, … */
+  /** Frontend: gmv_desc, units_sold_desc, last_ingested, recent, views, … */
   sortBy: z.string().max(40).optional(),
   region: z.string().optional(),
 
@@ -137,13 +137,13 @@ export const ProductFeedQuerySchema = z
       }
     }
     if (sortBy && val.feed === 'top-opportunities') {
-      const allowed = new Set(['gmv-desc', 'gmv-asc', 'units-desc', 'units-asc']);
+      const allowed = new Set(['gmv-desc', 'gmv-asc', 'units-desc', 'units-asc', 'recent']);
       if (!allowed.has(sortBy)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['sortBy'],
           message:
-            'For feed=top-opportunities use: gmv_desc, gmv_asc, units_sold_desc, units_sold_asc',
+            'For feed=top-opportunities use: gmv_desc, gmv_asc, units_sold_desc, units_sold_asc, last_ingested',
         });
       }
     }
@@ -220,6 +220,69 @@ export const ProductIdParamSchema = z.object({
 export const ProductRelatedCreativesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
+
+export const ProductForYouQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(24).default(12),
+});
+
+export const ProductYouMayLikeQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(16).default(8),
+});
+
+const ProductObjectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid product ID format');
+
+function parseCompareIdsInput(val: string | string[] | undefined): string[] {
+  if (val == null) return [];
+  const raw = Array.isArray(val) ? val : [val];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    for (const part of entry.split(',')) {
+      const id = part.trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+export const ProductCompareQuerySchema = z
+  .object({
+    ids: z.union([z.string(), z.array(z.string())]).optional(),
+  })
+  .transform((val) => ({ ids: parseCompareIdsInput(val.ids) }))
+  .superRefine((val, ctx) => {
+    if (val.ids.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ids'],
+        message: 'At least 2 product IDs are required',
+      });
+      return;
+    }
+    if (val.ids.length > 5) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ids'],
+        message: 'Maximum 5 products can be compared at once',
+      });
+      return;
+    }
+    for (const id of val.ids) {
+      if (!ProductObjectIdSchema.safeParse(id).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['ids'],
+          message: 'Invalid product ID format',
+        });
+        return;
+      }
+    }
+  });
+
+export type ProductCompareQuery = z.infer<typeof ProductCompareQuerySchema>;
 
 export type ProductKeywordContextQuery = z.infer<typeof ProductKeywordContextQuerySchema>;
 export type ProductRelatedCreativesQuery = z.infer<typeof ProductRelatedCreativesQuerySchema>;

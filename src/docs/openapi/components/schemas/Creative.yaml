@@ -48,6 +48,11 @@ properties:
     type: string
     description: Relative API path for proxied cover image (`GET .../thumbnail?index=0&kind=thumbnail`).
     example: /api/v1/creatives/60b9b3b3e2b4f9a0c8b2c1d3/thumbnail?index=0&kind=thumbnail
+  tiktokUrl:
+    type: string
+    format: uri
+    nullable: true
+    description: Direct link to view this post on TikTok. Null for Meta Ad Library creatives.
 
   section:
     type: string

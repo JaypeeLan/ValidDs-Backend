@@ -1,0 +1,21 @@
+type: object
+required: [id, title, categoryL1]
+properties:
+  id: { type: string }
+  title: { type: string }
+  primaryImageUrl: { type: string }
+  price: { type: number }
+  currency: { type: string }
+  categoryL1: { type: string }
+  categoryL2: { type: string }
+  rating: { type: number }
+  totalSales: { type: number }
+  totalGmv: { type: number }
+  shopName: { type: string }
+  competitionScore: { type: number, nullable: true }
+  trend:
+    type: object
+    properties:
+      score: { type: number }
+      direction: { type: string }
+      isTrending: { type: boolean }

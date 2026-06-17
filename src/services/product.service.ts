@@ -1,3 +1,4 @@
+import { compareProducts } from './product-compare.service';
 import { ProductRepository, ProductFeedFilters } from '../db/repositories/product.repository';
 import { CATEGORY_TAXONOMY } from '../api/products/product.constants';
 import {
@@ -5,6 +6,7 @@ import {
   filterSubcategoriesWithProducts,
 } from '../utils/product-category-catalog.util';
 import { IProductDocument, IProductModel } from '../models/product.model';
+import type { ProductCompareResponse } from '../types/product.types';
 import { FreshnessService } from '../freshness/freshness.service';
 import { CacheService } from '../cache/cache.service';
 import { CacheKeys, CACHE_TTL } from '../cache/cache.keys';
@@ -41,6 +43,7 @@ export async function getRelatedProducts(
       product.normalizedTitle,
       8,
       productModel,
+      product.categoryL3,
     );
   }) as Promise<IProductDocument[]>;
 }
@@ -80,6 +83,11 @@ export type ProductServiceType = {
     productModel?: IProductModel,
     market?: MarketCode,
   ) => Promise<IProductDocument[]>;
+  compare: (
+    ids: string[],
+    productModel?: IProductModel,
+    market?: MarketCode,
+  ) => Promise<ProductCompareResponse>;
   search: (
     query: string,
     filters: ProductFeedFilters,
@@ -205,6 +213,14 @@ export const ProductService: ProductServiceType = {
   },
 
   getRelated: getRelatedProducts,
+
+  async compare(
+    ids: string[],
+    productModel?: IProductModel,
+    market: MarketCode = DEFAULT_MARKET,
+  ): Promise<ProductCompareResponse> {
+    return compareProducts(ids, productModel, market);
+  },
 
   /**
    * Full-text search across product titles, descriptions, and tags.

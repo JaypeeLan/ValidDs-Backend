@@ -42,6 +42,11 @@ import {
   recencyTierAddFields,
 } from '../utils/product-recency.util';
 import {
+  creativeSortSkipsRecencyTier,
+  resolveCreativeSort,
+  type CreativeSortBy,
+} from '../api/creatives/creative-feed-filters.util';
+import {
   applyCreativeMetricFilters,
   type ContentMetricFilters,
 } from '../utils/content-feed-filters.util';
@@ -334,7 +339,7 @@ function buildCreativeFeedBaseStages(
   return [
     { $match: query },
     creativeFeedExposureMatchStage() as PipelineStage,
-    ...(sortKey === 'recent' ? [] : [{ $addFields: recencyTierAddFields() }]),
+    ...(creativeSortSkipsRecencyTier(sortKey) ? [] : [{ $addFields: recencyTierAddFields() }]),
     { $sort: sort as PipelineStage.Sort['$sort'] },
     ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
     ...(onePerProduct ? (creativeOneAdPerProductFeedStages() as unknown as PipelineStage[]) : []),
@@ -713,15 +718,10 @@ export const CreativeService = {
 
     const skip = (Number(page) - 1) * Number(limit);
     const mLimit = Number(limit);
-    const sortKey = String(sortBy);
-    const sort =
-      source === 'meta'
-        ? ({ metaAdRelevanceScore: -1, publishedAt: -1 } as Record<string, unknown>)
-        : sortKey === 'recent'
-          ? { publishedAt: -1 as const }
-          : creativeRecencyPrioritySortSpec(
-              sortKey === 'likes' ? 'likes' : sortKey === 'engagement' ? 'engagement' : 'views',
-            );
+    const { sortKey, sort } = resolveCreativeSort(
+      String(sortBy) as CreativeSortBy,
+      source ? { source: source as 'meta' | 'tiktok' } : undefined,
+    );
 
     // Global feeds: one card per product; extras live under relatedVideos / relatedAds.
     const oneAdPerProduct = query.productId === undefined;

@@ -31,7 +31,28 @@ Returns a paginated list of products (full catalog by page). Supports optional f
 - `section` _(string, optional)_: Require a discovery section slug on the product (e.g. `top-ads`, `trending`, `viral`). See OpenAPI enum.
 - `isAd` _(boolean, optional)_: When `true`, same as the `top-ads` discovery bucket (`discoverySections` contains `top-ads`). When `false`, excludes that bucket.
 - `feed` _(string, optional)_: Convenience UI tab selector: `discover` or `top-opportunities`. Only used when `sortBy` is omitted.
-- `sortBy` _(string, optional)_: `gmv`, `trendScore`, `views`, `recent`, `engagement`. If omitted, defaults depend on `feed` (`discover` → `recent`, `top-opportunities` → `gmv`, otherwise `gmv`).
+- `sortBy` _(string, optional)_: `gmv_desc`, `gmv_asc`, `units_sold_desc`, `units_sold_asc`, `last_ingested` (alias `recent`), `trendScore`, `views`, `engagement`. If omitted, defaults depend on `feed` (`discover` → `recent`, `top-opportunities` → `gmv`, otherwise `gmv`).
+
+### `GET /products/for-you`
+
+Personalized product recommendations for the signed-in user (saved products, search history, Shopify import history).
+**Authentication:** Required (JWT).
+
+- `limit` _(number, optional)_: Max items (default 12, max 24).
+
+**Response `data`:** `{ products, personalized, pagination }` — `personalized` is `false` for cold-start users with no activity history.
+
+### `GET /products/:id/you-may-like`
+
+Products you may like for a specific product detail context. Blends personalization with same-subcategory related products when the user is signed in; falls back to related products only when anonymous or cold-start.
+**Authentication:** Optional (JWT improves personalization).
+
+- `limit` _(number, optional)_: Max items (default 8, max 16).
+
+**Response `data`:** `{ youMayLike, personalized }`
+
+`GET /products/:id` also includes `youMayLike` and `personalized` on the detail payload when available.
+
 - `region` _(string, optional)_: Echoed in the response; defaults from the user profile when omitted.
 
 ### `GET /products/:id`

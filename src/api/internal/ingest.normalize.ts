@@ -24,6 +24,17 @@ function numOrZero(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
+function numOrNull(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function normalizeOriginalPrice(raw: unknown, salePrice: number): number | null {
+  const original = numOrNull(raw);
+  if (original === null || original <= 0) return null;
+  if (salePrice > 0 && original <= salePrice) return null;
+  return original;
+}
+
 function strOrEmpty(v: unknown): string {
   return typeof v === 'string' ? v.trim() : String(v ?? '').trim();
 }
@@ -162,6 +173,16 @@ function normalizeAiIntelligence(ai: unknown): Record<string, unknown> {
   if (!rs.summary) rs.summary = '';
   if (!rs.generatedAt) rs.generatedAt = new Date();
   base.reviewSummary = rs;
+  const ps =
+    base.pageSummary && typeof base.pageSummary === 'object'
+      ? { ...(base.pageSummary as Record<string, unknown>) }
+      : null;
+  if (ps) {
+    if (!ps.text) ps.text = '';
+    if (!Array.isArray(ps.highlights)) ps.highlights = [];
+    if (!ps.generatedAt) ps.generatedAt = new Date();
+    base.pageSummary = ps;
+  }
   const ma =
     base.marketingAnalysis && typeof base.marketingAnalysis === 'object'
       ? { ...(base.marketingAnalysis as Record<string, unknown>) }
@@ -292,6 +313,7 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     primaryImageUrl: strOrEmpty(raw.primaryImageUrl) || imageUrls[0] || '',
     imageUrls,
     price,
+    originalPrice: normalizeOriginalPrice(raw.originalPrice, price),
     currency: strOrEmpty(raw.currency) || 'USD',
     priceTrend: normalizeMetricTrend(raw.priceTrend, price),
     rating: numOrZero(raw.rating),
@@ -327,6 +349,14 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     postCreatedAt,
     publishedAt: published,
     productUrl: strOrEmpty(raw.productUrl),
+    officialWebsiteUrl: (() => {
+      const url = strOrEmpty(raw.officialWebsiteUrl);
+      return url.startsWith('https://') ? url : '';
+    })(),
+    officialProductUrl: (() => {
+      const url = strOrEmpty(raw.officialProductUrl);
+      return url.startsWith('https://') ? url : '';
+    })(),
     accountHandle: strOrEmpty(raw.accountHandle),
     accountKind: strOrEmpty(raw.accountKind),
     market: strOrEmpty(raw.market),

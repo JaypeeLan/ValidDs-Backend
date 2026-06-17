@@ -453,9 +453,12 @@ components:
     sortBy:
       name: sortBy
       in: query
+      description: |
+        Sort order. `recent` sorts by post publish date; `last_ingested` sorts by `ingestedAt`
+        (when the creative was added to ValidDs). Aliases: `last-ingested`, `ingested_desc`.
       schema:
         type: string
-        enum: [views, likes, recent, engagement]
+        enum: [views, likes, recent, last_ingested, engagement]
         default: views
     groupBy:
       name: groupBy

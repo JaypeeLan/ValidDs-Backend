@@ -19,6 +19,7 @@ import { resolveEngagementTrend } from './product-trend.util';
 import { normalizeCategoryL1 } from './category-l1-normalize.util';
 import { creativeVideoMatchesProduct } from './video-product-match.util';
 import { sanitizeVideoMetrics } from './video-metrics.util';
+import { resolveCreativeTikTokUrl } from './tiktok-url.util';
 
 /** API `trending` ↔ DB `top-ads`; API `top-ads` ↔ DB `trending`. */
 const API_TO_DB_SECTION: Record<string, CreativeSection> = {
@@ -46,16 +47,20 @@ export function dbSectionToApi(section: string | undefined): CreativeSection | u
  */
 export const CREATIVE_TRENDING_MATCH = {
   section: 'top-ads' as const,
-  externalVideoId: { $not: { $regex: /^meta:/ } },
+  externalVideoId: { $not: { $regex: /^(meta:|ttad:)/ } },
   isAd: { $ne: true },
 };
 /**
  * Paid ads bucket (DB `trending`, API `GET /creatives/top-ads`):
- * Meta Ad Library + TikTok with ad/sponsored signals.
+ * Meta Ad Library + TikTok Creative Center + TikTok with ad/sponsored signals.
  */
 export const CREATIVE_TOP_ADS_MATCH = {
   section: 'trending' as const,
-  $or: [{ externalVideoId: { $regex: /^meta:/ } }, { isAd: true }],
+  $or: [
+    { externalVideoId: { $regex: /^meta:/ } },
+    { externalVideoId: { $regex: /^ttad:/ } },
+    { isAd: true },
+  ],
 };
 /** Meta Ad Library rows only (DB section `trending`, API top-ads / related-ads). */
 export const CREATIVE_META_ADS_MATCH = {
@@ -101,6 +106,9 @@ export function creativeAdDedupeKey(creative: Record<string, unknown>): string {
   const ext = String(creative.externalVideoId ?? '').trim();
   const pid = String(creative.productId ?? '').trim();
   const isMeta = ext.startsWith('meta:');
+  const isTtad = ext.startsWith('ttad:');
+
+  if (isTtad) return ext;
 
   // Hero listing image — collapse look-alikes within the same platform only.
   // Meta Ad Library rows must not evict TikTok videos (or vice versa) on ingest.
@@ -684,6 +692,12 @@ function formatSecondaryVideo(
   return {
     isPrimary: false,
     externalVideoId: video.externalVideoId,
+    tiktokUrl: resolveCreativeTikTokUrl({
+      tiktokPostUrl: video.tiktokPostUrl,
+      embedUrl: video.embedUrl,
+      externalVideoId: video.externalVideoId,
+      creator: video.creator,
+    }),
     thumbnailUrl: thumb,
     ...proxy,
     creator: formatCreator(video.creator, index, baseUrl),
@@ -727,6 +741,12 @@ export function formatCreativeForApi(
     id,
     productId: String(creative.productId ?? ''),
     externalVideoId,
+    tiktokUrl: resolveCreativeTikTokUrl({
+      tiktokPostUrl: creative.tiktokPostUrl as string | undefined,
+      embedUrl: creative.embedUrl as string | undefined,
+      externalVideoId,
+      creator,
+    }),
     thumbnailUrl: creative.thumbnailUrl as string | undefined,
     ...primaryProxy,
     creator: formatCreator(creator, 0, baseUrl, creatorAvatarUrl),

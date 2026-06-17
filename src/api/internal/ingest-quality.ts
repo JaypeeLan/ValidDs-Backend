@@ -236,3 +236,8 @@ export function isMetaCreative(doc: Record<string, unknown>): boolean {
   const ext = String(doc.externalVideoId ?? '');
   return doc.platform === 'meta' || ext.startsWith('meta:');
 }
+
+export function isTikTokCcAdCreative(doc: Record<string, unknown>): boolean {
+  const ext = String(doc.externalVideoId ?? '');
+  return ext.startsWith('ttad:') || doc.platform === 'tiktok_cc';
+}

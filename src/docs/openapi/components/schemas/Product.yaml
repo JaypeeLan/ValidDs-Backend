@@ -66,6 +66,11 @@ properties:
     type: number
     minimum: 0
     example: 24.99
+  originalPrice:
+    type: number
+    nullable: true
+    minimum: 0
+    description: Strikethrough / was price on TikTok Shop when higher than `price`.
   currency:
     type: string
     example: USD
@@ -385,6 +390,34 @@ properties:
   productUrl:
     type: string
     format: uri
+  officialWebsiteUrl:
+    type: string
+    format: uri
+    nullable: true
+    description: Merchant's own DTC storefront when provably the same store as the TikTok shop.
+  officialProductUrl:
+    type: string
+    format: uri
+    nullable: true
+    description: Matching SKU on the merchant's own storefront, when known.
+  storeLinks:
+    type: array
+    description: Ready-to-render storefront links for the product detail UI.
+    items:
+      type: object
+      required: [platform, label, url, kind]
+      properties:
+        platform:
+          type: string
+          enum: [tiktok, shopify]
+        label:
+          type: string
+        url:
+          type: string
+          format: uri
+        kind:
+          type: string
+          enum: [store, product]
 
   creativeCounts:
     type: object

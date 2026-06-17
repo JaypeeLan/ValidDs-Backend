@@ -4,10 +4,13 @@ import { validate } from '../../middleware/validate.middleware';
 import { optionalAuth, requireAuth } from '../../middleware/auth.middleware';
 import { attachMarketModels } from '../../middleware/market.middleware';
 import {
+  ProductCompareQuerySchema,
   ProductFeedQuerySchema,
+  ProductForYouQuerySchema,
   ProductIdParamSchema,
   ProductKeywordContextQuerySchema,
   ProductRelatedCreativesQuerySchema,
+  ProductYouMayLikeQuerySchema,
 } from './product.validator';
 
 const router = Router();
@@ -24,6 +27,7 @@ const router = Router();
  * GET /products/:id/related-videos — commercial (non-ad) creatives for this product
  * GET /products/:id/related-ads — paid / top-ad creatives for this product
  * GET /products/saved — requires JWT (user bookmarks)
+ * GET /products/compare — AI comparison + basic info for 2–5 products
  */
 
 // optionalAuth loads the user from DB so contentRegion is available before market models attach.
@@ -41,6 +45,14 @@ router.get('/categories', ProductController.categories);
 router.get('/subcategories', ProductController.subcategories);
 router.get('/taxonomy', ProductController.taxonomy);
 router.get('/saved', requireAuth, ProductController.saved);
+router.get(
+  '/for-you',
+  requireAuth,
+  validate(ProductForYouQuerySchema, 'query'),
+  ProductController.forYou,
+);
+
+router.get('/compare', validate(ProductCompareQuerySchema, 'query'), ProductController.compare);
 
 router.get(
   '/:id/related-products',
@@ -51,6 +63,12 @@ router.get(
   '/:id/similar-products',
   validate(ProductIdParamSchema, 'params'),
   ProductController.relatedProducts,
+);
+router.get(
+  '/:id/you-may-like',
+  validate(ProductIdParamSchema, 'params'),
+  validate(ProductYouMayLikeQuerySchema, 'query'),
+  ProductController.youMayLike,
 );
 router.get(
   '/:id/related-videos',

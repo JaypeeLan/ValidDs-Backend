@@ -36,7 +36,7 @@ async function resolvePrimaryDiscoveryFlag(
   payload: Record<string, unknown>,
 ): Promise<void> {
   const externalVideoId = String(payload.externalVideoId ?? '');
-  if (externalVideoId.startsWith('meta:')) {
+  if (externalVideoId.startsWith('meta:') || externalVideoId.startsWith('ttad:')) {
     payload.isPrimaryDiscovery = false;
     return;
   }
@@ -49,7 +49,7 @@ async function resolvePrimaryDiscoveryFlag(
   const existingPrimary = await Creative.findOne({
     productId,
     isPrimaryDiscovery: true,
-    externalVideoId: { $not: /^meta:/ },
+    externalVideoId: { $not: /^(meta:|ttad:)/ },
   })
     .select('_id externalVideoId tiktokPostUrl')
     .lean();
@@ -285,12 +285,14 @@ export async function ingestCreative(
 
     const adDedupeKey = String(payload.adDedupeKey ?? '').trim();
     const isMetaAd = externalVideoId.startsWith('meta:');
-    // Meta rows upsert by externalVideoId (`meta:{adId}:{productId}` — shared S3 MP4 per ad id).
-    const upsertFilter = isMetaAd
-      ? { externalVideoId }
-      : adDedupeKey
-        ? { adDedupeKey }
-        : { externalVideoId };
+    const isTtad = externalVideoId.startsWith('ttad:');
+    // Meta / TikTok CC rows upsert by externalVideoId (shared S3 MP4 per ad id).
+    const upsertFilter =
+      isMetaAd || isTtad
+        ? { externalVideoId }
+        : adDedupeKey
+          ? { adDedupeKey }
+          : { externalVideoId };
 
     const saved = await Creative.findOneAndUpdate(
       upsertFilter,

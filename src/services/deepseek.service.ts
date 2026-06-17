@@ -4,6 +4,7 @@ import { logger } from '../logger';
 const log = logger.child({ module: 'deepseek-service' });
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+const DEEPSEEK_MODEL = 'deepseek-v4-flash';
 
 export interface DeepSeekResponse {
   content: string;
@@ -30,38 +31,39 @@ export const DeepSeekService = {
       const response = await axios.post(
         DEEPSEEK_API_URL,
         {
-          model: 'deepseek-chat',
+          model: DEEPSEEK_MODEL,
           messages: [
             {
               role: 'system',
-              content: 'You are an expert data extractor. You always return strictly valid JSON. No prose, no markdown blocks.'
+              content:
+                'You are an expert data extractor. You always return strictly valid JSON. No prose, no markdown blocks.',
             },
             {
               role: 'user',
-              content: `${prompt}\n\nData to parse:\n${jsonData}`
-            }
+              content: `${prompt}\n\nData to parse:\n${jsonData}`,
+            },
           ],
           temperature: 0.1,
-          response_format: { type: 'json_object' }
+          response_format: { type: 'json_object' },
         },
         {
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
           },
-          timeout: 30000
-        }
+          timeout: 30000,
+        },
       );
 
       const content = response.data.choices[0].message.content;
       return JSON.parse(content) as T;
     } catch (err: any) {
-      log.error('DeepSeek request failed', { 
-        error: err.message, 
+      log.error('DeepSeek request failed', {
+        error: err.message,
         status: err.response?.status,
-        data: err.response?.data 
+        data: err.response?.data,
       });
       return null;
     }
-  }
+  },
 };

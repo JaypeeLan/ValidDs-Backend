@@ -182,6 +182,9 @@ shopifyPushProduct:
     description: |
       Creates a product in the merchant's store via Shopify Admin REST
       `POST /admin/api/{version}/products.json`. The user must have completed OAuth.
+
+      A successful push appends the product to the user's **Shopify import history**, which
+      feeds `GET /products/for-you` and `GET /products/{id}/you-may-like` personalization.
     security: [{ BearerAuth: [] }]
     requestBody:
       required: true

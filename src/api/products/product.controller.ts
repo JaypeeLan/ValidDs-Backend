@@ -5,13 +5,23 @@ import {
 } from '../../services/creative.service';
 import { ProductService, getRelatedProducts } from '../../services/product.service';
 import {
+  getPersonalizedProducts,
+  getYouMayLikeProducts,
+} from '../../services/product-recommendation.service';
+import { recordProductDiscovery } from '../../services/user-activity.service';
+import { User } from '../../models/user.model';
+import {
+  ProductCompareQuery,
   ProductFeedQuery,
+  ProductForYouQuery,
   ProductKeywordContextQuery,
   ProductRelatedCreativesQuery,
+  ProductYouMayLikeQuery,
 } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { resolveShopStoreUrl } from '../../utils/shop-avatar.util';
+import { buildStoreLinks } from '../../utils/store-links.util';
 import type {
   IAIIntelligence,
   IProduct,
@@ -90,6 +100,7 @@ function buildAiInsight(aiIntelligence: IAIIntelligence | undefined): ProductAiI
       reason: ai.confidenceReason,
     },
     reviewSummary: ai.reviewSummary ?? null,
+    pageSummary: ai.pageSummary ?? null,
     marketingAnalysis,
     brand: ai.brand,
     niche: ai.niche,
@@ -158,6 +169,14 @@ function maxCompetitorScore(suppliers: unknown): number | null {
 }
 
 /** Lean payload for discovery product cards (`GET /products`). */
+function resolveOriginalPrice(product: Record<string, unknown>): number | null {
+  const sale = product.price;
+  const raw = product.originalPrice;
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return null;
+  if (typeof sale === 'number' && sale > 0 && raw <= sale) return null;
+  return raw;
+}
+
 function formatProductFeedItem(input: ProductLike): ProductFeedItem {
   const product = toProductPlain(input);
   const engagement = resolveEngagementTrend(product);
@@ -173,12 +192,23 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
   const { isNew3d, isNew7d } = postRecencyFlags(postDate);
   const ai = (input.aiIntelligence ?? product.aiIntelligence) as IAIIntelligence | undefined;
 
+  const resolvedShopUrl = resolveShopStoreUrl(
+    product.shopUrl as string | undefined,
+    product.shopName as string | undefined,
+  );
+  const officialWebsiteUrl =
+    typeof product.officialWebsiteUrl === 'string' &&
+    product.officialWebsiteUrl.trim().startsWith('https://')
+      ? product.officialWebsiteUrl.trim()
+      : undefined;
+
   const item: ProductFeedItem = {
     id: String(product._id ?? product.id),
     title: String(product.title ?? ''),
     primaryImageUrl: imageUrls[0] ?? (product.primaryImageUrl as string | undefined),
     imageUrls,
     price: product.price as number | undefined,
+    originalPrice: resolveOriginalPrice(product),
     currency: product.currency as string | undefined,
     categoryL1: String(product.categoryL1 ?? ''),
     categoryPath: product.categoryPath as string | undefined,
@@ -189,11 +219,15 @@ function formatProductFeedItem(input: ProductLike): ProductFeedItem {
     salesTrend: (product.salesTrend as ProductFeedItem['salesTrend']) ?? null,
     priceTrend: (product.priceTrend as ProductFeedItem['priceTrend']) ?? null,
     shopName: product.shopName as string | undefined,
-    shopUrl: resolveShopStoreUrl(
-      product.shopUrl as string | undefined,
-      product.shopName as string | undefined,
-    ),
+    shopUrl: resolvedShopUrl,
     shopAvatarUrl: (product.shopAvatarUrl as string | null | undefined) ?? null,
+    officialWebsiteUrl: officialWebsiteUrl ?? null,
+    storeLinks: buildStoreLinks({
+      shopUrl: resolvedShopUrl,
+      productUrl: product.productUrl as string | undefined,
+      shopName: product.shopName as string | undefined,
+      officialWebsiteUrl,
+    }),
     shopAvatarProxyUrl:
       typeof (product as { shopAvatarProxyUrl?: unknown }).shopAvatarProxyUrl === 'string'
         ? ((product as { shopAvatarProxyUrl?: string }).shopAvatarProxyUrl as string)
@@ -237,12 +271,33 @@ function formatProductResponse(input: ProductLike): ProductApiResponse {
     ? (product.discoverySections as string[])
     : [];
 
+  const resolvedShopUrl = resolveShopStoreUrl(
+    product.shopUrl as string | undefined,
+    product.shopName as string | undefined,
+  );
+  const officialWebsiteUrl =
+    typeof product.officialWebsiteUrl === 'string' &&
+    product.officialWebsiteUrl.trim().startsWith('https://')
+      ? product.officialWebsiteUrl.trim()
+      : undefined;
+  const officialProductUrl =
+    typeof product.officialProductUrl === 'string' &&
+    product.officialProductUrl.trim().startsWith('https://')
+      ? product.officialProductUrl.trim()
+      : undefined;
+
   const response = {
     ...product,
-    shopUrl: resolveShopStoreUrl(
-      product.shopUrl as string | undefined,
-      product.shopName as string | undefined,
-    ),
+    shopUrl: resolvedShopUrl,
+    officialWebsiteUrl: officialWebsiteUrl ?? null,
+    officialProductUrl: officialProductUrl ?? null,
+    storeLinks: buildStoreLinks({
+      shopUrl: resolvedShopUrl,
+      productUrl: product.productUrl as string | undefined,
+      shopName: product.shopName as string | undefined,
+      officialWebsiteUrl,
+      officialProductUrl,
+    }),
     rating: finalRating,
     ratings: finalRating,
     reviewCount: product.reviewCount,
@@ -298,6 +353,14 @@ export const ProductController = {
         );
         const freshness = await FreshnessService.getResponseMetadata('product');
 
+        if (req.user?._id) {
+          recordProductDiscovery(String(req.user._id), {
+            query: query.q,
+            filters,
+            resultCount: results.pagination.total,
+          });
+        }
+
         const searchPlains = await enrichProductsWithCreatorAvatars(
           await toPlainWithImages(results.data as unknown as ProductLike[]),
           req.models?.Creative,
@@ -326,6 +389,16 @@ export const ProductController = {
         req.market,
       );
 
+      if (
+        req.user?._id &&
+        (filters.category?.length || filters.subcategory?.length || filters.productKind)
+      ) {
+        recordProductDiscovery(String(req.user._id), {
+          filters,
+          resultCount: feed.pagination.total,
+        });
+      }
+
       const feedPlains = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages(feed.data as unknown as ProductLike[]),
         req.models?.Creative,
@@ -336,6 +409,108 @@ export const ProductController = {
             products: feedPlains.map(formatProductFeedItem),
             pagination: feed.pagination,
             freshness,
+          },
+          ResponseMessage.PRODUCTS_RETRIEVED,
+          200,
+        ),
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async compare(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const query = req.query as unknown as ProductCompareQuery;
+      const productModel = req.models?.Product;
+
+      const result = await ProductService.compare(query.ids, productModel, req.market);
+
+      res.json(successResponse(result, ResponseMessage.PRODUCTS_RETRIEVED, 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async forYou(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const query = req.query as unknown as ProductForYouQuery;
+      const productModel = req.models?.Product;
+      const creativeModel = req.models?.Creative;
+
+      const user = await User.findById(req.user!._id).select(
+        'savedProducts searchHistory shopifyImportHistory',
+      );
+      if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+      }
+
+      const { products, personalized } = await getPersonalizedProducts(
+        user,
+        productModel!,
+        query.limit,
+      );
+      const plains = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages(products as unknown as ProductLike[]),
+        creativeModel,
+      );
+
+      res.json(
+        successResponse(
+          {
+            products: plains.map(formatProductFeedItem),
+            personalized,
+            pagination: {
+              page: query.page,
+              limit: query.limit,
+              total: plains.length,
+              totalPages: 1,
+              hasNextPage: false,
+              hasPrevPage: false,
+            },
+          },
+          ResponseMessage.PRODUCTS_RETRIEVED,
+          200,
+        ),
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async youMayLike(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const query = req.query as unknown as ProductYouMayLikeQuery;
+      const productModel = req.models?.Product;
+      const creativeModel = req.models?.Creative;
+
+      await ProductService.getById(id, productModel, req.market, creativeModel);
+
+      const user = req.user?._id
+        ? await User.findById(req.user._id).select(
+            'savedProducts searchHistory shopifyImportHistory',
+          )
+        : null;
+
+      const { products, personalized } = await getYouMayLikeProducts(
+        id,
+        user ?? undefined,
+        productModel!,
+        req.market,
+        query.limit,
+      );
+      const plains = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages(products as unknown as ProductLike[]),
+        creativeModel,
+      );
+
+      res.json(
+        successResponse(
+          {
+            youMayLike: plains.map(formatProductFeedItem),
+            personalized,
           },
           ResponseMessage.PRODUCTS_RETRIEVED,
           200,
@@ -409,18 +584,31 @@ export const ProductController = {
       const productModel = req.models?.Product;
       const creativeModel = req.models?.Creative;
 
-      const [{ product, freshness }, relatedDocs, relatedVideos, relatedAds] = await Promise.all([
-        ProductService.getById(id, productModel, req.market, creativeModel),
-        getRelatedProducts(id, productModel, req.market),
-        findCreativesByProductId(id, creativeModel),
-        findRelatedAdsByProductId(id, creativeModel),
-      ]);
+      const user = req.user?._id
+        ? await User.findById(req.user._id).select(
+            'savedProducts searchHistory shopifyImportHistory',
+          )
+        : null;
 
-      const [plain, ...relatedPlains] = await enrichProductsWithCreatorAvatars(
-        await toPlainWithImages([
-          product as unknown as ProductLike,
-          ...(relatedDocs as unknown as ProductLike[]),
-        ]),
+      const [{ product, freshness }, relatedDocs, youMayLikeResult, relatedVideos, relatedAds] =
+        await Promise.all([
+          ProductService.getById(id, productModel, req.market, creativeModel),
+          getRelatedProducts(id, productModel, req.market),
+          getYouMayLikeProducts(id, user ?? undefined, productModel!, req.market, 8),
+          findCreativesByProductId(id, creativeModel),
+          findRelatedAdsByProductId(id, creativeModel),
+        ]);
+
+      const [plain] = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages([product as unknown as ProductLike]),
+        creativeModel,
+      );
+      const relatedPlains = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages(relatedDocs as unknown as ProductLike[]),
+        creativeModel,
+      );
+      const youMayLikePlains = await enrichProductsWithCreatorAvatars(
+        await toPlainWithImages(youMayLikeResult.products as unknown as ProductLike[]),
         creativeModel,
       );
 
@@ -429,6 +617,8 @@ export const ProductController = {
           {
             product: formatProductResponse(plain as ProductLike),
             relatedProducts: relatedPlains.map(formatProductFeedItem),
+            youMayLike: youMayLikePlains.map(formatProductFeedItem),
+            personalized: youMayLikeResult.personalized,
             relatedVideos,
             relatedAds,
             freshness,

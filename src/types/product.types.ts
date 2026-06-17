@@ -1,5 +1,6 @@
 import { Document, Model } from 'mongoose';
 import type { SentimentLabel } from '../utils/sentiment.util.js';
+import type { StoreLink } from '../utils/store-links.util.js';
 
 export type { SentimentLabel };
 
@@ -143,6 +144,12 @@ export interface IReviewSummary {
   generatedAt: Date;
 }
 
+export interface IPageSummary {
+  text: string;
+  highlights: string[];
+  generatedAt: Date | string;
+}
+
 export interface IAIIntelligence {
   confidence: number;
   confidenceReason: string;
@@ -153,6 +160,8 @@ export interface IAIIntelligence {
   buyingSentimentLabel?: SentimentLabel;
   /** Review-grounded summary generated from customer reviews. */
   reviewSummary?: IReviewSummary | null;
+  /** Full product-detail page narrative (traction, content, opportunity). */
+  pageSummary?: IPageSummary | null;
   extractedAt: Date;
   niche: string;
   productType: ProductType;
@@ -245,6 +254,8 @@ export interface IProduct {
 
   // Pricing
   price: number | null;
+  /** Strikethrough / was price on TikTok Shop when higher than `price`. */
+  originalPrice?: number | null;
   currency: string;
   priceTrend: IPriceTrend | null;
 
@@ -299,6 +310,10 @@ export interface IProduct {
   postCreatedAt: string | null;
   publishedAt: string | Date | null;
   productUrl: string;
+  /** Merchant's own DTC storefront when provably the same store as the TikTok shop. */
+  officialWebsiteUrl?: string | null;
+  /** Matching SKU on the merchant's own storefront, when known. */
+  officialProductUrl?: string | null;
 
   // TikTok account context
   accountHandle: string;
@@ -331,6 +346,7 @@ export interface IProduct {
 export interface ProductAiInsightResponse {
   confidence: { score?: number; reason?: string };
   reviewSummary?: IReviewSummary | null;
+  pageSummary?: IPageSummary | null;
   marketingAnalysis?: IMarketingAnalysis | null;
   brand?: string;
   niche?: string;
@@ -355,6 +371,7 @@ export interface ProductFeedItem {
   primaryImageUrl?: string;
   imageUrls: string[];
   price?: number;
+  originalPrice?: number | null;
   currency?: string;
   categoryL1: string;
   categoryPath?: string;
@@ -368,6 +385,8 @@ export interface ProductFeedItem {
   shopUrl?: string;
   shopAvatarUrl?: string | null;
   shopAvatarProxyUrl?: string;
+  officialWebsiteUrl?: string | null;
+  storeLinks?: StoreLink[];
   lastIngestedAt: string | Date;
   freshness: ProductItemFreshness;
   publishedAt?: string | Date | null;
@@ -385,6 +404,48 @@ export interface ProductFeedItem {
     isTrending?: boolean;
   };
   primaryCreator?: IPrimaryCreatorApi;
+}
+
+export interface ProductCompareItem {
+  id: string;
+  title: string;
+  primaryImageUrl?: string;
+  price?: number;
+  currency?: string;
+  categoryL1: string;
+  categoryL2?: string;
+  rating?: number;
+  totalSales?: number;
+  totalGmv?: number;
+  shopName?: string;
+  competitionScore?: number | null;
+  trend?: {
+    score?: number;
+    direction?: string;
+    isTrending?: boolean;
+  };
+}
+
+export interface ProductCompareAnalysis {
+  summary: string;
+  recommendation: string;
+  products: Array<{
+    productId: string;
+    pros: string[];
+    cons: string[];
+    bestFor: string;
+  }>;
+  dimensions: Array<{
+    label: string;
+    leaderId: string | null;
+    note: string;
+  }>;
+}
+
+export interface ProductCompareResponse {
+  products: ProductCompareItem[];
+  analysis: ProductCompareAnalysis | null;
+  notFound: string[];
 }
 
 export interface ProductApiResponse {

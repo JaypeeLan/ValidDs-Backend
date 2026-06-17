@@ -1,8 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
-import { UpdateProfileInput, AddBookmarkInput, ContentRegionInput } from './profile.validator';
+import {
+  UpdateProfileInput,
+  AddBookmarkInput,
+  ContentRegionInput,
+  RemoveBookmarkQuery,
+} from './profile.validator';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
 import { PLAN_LIMITS } from '../../models/user.model';
+import { countUserBookmarks, formatUserBookmarks } from '../../services/bookmark.service';
 
 export const ProfileController = {
   me(req: Request, res: Response): void {
@@ -11,11 +17,7 @@ export const ProfileController = {
 
   getContentRegion(req: Request, res: Response): void {
     res.json(
-      successResponse(
-        { contentRegion: req.user!.contentRegion },
-        ResponseMessage.SUCCESS,
-        200,
-      ),
+      successResponse({ contentRegion: req.user!.contentRegion }, ResponseMessage.SUCCESS, 200),
     );
   },
 
@@ -25,7 +27,9 @@ export const ProfileController = {
       const user = req.user!;
       user.contentRegion = contentRegion;
       await user.save();
-      res.json(successResponse({ contentRegion: user.contentRegion }, ResponseMessage.UPDATED, 200));
+      res.json(
+        successResponse({ contentRegion: user.contentRegion }, ResponseMessage.UPDATED, 200),
+      );
     } catch (err) {
       next(err);
     }
@@ -61,9 +65,12 @@ export const ProfileController = {
 
   async getBookmarks(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      // Return populated savedProducts
-      const user = await req.user!.populate('savedProducts.productId');
-      res.json(successResponse({ bookmarks: user.savedProducts }, ResponseMessage.SUCCESS, 200));
+      const bookmarks = await formatUserBookmarks(
+        req.user!,
+        req.models?.Creative,
+        req.models?.Product,
+      );
+      res.json(successResponse({ bookmarks }, ResponseMessage.SUCCESS, 200));
     } catch (err) {
       next(err);
     }
@@ -75,25 +82,62 @@ export const ProfileController = {
       const user = req.user!;
 
       const maxBookmarks = PLAN_LIMITS[user.plan].savedProductsMax;
-      if (maxBookmarks !== -1 && user.savedProducts.length >= maxBookmarks) {
-        throw new AppError(403, `Plan limit reached: maximum ${maxBookmarks} saved products`, 'PLAN_LIMIT_REACHED');
+      if (maxBookmarks !== -1 && countUserBookmarks(user) >= maxBookmarks) {
+        throw new AppError(
+          403,
+          `Plan limit reached: maximum ${maxBookmarks} saved items`,
+          'PLAN_LIMIT_REACHED',
+        );
       }
 
-      // Check if already saved
-      if (user.savedProducts.some(p => p.productId.toString() === input.productId)) {
-        res.json(successResponse({ bookmarks: user.savedProducts }, 'Product already saved', 200));
+      if (input.productId) {
+        if (user.savedProducts.some((p) => p.productId.toString() === input.productId)) {
+          const bookmarks = await formatUserBookmarks(
+            user,
+            req.models?.Creative,
+            req.models?.Product,
+          );
+          res.json(successResponse({ bookmarks }, 'Product already saved', 200));
+          return;
+        }
+
+        user.savedProducts.push({
+          productId: input.productId as never,
+          savedAt: new Date(),
+          notes: input.notes,
+          tags: input.tags,
+        });
+        await user.save();
+        const bookmarks = await formatUserBookmarks(
+          user,
+          req.models?.Creative,
+          req.models?.Product,
+        );
+        res.json(successResponse({ bookmarks }, 'Product saved successfully', 201));
         return;
       }
 
-      user.savedProducts.push({
-        productId: input.productId as any,
+      const creativeId = input.creativeId!;
+      if (user.savedCreatives?.some((c) => c.creativeId.toString() === creativeId)) {
+        const bookmarks = await formatUserBookmarks(
+          user,
+          req.models?.Creative,
+          req.models?.Product,
+        );
+        res.json(successResponse({ bookmarks }, 'Creative already saved', 200));
+        return;
+      }
+
+      if (!user.savedCreatives) user.savedCreatives = [];
+      user.savedCreatives.push({
+        creativeId: creativeId as never,
         savedAt: new Date(),
         notes: input.notes,
         tags: input.tags,
       });
-
       await user.save();
-      res.json(successResponse({ bookmarks: user.savedProducts }, 'Product saved successfully', 201));
+      const bookmarks = await formatUserBookmarks(user, req.models?.Creative, req.models?.Product);
+      res.json(successResponse({ bookmarks }, 'Creative saved successfully', 201));
     } catch (err) {
       next(err);
     }
@@ -101,19 +145,28 @@ export const ProfileController = {
 
   async removeBookmark(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { productId } = req.params;
+      const { id } = req.params;
+      const { kind } = req.query as unknown as RemoveBookmarkQuery;
       const user = req.user!;
 
-      const index = user.savedProducts.findIndex(p => p.productId.toString() === productId);
-      if (index > -1) {
-        user.savedProducts.splice(index, 1);
-        await user.save();
+      if (kind === 'creative') {
+        const index = (user.savedCreatives ?? []).findIndex((c) => c.creativeId.toString() === id);
+        if (index > -1) {
+          user.savedCreatives.splice(index, 1);
+          await user.save();
+        }
+      } else {
+        const index = user.savedProducts.findIndex((p) => p.productId.toString() === id);
+        if (index > -1) {
+          user.savedProducts.splice(index, 1);
+          await user.save();
+        }
       }
 
-      res.json(successResponse({ bookmarks: user.savedProducts }, 'Product removed from bookmarks', 200));
+      const bookmarks = await formatUserBookmarks(user, req.models?.Creative, req.models?.Product);
+      res.json(successResponse({ bookmarks }, 'Bookmark removed', 200));
     } catch (err) {
       next(err);
     }
   },
 };
-

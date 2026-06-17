@@ -1,4 +1,6 @@
 import mongoose, { Document, Model } from 'mongoose';
+import type { CreativeFeedItem } from './creative.types';
+import type { ProductFeedItem } from './product.types';
 
 export type AuthProvider = 'google' | 'local' | 'tiktok';
 export type UserPlan = 'free' | 'explorer' | 'pro' | 'premium';
@@ -67,6 +69,13 @@ export interface ISavedProduct {
   tags?: string[];
 }
 
+export interface ISavedCreative {
+  creativeId: mongoose.Types.ObjectId;
+  savedAt: Date;
+  notes?: string;
+  tags?: string[];
+}
+
 export interface ISearchHistoryEntry {
   query: string;
   filters?: Record<string, unknown>;
@@ -107,6 +116,7 @@ export interface IUser {
   stripePriceId?: string;
   usage: IUsageStats;
   savedProducts: ISavedProduct[];
+  savedCreatives: ISavedCreative[];
   searchHistory: ISearchHistoryEntry[];
   shopifyImportHistory: IShopifyImportHistoryEntry[];
   notifications: INotificationPrefs;
@@ -137,3 +147,21 @@ export interface IUserModel extends Model<IUserDocument> {
   findByTikTokOpenId(openId: string): Promise<IUserDocument | null>;
   findActiveById(id: string): Promise<IUserDocument | null>;
 }
+
+/** Saved product bookmark — feed card fields plus metadata at the top level. */
+export type ProductBookmarkItem = ProductFeedItem & {
+  kind: 'product';
+  savedAt: Date | string;
+  notes?: string;
+  tags?: string[];
+};
+
+/** Saved creative bookmark — creative feed card fields plus metadata at the top level. */
+export type CreativeBookmarkItem = CreativeFeedItem & {
+  kind: 'creative';
+  savedAt: Date | string;
+  notes?: string;
+  tags?: string[];
+};
+
+export type BookmarkItem = ProductBookmarkItem | CreativeBookmarkItem;

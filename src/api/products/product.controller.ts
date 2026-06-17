@@ -31,12 +31,15 @@ import type {
   ITrend,
   ProductAiInsightResponse,
   ProductApiResponse,
-  ProductFeedItem,
 } from '../../types/product.types';
 import {
   enrichProductsWithCreatorAvatars,
   normalizePrimaryCreatorOnProduct,
 } from '../../utils/product-response.util';
+import {
+  deriveAverageRatingFromSources,
+  formatProductFeedItem,
+} from '../../utils/product-feed-format.util';
 import {
   normalizeMarketingAngleVideoUrls,
   stripAllAngleVideos,
@@ -44,14 +47,13 @@ import {
 } from '../../utils/marketing-angles.util';
 import { resolveEngagementTrend } from '../../utils/product-trend.util';
 import { resolveBuyingSentimentLabel, type SentimentLabel } from '../../utils/sentiment.util';
-import { postRecencyFlags } from '../../utils/product-recency.util';
 import { buildProductItemFreshness } from '../../utils/product-freshness.util';
 import {
   formatCreativeFeedItem,
-  imageAssetKey,
   shouldExposeCreativeInFeed,
 } from '../../utils/creative-response.util';
 import { enrichCreativesWithResolvedVideoS3Keys } from '../../services/meta-video-s3-resolve.service';
+import { formatUserBookmarks } from '../../services/bookmark.service';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: IAIIntelligence;
@@ -121,144 +123,6 @@ async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, 
 }
 
 // Removed buildCreatorsVideos as 'topVideos' is deleted. It is now handled via the /creatives endpoint.
-// Removed getProfileCountryCode — market is now determined by attachMarketModels middleware
-// which reads req.user.contentRegion and resolves req.models to the correct per-market collection.
-
-const NON_PRODUCT_IMAGE_RE =
-  /biz_tag=tt_video|sc=feed_cover|\/avt-|feed_cover|\/(?:logo|icon|badge|avatar|placeholder)/i;
-
-function isDisplayableProductImage(url: string): boolean {
-  const u = url.trim();
-  if (!u.startsWith('https://') || NON_PRODUCT_IMAGE_RE.test(u)) return false;
-  const dim = u.match(/(?:jpeg|webp|heic|png):(\d+):(\d+)/i);
-  if (dim) {
-    const w = Number(dim[1]);
-    const h = Number(dim[2]);
-    if (Math.max(w, h) < 280) return false;
-  }
-  return true;
-}
-
-function collectProductImageUrls(product: Record<string, unknown>): string[] {
-  const primary = typeof product.primaryImageUrl === 'string' ? product.primaryImageUrl.trim() : '';
-  const fromArray = Array.isArray(product.imageUrls)
-    ? product.imageUrls
-        .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
-        .map((u) => u.trim())
-    : [];
-  const seen = new Set<string>();
-  const urls: string[] = [];
-  for (const url of [primary, ...fromArray]) {
-    if (!url || !isDisplayableProductImage(url)) continue;
-    const key = imageAssetKey(url);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    urls.push(url);
-  }
-  return urls.slice(0, 12);
-}
-
-function maxCompetitorScore(suppliers: unknown): number | null {
-  if (!Array.isArray(suppliers)) return null;
-  let max: number | null = null;
-  for (const row of suppliers) {
-    const score = Number((row as { competitorScore?: number })?.competitorScore);
-    if (Number.isFinite(score) && (max === null || score > max)) max = score;
-  }
-  return max;
-}
-
-/** Lean payload for discovery product cards (`GET /products`). */
-function resolveOriginalPrice(product: Record<string, unknown>): number | null {
-  const sale = product.price;
-  const raw = product.originalPrice;
-  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return null;
-  if (typeof sale === 'number' && sale > 0 && raw <= sale) return null;
-  return raw;
-}
-
-function formatProductFeedItem(input: ProductLike): ProductFeedItem {
-  const product = toProductPlain(input);
-  const engagement = resolveEngagementTrend(product);
-  const ratingSources = Array.isArray(product.ratingSources) ? product.ratingSources : [];
-  const derivedRating = deriveAverageRatingFromSources(ratingSources);
-  const finalRating =
-    typeof product.rating === 'number' && product.rating > 0 ? product.rating : derivedRating;
-  const discoverySections = Array.isArray(product.discoverySections)
-    ? (product.discoverySections as string[])
-    : [];
-  const imageUrls = collectProductImageUrls(product);
-  const postDate = product.publishedAt ?? product.postCreatedAt;
-  const { isNew3d, isNew7d } = postRecencyFlags(postDate);
-  const ai = (input.aiIntelligence ?? product.aiIntelligence) as IAIIntelligence | undefined;
-
-  const resolvedShopUrl = resolveShopStoreUrl(
-    product.shopUrl as string | undefined,
-    product.shopName as string | undefined,
-  );
-  const officialWebsiteUrl =
-    typeof product.officialWebsiteUrl === 'string' &&
-    product.officialWebsiteUrl.trim().startsWith('https://')
-      ? product.officialWebsiteUrl.trim()
-      : undefined;
-
-  const item: ProductFeedItem = {
-    id: String(product._id ?? product.id),
-    title: String(product.title ?? ''),
-    primaryImageUrl: imageUrls[0] ?? (product.primaryImageUrl as string | undefined),
-    imageUrls,
-    price: product.price as number | undefined,
-    originalPrice: resolveOriginalPrice(product),
-    currency: product.currency as string | undefined,
-    categoryL1: String(product.categoryL1 ?? ''),
-    categoryPath: product.categoryPath as string | undefined,
-    rating: finalRating,
-    ratings: finalRating,
-    totalSales: product.totalSales as number | undefined,
-    totalGmv: product.totalGmv as number | undefined,
-    salesTrend: (product.salesTrend as ProductFeedItem['salesTrend']) ?? null,
-    priceTrend: (product.priceTrend as ProductFeedItem['priceTrend']) ?? null,
-    shopName: product.shopName as string | undefined,
-    shopUrl: resolvedShopUrl,
-    shopAvatarUrl: (product.shopAvatarUrl as string | null | undefined) ?? null,
-    officialWebsiteUrl: officialWebsiteUrl ?? null,
-    storeLinks: buildStoreLinks({
-      shopUrl: resolvedShopUrl,
-      productUrl: product.productUrl as string | undefined,
-      shopName: product.shopName as string | undefined,
-      officialWebsiteUrl,
-    }),
-    shopAvatarProxyUrl:
-      typeof (product as { shopAvatarProxyUrl?: unknown }).shopAvatarProxyUrl === 'string'
-        ? ((product as { shopAvatarProxyUrl?: string }).shopAvatarProxyUrl as string)
-        : undefined,
-    lastIngestedAt: product.lastIngestedAt as string | Date,
-    freshness: buildProductItemFreshness(product),
-    publishedAt: postDate as string | Date | null | undefined,
-    isNew3d,
-    isNew7d,
-    isTopAd: discoverySections.includes('top-ads'),
-    competitionScore: maxCompetitorScore(product.suppliers),
-    aiInsight: {
-      confidence: { score: ai?.confidence },
-      reviewSummary: ai?.reviewSummary ?? null,
-    },
-    trend: {
-      score: engagement.score,
-      direction: engagement.direction,
-      isTrending: engagement.isTrending,
-    },
-  };
-
-  if (product.primaryCreator) {
-    item.primaryCreator = {
-      ...(product.primaryCreator as object),
-    } as ProductFeedItem['primaryCreator'];
-    normalizePrimaryCreatorOnProduct(item as unknown as Record<string, unknown>);
-  }
-
-  return item;
-}
 
 function formatProductResponse(input: ProductLike): ProductApiResponse {
   const product = toProductPlain(input);
@@ -314,22 +178,6 @@ function formatProductResponse(input: ProductLike): ProductApiResponse {
   normalizePrimaryCreatorOnProduct(response);
 
   return response as ProductApiResponse;
-}
-
-function deriveAverageRatingFromSources(sources: any[]): number | undefined {
-  if (!Array.isArray(sources) || sources.length === 0) return undefined;
-  let weighted = 0;
-  let reviews = 0;
-  for (const source of sources) {
-    const rating = Number(source?.rating);
-    const reviewCount = Number(source?.reviewCount);
-    if (Number.isFinite(rating) && Number.isFinite(reviewCount) && rating > 0 && reviewCount > 0) {
-      weighted += rating * reviewCount;
-      reviews += reviewCount;
-    }
-  }
-  if (reviews <= 0) return undefined;
-  return Math.round((weighted / reviews) * 10) / 10;
 }
 
 /**
@@ -693,7 +541,7 @@ export const ProductController = {
       if (!req.user) {
         res.json(
           successResponse(
-            { products: [], pagination: { total: 0, pages: 0, page: 1, limit: 20 } },
+            { bookmarks: [], pagination: { total: 0, pages: 0, page: 1, limit: 20 } },
             ResponseMessage.PRODUCTS_RETRIEVED,
             200,
           ),
@@ -701,22 +549,22 @@ export const ProductController = {
         return;
       }
 
-      // Populate savedProducts to get full product data
-      const user = await req.user.populate('savedProducts.productId');
-      const savedDocs = user.savedProducts
-        .filter((p) => p.productId)
-        .map((p) => p.productId as unknown as ProductLike);
-      const savedPlains = await enrichProductsWithCreatorAvatars(
-        await toPlainWithImages(savedDocs),
+      const bookmarks = await formatUserBookmarks(
+        req.user,
         req.models?.Creative,
+        req.models?.Product,
       );
-      const products = savedPlains.map(formatProductResponse);
 
       res.json(
         successResponse(
           {
-            products,
-            pagination: { total: products.length, pages: 1, page: 1, limit: products.length || 20 },
+            bookmarks,
+            pagination: {
+              total: bookmarks.length,
+              pages: 1,
+              page: 1,
+              limit: bookmarks.length || 20,
+            },
           },
           ResponseMessage.PRODUCTS_RETRIEVED,
           200,

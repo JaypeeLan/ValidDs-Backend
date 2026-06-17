@@ -2,7 +2,10 @@ collection:
   get:
     tags: [Profile]
     summary: Fetch user bookmarks
-    description: Retrieves a list of saved products (bookmarks) for the current user.
+    description: |
+      Retrieves saved **products** and **creatives** for the current user. Each bookmark
+      returns the full feed-card shape at the top level plus `kind`, `savedAt`, and
+      optional `notes` / `tags`. Sorted by `savedAt` (newest first).
     security: [{ BearerAuth: [] }]
     responses:
       '200':
@@ -20,20 +23,47 @@ collection:
                         bookmarks:
                           type: array
                           items:
-                            type: object
-                            properties:
-                              productId: { $ref: '../components/schemas/Product.yaml' }
-                              savedAt: { type: string, format: date-time }
-                              notes: { type: string }
-                              tags: 
-                                type: array
-                                items: { type: string }
+                            oneOf:
+                              - allOf:
+                                  - $ref: '../components/schemas/ProductFeedItem.yaml'
+                                  - type: object
+                                    required: [kind, savedAt]
+                                    properties:
+                                      kind:
+                                        type: string
+                                        enum: [product]
+                                      savedAt:
+                                        type: string
+                                        format: date-time
+                                      notes:
+                                        type: string
+                                      tags:
+                                        type: array
+                                        items:
+                                          type: string
+                              - allOf:
+                                  - $ref: '../components/schemas/Creative.yaml'
+                                  - type: object
+                                    required: [kind, savedAt]
+                                    properties:
+                                      kind:
+                                        type: string
+                                        enum: [creative]
+                                      savedAt:
+                                        type: string
+                                        format: date-time
+                                      notes:
+                                        type: string
+                                      tags:
+                                        type: array
+                                        items:
+                                          type: string
       '401':
         $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
 
   post:
     tags: [Profile]
-    summary: Save a product to bookmarks
+    summary: Save a product or creative to bookmarks
     security: [{ BearerAuth: [] }]
     requestBody:
       required: true
@@ -41,13 +71,22 @@ collection:
         application/json:
           schema:
             type: object
-            required: [productId]
+            description: Provide exactly one of `productId` or `creativeId`.
             properties:
-              productId: { type: string, description: "24-character hex ID" }
-              notes: { type: string, maxLength: 500 }
-              tags: 
+              productId:
+                type: string
+                description: 24-character hex product ID
+              creativeId:
+                type: string
+                description: 24-character hex creative ID
+              notes:
+                type: string
+                maxLength: 500
+              tags:
                 type: array
-                items: { type: string, maxLength: 50 }
+                items:
+                  type: string
+                  maxLength: 50
                 maxItems: 10
     responses:
       '200':
@@ -64,15 +103,23 @@ collection:
 resource:
   delete:
     tags: [Profile]
-    summary: Remove a product from bookmarks
+    summary: Remove a bookmark
     security: [{ BearerAuth: [] }]
     parameters:
       - in: path
-        name: productId
+        name: id
         required: true
         schema:
           type: string
-        description: The ID of the product to remove
+        description: Product or creative MongoDB ObjectId
+      - in: query
+        name: kind
+        required: false
+        schema:
+          type: string
+          enum: [product, creative]
+          default: product
+        description: Bookmark type (`product` default; use `creative` for saved creatives)
     responses:
       '200':
         $ref: '../components/responses/Standard.yaml#/OkResponse'

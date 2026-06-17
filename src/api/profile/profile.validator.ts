@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { ALLOWED_CONTENT_REGIONS } from '../../models/user.model';
 
+const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ID format');
+
 export const UpdateProfileSchema = z.object({
   name: z.string().min(2).max(100).trim().optional(),
   firstName: z.string().min(1).max(50).trim().optional(),
@@ -26,11 +28,33 @@ export const ContentRegionSchema = z.object({
 
 export type ContentRegionInput = z.infer<typeof ContentRegionSchema>;
 
-export const AddBookmarkSchema = z.object({
-  productId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid product ID'),
-  notes: z.string().max(500).optional(),
-  tags: z.array(z.string().max(50)).max(10).optional(),
-});
+export const AddBookmarkSchema = z
+  .object({
+    productId: objectIdSchema.optional(),
+    creativeId: objectIdSchema.optional(),
+    notes: z.string().max(500).optional(),
+    tags: z.array(z.string().max(50)).max(10).optional(),
+  })
+  .superRefine((val, ctx) => {
+    const hasProduct = Boolean(val.productId);
+    const hasCreative = Boolean(val.creativeId);
+    if (hasProduct === hasCreative) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide exactly one of productId or creativeId',
+        path: ['productId'],
+      });
+    }
+  });
 
 export type AddBookmarkInput = z.infer<typeof AddBookmarkSchema>;
 
+export const RemoveBookmarkParamsSchema = z.object({
+  id: objectIdSchema,
+});
+
+export const RemoveBookmarkQuerySchema = z.object({
+  kind: z.enum(['product', 'creative']).default('product'),
+});
+
+export type RemoveBookmarkQuery = z.infer<typeof RemoveBookmarkQuerySchema>;

@@ -1,21 +1,45 @@
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.middleware';
+import { attachMarketModels } from '../../middleware/market.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { ProfileController } from './profile.controller';
-import { UpdateProfileSchema, AddBookmarkSchema, ContentRegionSchema } from './profile.validator';
+import {
+  UpdateProfileSchema,
+  AddBookmarkSchema,
+  ContentRegionSchema,
+  RemoveBookmarkParamsSchema,
+  RemoveBookmarkQuerySchema,
+} from './profile.validator';
 
 const router = Router();
 
 router.get('/content-region', requireAuth, ProfileController.getContentRegion);
-router.patch('/content-region', requireAuth, validate(ContentRegionSchema, 'body'), ProfileController.updateContentRegion);
+router.patch(
+  '/content-region',
+  requireAuth,
+  validate(ContentRegionSchema, 'body'),
+  ProfileController.updateContentRegion,
+);
 
 router.get('/', requireAuth, ProfileController.me);
 router.patch('/', requireAuth, validate(UpdateProfileSchema, 'body'), ProfileController.update);
 
-// Bookmarks (Saved Products)
-router.get('/bookmarks', requireAuth, ProfileController.getBookmarks);
-router.post('/bookmarks', requireAuth, validate(AddBookmarkSchema, 'body'), ProfileController.addBookmark);
-router.delete('/bookmarks/:productId', requireAuth, ProfileController.removeBookmark);
+// Bookmarks (saved products + creatives)
+router.get('/bookmarks', requireAuth, attachMarketModels, ProfileController.getBookmarks);
+router.post(
+  '/bookmarks',
+  requireAuth,
+  attachMarketModels,
+  validate(AddBookmarkSchema, 'body'),
+  ProfileController.addBookmark,
+);
+router.delete(
+  '/bookmarks/:id',
+  requireAuth,
+  attachMarketModels,
+  validate(RemoveBookmarkParamsSchema, 'params'),
+  validate(RemoveBookmarkQuerySchema, 'query'),
+  ProfileController.removeBookmark,
+);
 
 export default router;
-

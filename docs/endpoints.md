@@ -190,19 +190,35 @@ Updates content region only.
 
 ### `GET /profile/bookmarks`
 
-Gets all products saved by the user.
+Gets all saved products and creatives for the user.
 **Authentication:** Required.
+
+**Response `data`:** `{ bookmarks }` — sorted by `savedAt` (newest first). Each item includes `kind` (`product` | `creative`) and the full feed card at the top level:
+
+- **Product** (`kind: "product"`): `id`, `title`, `price`, `originalPrice`, `storeLinks`, `aiInsight`, `trend`, …
+- **Creative** (`kind: "creative"`): `id`, `tiktokUrl`, `creator`, `metrics`, `productName`, `videoProxyUrl`, …
+
+Plus bookmark fields: `savedAt`, optional `notes`, optional `tags`.
 
 ### `POST /profile/bookmarks`
 
-Adds a product to the user's saved list.
+Saves a product or creative.
 **Authentication:** Required.
-**Body:** `{ "productId": "..." }`
+**Body:** exactly one of:
 
-### `DELETE /profile/bookmarks/:productId`
+- `{ "productId": "...", "notes"?: "...", "tags"?: ["..."] }`
+- `{ "creativeId": "...", "notes"?: "...", "tags"?: ["..."] }`
 
-Removes a product from the user's saved list.
+**Response `data`:** `{ bookmarks }` — same shape as `GET /profile/bookmarks`.
+
+### `DELETE /profile/bookmarks/:id`
+
+Removes a bookmark.
 **Authentication:** Required.
+
+- `kind` _(query, optional)_: `product` (default) or `creative`
+
+**Response `data`:** `{ bookmarks }` — updated list with full feed cards.
 
 ---
 

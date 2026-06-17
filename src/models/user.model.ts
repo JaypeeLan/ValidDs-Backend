@@ -5,6 +5,7 @@ import type {
   ILocalAuth,
   INotificationPrefs,
   ISavedProduct,
+  ISavedCreative,
   ISearchHistoryEntry,
   IShopifyImportHistoryEntry,
   IShopifyConnection,
@@ -41,6 +42,7 @@ export type {
   ILocalAuth,
   INotificationPrefs,
   ISavedProduct,
+  ISavedCreative,
   ISearchHistoryEntry,
   IShopifyImportHistoryEntry,
   IShopifyConnection,
@@ -171,6 +173,16 @@ const SavedProductSchema = new Schema<ISavedProduct>(
   { _id: true },
 );
 
+const SavedCreativeSchema = new Schema<ISavedCreative>(
+  {
+    creativeId: { type: Schema.Types.ObjectId, ref: 'Creative', required: true },
+    savedAt: { type: Date, default: Date.now },
+    notes: { type: String, maxlength: 500 },
+    tags: [{ type: String, maxlength: 50 }],
+  },
+  { _id: true },
+);
+
 const SearchHistorySchema = new Schema<ISearchHistoryEntry>(
   {
     query: { type: String, required: true, maxlength: 200 },
@@ -251,13 +263,10 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     savedProducts: {
       type: [SavedProductSchema],
       default: [],
-      validate: {
-        validator(val: ISavedProduct[]) {
-          // Enforce saved product limit based on plan — checked at service layer too
-          return val.length <= 500;
-        },
-        message: 'Saved products limit exceeded',
-      },
+    },
+    savedCreatives: {
+      type: [SavedCreativeSchema],
+      default: [],
     },
     searchHistory: {
       type: [SearchHistorySchema],

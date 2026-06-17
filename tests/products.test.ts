@@ -193,7 +193,7 @@ describe('Products Endpoints', () => {
         primaryImageUrl: 'https://example.com/image.jpg',
         imageUrls: ['https://example.com/image.jpg'],
         price: 24.99,
-        viewCount: 120000,
+        originalPrice: 34.99,
         likeCount: 12000,
         commentCount: 900,
         shareCount: 600,
@@ -265,6 +265,7 @@ describe('Products Endpoints', () => {
 
     // Assert fields are returned cleanly
     expect(firstProduct.title).toBe('Clip Hair Curler');
+    expect(firstProduct.originalPrice).toBe(34.99);
     expect(firstProduct.categoryPath).toBe(
       'Beauty & Personal Care / Hair Care / Hair Styling Tools',
     );
@@ -469,6 +470,87 @@ describe('Products Endpoints', () => {
     expect(titles).not.toContain(`${prefix} Wrong L2 Shampoo`);
     expect(titles).not.toContain(`${prefix} Anchor Lipstick Duplicate`);
     expect(titles).not.toContain(`${prefix} Invalid Status`);
+  });
+
+  it('GET /api/v1/products/compare should return basic info and AI comparison', async () => {
+    const { Product } = await getSeededTestMarketModels();
+    const [productA, productB, productInvalid] = await Product.create([
+      minimalTestProduct({
+        externalId: 'compare_a',
+        source: 'tiktok',
+        status: 'active',
+        title: 'Compare Product A',
+        normalizedTitle: 'compare product a',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup',
+        price: 19.99,
+        totalGmv: 12_000,
+        totalSales: 600,
+      }),
+      minimalTestProduct({
+        externalId: 'compare_b',
+        source: 'tiktok',
+        status: 'active',
+        title: 'Compare Product B',
+        normalizedTitle: 'compare product b',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup',
+        price: 29.99,
+        totalGmv: 8_000,
+        totalSales: 400,
+      }),
+      minimalTestProduct({
+        externalId: 'compare_invalid',
+        source: 'tiktok',
+        status: 'invalid',
+        title: 'Compare Invalid Product',
+        normalizedTitle: 'compare invalid product',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup',
+      }),
+    ]);
+    await attachPlayableCreatives([productA, productB, productInvalid]);
+
+    const idA = String(productA._id);
+    const idB = String(productB._id);
+    const idInvalid = String(productInvalid._id);
+    const missingId = '507f1f77bcf86cd799439099';
+
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: `/api/v1/products/compare?ids=${idA},${idB},${idInvalid},${missingId}`,
+      token: testToken,
+    });
+
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    const titles = (body.data.products as { title: string }[]).map((p) => p.title);
+    expect(titles).toEqual(['Compare Product A', 'Compare Product B']);
+    expect(body.data.notFound).toEqual(expect.arrayContaining([idInvalid, missingId]));
+    expect(body.data.products[0]).toMatchObject({
+      id: idA,
+      title: 'Compare Product A',
+      price: 19.99,
+      totalGmv: 12_000,
+      categoryL1: 'Beauty & Personal Care',
+      categoryL2: 'Makeup',
+    });
+    expect(body.data.products[0].imageUrls).toBeUndefined();
+    expect(body.data.analysis).toBeDefined();
+    expect(body.data.analysis.summary).toEqual(expect.any(String));
+    expect(body.data.analysis.products.length).toBeGreaterThanOrEqual(2);
+    expect(body.data.analysis.dimensions.length).toBeGreaterThan(0);
+  });
+
+  it('GET /api/v1/products/compare should validate ID count', async () => {
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: '/api/v1/products/compare?ids=507f1f77bcf86cd799439011',
+      token: testToken,
+    });
+    expect(res.status).toBe(400);
   });
 
   it('GET /api/v1/products/:id should handle ID properly', async () => {

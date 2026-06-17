@@ -116,6 +116,9 @@ function creatorSortSpec(sortBy: string): Record<string, 1 | -1> {
     case 'likes':
       return { maxTotalLikes: -1, creatorGmv: -1 };
     case 'recent':
+    case 'last_ingested':
+    case 'last-ingested':
+    case 'ingested_desc':
       return { latestActivity: -1, creatorGmv: -1 };
     case 'engagement':
       return { maxEngagementRate: -1, creatorGmv: -1 };

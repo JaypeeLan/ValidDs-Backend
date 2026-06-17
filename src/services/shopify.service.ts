@@ -4,6 +4,7 @@ import { logger } from '../logger';
 import { AppError } from '../middleware/error.middleware';
 import { encrypt, decrypt } from '../security/encryption';
 import { signJWT, verifyJWT } from '../security/jwt';
+import { recordShopifyImport } from './user-activity.service';
 import { IShopifyConnection, IUserDocument, User } from '../models/user.model';
 import { ShopifyPendingConnection } from '../models/shopify-pending-connection.model';
 import { IProductDocument } from '../models/product.model';
@@ -863,6 +864,11 @@ export const ShopifyService = {
       { _id: user._id },
       { $set: { 'shopifyConnection.lastSyncedAt': new Date() } },
     );
+
+    recordShopifyImport(String(user._id), String(product._id), {
+      shopifyProductId: created.id,
+      shop,
+    });
 
     log.info('Created Shopify product', {
       userId: String(user._id),

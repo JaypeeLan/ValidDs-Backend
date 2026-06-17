@@ -33,6 +33,9 @@ export const CacheKeys = {
   productRelated: (market: MarketCode, id: string) =>
     `product:related:${PRODUCT_RELATED_CACHE_REVISION}:${market}:${id}`,
 
+  // AI comparison for a set of product ids (sorted in caller)
+  productCompare: (market: MarketCode, idsKey: string) => `product:compare:${market}:${idsKey}`,
+
   // Product categories (distinct values with ≥1 listable product in market)
   productCategories: (market: MarketCode) => `product:categories:${market}`,
   productSubcategories: (market: MarketCode, category?: string) =>
@@ -77,6 +80,7 @@ export const CACHE_TTL = {
   PRODUCT_FEED: 60, // 1 minute
   PRODUCT_DETAIL: 60, // 1 minute
   PRODUCT_RELATED: 60, // 1 minute
+  PRODUCT_COMPARE: 900, // 15 minutes — AI comparison is expensive
   PRODUCT_TREND: 180, // 3 minutes — trend data changes quickly
   CATEGORIES: 3600, // 1 hour — DB scans for distinct take time
   VIDEO_FEED: 300, // 5 minutes

@@ -1,0 +1,28 @@
+type: object
+required: [summary, recommendation, products, dimensions]
+properties:
+  summary: { type: string }
+  recommendation: { type: string }
+  products:
+    type: array
+    items:
+      type: object
+      required: [productId, pros, cons, bestFor]
+      properties:
+        productId: { type: string }
+        pros:
+          type: array
+          items: { type: string }
+        cons:
+          type: array
+          items: { type: string }
+        bestFor: { type: string }
+  dimensions:
+    type: array
+    items:
+      type: object
+      required: [label, leaderId, note]
+      properties:
+        label: { type: string }
+        leaderId: { type: string, nullable: true }
+        note: { type: string }

@@ -5,6 +5,11 @@ import {
   contentMetricFilterZodFields,
   validateContentMetricRanges,
 } from '../../utils/content-feed-filters.util';
+import {
+  CREATIVE_SORT_OPTIONS,
+  normalizeCreativeSortBy,
+  type CreativeSortBy,
+} from './creative-feed-filters.util';
 
 const CreativeListQueryBaseSchema = z.object({
   page: z.coerce.number().min(1).default(1),
@@ -26,7 +31,7 @@ const CreativeListQueryBaseSchema = z.object({
     .optional(),
   minViews: z.coerce.number().min(0).optional(),
   hashtags: z.union([z.string(), z.array(z.string())]).optional(),
-  sortBy: z.enum(['views', 'likes', 'recent', 'engagement']).default('views'),
+  sortBy: z.string().max(40).optional(),
   groupBy: z.enum(['creator']).optional(),
   categoryL1: z.union([z.string(), z.array(z.string())]).optional(),
   categoryL2: z.union([z.string(), z.array(z.string())]).optional(),
@@ -34,9 +39,12 @@ const CreativeListQueryBaseSchema = z.object({
   ...contentMetricFilterZodFields,
 });
 
-function normalizeCreativeListQuery(val: z.infer<typeof CreativeListQueryBaseSchema>) {
+function normalizeCreativeListQuery(
+  val: z.infer<typeof CreativeListQueryBaseSchema> & { sortBy?: CreativeSortBy },
+) {
   return {
     ...val,
+    sortBy: val.sortBy ?? 'views',
     _metricFilters: buildContentMetricFilters(val),
     hashtags: flattenMultiStringParam(val.hashtags),
     categoryL1: flattenMultiStringParam(val.categoryL1),
@@ -45,9 +53,29 @@ function normalizeCreativeListQuery(val: z.infer<typeof CreativeListQueryBaseSch
   };
 }
 
-export const CreativeListQuerySchema = CreativeListQueryBaseSchema.superRefine((val, ctx) => {
+function validateCreativeListQuery(
+  val: z.infer<typeof CreativeListQueryBaseSchema>,
+  ctx: z.RefinementCtx,
+) {
   validateContentMetricRanges(val, ctx);
-}).transform(normalizeCreativeListQuery);
+  const sortBy = normalizeCreativeSortBy(val.sortBy);
+  if (val.sortBy && !sortBy) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['sortBy'],
+      message: `Invalid sortBy. Use: ${CREATIVE_SORT_OPTIONS.join(', ')}`,
+    });
+  }
+}
+
+export const CreativeListQuerySchema = CreativeListQueryBaseSchema.superRefine(
+  validateCreativeListQuery,
+).transform((val) =>
+  normalizeCreativeListQuery({
+    ...val,
+    sortBy: normalizeCreativeSortBy(val.sortBy) ?? 'views',
+  }),
+);
 
 export const CreativeIdParamSchema = z.object({
   id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid creative ID format'),
@@ -66,10 +94,13 @@ export type CreativeListQuery = ReturnType<typeof normalizeCreativeListQuery>;
 
 /** Same filters as list creatives, without legacy `section` (top ads are defined by `creator.isIndependentCreator`). */
 export const CreativeTopAdsListQuerySchema = CreativeListQueryBaseSchema.omit({ section: true })
-  .superRefine((val, ctx) => {
-    validateContentMetricRanges(val, ctx);
-  })
-  .transform(normalizeCreativeListQuery);
+  .superRefine(validateCreativeListQuery)
+  .transform((val) =>
+    normalizeCreativeListQuery({
+      ...val,
+      sortBy: normalizeCreativeSortBy(val.sortBy) ?? 'views',
+    }),
+  );
 export type CreativeTopAdsListQuery = CreativeListQuery;
 
 export const CreativeIngestBodySchema = z.object({

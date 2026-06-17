@@ -31,6 +31,11 @@ const SORT_ALIASES: Record<string, ProductFeedFilters['sortBy']> = {
   trendScore: 'trendScore',
   views: 'views',
   recent: 'recent',
+  last_ingested: 'recent',
+  'last-ingested': 'recent',
+  lastIngested: 'recent',
+  ingested_desc: 'recent',
+  'ingested-desc': 'recent',
   engagement: 'engagement',
 };
 
@@ -214,13 +219,14 @@ export function defaultSortOptionsForFeed(feed?: 'discover' | 'top-opportunities
     return ['recent', 'views', 'engagement', 'trendScore'];
   }
   if (feed === 'top-opportunities') {
-    return ['gmv_desc', 'gmv_asc', 'units_sold_desc', 'units_sold_asc'];
+    return ['gmv_desc', 'gmv_asc', 'units_sold_desc', 'units_sold_asc', 'last_ingested'];
   }
   return [
     'gmv_desc',
     'gmv_asc',
     'units_sold_desc',
     'units_sold_asc',
+    'last_ingested',
     'recent',
     'views',
     'engagement',

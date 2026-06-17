@@ -46,6 +46,7 @@ export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
   primaryImageUrl: 1,
   imageUrls: 1,
   price: 1,
+  originalPrice: 1,
   currency: 1,
   categoryL1: 1,
   categoryPath: 1,
@@ -55,6 +56,7 @@ export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
   salesTrend: 1,
   shopName: 1,
   shopUrl: 1,
+  officialWebsiteUrl: 1,
   shopAvatarUrl: 1,
   lastIngestedAt: 1,
   publishedAt: 1,
@@ -73,6 +75,25 @@ export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
   relatedVideosCount: 1,
   'suppliers.competitorScore': 1,
   primaryCreator: 1,
+};
+
+/** Fields needed for AI product comparison. */
+export const PRODUCT_COMPARE_FIELD_PROJECTION: Record<string, 1> = {
+  ...PRODUCT_LISTING_FIELD_PROJECTION,
+  categoryL2: 1,
+  reviewCount: 1,
+  'aiIntelligence.confidence': 1,
+  'aiIntelligence.confidenceReason': 1,
+  'aiIntelligence.reviewSummary': 1,
+  'aiIntelligence.pageSummary': 1,
+  'aiIntelligence.problemStatement': 1,
+  'aiIntelligence.valueStatement': 1,
+  'aiIntelligence.productType': 1,
+  'aiIntelligence.priceBand': 1,
+  'aiIntelligence.buyingSentimentScore': 1,
+  'aiIntelligence.buyingSentimentLabel': 1,
+  'aiIntelligence.marketingAnalysis.sentimentLabel': 1,
+  'aiIntelligence.marketingAnalysis.marketingInsight': 1,
 };
 
 // ── Generic title filtering ───────────────────────────────────────────────────
@@ -862,6 +883,53 @@ export const ProductRepository = {
   },
 
   /**
+   * Fetch multiple products by MongoDB ID for comparison views.
+   * Returns rows in the same order as `ids`, omitting missing or non-listable products.
+   */
+  async findByIds(ids: string[], model: IProductModel = Product): Promise<IProductDocument[]> {
+    const objectIds = ids
+      .filter((id) => mongoose.isValidObjectId(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    if (objectIds.length === 0) return [];
+
+    const rows = (await model
+      .find({
+        _id: { $in: objectIds },
+        ...LISTABLE_PRODUCT_FILTER,
+      })
+      .select(PRODUCT_LISTING_FIELD_PROJECTION)
+      .lean()
+      .maxTimeMS(15_000)
+      .exec()) as IProductDocument[];
+
+    const byId = new Map(rows.map((row) => [String(row._id), row]));
+    return ids.map((id) => byId.get(id)).filter((row): row is IProductDocument => row != null);
+  },
+
+  async findByIdsForCompare(
+    ids: string[],
+    model: IProductModel = Product,
+  ): Promise<IProductDocument[]> {
+    const objectIds = ids
+      .filter((id) => mongoose.isValidObjectId(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    if (objectIds.length === 0) return [];
+
+    const rows = (await model
+      .find({
+        _id: { $in: objectIds },
+        ...LISTABLE_PRODUCT_FILTER,
+      })
+      .select(PRODUCT_COMPARE_FIELD_PROJECTION)
+      .lean()
+      .maxTimeMS(15_000)
+      .exec()) as IProductDocument[];
+
+    const byId = new Map(rows.map((row) => [String(row._id), row]));
+    return ids.map((id) => byId.get(id)).filter((row): row is IProductDocument => row != null);
+  },
+
+  /**
    * Find related products for a given product.
    * Same L2 subcategory only (including alias variants), excluding current product,
    * duplicate titles, and non-listable rows — up to `limit`.
@@ -874,6 +942,7 @@ export const ProductRepository = {
     normalizedTitle: string | undefined,
     limit = 8,
     model: IProductModel = Product,
+    categoryL3?: string,
   ): Promise<IProductDocument[]> {
     if (!mongoose.isValidObjectId(id) || !categoryL2?.trim()) return [];
 
@@ -889,7 +958,7 @@ export const ProductRepository = {
       totalGmv: -1 as const,
     };
 
-    const match: Record<string, unknown> = {
+    const baseMatch: Record<string, unknown> = {
       ...LISTABLE_PRODUCT_FILTER,
       _id: { $ne: objectId },
       categoryL2: l2Values.length === 1 ? l2Values[0]! : { $in: l2Values },
@@ -897,22 +966,31 @@ export const ProductRepository = {
 
     const titleKey = normalizedTitle?.trim().toLowerCase();
     if (titleKey) {
-      match.normalizedTitle = { $ne: titleKey };
+      baseMatch.normalizedTitle = { $ne: titleKey };
     }
 
-    const rows = await model
-      .aggregate([
-        { $match: match },
-        ...playableCreativeStagesForModel(model),
-        { $sort: sort },
-        ...PRODUCT_LISTING_DEDUPE_STAGES,
-        { $sort: sort },
-        { $limit: limit },
-        { $project: PRODUCT_LISTING_FIELD_PROJECTION },
-      ])
-      .option({ maxTimeMS: 15_000 })
-      .exec();
+    const runQuery = async (match: Record<string, unknown>) =>
+      model
+        .aggregate([
+          { $match: match },
+          ...playableCreativeStagesForModel(model),
+          { $sort: sort },
+          ...PRODUCT_LISTING_DEDUPE_STAGES,
+          { $sort: sort },
+          { $limit: limit },
+          { $project: PRODUCT_LISTING_FIELD_PROJECTION },
+        ])
+        .option({ maxTimeMS: 15_000 })
+        .exec() as Promise<unknown[]>;
 
+    // Try L3 first for tighter matching; fall back to L2 if fewer than 3 results.
+    const l3 = categoryL3?.trim();
+    if (l3) {
+      const l3Rows = await runQuery({ ...baseMatch, categoryL3: l3 });
+      if (l3Rows.length >= 3) return l3Rows as unknown as IProductDocument[];
+    }
+
+    const rows = await runQuery(baseMatch);
     return rows as unknown as IProductDocument[];
   },
 

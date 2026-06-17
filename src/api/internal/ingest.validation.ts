@@ -14,6 +14,7 @@ import {
   baselineProductQualityReasons,
   hasTrendCurrentWindow,
   isMetaCreative,
+  isTikTokCcAdCreative,
   MIN_PRODUCT_PRICE,
   marketingAngleFieldReasons,
   marketingAngles,
@@ -77,6 +78,45 @@ export function validateMetaCreativeForIngest(doc: Record<string, unknown>): str
   const videoS3 = doc.videoS3Key;
   if (typeof videoS3 !== 'string' || !videoS3.trim()) {
     reasons.push('videoS3Key required — Meta MP4 must be in S3 before ingest');
+  }
+
+  return reasons;
+}
+
+export function validateTikTokCcAdCreativeForIngest(doc: Record<string, unknown>): string[] {
+  const reasons: string[] = [];
+
+  const ext = String(doc.externalVideoId ?? '');
+  if (!ext.startsWith('ttad:')) {
+    reasons.push('externalVideoId must start with ttad:');
+  }
+  if (!doc.productId) reasons.push('missing productId');
+
+  const rawUrl = String(doc.tiktokCcAdLibraryUrl ?? doc.tiktokPostUrl ?? '');
+  if (!rawUrl.startsWith('https://ads.tiktok.com/')) {
+    reasons.push('tiktok CC ad needs https Creative Center URL');
+  }
+
+  const thumb = String(doc.thumbnailUrl ?? '');
+  if (!thumb.startsWith('https://')) {
+    reasons.push('thumbnailUrl must be https');
+  }
+
+  const creator = (doc.creator ?? {}) as Record<string, unknown>;
+  if (!creator.handle) reasons.push('creator.handle missing');
+  const avatar = creator.avatarUrl;
+  if (typeof avatar !== 'string' || !avatar.startsWith('https://')) {
+    reasons.push('creator.avatarUrl must be https');
+  }
+
+  const rating = asFiniteNumber(doc.productRating);
+  if (rating === null || rating < MIN_PRODUCT_RATING) {
+    reasons.push(`productRating must be >= ${MIN_PRODUCT_RATING}`);
+  }
+
+  const videoS3 = doc.videoS3Key;
+  if (typeof videoS3 !== 'string' || !videoS3.trim()) {
+    reasons.push('videoS3Key required — TikTok CC MP4 must be in S3 before ingest');
   }
 
   return reasons;
@@ -213,6 +253,9 @@ export function validateProductForIngest(
 export function validateCreativeForIngest(doc: Record<string, unknown>): string[] {
   if (isMetaCreative(doc)) {
     return validateMetaCreativeForIngest(doc);
+  }
+  if (isTikTokCcAdCreative(doc)) {
+    return validateTikTokCcAdCreativeForIngest(doc);
   }
 
   const reasons: string[] = [];

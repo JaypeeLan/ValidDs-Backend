@@ -66,10 +66,22 @@ feed:
       - name: sortBy
         in: query
         description: |
-          Sort order. Use snake_case from the UI (`gmv_desc`, `units_sold_desc`, …).
+          Sort order. Use snake_case from the UI (`gmv_desc`, `units_sold_desc`, `last_ingested`, …).
+          `last_ingested` / `recent` sort by `lastIngestedAt` (newest first).
+          On `feed=top-opportunities`, `last_ingested` is also supported.
           Defaults depend on `feed` when omitted.
         schema:
           type: string
+          enum:
+            - gmv_desc
+            - gmv_asc
+            - units_sold_desc
+            - units_sold_asc
+            - last_ingested
+            - recent
+            - views
+            - engagement
+            - trendScore
           example: gmv_desc
       - name: productKind
         in: query
@@ -293,15 +305,123 @@ keywordContext:
                               creatorFollowers: { type: integer }
                               creatorRegion: { type: string }
 
+forYou:
+  get:
+    tags: [Products]
+    summary: Personalized products for you
+    description: |
+      Returns product recommendations for the signed-in user based on **saved products**,
+      **search history**, and **Shopify import history**.
+
+      Cold-start users (no activity) receive a high-GMV fallback feed (`personalized: false`).
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: page
+        in: query
+        schema: { type: integer, default: 1, minimum: 1 }
+      - name: limit
+        in: query
+        schema: { type: integer, default: 12, minimum: 1, maximum: 24 }
+    responses:
+      '200':
+        description: Personalized products retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [products, personalized, pagination]
+                      properties:
+                        products:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/ProductFeedItem.yaml'
+                        personalized:
+                          type: boolean
+                          description: |
+                            `true` when recommendations used user activity signals;
+                            `false` for cold-start fallback.
+                        pagination:
+                          type: object
+                          properties:
+                            page: { type: integer }
+                            limit: { type: integer }
+                            total: { type: integer }
+                            totalPages: { type: integer }
+                            hasNextPage: { type: boolean }
+                            hasPrevPage: { type: boolean }
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
+compare:
+  get:
+    tags: [Products]
+    summary: Compare products by ID
+    description: |
+      Returns a lean snapshot of each product plus an AI-generated comparison
+      (summary, recommendation, per-product pros/cons, and dimension leaders).
+      Products are returned in request order. Missing or non-listable IDs appear in `notFound`.
+      When fewer than two valid products are found, `analysis` is null.
+    parameters:
+      - name: ids
+        in: query
+        required: true
+        description: |
+          Comma-separated MongoDB ObjectIds, or repeat the parameter for multiple IDs
+          (e.g. `?ids=id1,id2` or `?ids=id1&ids=id2`). **Minimum 2, maximum 5** IDs.
+        schema:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+    responses:
+      '200':
+        description: Comparison payload retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [products, notFound]
+                      properties:
+                        products:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/ProductCompareItem.yaml'
+                        analysis:
+                          $ref: '../components/schemas/ProductCompareAnalysis.yaml'
+                          nullable: true
+                        notFound:
+                          type: array
+                          description: Requested IDs that were not found or are not listable.
+                          items:
+                            type: string
+      '400':
+        $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+
 detail:
   get:
     tags: [Products]
     summary: Get product by ID
     description: |
       Returns the full product, same-category **related products** (feed card shape),
+      **you may like** recommendations (personalized when JWT is sent),
       **related videos** (commercial — non-ad creatives) and **related ads** (paid / top-ad only).
 
-      The two arrays are **mutually exclusive**.
+      Personalization blends saved products, search history, and Shopify import history.
+      Send a Bearer token for best `youMayLike` results; anonymous users get related-only picks.
+
+      The two video arrays are **mutually exclusive**.
       Each item uses the `Creative` schema (proxy URLs + nested `relatedVideos` on each doc).
     parameters:
       - name: id
@@ -320,7 +440,16 @@ detail:
                   properties:
                     data:
                       type: object
-                      required: [product, relatedProducts, relatedVideos, relatedAds, freshness]
+                      required:
+                        [
+                          product,
+                          relatedProducts,
+                          youMayLike,
+                          personalized,
+                          relatedVideos,
+                          relatedAds,
+                          freshness,
+                        ]
                       properties:
                         product:
                           $ref: '../components/schemas/Product.yaml'
@@ -329,6 +458,17 @@ detail:
                           description: Up to 8 products in the same L2 subcategory (feed card shape).
                           items:
                             $ref: '../components/schemas/ProductFeedItem.yaml'
+                        youMayLike:
+                          type: array
+                          description: |
+                            Personalized recommendations for this product context (feed card shape).
+                            Blends user activity with related products when JWT is present.
+                          items:
+                            $ref: '../components/schemas/ProductFeedItem.yaml'
+                        personalized:
+                          type: boolean
+                          description: |
+                            `true` when `youMayLike` used user activity; `false` for related-only fallback.
                         relatedVideos:
                           type: array
                           description: |
@@ -344,6 +484,46 @@ detail:
                         freshness:
                           type: object
                           description: Data freshness metadata for the product catalog.
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
+youMayLike:
+  get:
+    tags: [Products]
+    summary: Products you may like (for a product)
+    description: |
+      Contextual recommendations for a product detail page. When the caller sends a JWT,
+      results blend **saved products**, **search history**, and **Shopify import history**
+      with same-subcategory related products. Anonymous or cold-start users receive
+      related products only (`personalized: false`).
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
+      - name: limit
+        in: query
+        schema: { type: integer, default: 8, minimum: 1, maximum: 16 }
+    responses:
+      '200':
+        description: You-may-like products retrieved
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [youMayLike, personalized]
+                      properties:
+                        youMayLike:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/ProductFeedItem.yaml'
+                        personalized:
+                          type: boolean
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
 

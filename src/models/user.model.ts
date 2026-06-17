@@ -6,6 +6,7 @@ import type {
   INotificationPrefs,
   ISavedProduct,
   ISearchHistoryEntry,
+  IShopifyImportHistoryEntry,
   IShopifyConnection,
   ITikTokAuth,
   IUserDocument,
@@ -41,6 +42,7 @@ export type {
   INotificationPrefs,
   ISavedProduct,
   ISearchHistoryEntry,
+  IShopifyImportHistoryEntry,
   IShopifyConnection,
   ITikTokAuth,
   IUser,
@@ -179,6 +181,16 @@ const SearchHistorySchema = new Schema<ISearchHistoryEntry>(
   { _id: false },
 );
 
+const ShopifyImportHistorySchema = new Schema<IShopifyImportHistoryEntry>(
+  {
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    importedAt: { type: Date, default: Date.now },
+    shopifyProductId: { type: Number },
+    shop: { type: String, maxlength: 200 },
+  },
+  { _id: false },
+);
+
 const NotificationPrefsSchema = new Schema<INotificationPrefs>(
   {
     emailOnNewTrend: { type: Boolean, default: true },
@@ -249,6 +261,10 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     },
     searchHistory: {
       type: [SearchHistorySchema],
+      default: [],
+    },
+    shopifyImportHistory: {
+      type: [ShopifyImportHistorySchema],
       default: [],
     },
 
@@ -367,6 +383,9 @@ UserSchema.pre('save', function (next) {
   // Keep searchHistory to last 50 entries
   if (this.searchHistory.length > 50) {
     this.searchHistory = this.searchHistory.slice(-50);
+  }
+  if (this.shopifyImportHistory.length > 100) {
+    this.shopifyImportHistory = this.shopifyImportHistory.slice(-100);
   }
   next();
 });

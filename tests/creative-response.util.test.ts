@@ -41,6 +41,51 @@ describe('formatCreativeFeedItem metrics', () => {
 
     expect(item.metrics.viewCount).toBe(1000);
     expect(item.metrics.likeCount).toBe(2);
+    expect(item.tiktokUrl).toBe('https://www.tiktok.com/@user/video/7123456789');
+  });
+});
+
+describe('formatCreativeFeedItem tiktokUrl', () => {
+  it('exposes tiktokUrl from tiktokPostUrl', () => {
+    const item = formatCreativeFeedItem({
+      _id: '507f1f77bcf86cd799439012',
+      externalVideoId: '7123456789',
+      videoS3Key: 'brightdata/tiktok-videos/7123456789.mp4',
+      tiktokPostUrl: 'https://www.tiktok.com/@user/video/7123456789',
+      creator: { handle: 'user', verified: false, tiktokPostUrl: '' },
+      metrics: { viewCount: 100, likeCount: 2, commentCount: 0, shareCount: 0 },
+      section: 'top-ads',
+      productId: '507f1f77bcf86cd799439022',
+    });
+    expect(item.tiktokUrl).toBe('https://www.tiktok.com/@user/video/7123456789');
+  });
+
+  it('builds tiktokUrl from handle + externalVideoId when post URL missing', () => {
+    const item = formatCreativeFeedItem({
+      _id: '507f1f77bcf86cd799439012',
+      externalVideoId: '7123456790',
+      videoS3Key: 'brightdata/tiktok-videos/7123456790.mp4',
+      tiktokPostUrl: '',
+      creator: { handle: 'creator', verified: false, tiktokPostUrl: '' },
+      metrics: { viewCount: 100, likeCount: 2, commentCount: 0, shareCount: 0 },
+      section: 'top-ads',
+      productId: '507f1f77bcf86cd799439022',
+    });
+    expect(item.tiktokUrl).toBe('https://www.tiktok.com/@creator/video/7123456790');
+  });
+
+  it('returns null tiktokUrl for Meta ad library creatives', () => {
+    const item = formatCreativeFeedItem({
+      _id: '507f1f77bcf86cd799439012',
+      externalVideoId: 'meta:123',
+      videoS3Key: 'meta/videos/123.mp4',
+      tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=12345678901',
+      creator: { handle: 'brand', verified: false, tiktokPostUrl: '' },
+      metrics: { viewCount: 100, likeCount: 2, commentCount: 0, shareCount: 0 },
+      section: 'top-ads',
+      productId: '507f1f77bcf86cd799439022',
+    });
+    expect(item.tiktokUrl).toBeNull();
   });
 });
 

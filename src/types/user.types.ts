@@ -74,6 +74,13 @@ export interface ISearchHistoryEntry {
   resultCount?: number;
 }
 
+export interface IShopifyImportHistoryEntry {
+  productId: mongoose.Types.ObjectId;
+  importedAt: Date;
+  shopifyProductId?: number;
+  shop?: string;
+}
+
 export interface INotificationPrefs {
   emailOnNewTrend: boolean;
   emailOnSavedProductUpdate: boolean;
@@ -101,6 +108,7 @@ export interface IUser {
   usage: IUsageStats;
   savedProducts: ISavedProduct[];
   searchHistory: ISearchHistoryEntry[];
+  shopifyImportHistory: IShopifyImportHistoryEntry[];
   notifications: INotificationPrefs;
   timezone?: string;
   locale?: string;

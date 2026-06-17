@@ -14,6 +14,8 @@ info:
 
     ### Quick reference
     - **Categories** — `GET /products/categories`, `GET /products/subcategories`
+    - **Personalization** — `GET /products/for-you` (JWT), `GET /products/{id}/you-may-like` (optional JWT)
+    - **Compare** — `GET /products/compare?ids=id1,id2` (2–5 product IDs)
     - **Region** — `GET /profile/content-region`, `PATCH /profile/content-region`
   version: 1.0.0
   contact:
@@ -91,8 +93,14 @@ paths:
     $ref: './paths/products.yaml#/subcategories'
   /api/v1/products/taxonomy:
     $ref: './paths/products.yaml#/taxonomy'
+  /api/v1/products/for-you:
+    $ref: './paths/products.yaml#/forYou'
+  /api/v1/products/compare:
+    $ref: './paths/products.yaml#/compare'
   /api/v1/products/{id}:
     $ref: './paths/products.yaml#/detail'
+  /api/v1/products/{id}/you-may-like:
+    $ref: './paths/products.yaml#/youMayLike'
   /api/v1/products/{id}/related-products:
     $ref: './paths/products.yaml#/relatedProducts'
   /api/v1/products/{id}/similar-products:
@@ -165,6 +173,10 @@ components:
       $ref: './components/schemas/Product.yaml'
     ProductFeedItem:
       $ref: './components/schemas/ProductFeedItem.yaml'
+    ProductCompareItem:
+      $ref: './components/schemas/ProductCompareItem.yaml'
+    ProductCompareAnalysis:
+      $ref: './components/schemas/ProductCompareAnalysis.yaml'
     MarketingAnalysis:
       $ref: './components/schemas/MarketingAnalysis.yaml'
     Creative:

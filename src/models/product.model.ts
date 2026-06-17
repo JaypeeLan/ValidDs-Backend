@@ -193,6 +193,15 @@ const ReviewSummarySchema = new Schema(
   STRICT_SUB,
 );
 
+const PageSummarySchema = new Schema(
+  {
+    text: { type: String, required: true, default: '' },
+    highlights: { type: [String], default: [] },
+    generatedAt: { type: Date, required: true, default: Date.now },
+  },
+  STRICT_SUB,
+);
+
 const AIIntelligenceSchema = new Schema<IAIIntelligence>(
   {
     confidence: { type: Number, required: true, min: 0, max: 100 },
@@ -206,6 +215,7 @@ const AIIntelligenceSchema = new Schema<IAIIntelligence>(
       default: null,
     },
     reviewSummary: { type: ReviewSummarySchema, required: true },
+    pageSummary: { type: PageSummarySchema, default: null },
     extractedAt: { type: Date, required: true, default: Date.now },
     niche: { type: String, required: true, default: '' },
     productType: {
@@ -358,6 +368,7 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
 
     // Pricing
     price: { type: Number, required: true, min: 0, default: 0 },
+    originalPrice: { type: Number, min: 0, default: null },
     currency: { type: String, required: true, default: 'USD' },
     priceTrend: { type: PriceTrendSchema, required: true },
 
@@ -412,6 +423,8 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     postCreatedAt: { type: String, required: true, default: '' },
     publishedAt: { type: Date, required: true, default: () => new Date() },
     productUrl: { type: String, required: true, default: '' },
+    officialWebsiteUrl: { type: String, default: null },
+    officialProductUrl: { type: String, default: null },
 
     // TikTok account context
     accountHandle: { type: String, required: true, default: '' },

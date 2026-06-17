@@ -150,6 +150,8 @@ export interface IVideoMetricsApi {
 export interface ISecondaryVideoApi {
   isPrimary: false;
   externalVideoId: string;
+  /** Direct link to view this video on TikTok (null for non-TikTok ads). */
+  tiktokUrl?: string | null;
   thumbnailUrl?: string;
   videoProxyUrl?: string;
   thumbnailProxyUrl?: string;
@@ -175,6 +177,8 @@ export interface CreativeApiItem {
   /** S3 MP4 via GET this path — only set when `videoS3Key` exists in DB. */
   videoProxyUrl?: string;
   thumbnailProxyUrl?: string;
+  /** Direct link to view this post on TikTok (null for Meta / non-TikTok ads). */
+  tiktokUrl?: string | null;
   creator: ICreatorProfileApi;
   metrics: IVideoMetricsApi;
   section: CreativeSection;

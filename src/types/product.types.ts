@@ -100,6 +100,19 @@ export interface IProductSupplier {
   competitorScore: number | null;
 }
 
+export interface IMarketplaceListing {
+  /** Direct link to the product page on the marketplace. */
+  productUrl: string;
+  price: number | null;
+  originalPrice?: number | null;
+  currency: string;
+  title?: string | null;
+  /** Minimum order quantity — Alibaba only. */
+  moq?: number | null;
+  rating?: number | null;
+  fetchedAt: Date | string;
+}
+
 // ── Marketing analysis ────────────────────────────────────────────────────────
 
 export type Gender = 'female' | 'male' | 'mixed' | 'unisex';
@@ -314,6 +327,11 @@ export interface IProduct {
   officialWebsiteUrl?: string | null;
   /** Matching SKU on the merchant's own storefront, when known. */
   officialProductUrl?: string | null;
+
+  // Marketplace cross-listings
+  alibabaListing?: IMarketplaceListing | null;
+  aliexpressListing?: IMarketplaceListing | null;
+  targetListing?: IMarketplaceListing | null;
 
   // TikTok account context
   accountHandle: string;

@@ -22,6 +22,32 @@ export function buildShopStoreCatalogUrl(shopUrl: string, shopName: string): str
   return `https://www.tiktok.com/shop/store/${slug}/${sellerId}`;
 }
 
+const SHOP_PRODUCT_ID_RE = /\/(?:view\/product|pdp\/product)\/(\d+)/i;
+
+/** Canonical TikTok Shop PDP URL — rejects storefront URLs mistaken for product links. */
+export function resolveShopProductUrl(
+  productUrl: string | undefined | null,
+  listingId?: string | null,
+): string | undefined {
+  const trimmed = (productUrl ?? '').trim();
+  if (trimmed && !trimmed.includes('/shop/store/')) {
+    const match = trimmed.match(SHOP_PRODUCT_ID_RE);
+    if (match?.[1]) {
+      return `https://www.tiktok.com/shop/pdp/product/${match[1]}`;
+    }
+    if (trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+  }
+
+  const pid = (listingId ?? '').trim();
+  if (/^\d{10,}$/.test(pid)) {
+    return `https://www.tiktok.com/shop/pdp/product/${pid}`;
+  }
+
+  return undefined;
+}
+
 /** Public storefront link for API responses and ingest (fixes legacy view/shop URLs). */
 export function resolveShopStoreUrl(
   shopUrl: string | undefined | null,

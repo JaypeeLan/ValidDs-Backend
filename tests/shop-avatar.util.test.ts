@@ -3,6 +3,7 @@ import {
   deriveShopAccountHandle,
   isLikelyCreatorProfileAvatarCdnUrl,
   isSuspiciousShopAvatarUrl,
+  resolveShopProductUrl,
   resolveShopStoreUrl,
 } from '../src/utils/shop-avatar.util';
 
@@ -28,6 +29,21 @@ describe('shop-avatar.util', () => {
     expect(
       resolveShopStoreUrl('https://www.tiktok.com/shop/store/crocs/7495832567110863806', 'Crocs'),
     ).toBe('https://www.tiktok.com/shop/store/crocs/7495832567110863806');
+  });
+
+  it('resolveShopProductUrl canonicalizes PDP links and rejects storefront URLs', () => {
+    expect(resolveShopProductUrl('https://shop.tiktok.com/view/product/1731150607022133549')).toBe(
+      'https://www.tiktok.com/shop/pdp/product/1731150607022133549',
+    );
+    expect(
+      resolveShopProductUrl(
+        'https://www.tiktok.com/shop/store/some-shop/123456789012',
+        '1731150607022133549',
+      ),
+    ).toBe('https://www.tiktok.com/shop/pdp/product/1731150607022133549');
+    expect(
+      resolveShopProductUrl('https://www.tiktok.com/shop/store/some-shop/123456789012'),
+    ).toBeUndefined();
   });
 
   it('flags creator profile CDN URLs as suspicious shop logos', () => {

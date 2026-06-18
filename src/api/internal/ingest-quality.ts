@@ -24,8 +24,8 @@ export const INGEST_QUALITY = {
   MIN_ANGLES_WITH_VIDEO: 0,
   /** Angle promo clips: no age limit (0). Listing id must match via shop card or anchor. */
   ANGLES_PROMO_MAX_AGE_DAYS: 0,
-  MIN_REVIEWS: 5,
-  MIN_SUPPLIERS: 3,
+  MIN_REVIEWS: 1,
+  MIN_SUPPLIERS: 1,
 } as const;
 
 export const MIN_PRODUCT_IMAGES = 3;
@@ -35,6 +35,22 @@ export const MIN_PRODUCT_RATING = 3.5;
 export const MIN_PRODUCT_PRICE = 10;
 /** Minimum product revenue (sold × price) for ingest and public feeds. */
 export const MIN_TOTAL_GMV = 1000;
+
+/** Relaxed thresholds for Partner Center affiliate-pool ingest (mirrors scraper PARTNER_POOL_*). */
+export const PARTNER_POOL_INGEST_QUALITY = {
+  MIN_UNITS_SOLD: 50,
+  MIN_TOTAL_GMV: 100,
+  MIN_REVIEWS: 1,
+  MIN_MARKETING_ANGLES: 3,
+  MIN_SUPPLIERS: 0,
+} as const;
+
+export function isPartnerPoolProduct(doc: Record<string, unknown>): boolean {
+  const src = String(doc.partnerPoolSource ?? '')
+    .trim()
+    .toLowerCase();
+  return src === 'partner_center' || src === 'partner_pool';
+}
 
 /** Calendar months of price data required in priceTrend (matches scraper TREND_MONTH_COUNT). */
 export const MIN_PRICE_HISTORY_MONTHS = 10;
@@ -185,6 +201,19 @@ export function strictProductQualityReasons(
   doc: Record<string, unknown>,
   _market: MarketCode,
 ): string[] {
+  const partner = isPartnerPoolProduct(doc);
+  const minSold = partner
+    ? PARTNER_POOL_INGEST_QUALITY.MIN_UNITS_SOLD
+    : INGEST_QUALITY.MIN_UNITS_SOLD;
+  const minGmv = partner ? PARTNER_POOL_INGEST_QUALITY.MIN_TOTAL_GMV : MIN_TOTAL_GMV;
+  const minReviews = partner ? PARTNER_POOL_INGEST_QUALITY.MIN_REVIEWS : INGEST_QUALITY.MIN_REVIEWS;
+  const minAngles = partner
+    ? PARTNER_POOL_INGEST_QUALITY.MIN_MARKETING_ANGLES
+    : INGEST_QUALITY.MIN_MARKETING_ANGLES;
+  const minSuppliers = partner
+    ? PARTNER_POOL_INGEST_QUALITY.MIN_SUPPLIERS
+    : INGEST_QUALITY.MIN_SUPPLIERS;
+
   const reasons: string[] = [];
 
   const price = asFiniteNumber(doc.price);
@@ -193,40 +222,42 @@ export function strictProductQualityReasons(
   }
 
   const sold = asFiniteNumber(doc.soldCount);
-  if (sold === null || sold < INGEST_QUALITY.MIN_UNITS_SOLD) {
-    reasons.push(`soldCount must be >= ${INGEST_QUALITY.MIN_UNITS_SOLD}`);
+  if (sold === null || sold < minSold) {
+    reasons.push(`soldCount must be >= ${minSold}`);
   }
 
   const totalGmv = asFiniteNumber(doc.totalGmv);
-  if (totalGmv === null || totalGmv < MIN_TOTAL_GMV) {
-    reasons.push(`totalGmv must be >= ${MIN_TOTAL_GMV}`);
+  if (totalGmv === null || totalGmv < minGmv) {
+    reasons.push(`totalGmv must be >= ${minGmv}`);
   }
 
   const reviews = doc.reviews;
-  if (!Array.isArray(reviews) || reviews.length < INGEST_QUALITY.MIN_REVIEWS) {
-    reasons.push(`need at least ${INGEST_QUALITY.MIN_REVIEWS} reviews`);
+  if (!Array.isArray(reviews) || reviews.length < minReviews) {
+    reasons.push(`need at least ${minReviews} reviews`);
   }
 
   const angles = marketingAngles(doc);
-  if (angles.length < INGEST_QUALITY.MIN_MARKETING_ANGLES) {
-    reasons.push(`need at least ${INGEST_QUALITY.MIN_MARKETING_ANGLES} marketing angles`);
+  if (angles.length < minAngles) {
+    reasons.push(`need at least ${minAngles} marketing angles`);
   }
 
-  const suppliers = doc.suppliers;
-  if (!Array.isArray(suppliers) || suppliers.length < INGEST_QUALITY.MIN_SUPPLIERS) {
-    const n = Array.isArray(suppliers) ? suppliers.length : 0;
-    reasons.push(
-      `need at least ${INGEST_QUALITY.MIN_SUPPLIERS} suppliers (Apify Shopify store leads); got ${n}`,
-    );
-  } else {
-    suppliers.forEach((s, i) => {
-      if (!s || typeof s !== 'object') return;
-      const row = s as Record<string, unknown>;
-      if (row.platform === 'TikTok Shop') return;
-      if (row.source !== 'apify_store_leads') {
-        reasons.push(`supplier[${i}] must use apify_store_leads (got ${String(row.source ?? '')})`);
-      }
-    });
+  if (minSuppliers > 0) {
+    const suppliers = doc.suppliers;
+    if (!Array.isArray(suppliers) || suppliers.length < minSuppliers) {
+      const n = Array.isArray(suppliers) ? suppliers.length : 0;
+      reasons.push(`need at least ${minSuppliers} suppliers (Apify Shopify store leads); got ${n}`);
+    } else {
+      suppliers.forEach((s, i) => {
+        if (!s || typeof s !== 'object') return;
+        const row = s as Record<string, unknown>;
+        if (row.platform === 'TikTok Shop') return;
+        if (row.source !== 'apify_store_leads') {
+          reasons.push(
+            `supplier[${i}] must use apify_store_leads (got ${String(row.source ?? '')})`,
+          );
+        }
+      });
+    }
   }
 
   return reasons;

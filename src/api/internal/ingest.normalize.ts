@@ -11,7 +11,7 @@ import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.
 import { fillProductFieldGaps } from './product-field-completeness';
 import { normalizeCategoryL2 } from '../../utils/category-l2-normalize.util';
 import { normalizeCategoryL1 } from '../../utils/category-l1-normalize.util';
-import { resolveShopStoreUrl } from '../../utils/shop-avatar.util';
+import { resolveShopProductUrl, resolveShopStoreUrl } from '../../utils/shop-avatar.util';
 import { discoverySectionsForProduct } from '../../utils/discovery-sections.util';
 import { sanitizeVideoMetrics } from '../../utils/video-metrics.util';
 
@@ -234,13 +234,18 @@ function normalizeTrends(trends: unknown): Record<string, unknown> {
 
 function normalizeProductTrend(pt: unknown): Record<string, unknown> {
   if (!pt || typeof pt !== 'object') {
-    return { score: 0, direction: 'unknown', isTrending: false, reason: '' };
+    return {
+      score: 0,
+      direction: 'unknown',
+      isTrending: false,
+      reason: 'No trend data available.',
+    };
   }
   const row = { ...(pt as Record<string, unknown>) };
   row.score = scaleEngagementScore(row.score);
   if (!row.direction) row.direction = 'unknown';
   if (row.isTrending == null) row.isTrending = false;
-  if (!row.reason) row.reason = '';
+  if (!row.reason) row.reason = 'No trend data available.';
   return row;
 }
 
@@ -348,7 +353,9 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     postUrl: strOrEmpty(raw.postUrl),
     postCreatedAt,
     publishedAt: published,
-    productUrl: strOrEmpty(raw.productUrl),
+    productUrl:
+      resolveShopProductUrl(strOrEmpty(raw.productUrl), strOrEmpty(raw.externalId)) ??
+      strOrEmpty(raw.productUrl),
     officialWebsiteUrl: (() => {
       const url = strOrEmpty(raw.officialWebsiteUrl);
       return url.startsWith('https://') ? url : '';

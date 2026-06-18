@@ -20,7 +20,7 @@ import {
 } from './product.validator';
 import { FreshnessService } from '../../freshness/freshness.service';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
-import { resolveShopStoreUrl } from '../../utils/shop-avatar.util';
+import { resolveShopProductUrl, resolveShopStoreUrl } from '../../utils/shop-avatar.util';
 import { buildStoreLinks } from '../../utils/store-links.util';
 import type {
   IAIIntelligence,
@@ -149,15 +149,21 @@ function formatProductResponse(input: ProductLike): ProductApiResponse {
     product.officialProductUrl.trim().startsWith('https://')
       ? product.officialProductUrl.trim()
       : undefined;
+  const resolvedProductUrl = resolveShopProductUrl(
+    product.productUrl as string | undefined,
+    product.externalId as string | undefined,
+  );
 
   const response = {
     ...product,
     shopUrl: resolvedShopUrl,
+    productUrl: resolvedProductUrl ?? product.productUrl,
     officialWebsiteUrl: officialWebsiteUrl ?? null,
     officialProductUrl: officialProductUrl ?? null,
     storeLinks: buildStoreLinks({
       shopUrl: resolvedShopUrl,
-      productUrl: product.productUrl as string | undefined,
+      productUrl: resolvedProductUrl,
+      listingId: product.externalId as string | undefined,
       shopName: product.shopName as string | undefined,
       officialWebsiteUrl,
       officialProductUrl,

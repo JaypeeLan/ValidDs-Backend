@@ -23,8 +23,24 @@ export type PrimaryCreatorStorageInput = Partial<IPrimaryCreator> &
 
 /** Normalize creator avatar fields before persisting to MongoDB. */
 export function normalizePrimaryCreatorForStorage(
-  creator: PrimaryCreatorStorageInput,
+  creator: PrimaryCreatorStorageInput | null | undefined,
 ): IPrimaryCreator {
+  if (!creator) {
+    return {
+      tiktokUserId: '',
+      handle: '',
+      displayName: '',
+      bio: '',
+      followers: 0,
+      following: 0,
+      totalLikes: 0,
+      region: '',
+      verified: false,
+      tiktokPostUrl: '',
+      primaryImageUrl: '',
+      avatarUrl: '',
+    };
+  }
   const primaryImageUrl = pickUrl(creator.primaryImageUrl, creator.avatarUrl) ?? '';
   const shopGmv =
     typeof creator.shopGmv === 'number' && Number.isFinite(creator.shopGmv) ? creator.shopGmv : 0;

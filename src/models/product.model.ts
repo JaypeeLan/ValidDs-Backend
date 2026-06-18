@@ -3,6 +3,7 @@ import type {
   IAIIntelligence,
   IMarketingAnalysis,
   IMarketingAngle,
+  IMarketplaceListing,
   IMetricTrend,
   IMetricTrendWindow,
   IPriceTrend,
@@ -87,6 +88,20 @@ const ProductReviewSchema = new Schema<IProductReview>(
     date: { type: String, default: null },
     item: { type: String, default: null },
     images: { type: [String], default: [] },
+  },
+  STRICT_SUB,
+);
+
+const MarketplaceListingSchema = new Schema<IMarketplaceListing>(
+  {
+    productUrl: { type: String, required: true, default: '' },
+    price: { type: Number, min: 0, default: null },
+    originalPrice: { type: Number, min: 0, default: null },
+    currency: { type: String, default: 'USD' },
+    title: { type: String, default: null },
+    moq: { type: Number, min: 0, default: null },
+    rating: { type: Number, min: 0, max: 5, default: null },
+    fetchedAt: { type: Date, required: true },
   },
   STRICT_SUB,
 );
@@ -358,9 +373,9 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
 
     // Taxonomy
     categoryL1: { type: String, required: true, index: true },
-    categoryL2: { type: String, required: true, default: '' },
-    categoryL3: { type: String, required: true, default: '' },
-    categoryPath: { type: String, required: true },
+    categoryL2: { type: String, required: false, default: '' },
+    categoryL3: { type: String, required: false, default: '' },
+    categoryPath: { type: String, required: false, default: '' },
 
     // Media
     primaryImageUrl: { type: String, required: true, default: '' },
@@ -416,7 +431,7 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     // Shop context
     shopName: { type: String, required: true, default: '' },
     shopUrl: { type: String, required: true, default: '' },
-    shopAvatarUrl: { type: String, required: true, default: '' },
+    shopAvatarUrl: { type: String, required: false, default: '' },
     shopAvatarS3Key: { type: String, default: '' },
     shopFollowers: { type: Number, required: true, min: 0, default: 0 },
     postUrl: { type: String, required: true, default: '' },
@@ -425,6 +440,11 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     productUrl: { type: String, required: true, default: '' },
     officialWebsiteUrl: { type: String, default: null },
     officialProductUrl: { type: String, default: null },
+
+    // Marketplace cross-listings
+    alibabaListing: { type: MarketplaceListingSchema, default: null },
+    aliexpressListing: { type: MarketplaceListingSchema, default: null },
+    targetListing: { type: MarketplaceListingSchema, default: null },
 
     // TikTok account context
     accountHandle: { type: String, required: true, default: '' },

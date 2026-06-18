@@ -9,7 +9,7 @@ import {
   validateCreativeForIngest,
   validateProductForIngest,
 } from './ingest.validation';
-import { INGEST_QUALITY, isAngleVideoCreative } from './ingest-quality';
+import { INGEST_QUALITY, hasTrendCurrentWindow, isAngleVideoCreative } from './ingest-quality';
 import { normalizeCreativePayload, normalizeProductPayload } from './ingest.normalize';
 import { persistAllCreatorAvatarsOnCreative } from '../../services/creator-avatar-cache.service';
 import {
@@ -159,8 +159,30 @@ export async function ingestProduct(
     const prepared = prepareProductDoc(product, market);
     await enrichProductMediaForIngest(prepared, market);
     stripProductCdnAvatars(prepared);
+
+    // Initialize missing metrics before validation so new products always have a today window.
+    const _sold = Number(prepared.soldCount ?? prepared.totalSales ?? 0) || 0;
+    const _price = Number(prepared.price ?? 0);
+    const _gmv =
+      Number(prepared.totalGmv ?? prepared.storeGmv ?? 0) ||
+      (_price > 0 && _sold > 0 ? Math.round(_price * _sold * 100) / 100 : 0);
+    if (!prepared.storeGmv || Number(prepared.storeGmv) <= 0) {
+      prepared.storeGmv = _gmv;
+    }
+    if (!hasTrendCurrentWindow(prepared.salesTrend)) {
+      prepared.salesTrend = mergeMetricTrendSnapshots(prepared.salesTrend, undefined, _sold);
+    }
+    if (!hasTrendCurrentWindow(prepared.revenueTrend)) {
+      prepared.revenueTrend = mergeMetricTrendSnapshots(prepared.revenueTrend, undefined, _gmv);
+    }
+
     const reasons = validateProductForIngest(prepared, market);
     if (reasons.length > 0) {
+      log.warn('Product rejected', {
+        market,
+        externalId: String(prepared.externalId ?? ''),
+        reasons,
+      });
       res.status(422).json({ reasons });
       return;
     }

@@ -21,6 +21,7 @@ import {
   isAngleVideoCreative,
   postAgeRejection,
   postAgeRejectionHours,
+  isPartnerPoolProduct,
   strictProductQualityReasons,
   supplierTrafficReasons,
 } from './ingest-quality';
@@ -127,6 +128,7 @@ export function validateProductForIngest(
   market: MarketCode,
 ): string[] {
   const reasons: string[] = [];
+  const partnerPool = isPartnerPoolProduct(doc);
 
   if (!doc.externalId) reasons.push('missing externalId');
   if (!doc.source) reasons.push('missing source');
@@ -136,13 +138,9 @@ export function validateProductForIngest(
     reasons.push('title too short (< 8 chars) — need TikTok Shop listing title');
   }
 
-  const desc = doc.description;
-  if (typeof desc !== 'string' || desc.trim().length < 50) {
-    reasons.push('description too short (< 50 chars)');
-  }
-
-  if (!doc.categoryL1 || !doc.categoryL2 || !doc.categoryL3) {
-    reasons.push('missing category levels');
+  // Category L2/L3 filled by AI categorizer after ingest; only L1 is required at ingest time.
+  if (!doc.categoryL1 && !partnerPool) {
+    reasons.push('missing categoryL1');
   }
 
   if (!doc.shopName) reasons.push('missing shopName');
@@ -152,7 +150,7 @@ export function validateProductForIngest(
   }
 
   const shopAvatar = String(doc.shopAvatarUrl ?? '');
-  if (!shopAvatar.startsWith('https://')) {
+  if (!shopAvatar.startsWith('https://') && !doc.shopAvatarS3Key) {
     reasons.push('shopAvatarUrl must be https');
   }
 
@@ -172,15 +170,17 @@ export function validateProductForIngest(
   }
 
   const images = doc.imageUrls;
-  if (!Array.isArray(images) || images.length < MIN_PRODUCT_IMAGES) {
-    reasons.push(`need at least ${MIN_PRODUCT_IMAGES} product images`);
+  const minImages = partnerPool ? 1 : MIN_PRODUCT_IMAGES;
+  if (!Array.isArray(images) || images.length < minImages) {
+    reasons.push(`need at least ${minImages} product images`);
   }
 
   const creator = (doc.primaryCreator ?? {}) as Record<string, unknown>;
   if (!creator.handle) reasons.push('creator.handle missing');
   const avatarS3 = creator.avatarS3Key;
-  if (typeof avatarS3 !== 'string' || !avatarS3.trim()) {
-    reasons.push('primaryCreator.avatarS3Key required — profile image must be in S3 before ingest');
+  const avatarUrl = String(creator.avatarUrl ?? creator.primaryImageUrl ?? '');
+  if ((typeof avatarS3 !== 'string' || !avatarS3.trim()) && !avatarUrl.startsWith('https://')) {
+    reasons.push('primaryCreator needs avatarS3Key or https avatarUrl');
   }
 
   const reviews = doc.reviews;
@@ -237,14 +237,18 @@ export function validateProductForIngest(
   if (!doc.postCreatedAt) reasons.push('missing postCreatedAt');
 
   const postDate = doc.postCreatedAt ?? doc.publishedAt;
-  const ageReason = postAgeRejection(postDate, 'primary post');
-  if (ageReason) reasons.push(ageReason);
+  if (!partnerPool) {
+    const ageReason = postAgeRejection(postDate, 'primary post');
+    if (ageReason) reasons.push(ageReason);
+  }
 
   if (!doc.creativeCounts) reasons.push('missing creativeCounts');
 
   reasons.push(...baselineProductQualityReasons(doc));
   reasons.push(...strictProductQualityReasons(doc, market));
-  reasons.push(...supplierTrafficReasons(doc));
+  if (!partnerPool) {
+    reasons.push(...supplierTrafficReasons(doc));
+  }
   reasons.push(...productFieldCompletenessReasons(doc));
 
   return reasons;

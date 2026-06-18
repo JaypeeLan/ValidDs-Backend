@@ -4,7 +4,7 @@ import { buildProductItemFreshness } from './product-freshness.util';
 import { postRecencyFlags } from './product-recency.util';
 import { normalizePrimaryCreatorOnProduct } from './product-response.util';
 import { resolveEngagementTrend } from './product-trend.util';
-import { resolveShopStoreUrl } from './shop-avatar.util';
+import { resolveShopProductUrl, resolveShopStoreUrl } from './shop-avatar.util';
 import { buildStoreLinks } from './store-links.util';
 
 export type ProductFeedFormatInput = Record<string, unknown> & {
@@ -112,6 +112,15 @@ export function formatProductFeedItem(input: ProductFeedFormatInput): ProductFee
     product.officialWebsiteUrl.trim().startsWith('https://')
       ? product.officialWebsiteUrl.trim()
       : undefined;
+  const officialProductUrl =
+    typeof product.officialProductUrl === 'string' &&
+    product.officialProductUrl.trim().startsWith('https://')
+      ? product.officialProductUrl.trim()
+      : undefined;
+  const resolvedProductUrl = resolveShopProductUrl(
+    product.productUrl as string | undefined,
+    product.externalId as string | undefined,
+  );
 
   const item: ProductFeedItem = {
     id: String(product._id ?? product.id),
@@ -135,9 +144,11 @@ export function formatProductFeedItem(input: ProductFeedFormatInput): ProductFee
     officialWebsiteUrl: officialWebsiteUrl ?? null,
     storeLinks: buildStoreLinks({
       shopUrl: resolvedShopUrl,
-      productUrl: product.productUrl as string | undefined,
+      productUrl: resolvedProductUrl,
+      listingId: product.externalId as string | undefined,
       shopName: product.shopName as string | undefined,
       officialWebsiteUrl,
+      officialProductUrl,
     }),
     shopAvatarProxyUrl:
       typeof (product as { shopAvatarProxyUrl?: unknown }).shopAvatarProxyUrl === 'string'

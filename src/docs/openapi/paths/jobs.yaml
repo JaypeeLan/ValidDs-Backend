@@ -176,9 +176,9 @@ staleCleanup:
       - Jobs
     summary: Trigger stale product cleanup
     description: |
-      Flags products that have not been re-ingested within 24h as
+      Marks `active` products whose `lastIngestedAt` is older than 24 hours as
       `status: 'stale'`. Runs every 5 minutes on a cron; this endpoint forces
-      an immediate run.
+      an immediate run. See `Product.status` in the schema for all lifecycle values.
     security:
       - ApiKeyAuth: []
     responses:

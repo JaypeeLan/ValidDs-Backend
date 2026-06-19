@@ -18,7 +18,7 @@ export const INGEST_QUALITY = {
   /** New non-angle creatives only — existing DB rows are not retroactively removed. */
   MAX_CREATIVE_AGE_DAYS: 90,
   MAX_CREATIVE_AGE_HOURS: 90 * 24,
-  MIN_RELATED_VIDEOS: 3,
+  MIN_RELATED_VIDEOS: 1,
   MIN_MARKETING_ANGLES: 5,
   /** Optional at ingest — text-only angles are enough; video can be backfilled later. */
   MIN_ANGLES_WITH_VIDEO: 0,

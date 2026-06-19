@@ -33,6 +33,7 @@ const OPTIONAL_EMPTY_STRING_SUFFIXES = [
   '.videoProxyUrl',
   '.thumbnailProxyUrl',
   '.metaAdLibraryUrl',
+  'metaAdLibraryUrl',
   'originalPrice',
   'officialWebsiteUrl',
   // Category L2/L3 are filled by the AI categorizer after initial ingest.
@@ -248,6 +249,11 @@ export function fillProductFieldGaps(raw: Record<string, unknown>): Record<strin
   ai.reviewSummary = rs;
 
   const ma = { ...((ai.marketingAnalysis ?? {}) as Record<string, unknown>) };
+  if (!ma.primaryGender) ma.primaryGender = 'unisex';
+  if (!ma.incomeLevel) ma.incomeLevel = 'mid-range';
+  if (!ma.purchaseIntent) ma.purchaseIntent = 'considered';
+  if (!ma.contentFormat) ma.contentFormat = 'lifestyle';
+  if (!ma.analyzedAt) ma.analyzedAt = new Date();
   if (ma.sentimentLabel == null) ma.sentimentLabel = sentimentLabel(ai.buyingSentimentScore);
   if (!String(ma.marketingInsight ?? '').trim()) {
     ma.marketingInsight = String(out.title ?? 'Marketing insight pending.').slice(0, 500);
@@ -374,7 +380,7 @@ export function fillProductFieldGaps(raw: Record<string, unknown>): Record<strin
   out.relatedVideosCount = rv;
   if (!out.creativeCounts) {
     const nRev = Array.isArray(out.reviews) ? out.reviews.length : 0;
-    out.creativeCounts = { ads: 1, organic: rv, reviews: nRev, total: 1 + rv + nRev };
+    out.creativeCounts = { ads: 0, organic: rv, reviews: nRev, total: rv + nRev };
   }
 
   if (!String(out.accountKind ?? '').trim()) out.accountKind = 'creator';

@@ -6,11 +6,34 @@ Mongoose models in **`src/models/product.model.ts`** and **`src/models/creative.
 
 ## 1. `Product` collection
 
-One document per product surfaced through ingestion/enrichment (TikTok-aligned content, AI extraction, supplier data, etc.). **Unique index:** `externalId` + `source`. **`status`:** `active` | `stale` | `archived` (when used).
+One document per product surfaced through ingestion/enrichment (TikTok-aligned content, AI extraction, supplier data, etc.). **Unique index:** `externalId` + `source`.
+
+### Product `status` (catalog lifecycle)
+
+Mongoose enum (default **`review`**): **`active`** | **`review`** | **`invalid`**.
+
+| Value     | Meaning                                                                                |
+| --------- | -------------------------------------------------------------------------------------- |
+| `active`  | Live in the feed. Set by successful internal ingest (`POST /internal/ingest/product`). |
+| `review`  | Pending QA. Default for admin-created products (`POST /admin/products`).               |
+| `invalid` | Rejected or failed validation. Excluded from feed/search.                              |
+
+**Operational values** (still present in older documents and set by jobs; not in the Mongoose enum):
+
+| Value      | Meaning                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------ |
+| `stale`    | Re-ingest stopped. Set by stale-cleanup when `lastIngestedAt` is older than 24h while `status` was `active`. |
+| `archived` | Manually hidden. Excluded from feed/search with `invalid`.                                                   |
+
+Feed eligibility: `status` not in `archived` or `invalid` (`LISTABLE_PRODUCT_FILTER`). Region counts and some queries require `status: active` only.
+
+### Product `validationStatus` (QA pipeline — separate field)
+
+Not the same as catalog `status`. Common values: **`pending`** (admin create default), **`valid`** (successful ingest), **`invalid`** (maintenance scripts mark unfixable records).
 
 | Area             | Fields (summary)                                                                                                   |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Identity         | `externalId`, `source`, `status`                                                                                   |
+| Identity         | `externalId`, `source`, `status`, `validationStatus`                                                               |
 | Content          | `title`, `normalizedTitle`, `description`, `hashtags[]`                                                            |
 | Taxonomy         | `categoryL1`, `categoryL2`, `categoryL3`, `categoryPath`                                                           |
 | Media            | `primaryImageUrl`, `imageUrls[]`, and related source/timestamp fields when present                                 |

@@ -113,6 +113,13 @@ function buildProductCreatorMatch(
 
 function creatorSortSpec(sortBy: string): Record<string, 1 | -1> {
   switch (sortBy) {
+    case 'creator_gmv_asc':
+    case 'gmv_asc':
+      return { creatorGmv: 1, maxFollowers: -1 };
+    case 'followers_asc':
+      return { maxFollowers: 1, creatorGmv: -1 };
+    case 'followers_desc':
+      return { maxFollowers: -1, creatorGmv: -1 };
     case 'likes':
       return { maxTotalLikes: -1, creatorGmv: -1 };
     case 'recent':
@@ -122,10 +129,11 @@ function creatorSortSpec(sortBy: string): Record<string, 1 | -1> {
       return { latestActivity: -1, creatorGmv: -1 };
     case 'engagement':
       return { maxEngagementRate: -1, creatorGmv: -1 };
+    case 'creator_gmv_desc':
     case 'gmv_desc':
     case 'views':
     default:
-      return { creatorGmv: -1, maxViews: -1 };
+      return { creatorGmv: -1, maxFollowers: -1 };
   }
 }
 

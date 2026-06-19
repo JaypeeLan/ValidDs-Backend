@@ -363,6 +363,9 @@ products:
         schema:
           type: string
           enum: [active, archived, stale]
+        description: |
+          Filter by catalog `status`. Accepts `active`, `archived`, or `stale`.
+          Products may also have `review` or `invalid` (not filterable via this param).
       - in: query
         name: source
         schema:

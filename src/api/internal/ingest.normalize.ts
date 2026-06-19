@@ -367,6 +367,15 @@ export function normalizeProductPayload(raw: Record<string, unknown>): Record<st
     accountHandle: strOrEmpty(raw.accountHandle),
     accountKind: strOrEmpty(raw.accountKind),
     market: strOrEmpty(raw.market),
+    categoryPath: (() => {
+      const cp = raw.categoryPath;
+      if (Array.isArray(cp))
+        return (cp as unknown[])
+          .map(String)
+          .filter((s) => s.trim())
+          .join(' > ');
+      return typeof cp === 'string' ? cp : '';
+    })(),
     relatedVideosCount: numOrZero(raw.relatedVideosCount),
     creativeCounts: normalizeCreativeCounts(raw.creativeCounts),
     validationStatus: strOrEmpty(raw.validationStatus) || 'valid',
@@ -426,6 +435,12 @@ function normalizeMetaCreativeUrls(out: Record<string, unknown>): void {
 
 export function normalizeCreativePayload(raw: Record<string, unknown>): Record<string, unknown> {
   const out = { ...raw };
+  if (Array.isArray(out.categoryPath)) {
+    out.categoryPath = (out.categoryPath as unknown[])
+      .map(String)
+      .filter((s) => s.trim())
+      .join(' > ');
+  }
   const published = parsePublishedAt(raw.publishedAt);
   if (raw.publishedAt != null) {
     out.publishedAt = published;

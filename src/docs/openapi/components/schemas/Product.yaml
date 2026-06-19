@@ -24,8 +24,12 @@ properties:
     example: tiktok
   status:
     type: string
-    enum: [active, review, invalid]
-    description: '`active` = live in the feed; `review` = pending QA; `invalid` = rejected.'
+    enum: [active, review, invalid, stale, archived]
+    description: |
+      Catalog lifecycle. Schema enum (default `review`): `active` = live in feed;
+      `review` = pending QA; `invalid` = rejected.
+      Operational: `stale` (stale-cleanup job when re-ingest stops);
+      `archived` (manually hidden). Feed excludes `archived` and `invalid`.
 
   title:
     type: string
@@ -455,8 +459,9 @@ properties:
 
   validationStatus:
     type: string
-    description: QA pipeline status (separate from catalog `status`).
-    example: active
+    enum: [pending, valid, invalid]
+    description: QA/ingest pipeline status (separate from catalog `status`).
+    example: valid
 
   lastIngestedAt:
     type: string

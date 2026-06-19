@@ -14,11 +14,11 @@ Products and creatives live in **per-market MongoDB collections** (`products_us`
 
 `US`, `CA`, `MX`, `UK`, `AU`, `NZ`, `ES`, `DE`, `FR`, `IT`
 
-| Operation | How to pass `market` |
-|-----------|----------------------|
-| List / delete products or creatives | Required query: `?market=US` |
-| Create product or creative | Required body field: `"market": "US"` |
-| Product / creative analytics | Optional query: `?market=US` (omit to aggregate all markets) |
+| Operation                           | How to pass `market`                                         |
+| ----------------------------------- | ------------------------------------------------------------ |
+| List / delete products or creatives | Required query: `?market=US`                                 |
+| Create product or creative          | Required body field: `"market": "US"`                        |
+| Product / creative analytics        | Optional query: `?market=US` (omit to aggregate all markets) |
 
 ---
 
@@ -84,7 +84,9 @@ List products in a single market collection.
 
 **Query (required):** `market`
 
-**Query (optional):** `page`, `limit`, `status` (`active` \| `archived` \| `stale`), `source`, `category` (matches `categoryL1`), `q` (title/description search)
+**Query (optional):** `page`, `limit`, `status` (`active` \| `archived` \| `stale` — filter subset; products may also carry `review` or `invalid`), `source`, `category` (matches `categoryL1`), `q` (title/description search)
+
+**Product `status` values:** `active` (feed), `review` (pending QA), `invalid` (rejected), plus operational `stale` and `archived`. See [`docs/schemas.md`](../docs/schemas.md) § Product status.
 
 **Response `data`:** `market`, `products[]`, `pagination`
 
@@ -162,33 +164,33 @@ Paginated waitlist signups (newest first) with summary stats.
 
 Requires header **`X-API-Key: <INTERNAL_API_KEY>`** (not JWT).
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/jobs/status` | Timer state, last run times |
-| `POST` | `/jobs/product-refresh` | Trigger product refresh job |
-| `POST` | `/jobs/product-ingestion` | Trigger product ingestion |
-| `POST` | `/jobs/creative-ingestion` | Trigger creative ingestion |
-| `POST` | `/jobs/stale-cleanup` | Trigger stale cleanup |
-| `POST` | `/jobs/live-monitor-discover` | Trigger live monitor (no-op stub if watchlist removed) |
+| Method | Path                          | Purpose                                                          |
+| ------ | ----------------------------- | ---------------------------------------------------------------- |
+| `GET`  | `/jobs/status`                | Timer state, last run times                                      |
+| `POST` | `/jobs/product-refresh`       | Trigger product refresh job                                      |
+| `POST` | `/jobs/product-ingestion`     | Trigger product ingestion                                        |
+| `POST` | `/jobs/creative-ingestion`    | Trigger creative ingestion                                       |
+| `POST` | `/jobs/stale-cleanup`         | Mark `active` products not re-ingested in 24h as `status: stale` |
+| `POST` | `/jobs/live-monitor-discover` | Trigger live monitor (no-op stub if watchlist removed)           |
 
 `GET` on the `POST` paths returns **405** with a hint (for misconfigured cron jobs).
 
 ### Ingestion
 
-| Method | Path | Auth | Notes |
-|--------|------|------|-------|
-| `POST` | `/ingestion/trigger` | JWT | Pipeline currently disabled |
+| Method | Path                 | Auth | Notes                       |
+| ------ | -------------------- | ---- | --------------------------- |
+| `POST` | `/ingestion/trigger` | JWT  | Pipeline currently disabled |
 
 ### TikTok Live (admin JWT)
 
 Requires **admin** role (same JWT as `/admin/*`).
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/tiktok/live?handle=` | Ad-hoc live check for one handle |
-| `GET` | `/tiktok/live/batch?handles=` | Batch live check (max 10 handles) |
-| `GET` | `/tiktok/live/products?roomId=&handle=` | Product shelf for a live room |
-| `GET` | `/tiktok/sessions` | Paginated session history |
-| `GET` | `/tiktok/sessions/{id}` | Session detail |
+| Method | Path                                    | Purpose                           |
+| ------ | --------------------------------------- | --------------------------------- |
+| `GET`  | `/tiktok/live?handle=`                  | Ad-hoc live check for one handle  |
+| `GET`  | `/tiktok/live/batch?handles=`           | Batch live check (max 10 handles) |
+| `GET`  | `/tiktok/live/products?roomId=&handle=` | Product shelf for a live room     |
+| `GET`  | `/tiktok/sessions`                      | Paginated session history         |
+| `GET`  | `/tiktok/sessions/{id}`                 | Session detail                    |
 
 **User routes** (documented on **`/docs`**, not here): `GET /tiktok/live/discover`, `POST /tiktok/live/reconcile`.

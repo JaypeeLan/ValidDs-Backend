@@ -6,15 +6,23 @@ This document reflects the **current** backend. Automated bulk ingestion is larg
 
 ## Overview
 
-| Area | Status | Notes |
-|------|--------|--------|
-| **Ingestion orchestrator** | Disabled | `IngestionOrchestrator.run()` returns no posts; logs *Ingestion cycle is disabled*. |
-| **Product ingestion job** | Disabled | `src/jobs/index.ts` — no daily product pull. |
-| **Creative ingestion** | Disabled | `CreativeService` — external creative fetch paths are disabled. |
-| **Product enrichment** | Active (when invoked) | `ProductEnricher.mergeAndUpsert()` — AI extraction + TeemDrop supplier match + creatives + discovery (`src/services/product.enricher.ts`). |
-| **Stale cleanup** | Scheduled | Still runs on its timer when jobs are enabled. |
+| Area                       | Status                | Notes                                                                                                                                      |
+| -------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Ingestion orchestrator** | Disabled              | `IngestionOrchestrator.run()` returns no posts; logs _Ingestion cycle is disabled_.                                                        |
+| **Product ingestion job**  | Disabled              | `src/jobs/index.ts` — no daily product pull.                                                                                               |
+| **Creative ingestion**     | Disabled              | `CreativeService` — external creative fetch paths are disabled.                                                                            |
+| **Product enrichment**     | Active (when invoked) | `ProductEnricher.mergeAndUpsert()` — AI extraction + TeemDrop supplier match + creatives + discovery (`src/services/product.enricher.ts`). |
+| **Stale cleanup**          | Scheduled             | Marks `active` products not re-ingested within 24h as `status: stale`.                                                                     |
 
 Manual job endpoints (`POST /api/v1/jobs/product-ingestion`, `creative-ingestion`, etc.) exist but trigger the same disabled or minimal code paths unless you extend the orchestrator and services.
+
+### Internal ingest status
+
+`POST /internal/ingest/product` (scraper → backend) sets **`status: active`** and **`validationStatus: valid`** on success. Failed validation returns `422` without upserting.
+
+Admin create (`POST /admin/products`) sets **`status: review`** and **`validationStatus: pending`**.
+
+See [`docs/schemas.md`](schemas.md) for the full product status lifecycle.
 
 ---
 
@@ -40,8 +48,8 @@ Persistence: `ProductRepository.upsertEnrichedProduct()` keyed by **`externalId`
 
 ## Database upsert
 
-| Method | Key | Used by |
-|--------|-----|---------|
+| Method                    | Key                     | Used by                                |
+| ------------------------- | ----------------------- | -------------------------------------- |
 | `upsertEnrichedProduct()` | `externalId` + `source` | Product enricher / ingestion pipelines |
 
 ---
@@ -77,10 +85,10 @@ GOOGLE_AI_API_KEY=...
 
 ## Troubleshooting
 
-| Symptom | Likely cause | What to check |
-|---------|----------------|----------------|
-| No new products | Orchestrator / jobs disabled | `src/ingestion/orchestrator.ts`, `src/jobs/index.ts`, logs on manual `POST /jobs/product-ingestion` |
-| Creatives empty | Creative ingestion disabled | `CreativeService` logs; job trigger response |
-| `shopifyConfigured` false | Missing Shopify env | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_REDIRECT_URI` |
+| Symptom                   | Likely cause                 | What to check                                                                                       |
+| ------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| No new products           | Orchestrator / jobs disabled | `src/ingestion/orchestrator.ts`, `src/jobs/index.ts`, logs on manual `POST /jobs/product-ingestion` |
+| Creatives empty           | Creative ingestion disabled  | `CreativeService` logs; job trigger response                                                        |
+| `shopifyConfigured` false | Missing Shopify env          | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_REDIRECT_URI`                                     |
 
 For architecture and API contracts, see `docs/architecture.md` and `src/docs/openapi/`.

@@ -454,11 +454,12 @@ components:
       name: sortBy
       in: query
       description: |
-        Sort order. `recent` sorts by post publish date; `last_ingested` sorts by `ingestedAt`
-        (when the creative was added to ValidDs). Aliases: `last-ingested`, `ingested_desc`.
+        Sort order for videos/ads. Product metrics: `gmv_desc`, `gmv_asc`, `units_sold_desc`, `units_sold_asc`.
+        Video metrics: `views_desc`, `views_asc`, `likes_desc`, `likes_asc` (aliases `views`, `likes` = descending).
+        `recent` sorts by post publish date; `last_ingested` sorts by `ingestedAt`.
+        For `groupBy=creator`, also accepts `creator_gmv_desc`, `creator_gmv_asc`, `followers_desc`, `followers_asc`.
       schema:
         type: string
-        enum: [views, likes, recent, last_ingested, engagement]
         default: views
     groupBy:
       name: groupBy

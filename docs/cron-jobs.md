@@ -27,13 +27,13 @@ ENABLE_IN_PROCESS_SCHEDULERS=false
 
 ## Jobs (this repo only)
 
-| Cron (UTC)    | Lagos | Endpoint                           |
-| ------------- | ----- | ---------------------------------- |
-| `0 23 * * *`  | 00:00 | `POST /jobs/product-ingestion`     |
-| `5 23 * * *`  | 00:05 | `POST /jobs/creative-ingestion`    |
-| `0 11 * * *`  | 12:00 | `POST /jobs/creative-ingestion`    |
-| `*/5 * * * *` | —     | `POST /jobs/stale-cleanup`         |
-| `0 * * * *`   | —     | `POST /jobs/live-monitor-discover` |
+| Cron (UTC)    | Lagos | Endpoint                                                                               |
+| ------------- | ----- | -------------------------------------------------------------------------------------- |
+| `0 23 * * *`  | 00:00 | `POST /jobs/product-ingestion`                                                         |
+| `5 23 * * *`  | 00:05 | `POST /jobs/creative-ingestion`                                                        |
+| `0 11 * * *`  | 12:00 | `POST /jobs/creative-ingestion`                                                        |
+| `*/5 * * * *` | —     | `POST /jobs/stale-cleanup` — marks `active` products not re-ingested in 24h as `stale` |
+| `0 * * * *`   | —     | `POST /jobs/live-monitor-discover`                                                     |
 
 Does **not** update `salesTrend` / `revenueTrend` — that is the **scraper** repo.
 

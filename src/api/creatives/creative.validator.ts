@@ -7,6 +7,7 @@ import {
 } from '../../utils/content-feed-filters.util';
 import {
   CREATIVE_SORT_OPTIONS,
+  CREATOR_LOBBY_SORT_OPTIONS,
   normalizeCreativeSortBy,
   type CreativeSortBy,
 } from './creative-feed-filters.util';
@@ -60,10 +61,11 @@ function validateCreativeListQuery(
   validateContentMetricRanges(val, ctx);
   const sortBy = normalizeCreativeSortBy(val.sortBy);
   if (val.sortBy && !sortBy) {
+    const options = val.groupBy === 'creator' ? CREATOR_LOBBY_SORT_OPTIONS : CREATIVE_SORT_OPTIONS;
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['sortBy'],
-      message: `Invalid sortBy. Use: ${CREATIVE_SORT_OPTIONS.join(', ')}`,
+      message: `Invalid sortBy. Use: ${options.join(', ')}`,
     });
   }
 }

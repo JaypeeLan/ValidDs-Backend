@@ -12,7 +12,8 @@ PRODUCTS COLLECTION (main product records)
 1) Basic identity
 - externalId: TikTok video ID from the discovery post
 - source: Ingestion source label from our backend (for example "tiktok")
-- status: Internal lifecycle state set by backend ("active", "archived", "stale")
+- status: Catalog lifecycle. Schema values: "active" (live in feed after ingest), "review" (pending QA, default), "invalid" (rejected). Jobs may also set "stale" (re-ingest stopped) or admins may use "archived" (hidden from feed).
+- validationStatus: QA pipeline flag, separate from status. Usually "pending" (admin create), "valid" (successful ingest), or "invalid" (failed validation).
 
 2) Product content
 - title: Product name extracted by AI from TikTok post + comments

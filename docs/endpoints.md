@@ -276,7 +276,7 @@ Triggers the legacy hashtag-based product refresh pipeline (manual only; not on 
 
 ### `POST /jobs/stale-cleanup`
 
-Forces an immediate stale-product cleanup pass.
+Forces an immediate stale-product cleanup pass. Marks `active` products with `lastIngestedAt` older than 24h as `status: stale`. See [`docs/schemas.md`](schemas.md) for all product status values.
 
 ### `POST /jobs/live-monitor-discover`
 

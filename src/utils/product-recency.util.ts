@@ -143,8 +143,13 @@ export function recencyPrioritySortSpec(sortBy: GmvPrioritySortBy): Record<strin
   };
 }
 
+export type CreativeEngagementMetric = 'views' | 'likes' | 'engagement';
+
+export type CreativeProductMetricSortBy = 'gmv-desc' | 'gmv-asc' | 'units-desc' | 'units-asc';
+
 export function creativeRecencyPrioritySortSpec(
-  sortBy: 'views' | 'likes' | 'engagement',
+  sortBy: CreativeEngagementMetric,
+  direction: 'desc' | 'asc' = 'desc',
 ): Record<string, 1 | -1> {
   const metricKey =
     sortBy === 'likes'
@@ -152,10 +157,24 @@ export function creativeRecencyPrioritySortSpec(
       : sortBy === 'engagement'
         ? 'metrics.engagementRate'
         : 'metrics.viewCount';
+  const metricDir: 1 | -1 = direction === 'asc' ? 1 : -1;
   return {
     _recencyTier: 1,
     productTotalGmv: -1,
-    [metricKey]: -1,
+    [metricKey]: metricDir,
+    publishedAt: -1,
+  };
+}
+
+export function creativeProductMetricSortSpec(
+  sortBy: CreativeProductMetricSortBy,
+): Record<string, 1 | -1> {
+  const metricKey =
+    sortBy === 'units-desc' || sortBy === 'units-asc' ? 'productTotalSales' : 'productTotalGmv';
+  const metricDir: 1 | -1 = sortBy === 'gmv-asc' || sortBy === 'units-asc' ? 1 : -1;
+  return {
+    _recencyTier: 1,
+    [metricKey]: metricDir,
     publishedAt: -1,
   };
 }

@@ -25,7 +25,7 @@ export const INGEST_QUALITY = {
   /** Angle promo clips: no age limit (0). Listing id must match via shop card or anchor. */
   ANGLES_PROMO_MAX_AGE_DAYS: 0,
   MIN_REVIEWS: 1,
-  MIN_SUPPLIERS: 1,
+  MIN_SUPPLIERS: 0,
 } as const;
 
 export const MIN_PRODUCT_IMAGES = 3;
@@ -146,7 +146,7 @@ export function marketingAngles(doc: Record<string, unknown>): Record<string, un
   return raw.filter((a): a is Record<string, unknown> => !!a && typeof a === 'object');
 }
 
-/** Pre-strict checks (soldCount ≥ 1, at least one review) — mirrors db_writer when SCRAPER_RELAX_QUALITY is off. */
+/** Pre-strict checks (soldCount ≥ 1, at least one review). */
 export function baselineProductQualityReasons(doc: Record<string, unknown>): string[] {
   const reasons: string[] = [];
 
@@ -177,18 +177,20 @@ export function marketingAngleFieldReasons(doc: Record<string, unknown>): string
   return reasons;
 }
 
-/** Per-supplier monthlyTraffic — always checked (db_writer loop after strict extend). */
+/** Per-supplier monthlyTraffic when suppliers are present. */
 export function supplierTrafficReasons(doc: Record<string, unknown>): string[] {
   const reasons: string[] = [];
   const suppliers = doc.suppliers;
-  if (!Array.isArray(suppliers)) return reasons;
+  if (!Array.isArray(suppliers) || suppliers.length === 0) return reasons;
 
   suppliers.forEach((s, i) => {
     if (!s || typeof s !== 'object') {
       reasons.push(`supplier[${i}]: invalid row`);
       return;
     }
-    const mt = asFiniteNumber((s as Record<string, unknown>).monthlyTraffic);
+    const row = s as Record<string, unknown>;
+    if (row.platform === 'TikTok Shop') return;
+    const mt = asFiniteNumber(row.monthlyTraffic);
     if (mt === null || mt <= 0) {
       reasons.push(`supplier[${i}].monthlyTraffic must be > 0`);
     }
@@ -201,18 +203,11 @@ export function strictProductQualityReasons(
   doc: Record<string, unknown>,
   _market: MarketCode,
 ): string[] {
-  const partner = isPartnerPoolProduct(doc);
-  const minSold = partner
-    ? PARTNER_POOL_INGEST_QUALITY.MIN_UNITS_SOLD
-    : INGEST_QUALITY.MIN_UNITS_SOLD;
-  const minGmv = partner ? PARTNER_POOL_INGEST_QUALITY.MIN_TOTAL_GMV : MIN_TOTAL_GMV;
-  const minReviews = partner ? PARTNER_POOL_INGEST_QUALITY.MIN_REVIEWS : INGEST_QUALITY.MIN_REVIEWS;
-  const minAngles = partner
-    ? PARTNER_POOL_INGEST_QUALITY.MIN_MARKETING_ANGLES
-    : INGEST_QUALITY.MIN_MARKETING_ANGLES;
-  const minSuppliers = partner
-    ? PARTNER_POOL_INGEST_QUALITY.MIN_SUPPLIERS
-    : INGEST_QUALITY.MIN_SUPPLIERS;
+  const minSold = INGEST_QUALITY.MIN_UNITS_SOLD;
+  const minGmv = MIN_TOTAL_GMV;
+  const minReviews = INGEST_QUALITY.MIN_REVIEWS;
+  const minAngles = INGEST_QUALITY.MIN_MARKETING_ANGLES;
+  const minSuppliers = INGEST_QUALITY.MIN_SUPPLIERS;
 
   const reasons: string[] = [];
 
@@ -247,6 +242,20 @@ export function strictProductQualityReasons(
       const n = Array.isArray(suppliers) ? suppliers.length : 0;
       reasons.push(`need at least ${minSuppliers} suppliers (Apify Shopify store leads); got ${n}`);
     } else {
+      suppliers.forEach((s, i) => {
+        if (!s || typeof s !== 'object') return;
+        const row = s as Record<string, unknown>;
+        if (row.platform === 'TikTok Shop') return;
+        if (row.source !== 'apify_store_leads') {
+          reasons.push(
+            `supplier[${i}] must use apify_store_leads (got ${String(row.source ?? '')})`,
+          );
+        }
+      });
+    }
+  } else {
+    const suppliers = doc.suppliers;
+    if (Array.isArray(suppliers)) {
       suppliers.forEach((s, i) => {
         if (!s || typeof s !== 'object') return;
         const row = s as Record<string, unknown>;

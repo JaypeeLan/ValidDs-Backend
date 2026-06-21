@@ -132,9 +132,16 @@ function normalizeSuppliers(suppliers: unknown): unknown[] {
   return suppliers.map((s) => {
     if (!s || typeof s !== 'object') return s;
     const row = { ...(s as Record<string, unknown>) };
-    const seed = supplierTrafficSeed(row);
-    row.monthlyTraffic = ensureMonthlyTraffic(row.monthlyTraffic, seed);
-    row.productUnitsSold = ensureProductUnitsSold(row.productUnitsSold, seed);
+    if (
+      typeof row.monthlyTraffic === 'number' &&
+      Number.isFinite(row.monthlyTraffic) &&
+      row.monthlyTraffic > 0
+    ) {
+      row.monthlyTraffic = Math.round(row.monthlyTraffic);
+    } else {
+      row.monthlyTraffic = null;
+    }
+    row.productUnitsSold = ensureProductUnitsSold(row.productUnitsSold, supplierTrafficSeed(row));
     row.estimatedMonthlyRevenue = numOrZero(row.estimatedMonthlyRevenue);
     row.revenueSource = 'traffic-estimate';
     row.competitorScore = numOrZero(row.competitorScore);

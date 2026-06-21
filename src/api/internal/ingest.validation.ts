@@ -211,6 +211,13 @@ export function validateProductForIngest(
 
   reasons.push(...marketingAngleFieldReasons(doc));
 
+  if (!String(ai.problemStatement ?? '').trim()) {
+    reasons.push('missing AI-generated problemStatement');
+  }
+  if (!String(ai.valueStatement ?? '').trim()) {
+    reasons.push('missing AI-generated valueStatement');
+  }
+
   for (const angle of marketingAngles(doc)) {
     const videoUrl = angle.videoUrl;
     if (typeof videoUrl !== 'string' || !videoUrl) continue;
@@ -244,11 +251,14 @@ export function validateProductForIngest(
 
   if (!doc.creativeCounts) reasons.push('missing creativeCounts');
 
+  const views = asFiniteNumber(doc.viewCount);
+  if (views === null || views <= 0) {
+    reasons.push('viewCount must be > 0 (live ScrapeCreators video metrics)');
+  }
+
   reasons.push(...baselineProductQualityReasons(doc));
   reasons.push(...strictProductQualityReasons(doc, market));
-  if (!partnerPool) {
-    reasons.push(...supplierTrafficReasons(doc));
-  }
+  reasons.push(...supplierTrafficReasons(doc));
   reasons.push(...productFieldCompletenessReasons(doc));
 
   return reasons;

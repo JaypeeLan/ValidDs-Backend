@@ -3,7 +3,6 @@ import type {
   IAIIntelligence,
   IMarketingAnalysis,
   IMarketingAngle,
-  IMarketplaceListing,
   IMetricTrend,
   IMetricTrendWindow,
   IPriceTrend,
@@ -17,7 +16,8 @@ import type {
   IRevenueHistoryEntry,
   ISalesHistoryEntry,
   ITrend,
-} from '../types/product.types.js';
+} from '../types/product.types';
+import type { IMarketplaceListing } from '../types/marketplace.types';
 import {
   ensureLastIngestedAtOnCreate,
   touchProductFreshnessOnUpdate,
@@ -50,7 +50,8 @@ export type {
   IncomeLevel,
   PurchaseIntent,
   ContentFormat,
-} from '../types/product.types.js';
+} from '../types/product.types';
+export type { IMarketplaceListing } from '../types/marketplace.types';
 
 const STRICT_SUB = { _id: false, strict: true } as const;
 
@@ -373,9 +374,9 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
 
     // Taxonomy
     categoryL1: { type: String, required: true, index: true },
-    categoryL2: { type: String, required: false, default: '' },
-    categoryL3: { type: String, required: false, default: '' },
-    categoryPath: { type: String, required: false, default: '' },
+    categoryL2: { type: String, required: true, default: '' },
+    categoryL3: { type: String, required: true, default: '' },
+    categoryPath: { type: String, required: true, default: '' },
 
     // Media
     primaryImageUrl: { type: String, required: true, default: '' },

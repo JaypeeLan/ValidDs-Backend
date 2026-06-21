@@ -36,6 +36,7 @@ const OPTIONAL_EMPTY_STRING_SUFFIXES = [
   'metaAdLibraryUrl',
   'originalPrice',
   'officialWebsiteUrl',
+  'officialProductUrl',
   // Category L2/L3 are filled by the AI categorizer after initial ingest.
   'categoryL2',
   'categoryL3',
@@ -238,10 +239,8 @@ export function fillProductFieldGaps(raw: Record<string, unknown>): Record<strin
   if (!Array.isArray(ai.categoryKeywords) || ai.categoryKeywords.length === 0) {
     ai.categoryKeywords = [String(out.categoryL1 ?? 'general').slice(0, 40)];
   }
-  if (!ai.problemStatement) {
-    ai.problemStatement = String(out.description ?? '').slice(0, 500) || 'See product description.';
-  }
-  if (!ai.valueStatement) ai.valueStatement = String(out.title ?? 'Product value').slice(0, 200);
+  if (!ai.problemStatement) ai.problemStatement = '';
+  if (!ai.valueStatement) ai.valueStatement = '';
 
   const rs = { ...((ai.reviewSummary ?? {}) as Record<string, unknown>) };
   if (!String(rs.summary ?? '').trim()) rs.summary = 'Reviews summarized from TikTok Shop listing.';
@@ -305,42 +304,6 @@ export function fillProductFieldGaps(raw: Record<string, unknown>): Record<strin
   out.revenueTrend = trendWithToday(gmv, out.revenueTrend);
 
   out.suppliers = normalizeSuppliersForCompleteness(out.suppliers, out);
-  // When Apify is unavailable, synthesize a TikTok Shop supplier so products are not blocked.
-  if (!Array.isArray(out.suppliers) || (out.suppliers as unknown[]).length === 0) {
-    const unitsSold = Math.max(1, Number(out.soldCount ?? out.totalSales) || 1);
-    const priceVal = Number(out.price) || 0;
-    const soldLast30 = Math.max(1, Math.floor(unitsSold / 12));
-    const pdpUrl =
-      resolveShopProductUrl(String(out.productUrl ?? ''), String(out.externalId ?? '')) ?? '';
-    out.suppliers = [
-      {
-        source: 'tiktok_shop',
-        platform: 'TikTok Shop',
-        externalId: String(out.externalId ?? pdpUrl).slice(0, 40),
-        title: String(out.title ?? '').slice(0, 200),
-        productUrl: pdpUrl,
-        shareUrl: pdpUrl,
-        price: priceVal,
-        currency: String(out.currency ?? 'USD'),
-        rating: Number(out.rating) || 0,
-        totalRatings: Number(out.reviewCount) || 0,
-        totalReviews: Number(out.reviewCount) || 0,
-        monthlyTraffic: Math.max(1000, unitsSold),
-        productUnitsSold: unitsSold,
-        soldLast30Days: soldLast30,
-        estimatedMonthlyRevenue: soldLast30 * priceVal,
-        revenueSource: 'traffic-estimate',
-        competitorScore: 50,
-        fetchedAt: new Date(),
-        checkedAt: new Date(),
-        shop: {
-          name: String(out.shopName ?? ''),
-          url: String(out.shopUrl ?? ''),
-          rating: Number(out.rating) || 0,
-        },
-      },
-    ];
-  }
 
   const pc = { ...((out.primaryCreator ?? {}) as Record<string, unknown>) };
   const handle = String(pc.handle ?? out.accountHandle ?? out.shopName ?? 'creator').slice(0, 80);
@@ -389,6 +352,41 @@ export function fillProductFieldGaps(raw: Record<string, unknown>): Record<strin
     out.postCreatedAt = String(out.publishedAt ?? new Date().toISOString());
   }
 
+  const now = new Date();
+  if (!out.publishedAt) out.publishedAt = now;
+  if (!out.lastIngestedAt) out.lastIngestedAt = now;
+  if (!out.dataSourceUpdatedAt) out.dataSourceUpdatedAt = out.lastIngestedAt ?? now;
+  if (!String(out.status ?? '').trim()) out.status = 'review';
+  if (!String(out.normalizedTitle ?? '').trim()) {
+    out.normalizedTitle = String(out.title ?? '')
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  if (!String(out.validationStatus ?? '').trim()) out.validationStatus = 'pending';
+
+  const trendsEng = (out.trends as Record<string, unknown> | undefined)?.engagement;
+  if (
+    trendsEng &&
+    typeof trendsEng === 'object' &&
+    (trendsEng as Record<string, unknown>).isTrending == null
+  ) {
+    (trendsEng as Record<string, unknown>).isTrending = false;
+  }
+  const aiOut = out.aiIntelligence as Record<string, unknown> | undefined;
+  if (aiOut && !aiOut.extractedAt) aiOut.extractedAt = now;
+  for (const trendKey of ['priceTrend', 'salesTrend', 'revenueTrend'] as const) {
+    const trend = out[trendKey];
+    if (
+      trend &&
+      typeof trend === 'object' &&
+      (trend as Record<string, unknown>).changePercent == null
+    ) {
+      (trend as Record<string, unknown>).changePercent = 0;
+    }
+  }
+
   return out;
 }
 
@@ -402,10 +400,10 @@ function normalizeSuppliersForCompleteness(
     if (!s || typeof s !== 'object') return s;
     const row = { ...(s as Record<string, unknown>) };
     const seed = String(row.productUrl ?? row.externalId ?? row.title ?? 'supplier');
-    if (!row.monthlyTraffic || Number(row.monthlyTraffic) <= 0) {
-      let h = 0;
-      for (let i = 0; i < seed.length; i++) h = (Math.imul(31, h) + seed.charCodeAt(i)) >>> 0;
-      row.monthlyTraffic = 12_000 + (h % (890_000 - 12_000 + 1));
+    if (typeof row.monthlyTraffic === 'number' && Number(row.monthlyTraffic) > 0) {
+      row.monthlyTraffic = Math.round(Number(row.monthlyTraffic));
+    } else {
+      row.monthlyTraffic = null;
     }
     if (!row.productUnitsSold || Number(row.productUnitsSold) < 1) {
       row.productUnitsSold = Math.max(1, Number(doc.soldCount ?? doc.totalSales) || 1);
@@ -442,6 +440,301 @@ function normalizeSuppliersForCompleteness(
 
 function joinPath(prefix: string, key: string): string {
   return prefix ? `${prefix}.${key}` : key;
+}
+
+const VALID_STATUS = new Set(['active', 'review', 'invalid']);
+const VALID_PRODUCT_TYPE = new Set(['evergreen', 'trend-driven', 'seasonal', 'unknown']);
+const VALID_PRICE_BAND = new Set(['budget', 'mid-range', 'premium']);
+const VALID_SENTIMENT = new Set(['positive', 'neutral', 'negative']);
+const VALID_GENDERS = new Set(['female', 'male', 'mixed', 'unisex']);
+const VALID_INCOME = new Set(['budget', 'mid-range', 'premium', 'luxury']);
+const VALID_INTENT = new Set(['impulse', 'considered', 'habitual', 'gifting']);
+const VALID_CONTENT_FORMAT = new Set([
+  'tutorial',
+  'lifestyle',
+  'entertainment',
+  'review',
+  'comparison',
+]);
+const VALID_METRIC_DIRECTION = new Set(['up', 'down', 'stable']);
+const VALID_TREND_DIRECTION = new Set([
+  'rising',
+  'peaked',
+  'saturating',
+  'stable',
+  'declining',
+  'emerging',
+  'viral',
+  'unknown',
+]);
+const VALID_REVENUE_SOURCE = new Set(['product-sales', 'traffic-estimate']);
+const MARKETPLACE_LISTING_FIELDS = [
+  'alibabaListing',
+  'aliexpressListing',
+  'targetListing',
+] as const;
+const TITLE_MAX_LEN = 500;
+const DESCRIPTION_MAX_LEN = 2000;
+
+function requireNonEmpty(path: string, value: unknown, out: string[]): void {
+  if (value == null || (typeof value === 'string' && !value.trim()))
+    out.push(`${path} is required`);
+}
+
+function requireEnum(path: string, value: unknown, valid: Set<string>, out: string[]): void {
+  const s = String(value ?? '').trim();
+  if (!s || !valid.has(s)) out.push(`${path} must be one of ${[...valid].sort().join(', ')}`);
+}
+
+function requireNumberRange(
+  path: string,
+  value: unknown,
+  out: string[],
+  min?: number,
+  max?: number,
+): void {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    out.push(`${path} must be a number`);
+    return;
+  }
+  if (min != null && value < min) out.push(`${path} must be >= ${min}`);
+  if (max != null && value > max) out.push(`${path} must be <= ${max}`);
+}
+
+function validateMetricTrend(path: string, trend: unknown, out: string[]): void {
+  if (!trend || typeof trend !== 'object') {
+    out.push(`${path} is required`);
+    return;
+  }
+  const row = trend as Record<string, unknown>;
+  requireEnum(`${path}.direction`, row.direction, VALID_METRIC_DIRECTION, out);
+  if (row.changePercent == null) out.push(`${path}.changePercent is required`);
+  if (!Array.isArray(row.windows) || row.windows.length === 0) {
+    out.push(`${path}.windows must not be empty`);
+  }
+}
+
+function validateMarketplaceListing(path: string, listing: unknown, out: string[]): void {
+  if (listing == null) return;
+  if (!listing || typeof listing !== 'object') {
+    out.push(`${path} must be an object`);
+    return;
+  }
+  const row = listing as Record<string, unknown>;
+  if (row.fetchedAt == null) out.push(`${path}.fetchedAt is required`);
+  if (row.productUrl == null) out.push(`${path}.productUrl is required`);
+  for (const [key, min, max] of [
+    ['price', 0, undefined],
+    ['originalPrice', 0, undefined],
+    ['moq', 0, undefined],
+    ['rating', 0, 5],
+  ] as const) {
+    if (row[key] != null) requireNumberRange(`${path}.${key}`, row[key], out, min, max);
+  }
+}
+
+function validateSupplierRow(path: string, row: unknown, out: string[]): void {
+  if (!row || typeof row !== 'object') {
+    out.push(`${path} must be an object`);
+    return;
+  }
+  const s = row as Record<string, unknown>;
+  for (const key of ['source', 'externalId', 'title', 'productUrl', 'shareUrl']) {
+    requireNonEmpty(`${path}.${key}`, s[key], out);
+  }
+  if (s.fetchedAt == null) out.push(`${path}.fetchedAt is required`);
+  const rs = s.revenueSource;
+  if (rs != null && String(rs).trim() && !VALID_REVENUE_SOURCE.has(String(rs))) {
+    out.push(`${path}.revenueSource must be product-sales or traffic-estimate`);
+  }
+  for (const [key, min, max] of [
+    ['rating', 0, 5],
+    ['competitorScore', 0, 100],
+    ['monthlyTraffic', 0, undefined],
+    ['productUnitsSold', 1, undefined],
+    ['price', 0, undefined],
+    ['moq', 0, undefined],
+  ] as const) {
+    if (s[key] != null) requireNumberRange(`${path}.${key}`, s[key], out, min, max);
+  }
+  const shop = s.shop;
+  if (shop && typeof shop === 'object') {
+    const sh = shop as Record<string, unknown>;
+    for (const key of ['name', 'url']) {
+      if (sh[key] == null) out.push(`${path}.shop.${key} is required`);
+    }
+    if (sh.rating != null) requireNumberRange(`${path}.shop.rating`, sh.rating, out, 0, 5);
+  }
+}
+
+function validateMarketingAngle(path: string, angle: unknown, out: string[]): void {
+  if (!angle || typeof angle !== 'object') {
+    out.push(`${path} must be an object`);
+    return;
+  }
+  const row = angle as Record<string, unknown>;
+  for (const key of ['hook', 'body', 'target']) {
+    requireNonEmpty(`${path}.${key}`, row[key], out);
+  }
+}
+
+export function collectSchemaViolations(doc: Record<string, unknown>): string[] {
+  const out: string[] = [];
+
+  requireNonEmpty('externalId', doc.externalId, out);
+  requireNonEmpty('source', doc.source, out);
+  requireNonEmpty('title', doc.title, out);
+  requireNonEmpty('normalizedTitle', doc.normalizedTitle, out);
+  requireNonEmpty('categoryL1', doc.categoryL1, out);
+  requireNonEmpty('market', doc.market, out);
+  requireEnum('status', doc.status, VALID_STATUS, out);
+
+  const title = String(doc.title ?? '');
+  if (title.length > TITLE_MAX_LEN) out.push(`title must be <= ${TITLE_MAX_LEN} characters`);
+  const description = String(doc.description ?? '');
+  if (description.length > DESCRIPTION_MAX_LEN) {
+    out.push(`description must be <= ${DESCRIPTION_MAX_LEN} characters`);
+  }
+
+  requireNumberRange('rating', doc.rating, out, 0, 5);
+  for (const key of [
+    'reviewCount',
+    'soldCount',
+    'totalSales',
+    'totalGmv',
+    'viewCount',
+    'likeCount',
+  ]) {
+    if (doc[key] != null) requireNumberRange(key, doc[key], out, 0);
+  }
+
+  if (doc.lastIngestedAt == null) out.push('lastIngestedAt is required');
+  if (doc.dataSourceUpdatedAt == null) out.push('dataSourceUpdatedAt is required');
+  if (doc.publishedAt == null) out.push('publishedAt is required');
+
+  const pc = doc.primaryCreator;
+  if (!pc || typeof pc !== 'object') out.push('primaryCreator is required');
+  else {
+    requireNonEmpty('primaryCreator.handle', (pc as Record<string, unknown>).handle, out);
+  }
+
+  const ai = doc.aiIntelligence;
+  if (!ai || typeof ai !== 'object') out.push('aiIntelligence is required');
+  else {
+    const aiRow = ai as Record<string, unknown>;
+    requireNumberRange('aiIntelligence.confidence', aiRow.confidence, out, 0, 100);
+    requireNonEmpty('aiIntelligence.confidenceReason', aiRow.confidenceReason, out);
+    requireNumberRange(
+      'aiIntelligence.buyingSentimentScore',
+      aiRow.buyingSentimentScore,
+      out,
+      0,
+      100,
+    );
+    requireEnum('aiIntelligence.productType', aiRow.productType, VALID_PRODUCT_TYPE, out);
+    requireEnum('aiIntelligence.priceBand', aiRow.priceBand, VALID_PRICE_BAND, out);
+    if (aiRow.buyingSentimentLabel != null) {
+      requireEnum(
+        'aiIntelligence.buyingSentimentLabel',
+        aiRow.buyingSentimentLabel,
+        VALID_SENTIMENT,
+        out,
+      );
+    }
+    const rs = aiRow.reviewSummary;
+    if (!rs || typeof rs !== 'object') out.push('aiIntelligence.reviewSummary is required');
+    else {
+      requireNonEmpty(
+        'aiIntelligence.reviewSummary.summary',
+        (rs as Record<string, unknown>).summary,
+        out,
+      );
+      if ((rs as Record<string, unknown>).generatedAt == null) {
+        out.push('aiIntelligence.reviewSummary.generatedAt is required');
+      }
+    }
+    const ma = aiRow.marketingAnalysis;
+    if (!ma || typeof ma !== 'object') out.push('aiIntelligence.marketingAnalysis is required');
+    else {
+      const maRow = ma as Record<string, unknown>;
+      requireEnum(
+        'aiIntelligence.marketingAnalysis.primaryGender',
+        maRow.primaryGender,
+        VALID_GENDERS,
+        out,
+      );
+      requireEnum(
+        'aiIntelligence.marketingAnalysis.incomeLevel',
+        maRow.incomeLevel,
+        VALID_INCOME,
+        out,
+      );
+      requireEnum(
+        'aiIntelligence.marketingAnalysis.purchaseIntent',
+        maRow.purchaseIntent,
+        VALID_INTENT,
+        out,
+      );
+      requireEnum(
+        'aiIntelligence.marketingAnalysis.contentFormat',
+        maRow.contentFormat,
+        VALID_CONTENT_FORMAT,
+        out,
+      );
+      requireNonEmpty(
+        'aiIntelligence.marketingAnalysis.marketingInsight',
+        maRow.marketingInsight,
+        out,
+      );
+      if (maRow.analyzedAt == null)
+        out.push('aiIntelligence.marketingAnalysis.analyzedAt is required');
+      const angles = maRow.angles;
+      if (Array.isArray(angles)) {
+        angles.forEach((angle, i) =>
+          validateMarketingAngle(`aiIntelligence.marketingAnalysis.angles[${i}]`, angle, out),
+        );
+      }
+    }
+  }
+
+  const trends = doc.trends;
+  if (!trends || typeof trends !== 'object') out.push('trends is required');
+  else {
+    const eng = (trends as Record<string, unknown>).engagement;
+    if (!eng || typeof eng !== 'object') out.push('trends.engagement is required');
+    else {
+      const e = eng as Record<string, unknown>;
+      requireNumberRange('trends.engagement.score', e.score, out, 0, 5);
+      requireEnum('trends.engagement.direction', e.direction, VALID_TREND_DIRECTION, out);
+      if (e.isTrending == null) out.push('trends.engagement.isTrending is required');
+      if (e.calculatedAt == null) out.push('trends.engagement.calculatedAt is required');
+    }
+  }
+
+  validateMetricTrend('priceTrend', doc.priceTrend, out);
+  validateMetricTrend('salesTrend', doc.salesTrend, out);
+  validateMetricTrend('revenueTrend', doc.revenueTrend, out);
+
+  const cc = doc.creativeCounts;
+  if (!cc || typeof cc !== 'object') out.push('creativeCounts is required');
+  else {
+    for (const key of ['ads', 'organic', 'reviews', 'total']) {
+      const val = (cc as Record<string, unknown>)[key];
+      if (typeof val !== 'number') out.push(`creativeCounts.${key} is required`);
+      else if (val < 0) out.push(`creativeCounts.${key} must be >= 0`);
+    }
+  }
+
+  for (const field of MARKETPLACE_LISTING_FIELDS) {
+    validateMarketplaceListing(field, doc[field], out);
+  }
+
+  const suppliers = doc.suppliers;
+  if (Array.isArray(suppliers)) {
+    suppliers.forEach((row, i) => validateSupplierRow(`suppliers[${i}]`, row, out));
+  }
+
+  return out;
 }
 
 export function collectNullEmptyViolations(
@@ -509,7 +802,7 @@ export function collectNullEmptyViolations(
 export function productFieldCompletenessReasons(doc: Record<string, unknown>): string[] {
   const seen = new Set<string>();
   const reasons: string[] = [];
-  for (const r of collectNullEmptyViolations(doc)) {
+  for (const r of [...collectNullEmptyViolations(doc), ...collectSchemaViolations(doc)]) {
     if (!seen.has(r)) {
       seen.add(r);
       reasons.push(r);

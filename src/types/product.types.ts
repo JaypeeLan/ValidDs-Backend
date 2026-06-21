@@ -1,6 +1,7 @@
 import { Document, Model } from 'mongoose';
 import type { SentimentLabel } from '../utils/sentiment.util.js';
 import type { StoreLink } from '../utils/store-links.util.js';
+import type { IMarketplaceListing } from './marketplace.types.js';
 
 export type { SentimentLabel };
 
@@ -100,18 +101,7 @@ export interface IProductSupplier {
   competitorScore: number | null;
 }
 
-export interface IMarketplaceListing {
-  /** Direct link to the product page on the marketplace. */
-  productUrl: string;
-  price: number | null;
-  originalPrice?: number | null;
-  currency: string;
-  title?: string | null;
-  /** Minimum order quantity — Alibaba only. */
-  moq?: number | null;
-  rating?: number | null;
-  fetchedAt: Date | string;
-}
+export type { IMarketplaceListing } from './marketplace.types.js';
 
 // ── Marketing analysis ────────────────────────────────────────────────────────
 

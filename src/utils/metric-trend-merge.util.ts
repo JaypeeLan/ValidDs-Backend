@@ -2,7 +2,9 @@ import type { IMetricTrend, IMetricTrendWindow } from '../types/product.types';
 import {
   METRIC_TREND_DAY_OFFSETS,
   dayWindowLabel,
+  rollSnapshotsAtMilestone,
   snapshotOffsetFromWindow,
+  snapshotsFromTrend,
 } from './metric-trend-days.util';
 
 /** Merge cumulative metric snapshots (soldCount / GMV) across re-ingest on day windows. */
@@ -10,6 +12,7 @@ export function mergeMetricTrendSnapshots(
   incoming: unknown,
   existing: unknown,
   currentValue: number,
+  milestoneRoll?: number | null,
 ): IMetricTrend {
   const snapshots = new Map<number, number>();
 
@@ -29,9 +32,19 @@ export function mergeMetricTrendSnapshots(
     }
   };
 
+  if (milestoneRoll != null && existing) {
+    const rolled = rollSnapshotsAtMilestone(snapshotsFromTrend(existing), milestoneRoll);
+    rolled.set(0, Math.max(0, currentValue));
+    const windows: IMetricTrendWindow[] = METRIC_TREND_DAY_OFFSETS.map((daysAgo) => ({
+      label: dayWindowLabel(daysAgo),
+      daysAgo,
+      value: round2(daysAgo === 0 ? Math.max(0, currentValue) : (rolled.get(daysAgo) ?? 0)),
+    }));
+    return computeTrendFromWindows(sanitizeCumulativeWindows(windows, currentValue));
+  }
+
   absorb(existing, false);
   absorb(incoming, true);
-  snapshots.set(0, Math.max(0, currentValue));
 
   const windows: IMetricTrendWindow[] = METRIC_TREND_DAY_OFFSETS.map((daysAgo) => ({
     label: dayWindowLabel(daysAgo),

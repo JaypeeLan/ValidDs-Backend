@@ -58,3 +58,23 @@ export const RemoveBookmarkQuerySchema = z.object({
 });
 
 export type RemoveBookmarkQuery = z.infer<typeof RemoveBookmarkQuerySchema>;
+
+export const CloseAccountSchema = z.object({
+  password: z.string().min(1).optional(),
+  confirmEmail: z.string().email().optional(),
+});
+
+export type CloseAccountInput = z.infer<typeof CloseAccountSchema>;
+
+const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+  .regex(/[0-9]/, 'Password must contain at least one number');
+
+export const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: passwordSchema,
+});
+
+export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;

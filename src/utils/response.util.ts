@@ -27,6 +27,13 @@ export enum ResponseMessage {
   // Stores (Shopify)
   SHOPIFY_CONNECTED = 'Shopify store connected successfully.',
   SHOPIFY_DISCONNECTED = 'Shopify store disconnected successfully.',
+
+  // Account
+  ACCOUNT_CLOSED = 'Your account has been closed successfully.',
+  PASSWORD_CHANGED = 'Your password has been changed successfully.',
+
+  // Billing
+  BILLING_HISTORY_RETRIEVED = 'Billing history retrieved successfully.',
   SHOPIFY_PRODUCT_PUSHED = 'Product pushed to your Shopify store successfully.',
 
   // Generic
@@ -42,7 +49,7 @@ export enum ResponseMessage {
 export function successResponse<T>(
   data: T,
   message: string,
-  statusCode: number = 200
+  statusCode: number = 200,
 ): { success: true; message: string; statusCode: number; data: T } {
   return {
     success: true,

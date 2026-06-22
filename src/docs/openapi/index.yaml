@@ -79,6 +79,10 @@ paths:
     $ref: './paths/profile-content-region.yaml'
   /api/v1/profile:
     $ref: './paths/profile.yaml'
+  /api/v1/profile/close:
+    $ref: './paths/profile.yaml#/closeAccount'
+  /api/v1/profile/change-password:
+    $ref: './paths/profile.yaml#/changePassword'
   /api/v1/profile/bookmarks:
     $ref: './paths/bookmarks.yaml#/collection'
   /api/v1/profile/bookmarks/{id}:
@@ -133,6 +137,8 @@ paths:
     $ref: './paths/billing.yaml#/createCheckoutSession'
   /api/v1/billing/subscription:
     $ref: './paths/billing.yaml#/getSubscription'
+  /api/v1/billing/transactions:
+    $ref: './paths/billing.yaml#/getTransactions'
   /api/v1/webhooks/stripe:
     $ref: './paths/billing.yaml#/stripeWebhook'
   /api/v1/waitlist:

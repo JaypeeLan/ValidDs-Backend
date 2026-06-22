@@ -64,3 +64,94 @@ patch:
                       user: { $ref: '../components/schemas/User.yaml' }
     '400':
       $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+
+closeAccount:
+  post:
+    tags: [Profile]
+    summary: Close account (authenticated)
+    description: |
+      Permanently closes the authenticated user's account.
+
+      - **Local (email/password) accounts** must provide `password`.
+      - **OAuth accounts** (Google, TikTok) must provide `confirmEmail` matching the account email.
+
+      Cancels any active Stripe subscription, disconnects Shopify, scrubs personal data, and soft-deletes the account.
+      Billing transaction records are retained for compliance. Admin accounts cannot use this endpoint.
+    security: [{ BearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              password:
+                type: string
+                description: Required for local (email/password) accounts.
+              confirmEmail:
+                type: string
+                format: email
+                description: Required for OAuth accounts — must match the account email.
+    responses:
+      '200':
+        description: Account closed
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        closed: { type: boolean, example: true }
+      '400':
+        $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
+changePassword:
+  post:
+    tags: [Profile]
+    summary: Change password (authenticated)
+    description: |
+      Changes the password for a local (email/password) account.
+
+      Requires the current password. OAuth-only accounts (Google, TikTok) without a password
+      will receive a `PASSWORD_NOT_SET` error — those users should use forgot-password flow instead.
+    security: [{ BearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [currentPassword, newPassword]
+            properties:
+              currentPassword:
+                type: string
+                format: password
+              newPassword:
+                type: string
+                format: password
+                minLength: 8
+                description: Must be at least 8 characters with one uppercase letter and one number.
+    responses:
+      '200':
+        description: Password changed
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        changed: { type: boolean, example: true }
+      '400':
+        $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'

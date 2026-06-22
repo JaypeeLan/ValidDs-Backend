@@ -9,6 +9,8 @@ import {
   ContentRegionSchema,
   RemoveBookmarkParamsSchema,
   RemoveBookmarkQuerySchema,
+  CloseAccountSchema,
+  ChangePasswordSchema,
 } from './profile.validator';
 
 const router = Router();
@@ -40,6 +42,20 @@ router.delete(
   validate(RemoveBookmarkParamsSchema, 'params'),
   validate(RemoveBookmarkQuerySchema, 'query'),
   ProfileController.removeBookmark,
+);
+
+router.post(
+  '/close',
+  requireAuth,
+  validate(CloseAccountSchema, 'body'),
+  ProfileController.closeAccount,
+);
+
+router.post(
+  '/change-password',
+  requireAuth,
+  validate(ChangePasswordSchema, 'body'),
+  ProfileController.changePassword,
 );
 
 export default router;

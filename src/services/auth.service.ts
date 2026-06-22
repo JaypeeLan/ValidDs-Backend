@@ -550,6 +550,65 @@ export const AuthService = {
     return { user, token, isNewUser: false };
   },
 
+  /**
+   * Verify a local account password (e.g. before sensitive actions like account closure).
+   */
+  async verifyLocalPassword(user: IUserDocument, password: string): Promise<boolean> {
+    if (!user.localAuth?.passwordHash) {
+      await dummyHashCompare();
+      return false;
+    }
+    const valid = await verifyPassword(password, user.localAuth.passwordHash);
+    if (!valid) {
+      await dummyHashCompare();
+    }
+    return valid;
+  },
+
+  /**
+   * Change password for a logged-in local account.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const user = await User.findActiveById(userId).select('+localAuth');
+    if (!user) {
+      throw new AppError(404, 'Account not found', 'USER_NOT_FOUND');
+    }
+
+    if (!user.localAuth?.passwordHash) {
+      throw new AppError(
+        400,
+        'This account does not have a password set (use social login)',
+        'PASSWORD_NOT_SET',
+      );
+    }
+
+    const valid = await AuthService.verifyLocalPassword(user, currentPassword);
+    if (!valid) {
+      throw new AppError(401, 'Current password is incorrect', 'INVALID_PASSWORD');
+    }
+
+    if (currentPassword === newPassword) {
+      throw new AppError(
+        400,
+        'New password must be different from the current password',
+        'SAME_PASSWORD',
+      );
+    }
+
+    AuthService.validatePassword(newPassword);
+    user.localAuth.passwordHash = await hashPassword(newPassword);
+    user.localAuth.passwordResetToken = undefined;
+    user.localAuth.passwordResetExpiresAt = undefined;
+    user.markModified('localAuth');
+    await user.save();
+
+    log.info('Password changed', { userId });
+  },
+
   async sendEmailVerificationCode(userId: string): Promise<void> {
     const user = await User.findById(userId).select('+localAuth');
     if (!user || user.status !== 'active') {

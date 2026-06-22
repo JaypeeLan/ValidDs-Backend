@@ -98,28 +98,46 @@ listPlans:
                                     enum: [month, year]
             example:
               success: true
-              message: "OK"
+              message: 'OK'
               data:
                 mode: test
                 trialDays: 7
                 checkoutRedirects:
-                  defaultSuccessUrl: "https://app.validds.com/billing/success?session_id={CHECKOUT_SESSION_ID}"
-                  defaultCancelUrl: "https://app.validds.com/billing"
+                  defaultSuccessUrl: 'https://app.validds.com/billing/success?session_id={CHECKOUT_SESSION_ID}'
+                  defaultCancelUrl: 'https://app.validds.com/billing'
                 plans:
                   - id: explorer
                     trialDays: 7
                     stripePriceConfigured: true
-                    limits: { creditsPerMonth: 15000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 500 }
+                    limits:
+                      {
+                        creditsPerMonth: 15000,
+                        productsPerDay: -1,
+                        searchesPerDay: -1,
+                        savedProductsMax: 500,
+                      }
                     price: { amountCents: 1999, currency: usd, interval: month }
                   - id: pro
                     trialDays: 7
                     stripePriceConfigured: true
-                    limits: { creditsPerMonth: 60000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: 2000 }
+                    limits:
+                      {
+                        creditsPerMonth: 60000,
+                        productsPerDay: -1,
+                        searchesPerDay: -1,
+                        savedProductsMax: 2000,
+                      }
                     price: { amountCents: 3999, currency: usd, interval: month }
                   - id: premium
                     trialDays: 7
                     stripePriceConfigured: true
-                    limits: { creditsPerMonth: 200000, productsPerDay: -1, searchesPerDay: -1, savedProductsMax: -1 }
+                    limits:
+                      {
+                        creditsPerMonth: 200000,
+                        productsPerDay: -1,
+                        searchesPerDay: -1,
+                        savedProductsMax: -1,
+                      }
                     price: { amountCents: 9999, currency: usd, interval: month }
 
 createCheckoutSession:
@@ -199,11 +217,11 @@ createCheckoutSession:
                           type: string
                           format: uri
                           description: Stripe hosted checkout URL — navigate the browser here.
-                          example: "https://checkout.stripe.com/pay/cs_test_..."
+                          example: 'https://checkout.stripe.com/pay/cs_test_...'
                         sessionId:
                           type: string
                           description: Stripe Checkout Session ID.
-                          example: "cs_test_a1b2c3..."
+                          example: 'cs_test_a1b2c3...'
       '400':
         $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
       '401':
@@ -263,6 +281,55 @@ getSubscription:
       '401':
         $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
 
+getTransactions:
+  get:
+    tags: [Billing]
+    summary: Paginated billing history (authenticated)
+    description: |
+      Returns the authenticated user's full billing transaction history with pagination.
+      Only transactions belonging to the current user are returned — `userId` is never accepted from the client.
+    security:
+      - BearerAuth: []
+    parameters:
+      - in: query
+        name: page
+        schema: { type: integer, minimum: 1, default: 1 }
+      - in: query
+        name: limit
+        schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum: [pending, paid, failed, refunded]
+    responses:
+      '200':
+        description: Paginated billing history
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [transactions, pagination]
+                      properties:
+                        transactions:
+                          type: array
+                          items:
+                            type: object
+                        pagination:
+                          type: object
+                          properties:
+                            page: { type: integer }
+                            limit: { type: integer }
+                            total: { type: integer }
+                            totalPages: { type: integer }
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
 stripeConfig:
   get:
     tags: [Billing]
@@ -287,7 +354,7 @@ stripeConfig:
                       properties:
                         publishableKey:
                           type: string
-                          example: "pk_test_..."
+                          example: 'pk_test_...'
                         mode:
                           type: string
                           enum: [test, live]

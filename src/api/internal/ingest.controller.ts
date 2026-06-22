@@ -22,6 +22,11 @@ import {
 } from '../../services/ingest-media-s3.service';
 import { isProductHeroThumbnail } from '../../utils/creative-response.util';
 import { mergeMetricTrendSnapshots } from '../../utils/metric-trend-merge.util';
+import {
+  metricTrendLastMilestone,
+  nextDueMilestone,
+  productAgeDays,
+} from '../../utils/metric-trend-days.util';
 import { extractMetaAdIdFromUrl } from '../../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../../utils/tiktok-url.util';
 import { logger } from '../../logger';
@@ -195,16 +200,26 @@ export async function ingestProduct(
     if (existing) {
       const sold = Number(prepared.soldCount ?? prepared.totalSales ?? 0) || 0;
       const gmv = Number(prepared.totalGmv ?? prepared.storeGmv ?? 0) || 0;
+      const age = productAgeDays(existing as Record<string, unknown>);
+      const milestone = nextDueMilestone(
+        age,
+        metricTrendLastMilestone(existing as Record<string, unknown>),
+      );
       prepared.salesTrend = mergeMetricTrendSnapshots(
         prepared.salesTrend,
         existing.salesTrend,
         sold,
+        milestone,
       );
       prepared.revenueTrend = mergeMetricTrendSnapshots(
         prepared.revenueTrend,
         existing.revenueTrend,
         gmv,
+        milestone,
       );
+      if (milestone != null) {
+        prepared.metricTrendLastMilestone = milestone;
+      }
     }
 
     const saved = await Product.findOneAndUpdate(

@@ -15,7 +15,6 @@ const MIN_ONE_ARRAY_PATHS = new Set([
   'ratingSources',
   'discoverySections',
   'reviews',
-  'suppliers',
   'imageUrls',
   'aiIntelligence.audience',
   'aiIntelligence.categoryKeywords',

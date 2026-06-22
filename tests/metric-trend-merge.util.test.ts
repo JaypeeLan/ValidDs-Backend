@@ -66,4 +66,19 @@ describe('mergeMetricTrendSnapshots', () => {
     expect(merged.windows.find((w) => w.daysAgo === 0)?.value).toBe(0);
     expect(merged.windows.find((w) => w.daysAgo === 30)?.value).toBe(0);
   });
+
+  it('rolls windows at milestone before setting fresh today', () => {
+    const existing = {
+      direction: 'stable',
+      changePercent: 0,
+      windows: [
+        { label: 'Today', daysAgo: 0, value: 100 },
+        { label: '3d ago', daysAgo: 3, value: 80 },
+      ],
+    };
+    const merged = mergeMetricTrendSnapshots(existing, existing, 150, 7);
+    expect(merged.windows.find((w) => w.daysAgo === 0)?.value).toBe(150);
+    expect(merged.windows.find((w) => w.daysAgo === 3)?.value).toBe(100);
+    expect(merged.windows.find((w) => w.daysAgo === 7)?.value).toBe(80);
+  });
 });

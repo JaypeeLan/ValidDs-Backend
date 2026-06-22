@@ -1,24 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
-import { getStripe, getStripePublishableKey, isStripeLiveMode, getPriceIdForPlan } from '../../services/stripe.service';
+import {
+  getStripe,
+  getStripePublishableKey,
+  isStripeLiveMode,
+  getPriceIdForPlan,
+} from '../../services/stripe.service';
 import { BillingService } from '../../services/billing.service';
+import { TransactionService } from '../../services/transaction.service';
 import { UserPlan, IUserDocument } from '../../models/user.model';
 import { Transaction } from '../../models/transaction.model';
+import type { BillingTransactionsQueryInput } from './billing.validator';
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
 const CheckoutBodySchema = z.object({
-  plan:       z.enum(['explorer', 'pro', 'premium'] as const),
-  withTrial:  z.boolean().optional().default(true),
+  plan: z.enum(['explorer', 'pro', 'premium'] as const),
+  withTrial: z.boolean().optional().default(true),
   successUrl: z.string().url().optional(),
-  cancelUrl:  z.string().url().optional(),
+  cancelUrl: z.string().url().optional(),
 });
 
 // ── Controller ────────────────────────────────────────────────────────────────
 
 export const BillingController = {
-
   /**
    * GET /api/v1/billing/stripe-config
    * Public — returns publishable key for Stripe.js on the frontend.
@@ -28,8 +34,8 @@ export const BillingController = {
       const publishableKey = getStripePublishableKey();
       if (!publishableKey) {
         res.status(503).json({
-          success:    false,
-          message:    'Stripe publishable key is not configured for this environment.',
+          success: false,
+          message: 'Stripe publishable key is not configured for this environment.',
           statusCode: 503,
         });
         return;
@@ -40,12 +46,12 @@ export const BillingController = {
         successResponse(
           {
             publishableKey,
-            mode:                isStripeLiveMode() ? 'live' : 'test',
+            mode: isStripeLiveMode() ? 'live' : 'test',
             secretKeyConfigured: Boolean(stripe),
           },
           ResponseMessage.SUCCESS,
-          200
-        )
+          200,
+        ),
       );
     } catch (err) {
       next(err);
@@ -87,8 +93,8 @@ export const BillingController = {
       const parsed = CheckoutBodySchema.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({
-          success:    false,
-          message:    parsed.error.errors[0].message,
+          success: false,
+          message: parsed.error.errors[0].message,
           statusCode: 400,
         });
         return;
@@ -100,27 +106,25 @@ export const BillingController = {
       const priceId = getPriceIdForPlan(plan as UserPlan);
       if (!priceId) {
         res.status(503).json({
-          success:    false,
-          message:    `Stripe price ID for plan "${plan}" is not configured.`,
+          success: false,
+          message: `Stripe price ID for plan "${plan}" is not configured.`,
           statusCode: 503,
         });
         return;
       }
 
       const { url, sessionId } = await BillingService.createCheckoutSession({
-        userId:           String(user._id),
-        userEmail:        user.email,
+        userId: String(user._id),
+        userEmail: user.email,
         stripeCustomerId: user.stripeCustomerId,
-        plan:             plan as UserPlan,
+        plan: plan as UserPlan,
         priceId,
         withTrial,
         successUrl,
         cancelUrl,
       });
 
-      res.json(
-        successResponse({ url, sessionId }, ResponseMessage.SUCCESS, 200)
-      );
+      res.json(successResponse({ url, sessionId }, ResponseMessage.SUCCESS, 200));
     } catch (err) {
       next(err);
     }
@@ -145,18 +149,35 @@ export const BillingController = {
       res.json(
         successResponse(
           {
-            plan:                 user.plan,
-            creditBalance:        user.creditBalance,
-            planExpiresAt:        user.planExpiresAt ?? null,
-            stripeCustomerId:     user.stripeCustomerId ?? null,
+            plan: user.plan,
+            creditBalance: user.creditBalance,
+            planExpiresAt: user.planExpiresAt ?? null,
+            stripeCustomerId: user.stripeCustomerId ?? null,
             stripeSubscriptionId: user.stripeSubscriptionId ?? null,
-            mode:                 isStripeLiveMode() ? 'live' : 'test',
+            mode: isStripeLiveMode() ? 'live' : 'test',
             transactions,
           },
           ResponseMessage.SUCCESS,
-          200
-        )
+          200,
+        ),
       );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * GET /api/v1/billing/transactions
+   * Auth required — paginated billing history for the authenticated user.
+   */
+  async getTransactions(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const query = req.query as unknown as BillingTransactionsQueryInput;
+      const user = req.user as IUserDocument;
+
+      const data = await TransactionService.listForUser(String(user._id), query);
+
+      res.json(successResponse(data, ResponseMessage.BILLING_HISTORY_RETRIEVED, 200));
     } catch (err) {
       next(err);
     }

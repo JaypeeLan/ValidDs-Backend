@@ -4,11 +4,15 @@ import {
   AddBookmarkInput,
   ContentRegionInput,
   RemoveBookmarkQuery,
+  CloseAccountInput,
+  ChangePasswordInput,
 } from './profile.validator';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
 import { PLAN_LIMITS } from '../../models/user.model';
 import { countUserBookmarks, formatUserBookmarks } from '../../services/bookmark.service';
+import { AccountService } from '../../services/account.service';
+import { AuthService } from '../../services/auth.service';
 
 export const ProfileController = {
   me(req: Request, res: Response): void {
@@ -165,6 +169,26 @@ export const ProfileController = {
 
       const bookmarks = await formatUserBookmarks(user, req.models?.Creative, req.models?.Product);
       res.json(successResponse({ bookmarks }, 'Bookmark removed', 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async closeAccount(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const input = req.body as CloseAccountInput;
+      await AccountService.closeAccount(String(req.user!._id), input);
+      res.json(successResponse({ closed: true }, ResponseMessage.ACCOUNT_CLOSED, 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async changePassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { currentPassword, newPassword } = req.body as ChangePasswordInput;
+      await AuthService.changePassword(String(req.user!._id), currentPassword, newPassword);
+      res.json(successResponse({ changed: true }, ResponseMessage.PASSWORD_CHANGED, 200));
     } catch (err) {
       next(err);
     }

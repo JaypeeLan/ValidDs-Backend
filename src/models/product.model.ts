@@ -405,6 +405,7 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     salesTrend: { type: MetricTrendSchema, required: true },
     revenueHistory: { type: [RevenueHistoryEntrySchema], required: true, default: [] },
     revenueTrend: { type: MetricTrendSchema, required: true },
+    metricTrendLastMilestone: { type: Number, min: 0, default: 0 },
 
     // Store-level aggregates
     storeGmv: { type: Number, required: true, min: 0, default: 0 },

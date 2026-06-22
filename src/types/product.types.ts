@@ -279,6 +279,8 @@ export interface IProduct {
   salesTrend: IMetricTrend | null;
   revenueHistory: IRevenueHistoryEntry[];
   revenueTrend: IMetricTrend | null;
+  /** Highest sales/revenue trend milestone rolled (0, 3, 7, 30, 60, 90). */
+  metricTrendLastMilestone?: number;
 
   // Store-level aggregates (sourced from TikTok Shop store profile)
   storeGmv: number;

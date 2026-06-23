@@ -147,6 +147,25 @@ export type CreativeEngagementMetric = 'views' | 'likes' | 'engagement';
 
 export type CreativeProductMetricSortBy = 'gmv-desc' | 'gmv-asc' | 'units-desc' | 'units-asc';
 
+/** Pure video-metric sort when the user explicitly picks views/likes/engagement. */
+export function creativeEngagementMetricSortSpec(
+  sortBy: CreativeEngagementMetric,
+  direction: 'desc' | 'asc' = 'desc',
+): Record<string, 1 | -1> {
+  const metricKey =
+    sortBy === 'likes'
+      ? 'metrics.likeCount'
+      : sortBy === 'engagement'
+        ? 'metrics.engagementRate'
+        : 'metrics.viewCount';
+  const metricDir: 1 | -1 = direction === 'asc' ? 1 : -1;
+  return {
+    [metricKey]: metricDir,
+    publishedAt: -1,
+    _id: 1,
+  };
+}
+
 export function creativeRecencyPrioritySortSpec(
   sortBy: CreativeEngagementMetric,
   direction: 'desc' | 'asc' = 'desc',
@@ -164,6 +183,16 @@ export function creativeRecencyPrioritySortSpec(
     [metricKey]: metricDir,
     publishedAt: -1,
   };
+}
+
+/** Drop aggregation-only fields before the post-dedupe re-sort. */
+export function sortSpecWithoutRecencyFields(sort: Record<string, 1 | -1>): Record<string, 1 | -1> {
+  const out: Record<string, 1 | -1> = {};
+  for (const [key, dir] of Object.entries(sort)) {
+    if (key === '_recencyTier' || key === '_postDate') continue;
+    out[key] = dir;
+  }
+  return Object.keys(out).length ? out : { publishedAt: -1 };
 }
 
 export function creativeProductMetricSortSpec(

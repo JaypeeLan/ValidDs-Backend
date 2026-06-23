@@ -17,7 +17,6 @@ import type {
   ISalesHistoryEntry,
   ITrend,
 } from '../types/product.types';
-import type { IMarketplaceListing } from '../types/marketplace.types';
 import {
   ensureLastIngestedAtOnCreate,
   touchProductFreshnessOnUpdate,
@@ -51,7 +50,6 @@ export type {
   PurchaseIntent,
   ContentFormat,
 } from '../types/product.types';
-export type { IMarketplaceListing } from '../types/marketplace.types';
 
 const STRICT_SUB = { _id: false, strict: true } as const;
 
@@ -89,20 +87,6 @@ const ProductReviewSchema = new Schema<IProductReview>(
     date: { type: String, default: null },
     item: { type: String, default: null },
     images: { type: [String], default: [] },
-  },
-  STRICT_SUB,
-);
-
-const MarketplaceListingSchema = new Schema<IMarketplaceListing>(
-  {
-    productUrl: { type: String, required: true, default: '' },
-    price: { type: Number, min: 0, default: null },
-    originalPrice: { type: Number, min: 0, default: null },
-    currency: { type: String, default: 'USD' },
-    title: { type: String, default: null },
-    moq: { type: Number, min: 0, default: null },
-    rating: { type: Number, min: 0, max: 5, default: null },
-    fetchedAt: { type: Date, required: true },
   },
   STRICT_SUB,
 );
@@ -405,6 +389,7 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     salesTrend: { type: MetricTrendSchema, required: true },
     revenueHistory: { type: [RevenueHistoryEntrySchema], required: true, default: [] },
     revenueTrend: { type: MetricTrendSchema, required: true },
+    metricTrendLastRollDate: { type: String, default: null },
     metricTrendLastMilestone: { type: Number, min: 0, default: 0 },
 
     // Store-level aggregates
@@ -442,11 +427,6 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     productUrl: { type: String, required: true, default: '' },
     officialWebsiteUrl: { type: String, default: null },
     officialProductUrl: { type: String, default: null },
-
-    // Marketplace cross-listings
-    alibabaListing: { type: MarketplaceListingSchema, default: null },
-    aliexpressListing: { type: MarketplaceListingSchema, default: null },
-    targetListing: { type: MarketplaceListingSchema, default: null },
 
     // TikTok account context
     accountHandle: { type: String, required: true, default: '' },

@@ -142,7 +142,9 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     categoryPath: { type: String },
 
     description: { type: String, maxlength: 2000, default: null },
-    angle: { type: String, default: null },
+    angle: { type: String, maxlength: 500, default: null },
+    angleBody: { type: String, maxlength: 2000, default: null },
+    angleTarget: { type: String, maxlength: 200, default: null },
     hashtags: [{ type: String }],
     topComments: { type: [CreativeCommentSchema], default: [] },
 
@@ -159,6 +161,7 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
     shopAvatarS3Key: { type: String, default: null },
     productPrimaryImageUrl: { type: String, default: null },
     productSalesTrend: { type: MetricTrendSchema, default: null },
+    productRevenueTrend: { type: MetricTrendSchema, default: null },
     productTrend: { type: Schema.Types.Mixed, default: null },
 
     publishedAt: { type: Date, default: null },

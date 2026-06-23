@@ -22,11 +22,7 @@ import {
 } from '../../services/ingest-media-s3.service';
 import { isProductHeroThumbnail } from '../../utils/creative-response.util';
 import { mergeMetricTrendSnapshots } from '../../utils/metric-trend-merge.util';
-import {
-  metricTrendLastMilestone,
-  nextDueMilestone,
-  productAgeDays,
-} from '../../utils/metric-trend-days.util';
+import { isDailyRollDue, todayRollDate } from '../../utils/metric-trend-days.util';
 import { extractMetaAdIdFromUrl } from '../../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../../utils/tiktok-url.util';
 import { logger } from '../../logger';
@@ -200,25 +196,21 @@ export async function ingestProduct(
     if (existing) {
       const sold = Number(prepared.soldCount ?? prepared.totalSales ?? 0) || 0;
       const gmv = Number(prepared.totalGmv ?? prepared.storeGmv ?? 0) || 0;
-      const age = productAgeDays(existing as Record<string, unknown>);
-      const milestone = nextDueMilestone(
-        age,
-        metricTrendLastMilestone(existing as Record<string, unknown>),
-      );
+      const rollDue = isDailyRollDue(existing as Record<string, unknown>);
       prepared.salesTrend = mergeMetricTrendSnapshots(
         prepared.salesTrend,
         existing.salesTrend,
         sold,
-        milestone,
+        rollDue,
       );
       prepared.revenueTrend = mergeMetricTrendSnapshots(
         prepared.revenueTrend,
         existing.revenueTrend,
         gmv,
-        milestone,
+        rollDue,
       );
-      if (milestone != null) {
-        prepared.metricTrendLastMilestone = milestone;
+      if (rollDue) {
+        prepared.metricTrendLastRollDate = todayRollDate();
       }
     }
 
@@ -234,6 +226,24 @@ export async function ingestProduct(
     }
 
     log.info('Product ingested', { market, externalId, id: saved.id });
+
+    try {
+      const { Creative } = getMarketModels(market);
+      const { syncCreativeProductTrends } =
+        await import('../../services/sync-creative-product-trends.service.js');
+      await syncCreativeProductTrends(
+        saved._id,
+        Creative,
+        saved.toObject() as Record<string, unknown>,
+      );
+    } catch (err) {
+      log.warn('Failed to sync product trends to creatives', {
+        market,
+        productId: String(saved._id),
+        err: String(err),
+      });
+    }
+
     res.status(200).json({ success: true, id: String(saved._id) });
   } catch (err) {
     if (err && typeof err === 'object' && (err as { name?: string }).name === 'ValidationError') {

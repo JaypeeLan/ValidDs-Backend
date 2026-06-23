@@ -8,17 +8,11 @@ import {
 import { MIN_TOTAL_GMV } from '../src/api/internal/ingest-quality';
 
 function dayMetricTrend(value: number) {
+  const today = new Date().toISOString().slice(0, 10);
   return {
     direction: 'stable' as const,
     changePercent: 0,
-    windows: [
-      { label: 'Today', daysAgo: 0, value },
-      { label: '3d ago', daysAgo: 3, value: 0 },
-      { label: '7d ago', daysAgo: 7, value: 0 },
-      { label: '30d ago', daysAgo: 30, value: 0 },
-      { label: '60d ago', daysAgo: 60, value: 0 },
-      { label: '90d ago', daysAgo: 90, value: 0 },
-    ],
+    windows: [{ label: today, daysAgo: 0, value }],
   };
 }
 
@@ -295,6 +289,9 @@ describe('validateCreativeForIngest', () => {
       changePercent: 0,
       windows: [{ daysAgo: 0, value: 1 }],
     },
+    angle: 'Why is nobody talking about this serum?',
+    angleBody: 'This clip shows how the serum brightens dull skin in days.',
+    angleTarget: 'Skincare enthusiasts with uneven tone',
     relatedVideos: [
       {
         externalVideoId: '2',
@@ -326,6 +323,13 @@ describe('validateCreativeForIngest', () => {
   it('requires at least 3 related videos for TikTok creatives', () => {
     const reasons = validateCreativeForIngest({ ...base, relatedVideos: [] });
     expect(reasons).toContain(`need at least ${INGEST_QUALITY.MIN_RELATED_VIDEOS} related videos`);
+  });
+
+  it('requires per-creative angle brief fields', () => {
+    const reasons = validateCreativeForIngest({ ...base, angleBody: '' });
+    expect(reasons).toContain(
+      'angleBody required — per-creative marketing brief from video transcript',
+    );
   });
 
   it('routes Meta creatives to meta rules (no related-video requirement)', () => {

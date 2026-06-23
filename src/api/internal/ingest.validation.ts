@@ -18,6 +18,7 @@ import {
   MIN_PRODUCT_PRICE,
   marketingAngleFieldReasons,
   marketingAngles,
+  creativeAngleFieldReasons,
   isAngleVideoCreative,
   postAgeRejection,
   postAgeRejectionHours,
@@ -81,6 +82,8 @@ export function validateMetaCreativeForIngest(doc: Record<string, unknown>): str
     reasons.push('videoS3Key required — Meta MP4 must be in S3 before ingest');
   }
 
+  reasons.push(...creativeAngleFieldReasons(doc));
+
   return reasons;
 }
 
@@ -119,6 +122,8 @@ export function validateTikTokCcAdCreativeForIngest(doc: Record<string, unknown>
   if (typeof videoS3 !== 'string' || !videoS3.trim()) {
     reasons.push('videoS3Key required — TikTok CC MP4 must be in S3 before ingest');
   }
+
+  reasons.push(...creativeAngleFieldReasons(doc));
 
   return reasons;
 }
@@ -325,6 +330,8 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
 
   const matchReason = creativeVideoProductMatchReason(doc);
   if (matchReason) reasons.push(matchReason);
+
+  reasons.push(...creativeAngleFieldReasons(doc));
 
   return reasons;
 }

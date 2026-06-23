@@ -15,7 +15,7 @@ export const INGEST_QUALITY = {
   MIN_UNITS_SOLD: 200,
   /** New product ingest only — scraper skips this on Mongo upsert updates. */
   MAX_POST_AGE_DAYS: 30,
-  /** New non-angle creatives only — existing DB rows are not retroactively removed. */
+  /** Non-primary ad/promo creatives skip the creative age cap. */
   MAX_CREATIVE_AGE_DAYS: 90,
   MAX_CREATIVE_AGE_HOURS: 90 * 24,
   MIN_RELATED_VIDEOS: 1,
@@ -104,7 +104,8 @@ export function postAgeRejectionHours(
 }
 
 export function isAngleVideoCreative(doc: Record<string, unknown>): boolean {
-  return Boolean(String(doc.angle ?? '').trim());
+  if (doc.isPrimaryDiscovery === true) return false;
+  return doc.isAd === true;
 }
 
 export function nonzeroPriceTrendMonths(trend: unknown): number {
@@ -163,7 +164,25 @@ export function baselineProductQualityReasons(doc: Record<string, unknown>): str
   return reasons;
 }
 
-/** Each marketing angle must include hook, body, and target (scraper ai_extractor shape). */
+/** Each creative must carry its own transcript-derived marketing brief. */
+export function creativeAngleFieldReasons(doc: Record<string, unknown>): string[] {
+  const reasons: string[] = [];
+  const hook = String(doc.angle ?? '').trim();
+  const body = String(doc.angleBody ?? '').trim();
+  const target = String(doc.angleTarget ?? '').trim();
+  if (!hook) {
+    reasons.push('angle (hook) required — per-creative marketing brief from video transcript');
+  }
+  if (!body) {
+    reasons.push('angleBody required — per-creative marketing brief from video transcript');
+  }
+  if (!target) {
+    reasons.push('angleTarget required — per-creative marketing brief from video transcript');
+  }
+  return reasons;
+}
+
+/** Each product marketing angle must include hook, body, and target (scraper ai_extractor shape). */
 export function marketingAngleFieldReasons(doc: Record<string, unknown>): string[] {
   const reasons: string[] = [];
   marketingAngles(doc).forEach((angle, i) => {

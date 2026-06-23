@@ -1,7 +1,6 @@
 import { Document, Model } from 'mongoose';
 import type { SentimentLabel } from '../utils/sentiment.util.js';
 import type { StoreLink } from '../utils/store-links.util.js';
-import type { IMarketplaceListing } from './marketplace.types.js';
 
 export type { SentimentLabel };
 
@@ -100,8 +99,6 @@ export interface IProductSupplier {
   revenueSource: 'product-sales' | 'traffic-estimate' | null;
   competitorScore: number | null;
 }
-
-export type { IMarketplaceListing } from './marketplace.types.js';
 
 // ── Marketing analysis ────────────────────────────────────────────────────────
 
@@ -279,7 +276,9 @@ export interface IProduct {
   salesTrend: IMetricTrend | null;
   revenueHistory: IRevenueHistoryEntry[];
   revenueTrend: IMetricTrend | null;
-  /** Highest sales/revenue trend milestone rolled (0, 3, 7, 30, 60, 90). */
+  /** UTC date (YYYY-MM-DD) when sales/revenue trend windows were last rolled daily. */
+  metricTrendLastRollDate?: string;
+  /** @deprecated Legacy milestone tracker — use metricTrendLastRollDate. */
   metricTrendLastMilestone?: number;
 
   // Store-level aggregates (sourced from TikTok Shop store profile)
@@ -319,11 +318,6 @@ export interface IProduct {
   officialWebsiteUrl?: string | null;
   /** Matching SKU on the merchant's own storefront, when known. */
   officialProductUrl?: string | null;
-
-  // Marketplace cross-listings
-  alibabaListing?: IMarketplaceListing | null;
-  aliexpressListing?: IMarketplaceListing | null;
-  targetListing?: IMarketplaceListing | null;
 
   // TikTok account context
   accountHandle: string;

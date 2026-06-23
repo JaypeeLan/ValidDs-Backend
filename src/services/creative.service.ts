@@ -38,8 +38,9 @@ import { DEFAULT_MARKET } from '../utils/markets';
 import { extractMetaAdIdFromUrl } from '../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../utils/tiktok-url.util';
 import {
-  creativeRecencyPrioritySortSpec,
+  creativeEngagementMetricSortSpec,
   recencyTierAddFields,
+  sortSpecWithoutRecencyFields,
 } from '../utils/product-recency.util';
 import {
   creativeSortSkipsRecencyTier,
@@ -344,7 +345,11 @@ function buildCreativeFeedBaseStages(
     ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
     ...(onePerProduct ? (creativeOneAdPerProductFeedStages() as unknown as PipelineStage[]) : []),
     { $unset: ['productDescription', '_recencyTier', '_postDate', 'adDedupeKey'] },
-    { $sort: sort as PipelineStage.Sort['$sort'] },
+    {
+      $sort: sortSpecWithoutRecencyFields(
+        sort as Record<string, 1 | -1>,
+      ) as PipelineStage.Sort['$sort'],
+    },
   ];
 }
 
@@ -454,7 +459,7 @@ async function loadCreativesForProduct(
   if (!mongoose.isValidObjectId(productId)) return [];
 
   const mLimit = Math.min(Math.max(limit, 1), 100);
-  const videoSort = creativeRecencyPrioritySortSpec('views');
+  const videoSort = creativeEngagementMetricSortSpec('views');
   const baseStages = buildCreativeFeedBaseStages(
     {
       productId: new mongoose.Types.ObjectId(productId),

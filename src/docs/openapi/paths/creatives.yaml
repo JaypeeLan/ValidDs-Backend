@@ -7,6 +7,9 @@ creatives:
       List items omit `productDescription` and nested `relatedVideos` (one card per TikTok video;
       duplicate `externalVideoId` rows collapse to the highest-ranked match).
 
+      Each item includes a per-clip marketing brief (`angle`, `angleBody`, `angleTarget`) — independent
+      of product-level `aiInsight.marketingAnalysis.angles`.
+
       **Playback:** use `videoProxyUrl` with `GET /creatives/{id}/video` when a CDN URL exists;
       otherwise embed via `embedUrl` in an iframe.
 
@@ -134,8 +137,9 @@ creativeDetail:
   get:
     summary: Get creative details
     description: |
-      Single creative by MongoDB id. Includes `productDescription` and full `relatedVideos` tree
-      with `videoProxyUrl` / `thumbnailProxyUrl` on each slot.
+      Single creative by MongoDB id. Includes `productDescription`, per-clip marketing brief
+      (`angle`, `angleBody`, `angleTarget`), and full `relatedVideos` tree with `videoProxyUrl` /
+      `thumbnailProxyUrl` on each slot.
     tags:
       - Creatives
     parameters:
@@ -454,8 +458,10 @@ components:
       name: sortBy
       in: query
       description: |
-        Sort order for videos/ads. Product metrics: `gmv_desc`, `gmv_asc`, `units_sold_desc`, `units_sold_asc`.
+        Sort order for videos/ads. Product metrics: `gmv_desc`, `gmv_asc`, `units_sold_desc`, `units_sold_asc`
+        (hyphen forms `gmv-desc`, `gmv-asc`, … also accepted).
         Video metrics: `views_desc`, `views_asc`, `likes_desc`, `likes_asc` (aliases `views`, `likes` = descending).
+        `views` sorts by stored `metrics.viewCount` only (no product GMV tie-break).
         `recent` sorts by post publish date; `last_ingested` sorts by `ingestedAt`.
         For `groupBy=creator`, also accepts `creator_gmv_desc`, `creator_gmv_asc`, `followers_desc`, `followers_asc`.
       schema:

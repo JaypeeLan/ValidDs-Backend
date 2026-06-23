@@ -1,6 +1,6 @@
 import {
+  creativeEngagementMetricSortSpec,
   creativeProductMetricSortSpec,
-  creativeRecencyPrioritySortSpec,
   type CreativeProductMetricSortBy,
 } from '../../utils/product-recency.util';
 
@@ -64,7 +64,17 @@ export function normalizeCreativeSortBy(raw?: string): CreativeSortBy | undefine
 }
 
 export function creativeSortSkipsRecencyTier(sortKey: string): boolean {
-  return sortKey === 'recent' || sortKey === 'last_ingested';
+  return (
+    sortKey === 'recent' ||
+    sortKey === 'last_ingested' ||
+    sortKey === 'views' ||
+    sortKey === 'views-desc' ||
+    sortKey === 'views-asc' ||
+    sortKey === 'likes' ||
+    sortKey === 'likes-desc' ||
+    sortKey === 'likes-asc' ||
+    sortKey === 'engagement'
+  );
 }
 
 export function resolveCreativeSort(
@@ -80,17 +90,17 @@ export function resolveCreativeSort(
     case 'last_ingested':
       return { sortKey: 'last_ingested', sort: { ingestedAt: -1, publishedAt: -1 } };
     case 'likes-desc':
-      return { sortKey: 'likes-desc', sort: creativeRecencyPrioritySortSpec('likes', 'desc') };
+      return { sortKey: 'likes-desc', sort: creativeEngagementMetricSortSpec('likes', 'desc') };
     case 'likes-asc':
-      return { sortKey: 'likes-asc', sort: creativeRecencyPrioritySortSpec('likes', 'asc') };
+      return { sortKey: 'likes-asc', sort: creativeEngagementMetricSortSpec('likes', 'asc') };
     case 'likes':
-      return { sortKey: 'likes', sort: creativeRecencyPrioritySortSpec('likes') };
+      return { sortKey: 'likes', sort: creativeEngagementMetricSortSpec('likes') };
     case 'engagement':
-      return { sortKey: 'engagement', sort: creativeRecencyPrioritySortSpec('engagement') };
+      return { sortKey: 'engagement', sort: creativeEngagementMetricSortSpec('engagement') };
     case 'views-desc':
-      return { sortKey: 'views-desc', sort: creativeRecencyPrioritySortSpec('views', 'desc') };
+      return { sortKey: 'views-desc', sort: creativeEngagementMetricSortSpec('views', 'desc') };
     case 'views-asc':
-      return { sortKey: 'views-asc', sort: creativeRecencyPrioritySortSpec('views', 'asc') };
+      return { sortKey: 'views-asc', sort: creativeEngagementMetricSortSpec('views', 'asc') };
     case 'gmv-desc':
     case 'gmv-asc':
     case 'units-desc':
@@ -101,7 +111,7 @@ export function resolveCreativeSort(
       };
     case 'views':
     default:
-      return { sortKey: 'views', sort: creativeRecencyPrioritySortSpec('views') };
+      return { sortKey: 'views', sort: creativeEngagementMetricSortSpec('views') };
   }
 }
 

@@ -37,6 +37,8 @@ tags:
     description: Manual ingestion trigger (currently disabled)
   - name: TikTok Live (Admin)
     description: Ad-hoc live checks, live room product shelf, session GMV history — requires admin JWT
+  - name: Scraper Ingest
+    description: Python scraper → `POST /internal/ingest/*` (header `X-Ingest-Key`)
 
 paths:
   /api/v1/admin/health:
@@ -89,6 +91,10 @@ paths:
     $ref: ./paths/tiktok.yaml#/sessions
   /api/v1/tiktok/sessions/{id}:
     $ref: ./paths/tiktok.yaml#/sessionItem
+  /internal/ingest/product:
+    $ref: ./paths/internal-ingest.yaml#/ingestProduct
+  /internal/ingest/creative:
+    $ref: ./paths/internal-ingest.yaml#/ingestCreative
 
 components:
   securitySchemes:
@@ -100,6 +106,11 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    IngestKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Ingest-Key
+      description: Must match backend `SCRAPER_INGEST_KEY` / scraper `SCRAPER_INGEST_KEY`
 
   schemas:
     SuccessResponse:
@@ -112,6 +123,8 @@ components:
       $ref: ./components/schemas/Product.yaml
     Creative:
       $ref: ./components/schemas/Creative.yaml
+    CreativeAngleBrief:
+      $ref: ./components/schemas/CreativeAngleBrief.yaml
     MarketCode:
       $ref: ./components/schemas/Admin.yaml#/MarketCode
     AdminCreativeSection:

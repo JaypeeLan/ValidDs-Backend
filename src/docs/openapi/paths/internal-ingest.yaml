@@ -1,0 +1,112 @@
+openapi: 3.0.3
+
+ingestCreative:
+  post:
+    tags:
+      - Scraper Ingest
+    summary: Upsert creative (scraper)
+    description: |
+      Python scraper → backend write path (`SCRAPER_INGEST_MODE=backend`).
+
+      Requires header **`X-Ingest-Key`** matching backend `SCRAPER_INGEST_KEY`.
+
+      Each creative must include a **per-clip** marketing brief (`angle`, `angleBody`, `angleTarget`)
+      generated from that video's transcript via AI. This is independent of product-level
+      `aiIntelligence.marketingAnalysis.angles`.
+    security:
+      - IngestKeyAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/ingestCreativeRequest'
+    responses:
+      '200':
+        description: Creative upserted
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                id:
+                  type: string
+      '422':
+        description: Validation failed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/Common.yaml#/ErrorResponse'
+
+ingestProduct:
+  post:
+    tags:
+      - Scraper Ingest
+    summary: Upsert product (scraper)
+    description: |
+      Python scraper product ingest. Requires **`X-Ingest-Key`**.
+    security:
+      - IngestKeyAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [market, product]
+            properties:
+              market:
+                $ref: '../components/schemas/Admin.yaml#/MarketCode'
+              product:
+                $ref: '../components/schemas/Product.yaml'
+    responses:
+      '200':
+        description: Product upserted
+      '422':
+        description: Validation failed
+
+components:
+  ingestCreativeRequest:
+    type: object
+    required: [market, creative]
+    properties:
+      market:
+        $ref: '../components/schemas/Admin.yaml#/MarketCode'
+      creative:
+        allOf:
+          - type: object
+            required:
+              - productId
+              - externalVideoId
+              - tiktokPostUrl
+              - creator
+              - metrics
+              - section
+            properties:
+              productId:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+              externalVideoId:
+                type: string
+              tiktokPostUrl:
+                type: string
+                format: uri
+              videoS3Key:
+                type: string
+              thumbnailUrl:
+                type: string
+                format: uri
+              section:
+                type: string
+                enum: [top-ads, trending]
+              isPrimaryDiscovery:
+                type: boolean
+              isAd:
+                type: boolean
+              description:
+                type: string
+              originalCaption:
+                type: string
+          - $ref: '../components/schemas/CreativeAngleBrief.yaml'

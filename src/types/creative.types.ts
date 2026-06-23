@@ -103,7 +103,12 @@ export interface ICreative {
   categoryL3?: string;
   categoryPath?: string;
   description?: string | null;
+  /** Per-clip marketing hook (transcript + AI). */
   angle?: string | null;
+  /** Per-clip angle body — independent of product marketing angles. */
+  angleBody?: string | null;
+  /** Per-clip target audience for this video. */
+  angleTarget?: string | null;
   hashtags: string[];
   topComments: ICreativeComment[];
   relatedVideos: ISecondaryVideo[];
@@ -119,6 +124,8 @@ export interface ICreative {
   productPrimaryImageUrl?: string | null;
   /** Denormalized copy of the parent product's `salesTrend` (MetricTrend windows). */
   productSalesTrend?: IMetricTrend | null;
+  /** Live parent product `revenueTrend` joined at read time. */
+  productRevenueTrend?: IMetricTrend | null;
   productTrend?: { score: number; direction: string; isTrending: boolean; reason?: string } | null;
   publishedAt?: Date | string | null;
   ingestedAt?: Date;
@@ -193,6 +200,8 @@ export interface CreativeApiItem {
   categoryPath?: string;
   description?: string | null;
   angle?: string | null;
+  angleBody?: string | null;
+  angleTarget?: string | null;
   hashtags: string[];
   topComments: ICreativeComment[];
   relatedVideos: ISecondaryVideoApi[];
@@ -205,6 +214,7 @@ export interface CreativeApiItem {
   shopAvatarUrl?: string | null;
   productPrimaryImageUrl?: string | null;
   productSalesTrend?: IMetricTrend | null;
+  productRevenueTrend?: IMetricTrend | null;
   productTrend?: IProductTrendSnapshot | null;
   publishedAt?: Date | string | null;
   ingestedAt?: Date | string;

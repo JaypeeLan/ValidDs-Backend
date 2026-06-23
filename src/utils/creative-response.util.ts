@@ -765,6 +765,8 @@ export function formatCreativeForApi(
     categoryPath: creative.categoryPath as string | undefined,
     description: (creative.description as string | null | undefined) ?? null,
     angle: (creative.angle as string | null | undefined) ?? null,
+    angleBody: (creative.angleBody as string | null | undefined) ?? null,
+    angleTarget: (creative.angleTarget as string | null | undefined) ?? null,
     hashtags: Array.isArray(creative.hashtags) ? (creative.hashtags as string[]) : [],
     topComments: Array.isArray(creative.topComments)
       ? (creative.topComments as ICreativeComment[])
@@ -798,6 +800,7 @@ export function formatCreativeForApi(
     shopAvatarUrl: creative.shopAvatarUrl as string | null | undefined,
     productPrimaryImageUrl: creative.productPrimaryImageUrl as string | null | undefined,
     productSalesTrend: resolveProductSalesTrend(creative.productSalesTrend),
+    productRevenueTrend: resolveProductSalesTrend(creative.productRevenueTrend),
     productTrend: resolveProductTrendSnapshot(creative.productTrend),
     publishedAt: creative.publishedAt as Date | string | undefined,
     ingestedAt: creative.ingestedAt as Date | string | undefined,

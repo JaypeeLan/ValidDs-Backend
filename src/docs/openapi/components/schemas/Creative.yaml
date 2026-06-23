@@ -102,8 +102,22 @@ properties:
   angle:
     type: string
     nullable: true
-    description: Marketing hook or hashtag theme label from ingestion.
-    example: Gift for someone special
+    description: |
+      Per-clip marketing hook derived from this video's transcript (AI).
+      Independent of product `aiInsight.marketingAnalysis.angles`.
+    example: Stop scrolling if your blush never lasts past lunch.
+  angleBody:
+    type: string
+    maxLength: 2000
+    nullable: true
+    description: Per-clip video concept (1–2 sentences) for this creative.
+    example: This blush delivers buildable pigment that stays put through a full workday.
+  angleTarget:
+    type: string
+    maxLength: 200
+    nullable: true
+    description: Audience this specific clip speaks to.
+    example: Makeup lovers who want long-wear color without heavy texture
   hashtags:
     type: array
     items:
@@ -152,6 +166,11 @@ properties:
   productSalesTrend:
     nullable: true
     description: Denormalized copy of the parent product's `salesTrend` (rolling sales windows).
+    allOf:
+      - $ref: ./MetricTrend.yaml#/MetricTrend
+  productRevenueTrend:
+    nullable: true
+    description: Denormalized copy of the parent product's `revenueTrend` (rolling GMV windows).
     allOf:
       - $ref: ./MetricTrend.yaml#/MetricTrend
   productTrend:

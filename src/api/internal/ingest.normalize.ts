@@ -6,7 +6,7 @@ import {
   stripAllAngleVideos,
 } from '../../utils/marketing-angles.util';
 import { normalizeMetaAdLibraryUrl } from '../../utils/meta-ad-url.util';
-import { defaultMetricTrendWindows } from '../../utils/metric-trend-days.util';
+import { defaultMetricTrendWindows, dayWindowLabel } from '../../utils/metric-trend-days.util';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 import { fillProductFieldGaps } from './product-field-completeness';
 import { normalizeCategoryL2 } from '../../utils/category-l2-normalize.util';
@@ -107,7 +107,7 @@ function normalizeMetricTrend(trend: unknown, defaultValue = 0): Record<string, 
   if (t.changePercent == null) t.changePercent = 0;
   const incoming = Array.isArray(t.windows) ? [...t.windows] : [];
   if (!trendHasCurrentWindow(incoming)) {
-    incoming.unshift({ label: 'Today', daysAgo: 0, value: defaultValue });
+    incoming.unshift({ label: dayWindowLabel(0), daysAgo: 0, value: defaultValue });
   }
   const template = defaultMetricTrendWindows(defaultValue);
   const byOffset = new Map<number, number>();
@@ -440,6 +440,18 @@ function normalizeMetaCreativeUrls(out: Record<string, unknown>): void {
   out.creator = creator;
 }
 
+function normalizeCreativeAngleFields(out: Record<string, unknown>): void {
+  const hook = String(out.angle ?? '').trim();
+  const body = String(out.angleBody ?? '').trim();
+  const target = String(out.angleTarget ?? '').trim();
+  if (hook) out.angle = hook.slice(0, 500);
+  else delete out.angle;
+  if (body) out.angleBody = body.slice(0, 2000);
+  else delete out.angleBody;
+  if (target) out.angleTarget = target.slice(0, 200);
+  else delete out.angleTarget;
+}
+
 export function normalizeCreativePayload(raw: Record<string, unknown>): Record<string, unknown> {
   const out = { ...raw };
   if (Array.isArray(out.categoryPath)) {
@@ -475,5 +487,6 @@ export function normalizeCreativePayload(raw: Record<string, unknown>): Record<s
   } else {
     delete out.originalCaption;
   }
+  normalizeCreativeAngleFields(out);
   return out;
 }

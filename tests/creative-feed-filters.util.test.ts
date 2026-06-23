@@ -44,10 +44,17 @@ describe('creative-feed-filters.util', () => {
 
   it('resolveCreativeSort supports ascending views', () => {
     expect(resolveCreativeSort('views-asc').sort).toEqual({
-      _recencyTier: 1,
-      productTotalGmv: -1,
       'metrics.viewCount': 1,
       publishedAt: -1,
+      _id: 1,
+    });
+  });
+
+  it('resolveCreativeSort uses pure viewCount for views_desc', () => {
+    expect(resolveCreativeSort('views-desc').sort).toEqual({
+      'metrics.viewCount': -1,
+      publishedAt: -1,
+      _id: 1,
     });
   });
 

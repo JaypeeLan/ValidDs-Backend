@@ -1,0 +1,24 @@
+type: object
+description: |
+  Per-creative marketing brief derived from this clip's video transcript (AI).
+  Independent of product-level `aiInsight.marketingAnalysis.angles`.
+required:
+  - angle
+  - angleBody
+  - angleTarget
+properties:
+  angle:
+    type: string
+    maxLength: 500
+    description: Scroll-stopping hook — first line a creator would say in this video.
+    example: Stop scrolling if your blush never lasts past lunch.
+  angleBody:
+    type: string
+    maxLength: 2000
+    description: 1–2 sentence video concept elaborating the hook for this specific clip.
+    example: This blush delivers buildable pigment that stays put through a full workday without creasing.
+  angleTarget:
+    type: string
+    maxLength: 200
+    description: Audience this clip speaks to (demographic + motive).
+    example: Makeup lovers who want long-wear color without heavy texture

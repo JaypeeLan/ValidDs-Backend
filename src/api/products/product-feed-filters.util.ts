@@ -216,7 +216,16 @@ export function buildProductFeedFilters(raw: RawProductFeedQuery): ProductFeedFi
 
 export function defaultSortOptionsForFeed(feed?: 'discover' | 'top-opportunities'): string[] {
   if (feed === 'discover') {
-    return ['recent', 'views', 'engagement', 'trendScore'];
+    return [
+      'recent',
+      'views',
+      'engagement',
+      'trendScore',
+      'gmv_desc',
+      'gmv_asc',
+      'units_sold_desc',
+      'units_sold_asc',
+    ];
   }
   if (feed === 'top-opportunities') {
     return ['gmv_desc', 'gmv_asc', 'units_sold_desc', 'units_sold_asc', 'last_ingested'];

@@ -126,13 +126,22 @@ export const ProductFeedQuerySchema = z
       return;
     }
     if (sortBy && val.feed === 'discover') {
-      const allowed = new Set(['recent', 'trendScore', 'views', 'engagement']);
+      const allowed = new Set([
+        'recent',
+        'trendScore',
+        'views',
+        'engagement',
+        'gmv-desc',
+        'gmv-asc',
+        'units-desc',
+        'units-asc',
+      ]);
       if (!allowed.has(sortBy)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['sortBy'],
           message:
-            'For feed=discover use: recent, views, engagement, trendScore (or gmv/units for top-opportunities tab only)',
+            'For feed=discover use: recent, views, engagement, trendScore, gmv_desc, gmv_asc, units_sold_desc, units_sold_asc',
         });
       }
     }

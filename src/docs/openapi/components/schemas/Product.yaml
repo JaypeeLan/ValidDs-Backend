@@ -81,7 +81,7 @@ properties:
 
   suppliers:
     type: array
-    description: Marketplace / supplier listings found for this product.
+    description: Supplier / sourcing listings found for this product (Amazon, Shopify App, etc.).
     items:
       type: object
       properties:

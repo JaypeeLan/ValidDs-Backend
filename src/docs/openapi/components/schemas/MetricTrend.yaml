@@ -4,7 +4,7 @@ MetricTrendWindow:
   properties:
     label:
       type: string
-      example: today
+      example: '2026-06-22'
     daysAgo:
       type: integer
       minimum: 0

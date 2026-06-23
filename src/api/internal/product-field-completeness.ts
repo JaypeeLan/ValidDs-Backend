@@ -3,7 +3,7 @@
  * scraper/pipeline/product_field_completeness.py
  */
 
-import { defaultMetricTrendWindows } from '../../utils/metric-trend-days.util';
+import { defaultMetricTrendWindows, dayWindowLabel } from '../../utils/metric-trend-days.util';
 import { sanitizeCumulativeWindows } from '../../utils/metric-trend-merge.util';
 import { resolveShopProductUrl } from '../../utils/shop-avatar.util';
 import { INGEST_QUALITY } from './ingest-quality';
@@ -44,10 +44,6 @@ const OPTIONAL_EMPTY_STRING_SUFFIXES = [
   // Creator TikTok IDs/URLs: not always resolvable at ingest time.
   '.tiktokUserId',
   '.tiktokPostUrl',
-  // Marketplace listings are optional — only present when found by the Apify actors.
-  'alibabaListing',
-  'aliexpressListing',
-  'targetListing',
   // Partner pool fields — only present for partner-sourced products.
   'partnerPoolSource',
   'partnerPoolGmv',
@@ -55,12 +51,7 @@ const OPTIONAL_EMPTY_STRING_SUFFIXES = [
 ];
 
 // Nested objects where all sub-fields are allowed to be sparse (not required).
-const LENIENT_OBJECT_PREFIXES = [
-  'aiIntelligence.marketingAnalysis.angles.',
-  'alibabaListing.',
-  'aliexpressListing.',
-  'targetListing.',
-];
+const LENIENT_OBJECT_PREFIXES = ['aiIntelligence.marketingAnalysis.angles.'];
 
 function isOptionalEmptyPath(path: string): boolean {
   return OPTIONAL_EMPTY_STRING_SUFFIXES.some((s) => path === s || path.endsWith(s));
@@ -164,7 +155,7 @@ function trendWithToday(value: number, trend: unknown): Record<string, unknown> 
     const row = w as { daysAgo?: number; monthsAgo?: number };
     return (row.daysAgo ?? row.monthsAgo ?? -1) === 0;
   });
-  if (!hasToday) incoming.unshift({ label: 'Today', daysAgo: 0, value });
+  if (!hasToday) incoming.unshift({ label: dayWindowLabel(0), daysAgo: 0, value });
   const template = defaultMetricTrendWindows(value);
   const byOffset = new Map<number, number>();
   for (const w of incoming) {
@@ -467,11 +458,6 @@ const VALID_TREND_DIRECTION = new Set([
   'unknown',
 ]);
 const VALID_REVENUE_SOURCE = new Set(['product-sales', 'traffic-estimate']);
-const MARKETPLACE_LISTING_FIELDS = [
-  'alibabaListing',
-  'aliexpressListing',
-  'targetListing',
-] as const;
 const TITLE_MAX_LEN = 500;
 const DESCRIPTION_MAX_LEN = 2000;
 
@@ -510,25 +496,6 @@ function validateMetricTrend(path: string, trend: unknown, out: string[]): void 
   if (row.changePercent == null) out.push(`${path}.changePercent is required`);
   if (!Array.isArray(row.windows) || row.windows.length === 0) {
     out.push(`${path}.windows must not be empty`);
-  }
-}
-
-function validateMarketplaceListing(path: string, listing: unknown, out: string[]): void {
-  if (listing == null) return;
-  if (!listing || typeof listing !== 'object') {
-    out.push(`${path} must be an object`);
-    return;
-  }
-  const row = listing as Record<string, unknown>;
-  if (row.fetchedAt == null) out.push(`${path}.fetchedAt is required`);
-  if (row.productUrl == null) out.push(`${path}.productUrl is required`);
-  for (const [key, min, max] of [
-    ['price', 0, undefined],
-    ['originalPrice', 0, undefined],
-    ['moq', 0, undefined],
-    ['rating', 0, 5],
-  ] as const) {
-    if (row[key] != null) requireNumberRange(`${path}.${key}`, row[key], out, min, max);
   }
 }
 
@@ -722,10 +689,6 @@ export function collectSchemaViolations(doc: Record<string, unknown>): string[] 
       if (typeof val !== 'number') out.push(`creativeCounts.${key} is required`);
       else if (val < 0) out.push(`creativeCounts.${key} must be >= 0`);
     }
-  }
-
-  for (const field of MARKETPLACE_LISTING_FIELDS) {
-    validateMarketplaceListing(field, doc[field], out);
   }
 
   const suppliers = doc.suppliers;

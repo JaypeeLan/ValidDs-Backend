@@ -66,9 +66,11 @@ feed:
       - name: sortBy
         in: query
         description: |
-          Sort order. Use snake_case from the UI (`gmv_desc`, `units_sold_desc`, `last_ingested`, …).
+          Sort order. Use snake_case from the UI (`gmv_desc`, `units_sold_desc`, `last_ingested`, …);
+          hyphen forms (`gmv-desc`, `gmv-asc`, `units-desc`, `units-asc`) are also accepted.
           `last_ingested` / `recent` sort by `lastIngestedAt` (newest first).
           On `feed=top-opportunities`, `last_ingested` is also supported.
+          On `feed=discover`, `gmv_asc` / `gmv-asc` sorts by `totalGmv` low to high.
           Defaults depend on `feed` when omitted.
         schema:
           type: string

@@ -6,6 +6,7 @@
 import { defaultMetricTrendWindows, dayWindowLabel } from '../../utils/metric-trend-days.util';
 import { sanitizeCumulativeWindows } from '../../utils/metric-trend-merge.util';
 import { resolveShopProductUrl } from '../../utils/shop-avatar.util';
+import { stripLegacySupplierSalesFields } from '../../utils/supplier-apify.util';
 import { INGEST_QUALITY } from './ingest-quality';
 
 const SKIP_KEYS = new Set(['_id', '__v', 'createdAt', 'updatedAt']);
@@ -173,6 +174,28 @@ function trendWithToday(value: number, trend: unknown): Record<string, unknown> 
   return t;
 }
 
+/** Derive soldCount / totalGmv / storeGmv from listing price × units sold. */
+export function recomputeProductGmvFields(doc: Record<string, unknown>): {
+  soldCount: number;
+  totalSales: number;
+  storeTotalSales: number;
+  totalGmv: number;
+  storeGmv: number;
+} {
+  const price = Number(doc.price) || 0;
+  const sold = Number(doc.soldCount ?? doc.totalSales) || 0;
+  let storeSales = Number(doc.storeTotalSales) || 0;
+  if (storeSales < sold) storeSales = sold;
+  const gmv = price > 0 && sold > 0 ? Math.round(price * sold * 100) / 100 : 0;
+  return {
+    soldCount: sold,
+    totalSales: sold,
+    storeTotalSales: storeSales,
+    totalGmv: gmv,
+    storeGmv: gmv,
+  };
+}
+
 export function fillProductFieldGaps(raw: Record<string, unknown>): Record<string, unknown> {
   const out = { ...raw };
 
@@ -274,6 +297,9 @@ export function fillProductFieldGaps(raw: Record<string, unknown>): Record<strin
 
   const price = Number(out.price) || 0;
   const sold = Number(out.soldCount ?? out.totalSales) || 0;
+  if (price > 0 && sold > 0) {
+    Object.assign(out, recomputeProductGmvFields(out));
+  }
   const gmv = Number(out.totalGmv ?? out.storeGmv) || 0;
   if (!Array.isArray(out.salesHistory) || out.salesHistory.length === 0) {
     if (sold > 0) out.salesHistory = [{ sales: sold, recordedAt: monthTs() }];
@@ -395,9 +421,6 @@ function normalizeSuppliersForCompleteness(
     } else {
       row.monthlyTraffic = null;
     }
-    if (!row.productUnitsSold || Number(row.productUnitsSold) < 1) {
-      row.productUnitsSold = Math.max(1, Number(doc.soldCount ?? doc.totalSales) || 1);
-    }
     if (row.price == null) row.price = Number(doc.price) || 0;
     if (!row.currency) row.currency = String(doc.currency ?? 'USD');
     if (!row.platform) row.platform = String(row.source ?? 'supplier');
@@ -408,23 +431,19 @@ function normalizeSuppliersForCompleteness(
     if (row.rating == null) row.rating = Number(doc.rating) || 0;
     if (row.totalRatings == null) row.totalRatings = Number(doc.reviewCount) || 0;
     if (row.totalReviews == null) row.totalReviews = Number(doc.reviewCount) || 0;
-    if (row.soldLast30Days == null) {
-      row.soldLast30Days = Math.max(1, Math.floor(Number(row.productUnitsSold) / 12));
-    }
-    if (row.estimatedMonthlyRevenue == null) {
-      row.estimatedMonthlyRevenue = Number(row.soldLast30Days) * Number(row.price);
-    }
-    if (!row.revenueSource) row.revenueSource = 'traffic-estimate';
-    if (row.competitorScore == null) row.competitorScore = 50;
-    if (!row.fetchedAt) row.fetchedAt = now;
-    if (!row.checkedAt) row.checkedAt = now;
+    const normalized = stripLegacySupplierSalesFields(row);
+    if (normalized.competitorScore == null) normalized.competitorScore = 50;
+    if (!normalized.fetchedAt) normalized.fetchedAt = now;
+    if (!normalized.checkedAt) normalized.checkedAt = now;
     const shop =
-      row.shop && typeof row.shop === 'object' ? { ...(row.shop as Record<string, unknown>) } : {};
-    if (!shop.name) shop.name = String(doc.shopName ?? row.platform ?? 'Shop');
-    if (!shop.url) shop.url = String(doc.shopUrl ?? row.productUrl ?? '');
-    if (shop.rating == null) shop.rating = Number(row.rating) || 0;
-    row.shop = shop;
-    return row;
+      normalized.shop && typeof normalized.shop === 'object'
+        ? { ...(normalized.shop as Record<string, unknown>) }
+        : {};
+    if (!shop.name) shop.name = String(doc.shopName ?? normalized.platform ?? 'Shop');
+    if (!shop.url) shop.url = String(doc.shopUrl ?? normalized.productUrl ?? '');
+    if (shop.rating == null) shop.rating = Number(normalized.rating) || 0;
+    normalized.shop = shop;
+    return normalized;
   });
 }
 
@@ -457,7 +476,6 @@ const VALID_TREND_DIRECTION = new Set([
   'viral',
   'unknown',
 ]);
-const VALID_REVENUE_SOURCE = new Set(['product-sales', 'traffic-estimate']);
 const TITLE_MAX_LEN = 500;
 const DESCRIPTION_MAX_LEN = 2000;
 
@@ -509,15 +527,10 @@ function validateSupplierRow(path: string, row: unknown, out: string[]): void {
     requireNonEmpty(`${path}.${key}`, s[key], out);
   }
   if (s.fetchedAt == null) out.push(`${path}.fetchedAt is required`);
-  const rs = s.revenueSource;
-  if (rs != null && String(rs).trim() && !VALID_REVENUE_SOURCE.has(String(rs))) {
-    out.push(`${path}.revenueSource must be product-sales or traffic-estimate`);
-  }
   for (const [key, min, max] of [
     ['rating', 0, 5],
     ['competitorScore', 0, 100],
     ['monthlyTraffic', 0, undefined],
-    ['productUnitsSold', 1, undefined],
     ['price', 0, undefined],
     ['moq', 0, undefined],
   ] as const) {

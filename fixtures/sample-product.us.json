@@ -6,7 +6,7 @@
   "accountKind": "store",
   "aiIntelligence": {
     "confidence": 85,
-    "confidenceReason": "TikTok Shop catalog — Bright Data product snapshot",
+    "confidenceReason": "TikTok Shop catalog \u2014 Bright Data product snapshot",
     "brand": "CL1OP SHOP",
     "buyingSentimentScore": 42,
     "buyingSentimentReason": "Low engagement rate (0.4%) suggests weak impulse appeal despite decent sales.",
@@ -46,7 +46,7 @@
         },
         {
           "hook": "I found the perfect accessory for my tiny wrist (and yours too).",
-          "body": "With an adjustable length from 18.5 to 24 cm, this bracelet fits everyone. No more loose or tight bracelets – just a perfect fit every time.",
+          "body": "With an adjustable length from 18.5 to 24 cm, this bracelet fits everyone. No more loose or tight bracelets \u2013 just a perfect fit every time.",
           "target": "Women with smaller or larger wrists who struggle with standard sizes."
         },
         {
@@ -55,22 +55,22 @@
           "target": "Young women who love starting their day with a stylish accessory."
         },
         {
-          "hook": "Don't let your gift look cheap – this one looks way more expensive than it is.",
+          "hook": "Don't let your gift look cheap \u2013 this one looks way more expensive than it is.",
           "body": "The elegant heart-shaped bow pendant gives this bracelet a high-end look at a budget price. Your recipient will never guess how little you paid.",
           "target": "Budget-conscious shoppers who want to impress without overspending."
         },
         {
-          "hook": "The one accessory that works for every outfit – from gym to glam.",
+          "hook": "The one accessory that works for every outfit \u2013 from gym to glam.",
           "body": "Whether you're in athleisure or a cocktail dress, this bracelet adds a feminine touch. It's versatile enough for any scenario.",
           "target": "Women with active lifestyles who want jewelry that transitions seamlessly."
         },
         {
-          "hook": "I used to stress about finding the perfect gift – not anymore.",
+          "hook": "I used to stress about finding the perfect gift \u2013 not anymore.",
           "body": "This adjustable bracelet solves the gift-giving dilemma: it's stylish, affordable, and fits everyone. Say goodbye to gift anxiety.",
           "target": "Gift shoppers who feel overwhelmed by choices."
         },
         {
-          "hook": "Your friends will ask where you got this – and they'll be shocked by the price.",
+          "hook": "Your friends will ask where you got this \u2013 and they'll be shocked by the price.",
           "body": "The heart-shaped bow pendant is a conversation starter. When they find out it's budget-friendly, they'll want one too.",
           "target": "Fashion-forward women who love sharing affordable finds."
         },
@@ -138,7 +138,7 @@
       "item": "Item: white"
     },
     {
-      "name": "🌺**✨",
+      "name": "\ud83c\udf3a**\u2728",
       "rating": 5,
       "review": "Love this bracelet highly recommend",
       "date": "2025-11-22T19:55:52.145Z",
@@ -148,7 +148,7 @@
     {
       "name": "a**o",
       "rating": 5,
-      "review": "Me encantó muy buena calidad excelente material\nY no se mancha con el agua",
+      "review": "Me encant\u00f3 muy buena calidad excelente material\nY no se mancha con el agua",
       "date": "2025-11-05T17:36:47.788Z",
       "images": [],
       "item": "Item: white"
@@ -156,7 +156,7 @@
     {
       "name": "moraganohe",
       "rating": 5,
-      "review": "Muy muy linda y de buena calidad, super recomendada,  superó mis espectativas",
+      "review": "Muy muy linda y de buena calidad, super recomendada,  super\u00f3 mis espectativas",
       "date": "2025-11-24T08:26:34.886Z",
       "images": [],
       "item": "Item: white"
@@ -183,7 +183,6 @@
       "rating": 4.7704,
       "totalRatings": 5557,
       "totalReviews": 1344,
-      "soldLast30Days": null,
       "availableForSale": true,
       "shop": {
         "name": "ALEX AND ANI",
@@ -193,9 +192,6 @@
       "fetchedAt": "2026-05-20T18:28:28.346Z",
       "monthlyTraffic": null,
       "semrushRank": null,
-      "productUnitsSold": null,
-      "estimatedMonthlyRevenue": null,
-      "revenueSource": null,
       "competitorScore": null
     },
     {
@@ -210,7 +206,6 @@
       "rating": 4.4962,
       "totalRatings": 782,
       "totalReviews": 234,
-      "soldLast30Days": null,
       "availableForSale": true,
       "shop": {
         "name": "Misty and Molly",
@@ -220,9 +215,6 @@
       "fetchedAt": "2026-05-20T18:28:28.346Z",
       "monthlyTraffic": null,
       "semrushRank": null,
-      "productUnitsSold": null,
-      "estimatedMonthlyRevenue": null,
-      "revenueSource": null,
       "competitorScore": null
     },
     {
@@ -237,7 +229,6 @@
       "rating": 4.875,
       "totalRatings": 8,
       "totalReviews": 5,
-      "soldLast30Days": null,
       "availableForSale": true,
       "shop": {
         "name": "Figi Jewels",
@@ -247,9 +238,6 @@
       "fetchedAt": "2026-05-20T18:28:28.346Z",
       "monthlyTraffic": null,
       "semrushRank": null,
-      "productUnitsSold": null,
-      "estimatedMonthlyRevenue": null,
-      "revenueSource": null,
       "competitorScore": null
     },
     {
@@ -264,7 +252,6 @@
       "rating": 4.3121,
       "totalRatings": 89403,
       "totalReviews": 44522,
-      "soldLast30Days": null,
       "availableForSale": true,
       "shop": {
         "name": "edikted",
@@ -274,9 +261,6 @@
       "fetchedAt": "2026-05-20T18:28:28.346Z",
       "monthlyTraffic": null,
       "semrushRank": null,
-      "productUnitsSold": null,
-      "estimatedMonthlyRevenue": null,
-      "revenueSource": null,
       "competitorScore": null
     },
     {
@@ -291,7 +275,6 @@
       "rating": null,
       "totalRatings": 0,
       "totalReviews": 0,
-      "soldLast30Days": null,
       "availableForSale": true,
       "shop": {
         "name": "Designature Newyork",
@@ -301,9 +284,6 @@
       "fetchedAt": "2026-05-20T18:28:28.346Z",
       "monthlyTraffic": null,
       "semrushRank": null,
-      "productUnitsSold": null,
-      "estimatedMonthlyRevenue": null,
-      "revenueSource": null,
       "competitorScore": null
     },
     {
@@ -324,9 +304,6 @@
       "checkedAt": "2026-05-22T20:04:31.446Z",
       "fetchedAt": "2026-05-22T20:04:31.446Z",
       "monthlyTraffic": null,
-      "productUnitsSold": null,
-      "estimatedMonthlyRevenue": null,
-      "revenueSource": null,
       "competitorScore": null
     }
   ],

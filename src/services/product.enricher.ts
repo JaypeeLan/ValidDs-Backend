@@ -6,10 +6,6 @@ import { CreativeService } from './creative.service';
 import { DiscoveryService } from './discovery.service';
 import { Creative } from '../models/creative.model';
 import { logger } from '../logger';
-import {
-  ensureSupplierMonthlyTraffic,
-  ensureSupplierProductUnitsSold,
-} from '../api/internal/ingest.normalize';
 
 const log = logger.child({ module: 'product-enricher' });
 
@@ -56,10 +52,7 @@ export const ProductEnricher = {
           shop: { name: null, url: null, rating: null },
           checkedAt: now,
           fetchedAt: now,
-          monthlyTraffic: ensureSupplierMonthlyTraffic(null, extraction.productName),
-          productUnitsSold: ensureSupplierProductUnitsSold(null, extraction.productName),
-          estimatedMonthlyRevenue: null,
-          revenueSource: null,
+          monthlyTraffic: null,
           competitorScore: null,
         };
       }

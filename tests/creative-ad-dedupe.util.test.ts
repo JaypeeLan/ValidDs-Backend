@@ -120,6 +120,31 @@ describe('creativeAdDedupeKey', () => {
     expect(b).toBe(a);
   });
 
+  it('keeps distinct TikTok promo clips per aweme when isAd even with listing hero', () => {
+    const hero = 'https://p16-oec.example.com/tos/abc/490f42dc4905478abbfb2ed0de864999~tplv.jpeg';
+    const productId = '507f1f77bcf86cd799439011';
+    const a = creativeAdDedupeKey({
+      productId,
+      isAd: true,
+      externalVideoId: '7643925823090625822',
+      tiktokPostUrl: 'https://www.tiktok.com/@x/video/7643925823090625822',
+      thumbnailUrl: hero,
+      productPrimaryImageUrl: hero,
+    });
+    const b = creativeAdDedupeKey({
+      productId,
+      isAd: true,
+      externalVideoId: '7642748503227223327',
+      tiktokPostUrl: 'https://www.tiktok.com/@y/video/7642748503227223327',
+      thumbnailUrl:
+        'https://p19-oec.example.com/tos/abc/490f42dc4905478abbfb2ed0de864999~tplv-other.jpeg',
+      productPrimaryImageUrl: hero,
+    });
+    expect(a).toBe('tiktok:7643925823090625822');
+    expect(b).toBe('tiktok:7642748503227223327');
+    expect(a).not.toBe(b);
+  });
+
   it('collapses TikTok promos that only show the product hero image', () => {
     const hero = 'https://p16-oec.example.com/tos/abc/490f42dc4905478abbfb2ed0de864999~tplv.jpeg';
     const productId = '507f1f77bcf86cd799439011';

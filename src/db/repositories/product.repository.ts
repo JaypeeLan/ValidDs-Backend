@@ -77,6 +77,21 @@ export const PRODUCT_LISTING_FIELD_PROJECTION: Record<string, 1> = {
   primaryCreator: 1,
 };
 
+/**
+ * Slim projection before feed aggregation sort/dedupe.
+ * Full product docs (reviews, history arrays, AI blobs) exceed Atlas 32MB sort RAM.
+ */
+export const PRODUCT_FEED_PIPELINE_PROJECTION: Record<string, 1> = {
+  ...PRODUCT_LISTING_FIELD_PROJECTION,
+  normalizedTitle: 1,
+  shopName: 1,
+  soldCount: 1,
+  ingestedAt: 1,
+  createdAt: 1,
+  externalId: 1,
+  productUrl: 1,
+};
+
 /** Fields needed for AI product comparison. */
 export const PRODUCT_COMPARE_FIELD_PROJECTION: Record<string, 1> = {
   ...PRODUCT_LISTING_FIELD_PROJECTION,
@@ -427,9 +442,10 @@ async function runProductFeedQuery(
     const [facet] = await model
       .aggregate([
         { $match: match },
-        ...playableStages,
+        { $project: PRODUCT_FEED_PIPELINE_PROJECTION },
         { $addFields: recencyTierAddFields() },
         { $sort: { ...sort, soldCount: -1, totalGmv: -1 } },
+        ...playableStages,
         ...PRODUCT_LISTING_DEDUPE_STAGES,
         {
           $facet: {
@@ -445,6 +461,7 @@ async function runProductFeedQuery(
         },
       ])
       .option({ maxTimeMS: 30_000 })
+      .allowDiskUse(true)
       .exec();
 
     const data = (facet?.data ?? []) as unknown as IProductDocument[];
@@ -467,6 +484,7 @@ async function runProductFeedQuery(
   const [facet] = await model
     .aggregate([
       { $match: match },
+      { $project: PRODUCT_FEED_PIPELINE_PROJECTION },
       // Sort BEFORE the creative lookup so it can use a product index (the lookup only
       // filters, preserving order). Running it after the lookup forced a blocking
       // in-memory sort of the whole matched set on every request.
@@ -486,6 +504,7 @@ async function runProductFeedQuery(
       },
     ])
     .option({ maxTimeMS: 30_000 })
+    .allowDiskUse(true)
     .exec();
 
   const data = (facet?.data ?? []) as unknown as IProductDocument[];
@@ -527,6 +546,7 @@ async function runProductSearchQuery(
     const [facet] = await model
       .aggregate([
         { $match: match },
+        { $project: PRODUCT_FEED_PIPELINE_PROJECTION },
         ...playableStages,
         {
           $addFields: {
@@ -561,6 +581,7 @@ async function runProductSearchQuery(
         },
       ])
       .option({ maxTimeMS: 30_000 })
+      .allowDiskUse(true)
       .exec();
 
     const total = facet?.total?.[0]?.count ?? 0;
@@ -981,6 +1002,7 @@ export const ProductRepository = {
           { $project: PRODUCT_LISTING_FIELD_PROJECTION },
         ])
         .option({ maxTimeMS: 15_000 })
+        .allowDiskUse(true)
         .exec() as Promise<unknown[]>;
 
     // Try L3 first for tighter matching; fall back to L2 if fewer than 3 results.
@@ -1008,6 +1030,7 @@ export const ProductRepository = {
         { $project: { _id: 1 } },
       ])
       .option({ maxTimeMS: 10_000 })
+      .allowDiskUse(true)
       .exec();
     return Boolean(hit);
   },
@@ -1027,6 +1050,7 @@ export const ProductRepository = {
         { $sort: { _id: 1 } },
       ])
       .option({ maxTimeMS: 30_000 })
+      .allowDiskUse(true)
       .exec();
     return values.map((row) => String(row._id ?? '').trim()).filter(Boolean);
   },
@@ -1049,6 +1073,7 @@ export const ProductRepository = {
         { $sort: { _id: 1 } },
       ])
       .option({ maxTimeMS: 30_000 })
+      .allowDiskUse(true)
       .exec();
 
     const out: Record<string, string[]> = {};

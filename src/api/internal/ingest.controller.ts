@@ -161,12 +161,14 @@ export async function ingestProduct(
     await enrichProductMediaForIngest(prepared, market);
     stripProductCdnAvatars(prepared);
 
-    // Initialize missing metrics before validation so new products always have a today window.
+    const { recomputeProductGmvFields } = await import('./product-field-completeness.js');
     const _sold = Number(prepared.soldCount ?? prepared.totalSales ?? 0) || 0;
     const _price = Number(prepared.price ?? 0);
-    const _gmv =
-      Number(prepared.totalGmv ?? prepared.storeGmv ?? 0) ||
-      (_price > 0 && _sold > 0 ? Math.round(_price * _sold * 100) / 100 : 0);
+    if (_price > 0 && _sold > 0) {
+      Object.assign(prepared, recomputeProductGmvFields(prepared));
+    }
+    const _gmv = Number(prepared.totalGmv ?? prepared.storeGmv ?? 0) || 0;
+    // Initialize missing metrics before validation so new products always have a today window.
     if (!prepared.storeGmv || Number(prepared.storeGmv) <= 0) {
       prepared.storeGmv = _gmv;
     }

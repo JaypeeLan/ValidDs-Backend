@@ -94,9 +94,6 @@ properties:
           example: Amazon
         onSale:
           type: boolean
-        soldLast30Days:
-          type: integer
-          nullable: true
         externalId:
           type: string
         title:
@@ -135,17 +132,6 @@ properties:
             rating: { type: number, nullable: true }
         monthlyTraffic:
           type: integer
-          nullable: true
-        productUnitsSold:
-          type: integer
-          minimum: 1
-          nullable: false
-        estimatedMonthlyRevenue:
-          type: number
-          nullable: true
-        revenueSource:
-          type: string
-          enum: [product-sales, traffic-estimate]
           nullable: true
         competitorScore:
           type: number

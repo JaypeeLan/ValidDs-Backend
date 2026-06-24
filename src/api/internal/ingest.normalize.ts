@@ -8,6 +8,7 @@ import {
 import { normalizeMetaAdLibraryUrl } from '../../utils/meta-ad-url.util';
 import { defaultMetricTrendWindows, dayWindowLabel } from '../../utils/metric-trend-days.util';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
+import { stripLegacySupplierSalesFields } from '../../utils/supplier-apify.util';
 import { fillProductFieldGaps } from './product-field-completeness';
 import { normalizeCategoryL2 } from '../../utils/category-l2-normalize.util';
 import { normalizeCategoryL1 } from '../../utils/category-l1-normalize.util';
@@ -17,8 +18,6 @@ import { sanitizeVideoMetrics } from '../../utils/video-metrics.util';
 
 const SUPPLIER_VISITS_MIN = 12_000;
 const SUPPLIER_VISITS_MAX = 890_000;
-const SUPPLIER_UNITS_MIN = 8;
-const SUPPLIER_UNITS_MAX = 2_400;
 
 function numOrZero(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
@@ -39,16 +38,6 @@ function strOrEmpty(v: unknown): string {
   return typeof v === 'string' ? v.trim() : String(v ?? '').trim();
 }
 
-function supplierTrafficSeed(row: Record<string, unknown>): string {
-  const shop =
-    row.shop && typeof row.shop === 'object' ? (row.shop as Record<string, unknown>) : {};
-  for (const candidate of [shop.url, row.productUrl, row.shareUrl, row.externalId, row.title]) {
-    const text = String(candidate ?? '').trim();
-    if (text) return text;
-  }
-  return 'supplier';
-}
-
 export function ensureSupplierMonthlyTraffic(raw: unknown, seed: string = 'supplier'): number {
   return ensureMonthlyTraffic(raw, seed);
 }
@@ -63,22 +52,6 @@ function ensureMonthlyTraffic(raw: unknown, seed: string): number {
   }
   const span = SUPPLIER_VISITS_MAX - SUPPLIER_VISITS_MIN + 1;
   return SUPPLIER_VISITS_MIN + (h % span);
-}
-
-export function ensureSupplierProductUnitsSold(raw: unknown, seed: string = 'supplier'): number {
-  return ensureProductUnitsSold(raw, seed);
-}
-
-function ensureProductUnitsSold(raw: unknown, seed: string): number {
-  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
-    return Math.max(1, Math.round(raw));
-  }
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = (Math.imul(31, h) + seed.charCodeAt(i)) >>> 0;
-  }
-  const span = SUPPLIER_UNITS_MAX - SUPPLIER_UNITS_MIN + 1;
-  return SUPPLIER_UNITS_MIN + (h % span);
 }
 
 function scaleEngagementScore(score: unknown): number {
@@ -141,9 +114,6 @@ function normalizeSuppliers(suppliers: unknown): unknown[] {
     } else {
       row.monthlyTraffic = null;
     }
-    row.productUnitsSold = ensureProductUnitsSold(row.productUnitsSold, supplierTrafficSeed(row));
-    row.estimatedMonthlyRevenue = numOrZero(row.estimatedMonthlyRevenue);
-    row.revenueSource = 'traffic-estimate';
     row.competitorScore = numOrZero(row.competitorScore);
     if (row.rating == null) row.rating = 0;
     if (!row.fetchedAt) row.fetchedAt = now;
@@ -154,7 +124,7 @@ function normalizeSuppliers(suppliers: unknown): unknown[] {
       shop.url = strOrEmpty(shop.url);
       row.shop = shop;
     }
-    return row;
+    return stripLegacySupplierSalesFields(row);
   });
 }
 

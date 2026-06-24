@@ -87,16 +87,12 @@ export interface IProductSupplier {
   rating: number | null;
   totalRatings: number | null;
   totalReviews: number | null;
-  soldLast30Days?: number | null;
   availableForSale: boolean;
   moq?: number;
   shop: IProductSupplierShop | null;
   checkedAt?: Date | string;
   fetchedAt: Date | string;
   monthlyTraffic: number | null;
-  productUnitsSold: number;
-  estimatedMonthlyRevenue: number | null;
-  revenueSource: 'product-sales' | 'traffic-estimate' | null;
   competitorScore: number | null;
 }
 

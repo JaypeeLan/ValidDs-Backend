@@ -110,6 +110,14 @@ export function creativeAdDedupeKey(creative: Record<string, unknown>): string {
 
   if (isTtad) return ext;
 
+  // Sponsored TikTok clip promos: one ingest row per aweme id (multi-video backfill).
+  if (creative.isAd === true && !isMeta) {
+    const post = String(creative.tiktokPostUrl ?? '');
+    const m = post.match(TIKTOK_VIDEO_ID_RE);
+    if (m) return `tiktok:${m[1]}`;
+    if (/^\d+$/.test(ext)) return `tiktok:${ext}`;
+  }
+
   // Hero listing image — collapse look-alikes within the same platform only.
   // Meta Ad Library rows must not evict TikTok videos (or vice versa) on ingest.
   if (isProductHeroThumbnail(creative) && pid) {

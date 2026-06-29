@@ -333,9 +333,9 @@ export function fillProductFieldGaps(raw: Record<string, unknown>): Record<strin
   ] as const) {
     if (!String(pc[key] ?? '').trim()) pc[key] = def;
   }
-  const avatar = String(pc.avatarUrl ?? pc.primaryImageUrl ?? out.shopAvatarUrl ?? '');
-  pc.avatarUrl = avatar || 'https://www.tiktok.com/favicon.ico';
-  pc.primaryImageUrl = pc.avatarUrl;
+  const avatar = String(pc.avatarUrl ?? pc.primaryImageUrl ?? out.shopAvatarUrl ?? '').trim();
+  pc.avatarUrl = avatar;
+  pc.primaryImageUrl = avatar;
   if (pc.avatarS3Key == null) pc.avatarS3Key = '';
   if (pc.followers == null) pc.followers = Number(out.shopFollowers) || 0;
   if (pc.following == null) pc.following = 0;

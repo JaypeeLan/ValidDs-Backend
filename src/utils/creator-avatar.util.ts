@@ -21,6 +21,17 @@ export const TIKTOK_CDN_HEADERS: Record<string, string> = {
 
 import { s3ImagePrefix } from './s3-video.util';
 
+const BLOCKED_AVATAR_URL_RE = /favicon\.ico|\/favicon(?:[/?#]|$)|default[_-]?avatar|placeholder/i;
+
+/** TikTok CDN / S3 profile image suitable for UI (not favicon / placeholder junk). */
+export function isUsableCreatorAvatarUrl(url: unknown): url is string {
+  if (typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed.startsWith('https://')) return false;
+  if (BLOCKED_AVATAR_URL_RE.test(trimmed)) return false;
+  return true;
+}
+
 export function creatorAvatarS3Key(handle: string, market = 'us'): string {
   const h = handle.replace(/^@/, '').trim().toLowerCase();
   if (!h) return '';

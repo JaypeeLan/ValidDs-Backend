@@ -1,7 +1,7 @@
 import mongoose, { type Model } from 'mongoose';
-import type { ICreativeDocument } from '../models/creative.model.js';
-import type { IProductDocument } from '../models/product.model.js';
-import { logger } from '../logger.js';
+import type { ICreativeDocument } from '../types/creative.types';
+import type { IProductDocument } from '../types/product.types';
+import { logger } from '../logger';
 
 function creativeProductTrendPatch(product: Record<string, unknown>): Record<string, unknown> {
   const patch: Record<string, unknown> = {};

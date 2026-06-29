@@ -1,6 +1,7 @@
 import mongoose, { type Model } from 'mongoose';
 import { Creative, type ICreativeDocument } from '../models/creative.model';
 import type { IPrimaryCreator, IPrimaryCreatorApi } from '../types/product.types';
+import { isUsableCreatorAvatarUrl } from './creator-avatar.util';
 import { stripLegacySupplierSalesFields } from './supplier-apify.util';
 
 export type CreatorAvatarEnrichment = {
@@ -185,9 +186,13 @@ export async function loadCreatorAvatarEnrichmentByProductId(
 
   const map = new Map<string, CreatorAvatarEnrichment>();
   for (const row of rows) {
+    const avatarUrl =
+      typeof row.avatarUrl === 'string' && isUsableCreatorAvatarUrl(row.avatarUrl)
+        ? row.avatarUrl
+        : undefined;
     map.set(String(row._id), {
       creativeId: String(row.creativeId),
-      primaryImageUrl: typeof row.avatarUrl === 'string' ? row.avatarUrl : undefined,
+      primaryImageUrl: avatarUrl,
     });
   }
   return map;
@@ -240,9 +245,13 @@ export async function loadCreatorAvatarEnrichmentByHandle(
 
   const map = new Map<string, CreatorAvatarEnrichment>();
   for (const row of rows) {
+    const avatarUrl =
+      typeof row.avatarUrl === 'string' && isUsableCreatorAvatarUrl(row.avatarUrl)
+        ? row.avatarUrl
+        : undefined;
     map.set(row._id, {
       creativeId: String(row.creativeId),
-      primaryImageUrl: typeof row.avatarUrl === 'string' ? row.avatarUrl : undefined,
+      primaryImageUrl: avatarUrl,
     });
   }
   return map;

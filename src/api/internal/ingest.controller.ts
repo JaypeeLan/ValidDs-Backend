@@ -25,6 +25,7 @@ import { mergeMetricTrendSnapshots } from '../../utils/metric-trend-merge.util';
 import { isDailyRollDue, todayRollDate } from '../../utils/metric-trend-days.util';
 import { extractMetaAdIdFromUrl } from '../../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../../utils/tiktok-url.util';
+import { recomputeProductGmvFields } from './product-field-completeness';
 import { logger } from '../../logger';
 
 const log = logger.child({ module: 'internal-ingest' });
@@ -161,7 +162,6 @@ export async function ingestProduct(
     await enrichProductMediaForIngest(prepared, market);
     stripProductCdnAvatars(prepared);
 
-    const { recomputeProductGmvFields } = await import('./product-field-completeness.js');
     const _sold = Number(prepared.soldCount ?? prepared.totalSales ?? 0) || 0;
     const _price = Number(prepared.price ?? 0);
     if (_price > 0 && _sold > 0) {
@@ -334,17 +334,9 @@ export async function ingestCreative(
 
     const adDedupeKey = String(payload.adDedupeKey ?? '').trim();
     const isMetaAd = externalVideoId.startsWith('meta:');
-    const isTtad = externalVideoId.startsWith('ttad:');
-    // Meta / TikTok CC rows upsert by externalVideoId (shared S3 MP4 per ad id).
-    const upsertFilter =
-      isMetaAd || isTtad
-        ? { externalVideoId }
-        : adDedupeKey
-          ? { adDedupeKey }
-          : { externalVideoId };
-
+    // Always upsert on externalVideoId — unique index. adDedupeKey cleanup below handles same-ad dupes.
     const saved = await Creative.findOneAndUpdate(
-      upsertFilter,
+      { externalVideoId },
       { $set: payload },
       { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
     );

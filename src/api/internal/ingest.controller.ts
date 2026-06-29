@@ -26,6 +26,7 @@ import { isDailyRollDue, todayRollDate } from '../../utils/metric-trend-days.uti
 import { extractMetaAdIdFromUrl } from '../../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../../utils/tiktok-url.util';
 import { recomputeProductGmvFields } from './product-field-completeness';
+import { syncCreativeProductTrends } from '../../services/sync-creative-product-trends.service';
 import { logger } from '../../logger';
 
 const log = logger.child({ module: 'internal-ingest' });
@@ -231,8 +232,6 @@ export async function ingestProduct(
 
     try {
       const { Creative } = getMarketModels(market);
-      const { syncCreativeProductTrends } =
-        await import('../../services/sync-creative-product-trends.service.js');
       await syncCreativeProductTrends(
         saved._id,
         Creative,

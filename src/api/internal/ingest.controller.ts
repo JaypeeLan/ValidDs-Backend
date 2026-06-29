@@ -27,6 +27,12 @@ import { extractMetaAdIdFromUrl } from '../../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../../utils/tiktok-url.util';
 import { recomputeProductGmvFields } from './product-field-completeness';
 import { syncCreativeProductTrends } from '../../services/sync-creative-product-trends.service';
+import {
+  clearCreativeAdDedupeConflicts,
+  creativeUpsertFilter,
+  isCrossProductVideoReuse,
+  isMongoDuplicateKeyError,
+} from './ingest-upsert.util';
 import { logger } from '../../logger';
 
 const log = logger.child({ module: 'internal-ingest' });
@@ -253,8 +259,26 @@ export async function ingestProduct(
       res.status(422).json({ reasons: reasons.length ? reasons : ['mongoose validation failed'] });
       return;
     }
+    if (isMongoDuplicateKeyError(err)) {
+      res
+        .status(422)
+        .json({ reasons: ['duplicate product key — conflicting externalId or source'] });
+      return;
+    }
     next(err);
   }
+}
+
+async function upsertCreativeDocument(
+  Creative: ReturnType<typeof getMarketModels>['Creative'],
+  payload: Record<string, unknown>,
+) {
+  await clearCreativeAdDedupeConflicts(Creative, payload);
+  return Creative.findOneAndUpdate(
+    creativeUpsertFilter(payload),
+    { $set: payload },
+    { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+  );
 }
 
 export async function ingestCreative(
@@ -317,6 +341,12 @@ export async function ingestCreative(
     const externalVideoId = String(payload.externalVideoId ?? '');
     if (published) payload.publishedAt = published;
 
+    const existingByVideo = await Creative.findOne({ externalVideoId }).select('productId').lean();
+    if (existingByVideo && isCrossProductVideoReuse(payload, existingByVideo.productId)) {
+      res.status(422).json({ reasons: ['tiktok video already linked to a different product'] });
+      return;
+    }
+
     await resolvePrimaryDiscoveryFlag(
       Creative,
       Product,
@@ -333,12 +363,7 @@ export async function ingestCreative(
 
     const adDedupeKey = String(payload.adDedupeKey ?? '').trim();
     const isMetaAd = externalVideoId.startsWith('meta:');
-    // Always upsert on externalVideoId — unique index. adDedupeKey cleanup below handles same-ad dupes.
-    const saved = await Creative.findOneAndUpdate(
-      { externalVideoId },
-      { $set: payload },
-      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
-    );
+    const saved = await upsertCreativeDocument(Creative, payload);
 
     if (!saved) {
       res.status(500).json({ success: false, error: 'upsert failed' });
@@ -408,6 +433,10 @@ export async function ingestCreative(
       const ve = err as { errors?: Record<string, { message?: string }> };
       const reasons = Object.values(ve.errors ?? {}).map((e) => e.message ?? 'validation error');
       res.status(422).json({ reasons: reasons.length ? reasons : ['mongoose validation failed'] });
+      return;
+    }
+    if (isMongoDuplicateKeyError(err)) {
+      res.status(422).json({ reasons: ['duplicate creative key — conflicting video or ad slot'] });
       return;
     }
     next(err);

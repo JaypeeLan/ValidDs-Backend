@@ -1,4 +1,4 @@
-import { buildCreatorAvatarProxyUrl } from './creator-avatar.util';
+import { buildCreatorAvatarProxyUrl, isUsableCreatorAvatarUrl } from './creator-avatar.util';
 import type {
   CreativeApiItem,
   CreativeCreatorFeedItem,
@@ -549,7 +549,7 @@ export function productPlayableCreativeLookupStages(
 
 function pickUrl(...vals: unknown[]): string | undefined {
   for (const v of vals) {
-    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (isUsableCreatorAvatarUrl(v)) return v.trim();
   }
   return undefined;
 }

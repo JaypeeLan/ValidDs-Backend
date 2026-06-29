@@ -19,7 +19,11 @@ import {
 } from '../utils/content-feed-filters.util';
 import { LISTABLE_PRODUCT_FILTER } from '../db/repositories/product.repository';
 import { expandCategoryL1FilterValues } from '../utils/category-l1-normalize.util';
-import { buildCreatorAvatarProxyUrl } from '../utils/creator-avatar.util';
+import {
+  buildCreatorAvatarProxyUrl,
+  buildShopAvatarProxyUrl,
+  isUsableCreatorAvatarUrl,
+} from '../utils/creator-avatar.util';
 import {
   creativeCollectionForProductCollection,
   productPlayableCreativeLookupStages,
@@ -158,29 +162,35 @@ function formatProductCreatorFeedItem(
   enrichment?: CreatorAvatarEnrichment | null,
 ): CreativeCreatorFeedItem {
   const top = row.topProduct ?? {};
-  const creatorRaw = row.creator ?? {};
+  const creatorRaw = {
+    ...(row.creator ?? {}),
+    ...((top.primaryCreator as Record<string, unknown> | undefined) ?? {}),
+  };
   const productId = String(top._id ?? '');
   const apiVersion = process.env.API_VERSION || 'v1';
   const creativeId = enrichment?.creativeId;
   const baseUrl = creativeId ? `/api/${apiVersion}/creatives/${creativeId}` : undefined;
 
-  const avatarUrl =
-    typeof creatorRaw.avatarUrl === 'string' && creatorRaw.avatarUrl.startsWith('https://')
-      ? creatorRaw.avatarUrl
-      : typeof creatorRaw.primaryImageUrl === 'string' &&
-          creatorRaw.primaryImageUrl.startsWith('https://')
-        ? creatorRaw.primaryImageUrl
-        : typeof enrichment?.primaryImageUrl === 'string' &&
-            enrichment.primaryImageUrl.startsWith('https://')
-          ? enrichment.primaryImageUrl
-          : undefined;
+  const avatarUrl = [
+    creatorRaw.avatarUrl,
+    creatorRaw.primaryImageUrl,
+    enrichment?.primaryImageUrl,
+    top.shopAvatarUrl,
+  ].find(isUsableCreatorAvatarUrl);
 
   const avatarProxyUrl = buildCreatorAvatarProxyUrl(baseUrl, 0, {
     avatarUrl,
     avatarS3Key: typeof creatorRaw.avatarS3Key === 'string' ? creatorRaw.avatarS3Key : undefined,
     handle: row.handle,
   });
-  const displayAvatarUrl = avatarUrl ?? avatarProxyUrl;
+  const shopAvatarUrl = isUsableCreatorAvatarUrl(top.shopAvatarUrl)
+    ? String(top.shopAvatarUrl)
+    : undefined;
+  const shopAvatarProxyUrl = buildShopAvatarProxyUrl(baseUrl, {
+    shopAvatarUrl,
+    shopName: row.shopName ?? (typeof top.shopName === 'string' ? top.shopName : undefined),
+  });
+  const displayAvatarUrl = avatarUrl ?? avatarProxyUrl ?? shopAvatarUrl ?? shopAvatarProxyUrl;
 
   const thumb =
     typeof top.primaryImageUrl === 'string' && top.primaryImageUrl.startsWith('https://')
@@ -205,6 +215,7 @@ function formatProductCreatorFeedItem(
       isIndependentCreator: false,
       ...(displayAvatarUrl ? { avatarUrl: displayAvatarUrl } : {}),
       ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
+      ...(shopAvatarProxyUrl ? { shopAvatarProxyUrl } : {}),
     },
     metrics: {
       viewCount: Number(top.viewCount) || row.maxViews || 0,
@@ -278,7 +289,12 @@ export async function findProductCreators(
       $group: {
         _id: { $toLower: { $trim: { input: '$primaryCreator.handle' } } },
         handle: { $first: '$primaryCreator.handle' },
-        creator: { $first: '$primaryCreator' },
+        creator: {
+          $top: {
+            sortBy: topProductSortSpec(),
+            output: '$primaryCreator',
+          },
+        },
         shopName: { $first: '$shopName' },
         productCount: { $sum: 1 },
         creatorGmv: {
@@ -343,6 +359,8 @@ export async function findProductCreators(
           price: 1,
           productUrl: 1,
           shopName: 1,
+          shopAvatarUrl: 1,
+          primaryCreator: 1,
           publishedAt: 1,
           postCreatedAt: 1,
           lastIngestedAt: 1,

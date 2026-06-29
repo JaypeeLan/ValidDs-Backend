@@ -549,6 +549,13 @@ export function productPlayableCreativeLookupStages(
 
 function pickUrl(...vals: unknown[]): string | undefined {
   for (const v of vals) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function pickAvatarUrl(...vals: unknown[]): string | undefined {
+  for (const v of vals) {
     if (isUsableCreatorAvatarUrl(v)) return v.trim();
   }
   return undefined;
@@ -559,7 +566,7 @@ export function resolveCreatorAvatarUrl(creative: CreativePlain): string | undef
   const creator = creative.creator as ICreatorProfile | undefined;
   const ext = String(creative.externalVideoId ?? '');
   const isMeta = ext.startsWith('meta:');
-  return pickUrl(
+  return pickAvatarUrl(
     creator?.avatarUrl,
     creative.shopAvatarUrl,
     isMeta ? creative.productPrimaryImageUrl : undefined,
@@ -618,7 +625,7 @@ function formatCreator(
   resolvedAvatarUrl?: string,
 ): ICreatorProfileApi {
   const c = creator ?? ({ handle: '', verified: false, tiktokPostUrl: '' } as ICreatorProfile);
-  const avatarUrl = pickUrl(resolvedAvatarUrl, c.avatarUrl);
+  const avatarUrl = pickAvatarUrl(resolvedAvatarUrl, c.avatarUrl);
   const avatarProxyUrl = buildCreatorAvatarProxyUrl(baseUrl, index, {
     avatarUrl,
     avatarS3Key: c.avatarS3Key,
@@ -882,6 +889,6 @@ export function pickCreativeThumbnailUrl(
     : [];
   const node = related[index - 1];
   if (!node) return undefined;
-  if (kind === 'avatar') return pickUrl(node.creator?.avatarUrl);
+  if (kind === 'avatar') return pickAvatarUrl(node.creator?.avatarUrl);
   return pickUrl(node.thumbnailUrl, node.creator?.avatarUrl);
 }

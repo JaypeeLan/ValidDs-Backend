@@ -117,6 +117,99 @@ const GENERIC_PRODUCT_TOKENS = new Set([
   'lightweight',
 ]);
 
+const GENERIC_VIDEO_BRAND_TAGS = new Set([
+  'glowup',
+  'glassskin',
+  'glassskinbundle',
+  'tiktokshop',
+  'tiktokshopping',
+  'ttsdelight',
+  'tiktokshopcreatorpicks',
+  'tiktokshopnewarrivals',
+  'tiktokshopjumpstart',
+  'tiktokshoprestock',
+  'tiktokshopspringglowup',
+  'koreanskincare',
+  'koreanskincareproducts',
+  'skincare',
+  'bundle',
+  'sale',
+  'fyp',
+  'viral',
+  'dealsforyoudays',
+]);
+
+function normalizeBrandStem(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function stemsAlign(a: string, b: string): boolean {
+  return a === b || a.startsWith(b) || b.startsWith(a);
+}
+
+function extractProductBrandStems(productTitle: string, shopName?: string): Set<string> {
+  const stems = new Set<string>();
+  const bracket = productTitle.match(/^\s*\[([^\]]{2,40})\]/);
+  if (bracket) {
+    const b = normalizeBrandStem(bracket[1]);
+    if (b.length >= 3) stems.add(b);
+  }
+  const shop = (shopName ?? '').trim();
+  if (shop) {
+    const shopWords = shop
+      .toLowerCase()
+      .replace(/[,.-]+/g, ' ')
+      .split(/\s+/)
+      .filter(
+        (w) =>
+          w &&
+          !['inc', 'llc', 'ltd', 'co', 'store', 'shop', 'official', 'us', 'usa', 'uk'].includes(w),
+      );
+    if (shopWords[0] && shopWords[0].length >= 3) stems.add(normalizeBrandStem(shopWords[0]));
+    if (shopWords.length >= 2) {
+      stems.add(normalizeBrandStem(`${shopWords[0]}${shopWords[1]}`));
+    }
+  }
+  return stems;
+}
+
+function extractVideoBrandMentions(item: {
+  description?: unknown;
+  hashtags?: unknown;
+}): Set<string> {
+  const stems = new Set<string>();
+  const text = typeof item.description === 'string' ? item.description : '';
+  for (const m of text.matchAll(/\b([A-Za-z][A-Za-z0-9]{2,})'s\b/g)) {
+    const s = normalizeBrandStem(m[1]);
+    if (s.length >= 4) stems.add(s);
+  }
+  const tags = Array.isArray(item.hashtags) ? item.hashtags : [];
+  for (const raw of tags) {
+    const tag = normalizeBrandStem(String(raw).replace(/^#/, ''));
+    if (tag.length < 4 || GENERIC_VIDEO_BRAND_TAGS.has(tag)) continue;
+    stems.add(tag);
+  }
+  return stems;
+}
+
+function videoBrandConflictsWithProduct(
+  item: { description?: unknown; hashtags?: unknown },
+  productTitle: string,
+  shopName?: string,
+): boolean {
+  const productBrands = extractProductBrandStems(productTitle, shopName);
+  if (productBrands.size === 0) return false;
+
+  const prodTokens = productTitleTokens(productTitle);
+  const videoBrands = extractVideoBrandMentions(item);
+  for (const vb of videoBrands) {
+    if ([...prodTokens].some((t) => stemsAlign(t, vb))) continue;
+    if ([...productBrands].some((pb) => stemsAlign(pb, vb))) continue;
+    return true;
+  }
+  return false;
+}
+
 function tokenize(text: string): Set<string> {
   const tokens = new Set(
     text
@@ -150,6 +243,8 @@ export function videoMatchesProduct(
   productTitle: string,
   opts?: { minScore?: number; minOverlap?: number; minDistinctiveOverlap?: number },
 ): boolean {
+  if (videoBrandConflictsWithProduct(item, productTitle)) return false;
+
   const minScore = opts?.minScore ?? 0.28;
   const minOverlap = opts?.minOverlap ?? 2;
   const minDistinctiveOverlap = opts?.minDistinctiveOverlap ?? 1;
@@ -184,11 +279,15 @@ export function creativeVideoProductMatchReason(doc: Record<string, unknown>): s
   const productTitle = String(doc.productName ?? '').trim();
   if (productTitle.length < 4) return null;
 
+  const shopName = String(doc.shopName ?? '').trim() || undefined;
   const originalCaption = String(doc.originalCaption ?? '').trim();
   const item = {
     description: originalCaption || doc.description,
     hashtags: doc.hashtags,
   };
+  if (videoBrandConflictsWithProduct(item, productTitle, shopName)) {
+    return `video caption references a different brand than ${productTitle.slice(0, 60)}`;
+  }
   if (originalCaption && doc.angle) {
     if (
       !videoMatchesProduct(item, productTitle, {

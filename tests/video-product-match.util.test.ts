@@ -62,6 +62,23 @@ describe('video-product-match.util', () => {
         isPrimaryDiscovery: false,
         angle: 'Ultimate under-eye corrector',
       }),
-    ).toContain('video caption does not match product');
+    ).toMatch(/video caption (does not match product|references a different brand)/);
+  });
+
+  it('rejects MediCube promo attached to Anua glass skin bundle', () => {
+    const productName =
+      '[Anua] Viral Ultimate Glass Skin Bundle | Salmon PDRN Cream + Niacinamide Serum';
+    expect(
+      creativeVideoMatchesProduct({
+        externalVideoId: '7484291480627088686',
+        productName,
+        shopName: 'Anua Store US',
+        originalCaption: "Glass skin goals for less! MediCube's Glass Skin Bundle is on a BIG sale",
+        description: "Glass skin goals for less! MediCube's Glass Skin Bundle is on a BIG sale",
+        hashtags: ['medicube', 'medicubeskincare', 'glassskin'],
+        isAd: true,
+        angle: 'Glass skin goals for less!',
+      }),
+    ).toBe(false);
   });
 });

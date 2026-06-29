@@ -144,12 +144,13 @@ type AggregatedCreator = {
   shopName?: string;
   productCount: number;
   creatorGmv: number;
-  topProduct: Record<string, unknown>;
+  topProductId: unknown;
   maxFollowers: number;
   maxTotalLikes: number;
   maxViews: number;
   latestActivity?: Date;
   maxEngagementRate?: number;
+  topProduct?: Record<string, unknown>;
 };
 
 function formatProductCreatorFeedItem(
@@ -243,6 +244,15 @@ function formatProductCreatorFeedItem(
   };
 }
 
+function topProductSortSpec(): Record<string, -1> {
+  return {
+    'primaryCreator.shopGmv': -1,
+    storeGmv: -1,
+    totalGmv: -1,
+    lastIngestedAt: -1,
+  };
+}
+
 export async function findProductCreators(
   productModel: Model<IProductDocument>,
   filters: ProductCreatorFilters,
@@ -264,7 +274,6 @@ export async function findProductCreators(
     ...productPlayableCreativeLookupStages(
       creativeCollectionForProductCollection(productModel.collection.name),
     ),
-    { $sort: { 'primaryCreator.shopGmv': -1, storeGmv: -1, totalGmv: -1, lastIngestedAt: -1 } },
     {
       $group: {
         _id: { $toLower: { $trim: { input: '$primaryCreator.handle' } } },
@@ -277,7 +286,12 @@ export async function findProductCreators(
             $ifNull: ['$primaryCreator.shopGmv', { $ifNull: ['$storeGmv', 0] }],
           },
         },
-        topProduct: { $first: '$$ROOT' },
+        topProductId: {
+          $top: {
+            sortBy: topProductSortSpec(),
+            output: '$_id',
+          },
+        },
         maxFollowers: { $max: { $ifNull: ['$primaryCreator.followers', 0] } },
         maxTotalLikes: { $max: { $ifNull: ['$primaryCreator.totalLikes', 0] } },
         maxViews: { $max: { $ifNull: ['$viewCount', 0] } },
@@ -289,28 +303,63 @@ export async function findProductCreators(
         },
       },
     },
-    { $sort: sort },
     {
       $facet: {
         meta: [{ $count: 'total' }],
-        data: [{ $skip: skip }, { $limit: limit }],
+        data: [{ $sort: sort }, { $skip: skip }, { $limit: limit }],
       },
     },
   ];
 
-  const [facet] = await productModel.aggregate(pipeline).option({ maxTimeMS: 20_000 }).exec();
+  const [facet] = await productModel
+    .aggregate(pipeline)
+    .option({ maxTimeMS: 20_000 })
+    .allowDiskUse(true)
+    .exec();
   const total = (facet?.meta?.[0] as { total?: number } | undefined)?.total ?? 0;
   const rows = (facet?.data ?? []) as AggregatedCreator[];
 
   const productIds = rows
-    .map((row) => String(row.topProduct?._id ?? ''))
+    .map((row) => String(row.topProductId ?? ''))
     .filter((id) => id.length > 0);
+  const topProducts = productIds.length
+    ? await productModel
+        .find({ _id: { $in: productIds } })
+        .select({
+          title: 1,
+          externalId: 1,
+          primaryImageUrl: 1,
+          imageUrls: 1,
+          viewCount: 1,
+          likeCount: 1,
+          commentCount: 1,
+          shareCount: 1,
+          engagementRate: 1,
+          categoryL1: 1,
+          categoryL2: 1,
+          categoryL3: 1,
+          rating: 1,
+          totalSales: 1,
+          price: 1,
+          productUrl: 1,
+          shopName: 1,
+          publishedAt: 1,
+          postCreatedAt: 1,
+          lastIngestedAt: 1,
+          updatedAt: 1,
+        })
+        .lean()
+    : [];
+  const topProductById = new Map(
+    topProducts.map((product) => [String(product._id), product as Record<string, unknown>]),
+  );
+
   const avatarByProduct = creativeModel
     ? await loadCreatorAvatarEnrichmentByProductId(productIds, creativeModel)
     : new Map<string, CreatorAvatarEnrichment>();
 
   const handlesNeedingFallback = rows
-    .filter((row) => !avatarByProduct.has(String(row.topProduct?._id ?? '')))
+    .filter((row) => !avatarByProduct.has(String(row.topProductId ?? '')))
     .map((row) => row.handle)
     .filter((h) => typeof h === 'string' && h.trim().length > 0);
   const avatarByHandle =
@@ -320,12 +369,18 @@ export async function findProductCreators(
 
   return {
     data: rows.map((row) => {
-      const productId = String(row.topProduct?._id ?? '');
+      const productId = String(row.topProductId ?? '');
       const enrichment =
         avatarByProduct.get(productId) ??
         avatarByHandle.get(row.handle.trim().toLowerCase().replace(/^@/, '')) ??
         null;
-      return formatProductCreatorFeedItem(row, enrichment);
+      return formatProductCreatorFeedItem(
+        {
+          ...row,
+          topProduct: topProductById.get(productId) ?? {},
+        },
+        enrichment,
+      );
     }),
     pagination: {
       total,

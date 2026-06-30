@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { optionalAuth, requireAuth, requireRole } from '../../middleware/auth.middleware';
+import { requireAuth, requireRole } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { successResponse } from '../../utils/response.util';
 import { AppError } from '../../middleware/error.middleware';
@@ -10,7 +10,7 @@ import { LiveMonitorService } from '../../services/live-monitor.service';
 import { TikTokWebcastService } from '../../services/tiktok-webcast.service';
 const router = Router();
 
-router.use(optionalAuth, attachMarketModels);
+router.use(requireAuth, attachMarketModels);
 
 /**
  * TikTok Routes

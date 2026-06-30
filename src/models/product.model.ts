@@ -335,7 +335,7 @@ export const ProductSchema = new Schema<IProductDocument, IProductModel>(
     source: { type: String, required: true },
     status: {
       type: String,
-      enum: ['active', 'review', 'invalid'],
+      enum: ['active', 'review'],
       required: true,
       default: 'review',
       index: true,

@@ -8,13 +8,13 @@ info:
 
     ### Authentication
     - **API Key**: Required for internal/service-to-service communication.
-    - **JWT**: Required for account-specific routes (auth, profile, saved products, **stores/Shopify**, ingestion). Product and creative **list/detail/search** are public unless noted on the operation.
+    - **JWT**: Required on all `/api/v1/*` user routes except public **auth** flows (`/auth/login`, `/auth/register`, OAuth callbacks, password reset, etc.). Webhooks, `/internal/*`, and `/jobs/*` use their own keys.
 
     **Admin & ops** (`/api/v1/admin/*`, `/jobs/*`, TikTok operator routes) → **`/admin-docs`** only.
 
     ### Quick reference
     - **Categories** — `GET /products/categories`, `GET /products/subcategories`
-    - **Personalization** — `GET /products/for-you` (JWT), `GET /products/{id}/you-may-like` (optional JWT)
+    - **Personalization** — `GET /products/for-you` (JWT), `GET /products/{id}/you-may-like` (JWT)
     - **Compare** — `GET /products/compare?ids=id1,id2` (2–5 product IDs)
     - **Region** — `GET /profile/content-region`, `PATCH /profile/content-region`
   version: 1.0.0
@@ -46,9 +46,9 @@ tags:
   - name: Creatives
     description: TikTok creatives — list, top ads, detail, CDN video/thumbnail proxy, and embed URLs
   - name: Billing
-    description: Stripe billing — public plan catalog, Checkout session creation, subscription state, and publishable key
+    description: Stripe billing — plan catalog, Checkout session creation, subscription state, and publishable key (JWT)
   - name: Waitlist
-    description: Pre-launch email waitlist — public `POST /api/v1/waitlist` to join
+    description: Pre-launch email waitlist — `POST /api/v1/waitlist` (JWT)
   - name: Stores
     description: Shopify OAuth — connect a merchant store and push ValidDs products via Admin REST
   - name: TikTok Live
@@ -107,8 +107,6 @@ paths:
     $ref: './paths/products.yaml#/youMayLike'
   /api/v1/products/{id}/related-products:
     $ref: './paths/products.yaml#/relatedProducts'
-  /api/v1/products/{id}/similar-products:
-    $ref: './paths/products.yaml#/similarProducts'
   /api/v1/products/{id}/related-videos:
     $ref: './paths/products.yaml#/relatedVideos'
   /api/v1/products/{id}/related-ads:
@@ -123,6 +121,8 @@ paths:
     $ref: './paths/creatives.yaml#/creativeIngest'
   /api/v1/creatives/{id}:
     $ref: './paths/creatives.yaml#/creativeDetail'
+  /api/v1/creatives/{id}/product-related-videos:
+    $ref: './paths/creatives.yaml#/creativeProductRelatedVideos'
   /api/v1/creatives/{id}/related-videos:
     $ref: './paths/creatives.yaml#/creativeRelatedVideos'
   /api/v1/creatives/{id}/video:

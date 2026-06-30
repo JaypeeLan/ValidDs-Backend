@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { ProductController } from './product.controller';
 import { validate } from '../../middleware/validate.middleware';
-import { optionalAuth, requireAuth } from '../../middleware/auth.middleware';
+import { requireAuth } from '../../middleware/auth.middleware';
 import { attachMarketModels } from '../../middleware/market.middleware';
 import {
   ProductCompareQuerySchema,
@@ -18,20 +18,18 @@ const router = Router();
 /**
  * Product Routes
  *
- * GET /products — paginated list or search (public discovery)
- * GET /products/keyword-context — public
- * GET /products/categories — public
- * GET /products/:id — product detail (public)
- * GET /products/:id/related-products — same L2 subcategory products (feed cards)
- * GET /products/:id/similar-products — alias for related-products (feed cards)
+ * GET /products — paginated list or search (JWT required)
+ * GET /products/keyword-context — JWT required
+ * GET /products/categories — JWT required
+ * GET /products/:id — product detail (JWT required)
+ * GET /products/:id/related-products — L2-narrowed, L3-matched when present (feed cards)
  * GET /products/:id/related-videos — commercial (non-ad) creatives for this product
  * GET /products/:id/related-ads — paid / top-ad creatives for this product
  * GET /products/saved — requires JWT (user bookmarks)
  * GET /products/compare — AI comparison + basic info for 2–5 products
  */
 
-// optionalAuth loads the user from DB so contentRegion is available before market models attach.
-router.use(optionalAuth, attachMarketModels);
+router.use(requireAuth, attachMarketModels);
 
 router.get('/', validate(ProductFeedQuerySchema, 'query'), ProductController.feed);
 
@@ -44,23 +42,13 @@ router.get(
 router.get('/categories', ProductController.categories);
 router.get('/subcategories', ProductController.subcategories);
 router.get('/taxonomy', ProductController.taxonomy);
-router.get('/saved', requireAuth, ProductController.saved);
-router.get(
-  '/for-you',
-  requireAuth,
-  validate(ProductForYouQuerySchema, 'query'),
-  ProductController.forYou,
-);
+router.get('/saved', ProductController.saved);
+router.get('/for-you', validate(ProductForYouQuerySchema, 'query'), ProductController.forYou);
 
 router.get('/compare', validate(ProductCompareQuerySchema, 'query'), ProductController.compare);
 
 router.get(
   '/:id/related-products',
-  validate(ProductIdParamSchema, 'params'),
-  ProductController.relatedProducts,
-);
-router.get(
-  '/:id/similar-products',
   validate(ProductIdParamSchema, 'params'),
   ProductController.relatedProducts,
 );

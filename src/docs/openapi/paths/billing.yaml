@@ -1,7 +1,7 @@
 listPlans:
   get:
     tags: [Billing]
-    summary: List purchasable plans (public)
+    summary: List purchasable plans
     description: |
       Returns **explorer**, **pro**, and **premium** plan metadata — credit limits, live Stripe price data,
       free trial days, and the default redirect URLs Checkout will use.
@@ -333,7 +333,7 @@ getTransactions:
 stripeConfig:
   get:
     tags: [Billing]
-    summary: Get Stripe publishable key (public)
+    summary: Get Stripe publishable key
     description: |
       Returns the Stripe **publishable** key for the current environment.
       `test` mode unless `NODE_ENV=production`, which switches to live keys.

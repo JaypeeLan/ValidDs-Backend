@@ -5,11 +5,13 @@ import {
   CREATIVE_TRENDING_MATCH,
   CREATIVE_TOP_ADS_MATCH,
   findRelatedVideosByCreativeId,
+  findSiblingCreativesForProduct,
 } from '../../services/creative.service';
 import {
   CreativeListQuery,
   CreativeTopAdsListQuery,
   CreativeIngestBody,
+  CreativeProductRelatedVideosQuery,
 } from './creative.validator';
 import { ResponseMessage, successResponse } from '../../utils/response.util';
 import { NotFoundError } from '../../middleware/error.middleware';
@@ -208,6 +210,31 @@ export const CreativeController = {
     try {
       const { id } = req.params;
       const relatedVideos = await findRelatedVideosByCreativeId(id, req.models?.Creative);
+
+      if (relatedVideos === null) {
+        throw new NotFoundError('Creative not found');
+      }
+
+      res.json(successResponse({ relatedVideos }, ResponseMessage.CREATIVES_RETRIEVED, 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * Other commercial creatives for the same product as this creative.
+   * Excludes the anchor creative — returns [] when it is the only video.
+   * GET /api/v1/creatives/:id/product-related-videos
+   */
+  async productRelatedVideos(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const query = req.query as unknown as CreativeProductRelatedVideosQuery;
+      const relatedVideos = await findSiblingCreativesForProduct(
+        id,
+        req.models?.Creative,
+        query.limit,
+      );
 
       if (relatedVideos === null) {
         throw new NotFoundError('Creative not found');
@@ -550,6 +577,10 @@ export const CreativeController = {
 
       res.status(201).json(successResponse(result, ResponseMessage.CREATIVES_INGESTED, 201));
     } catch (err) {
+      if (err instanceof Error && err.message === 'Creative keyword ingestion is disabled') {
+        const { AppError } = await import('../../middleware/error.middleware');
+        return next(new AppError(503, err.message, 'INGEST_DISABLED'));
+      }
       next(err);
     }
   },

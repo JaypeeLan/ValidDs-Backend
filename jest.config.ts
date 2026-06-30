@@ -13,7 +13,8 @@ const config: Config = {
     ],
   },
   rootDir: '.',
-  testMatch: ['<rootDir>/tests/**/*.test.ts'],
+  // Pre-push gate: HTTP endpoint integration only (see tests/all-endpoints.integration.test.ts).
+  testMatch: ['<rootDir>/tests/all-endpoints.integration.test.ts'],
   moduleNameMapper: {
     '^@config/(.*)$': '<rootDir>/src/config/$1',
     '^@api/(.*)$': '<rootDir>/src/api/$1',
@@ -33,8 +34,8 @@ const config: Config = {
   },
   collectCoverageFrom: [
     'src/**/*.ts',
-    '!src/server.ts',            // Entry point — skip
-    '!src/**/*.types.ts',        // Type definitions — skip
+    '!src/server.ts', // Entry point — skip
+    '!src/**/*.types.ts', // Type definitions — skip
     '!src/db/seeds/**',
   ],
   coverageThreshold: {

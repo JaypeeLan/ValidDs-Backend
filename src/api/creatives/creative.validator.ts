@@ -113,3 +113,11 @@ export const CreativeIngestBodySchema = z.object({
 });
 
 export type CreativeIngestBody = z.infer<typeof CreativeIngestBodySchema>;
+
+export const CreativeProductRelatedVideosQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export type CreativeProductRelatedVideosQuery = z.infer<
+  typeof CreativeProductRelatedVideosQuerySchema
+>;

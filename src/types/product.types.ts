@@ -6,7 +6,7 @@ export type { SentimentLabel };
 
 // ── Primitive enums ───────────────────────────────────────────────────────────
 
-export type ProductStatus = 'active' | 'review' | 'invalid';
+export type ProductStatus = 'active' | 'review';
 export type TrendDirection =
   | 'rising'
   | 'peaked'

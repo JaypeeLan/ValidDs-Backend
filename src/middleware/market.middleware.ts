@@ -7,11 +7,11 @@
  *
  * Falls back to 'US' if the user has no contentRegion or the value is invalid.
  *
- * Usage on routers with public + authenticated routes:
- *   router.use(optionalAuth, attachMarketModels);
+ * Usage on market-scoped routers:
+ *   router.use(requireAuth, attachMarketModels);
  *
- * `optionalAuth` must run first so `req.user.contentRegion` is loaded from the DB
- * before models are resolved. Route-level `requireAuth` alone is too late.
+ * `requireAuth` must run first so `req.user.contentRegion` is loaded from the DB
+ * before models are resolved.
  *
  * In controllers:
  *   const { Product } = req.models;

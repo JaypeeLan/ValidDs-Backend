@@ -169,6 +169,48 @@ creativeDetail:
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
 
+creativeProductRelatedVideos:
+  get:
+    summary: More videos for this product (excluding current creative)
+    description: |
+      Other commercial creatives linked to the same product as the anchor creative.
+      The anchor creative is always excluded. Returns an empty array when it is the only video.
+      Use this for "view more videos for this product" on creative/ads detail.
+    tags:
+      - Creatives
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    responses:
+      '200':
+        description: Success
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                data:
+                  type: object
+                  required: [relatedVideos]
+                  properties:
+                    relatedVideos:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/Creative.yaml'
+      '404':
+        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
+
 creativeRelatedVideos:
   get:
     summary: Related videos on a creative

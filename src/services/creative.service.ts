@@ -455,19 +455,21 @@ async function loadCreativesForProduct(
   creativeModel: Model<ICreativeDocument>,
   extraFilter: Record<string, unknown>,
   limit = PRODUCT_CREATIVE_LIMIT,
+  excludeCreativeId?: string,
 ): Promise<CreativeFeedItem[]> {
   if (!mongoose.isValidObjectId(productId)) return [];
 
+  const match: Record<string, unknown> = {
+    productId: new mongoose.Types.ObjectId(productId),
+    ...extraFilter,
+  };
+  if (excludeCreativeId && mongoose.isValidObjectId(excludeCreativeId)) {
+    match._id = { $ne: new mongoose.Types.ObjectId(excludeCreativeId) };
+  }
+
   const mLimit = Math.min(Math.max(limit, 1), 100);
   const videoSort = creativeEngagementMetricSortSpec('views');
-  const baseStages = buildCreativeFeedBaseStages(
-    {
-      productId: new mongoose.Types.ObjectId(productId),
-      ...extraFilter,
-    },
-    'views',
-    videoSort,
-  );
+  const baseStages = buildCreativeFeedBaseStages(match, 'views', videoSort);
 
   const docs = await fillCreativeFeedPage(creativeModel, baseStages, false, videoSort, 0, mLimit);
   const docRows = docs.map((doc) => ({ ...(doc as Record<string, unknown>) }));
@@ -477,7 +479,9 @@ async function loadCreativesForProduct(
   );
 
   const items = docRows.map((doc) => formatCreativeFeedItem(doc));
-  return filterPlayableCreativeFeedItems(items);
+  const playable = filterPlayableCreativeFeedItems(items);
+  if (!excludeCreativeId) return playable;
+  return playable.filter((item) => item.id !== excludeCreativeId);
 }
 
 /** TikTok video id or Meta ad id → creative Mongo id for angle videoProxyUrl. */
@@ -560,8 +564,15 @@ export async function findCreativesByProductId(
   productId: string,
   creativeModel: Model<ICreativeDocument> = Creative,
   limit = PRODUCT_CREATIVE_LIMIT,
+  excludeCreativeId?: string,
 ): Promise<CreativeFeedItem[]> {
-  return loadCreativesForProduct(productId, creativeModel, CREATIVE_COMMERCIAL_MATCH, limit);
+  return loadCreativesForProduct(
+    productId,
+    creativeModel,
+    CREATIVE_COMMERCIAL_MATCH,
+    limit,
+    excludeCreativeId,
+  );
 }
 
 /** Paid ad creatives for a product (`GET /products/:id` → `relatedAds`). Meta + TikTok ads. */
@@ -569,8 +580,29 @@ export async function findRelatedAdsByProductId(
   productId: string,
   creativeModel: Model<ICreativeDocument> = Creative,
   limit = PRODUCT_CREATIVE_LIMIT,
+  excludeCreativeId?: string,
 ): Promise<CreativeFeedItem[]> {
-  return loadCreativesForProduct(productId, creativeModel, CREATIVE_TOP_ADS_MATCH, limit);
+  return loadCreativesForProduct(
+    productId,
+    creativeModel,
+    CREATIVE_TOP_ADS_MATCH,
+    limit,
+    excludeCreativeId,
+  );
+}
+
+/** Other commercial creatives for the same product, excluding the anchor creative. */
+export async function findSiblingCreativesForProduct(
+  creativeId: string,
+  creativeModel: Model<ICreativeDocument> = Creative,
+  limit = PRODUCT_CREATIVE_LIMIT,
+): Promise<CreativeFeedItem[] | null> {
+  if (!mongoose.isValidObjectId(creativeId)) return null;
+
+  const doc = await creativeModel.findById(creativeId).select({ productId: 1 }).lean();
+  if (!doc?.productId) return null;
+
+  return findCreativesByProductId(String(doc.productId), creativeModel, limit, creativeId);
 }
 
 /** Embedded secondary videos on a creative document (`GET /creatives/:id/related-videos`). */

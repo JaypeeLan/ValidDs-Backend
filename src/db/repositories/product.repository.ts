@@ -17,6 +17,7 @@ import {
 } from '../../utils/content-feed-filters.util';
 import { buildProductTextSearchStrings } from '../../utils/product-text-search.util';
 import {
+  expandCategoryL3FilterValues,
   expandSubcategoryFilterValues,
   normalizeCategoryL2,
 } from '../../utils/category-l2-normalize.util';
@@ -952,9 +953,9 @@ export const ProductRepository = {
 
   /**
    * Find related products for a given product.
-   * Same L2 subcategory only (including alias variants), excluding current product,
-   * duplicate titles, and non-listable rows — up to `limit`.
-   * Sorted by trend score desc then totalSales desc; deduped by normalized title + shop.
+   * L2 narrows the candidate pool (including alias variants).
+   * When the anchor has L3, candidates must share that L3 — L2 alone is not enough.
+   * When the anchor has no L3, L2-only narrowing is used as a best-effort fallback.
    */
   async findRelated(
     id: string,
@@ -1005,11 +1006,16 @@ export const ProductRepository = {
         .allowDiskUse(true)
         .exec() as Promise<unknown[]>;
 
-    // Try L3 first for tighter matching; fall back to L2 if fewer than 3 results.
     const l3 = categoryL3?.trim();
     if (l3) {
-      const l3Rows = await runQuery({ ...baseMatch, categoryL3: l3 });
-      if (l3Rows.length >= 3) return l3Rows as unknown as IProductDocument[];
+      const l3Values = expandCategoryL3FilterValues(categoryL1, categoryL2, l3);
+      if (l3Values.length === 0) return [];
+
+      const l3Rows = await runQuery({
+        ...baseMatch,
+        categoryL3: l3Values.length === 1 ? l3Values[0]! : { $in: l3Values },
+      });
+      return l3Rows as unknown as IProductDocument[];
     }
 
     const rows = await runQuery(baseMatch);

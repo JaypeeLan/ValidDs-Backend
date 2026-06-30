@@ -211,15 +211,13 @@ describe('Creatives Endpoints', () => {
     if (mongo) await mongo.stop();
   });
 
-  it('GET /api/v1/creatives should allow public discovery without token', async () => {
+  it('GET /api/v1/creatives should require a JWT', async () => {
     const res = await httpJson({
       baseUrl,
       method: 'GET',
       path: '/api/v1/creatives',
     });
-    expect(res.status).toBe(200);
-    const body = JSON.parse(res.text);
-    expect(body.success).toBe(true);
+    expect(res.status).toBe(401);
   });
 
   it('GET /api/v1/creatives?groupBy=creator should return unique creators', async () => {

@@ -281,6 +281,74 @@ getSubscription:
       '401':
         $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
 
+cancelSubscription:
+  post:
+    tags: [Billing]
+    summary: Cancel the authenticated user's subscription
+    description: |
+      Cancels the user's active Stripe subscription.
+
+      **Default (`immediate: false`):** schedules cancellation at the end of the current billing
+      period. The user keeps plan access until `cancelAt`. Stripe sends
+      `customer.subscription.deleted` when the period ends, which downgrades the user to `free`.
+
+      **`immediate: true`:** ends the subscription immediately and downgrades the user to `free`.
+
+      Requires an active paid subscription (`stripeSubscriptionId` on the user).
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              immediate:
+                type: boolean
+                default: false
+                description: When true, cancel immediately instead of at period end.
+    responses:
+      '200':
+        description: Subscription cancelled or scheduled for cancellation
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [canceled, immediate, plan, cancelAt, stripeSubscriptionId]
+                      properties:
+                        canceled:
+                          type: boolean
+                          example: true
+                        immediate:
+                          type: boolean
+                          example: false
+                        plan:
+                          type: string
+                          enum: [free, explorer, pro, premium]
+                        cancelAt:
+                          nullable: true
+                          type: string
+                          format: date-time
+                          description: When access ends (null when cancelled immediately).
+                        stripeSubscriptionId:
+                          nullable: true
+                          type: string
+                          description: Stripe subscription ID (null after immediate cancel).
+      '400':
+        description: No active subscription to cancel
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '502':
+        description: Stripe cancellation failed
+      '503':
+        description: Stripe is not configured
+
 getTransactions:
   get:
     tags: [Billing]

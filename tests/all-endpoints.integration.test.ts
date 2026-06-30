@@ -450,6 +450,13 @@ describe('All API endpoints (HTTP integration)', () => {
       allowed: [200, 400, 503],
     }));
 
+  it('POST /billing/subscription/cancel', () =>
+    hit('POST', `${API}/billing/subscription/cancel`, {
+      token: 'user',
+      body: { immediate: false },
+      allowed: [200, 400, 502, 503],
+    }));
+
   // ── Waitlist ──────────────────────────────────────────────────────────────
 
   it('POST /waitlist', () =>

@@ -143,6 +143,8 @@ paths:
     $ref: './paths/billing.yaml#/createCheckoutSession'
   /api/v1/billing/subscription:
     $ref: './paths/billing.yaml#/getSubscription'
+  /api/v1/billing/subscription/cancel:
+    $ref: './paths/billing.yaml#/cancelSubscription'
   /api/v1/billing/transactions:
     $ref: './paths/billing.yaml#/getTransactions'
   /api/v1/webhooks/stripe:

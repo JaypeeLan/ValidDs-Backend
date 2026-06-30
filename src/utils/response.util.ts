@@ -34,6 +34,7 @@ export enum ResponseMessage {
 
   // Billing
   BILLING_HISTORY_RETRIEVED = 'Billing history retrieved successfully.',
+  SUBSCRIPTION_CANCELLED = 'Subscription cancelled successfully.',
   SHOPIFY_PRODUCT_PUSHED = 'Product pushed to your Shopify store successfully.',
 
   // Generic

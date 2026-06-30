@@ -11,7 +11,10 @@ import { BillingService } from '../../services/billing.service';
 import { TransactionService } from '../../services/transaction.service';
 import { UserPlan, IUserDocument } from '../../models/user.model';
 import { Transaction } from '../../models/transaction.model';
-import type { BillingTransactionsQueryInput } from './billing.validator';
+import type {
+  BillingTransactionsQueryInput,
+  CancelSubscriptionBodyInput,
+} from './billing.validator';
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
@@ -161,6 +164,27 @@ export const BillingController = {
           200,
         ),
       );
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * POST /api/v1/billing/subscription/cancel
+   * Auth required — cancels the user's active Stripe subscription.
+   *
+   * Body: { immediate?: boolean } — default false (cancel at period end).
+   */
+  async cancelSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const body = req.body as CancelSubscriptionBodyInput;
+      const user = req.user as IUserDocument;
+
+      const result = await BillingService.requestSubscriptionCancellation(String(user._id), {
+        immediate: body.immediate,
+      });
+
+      res.json(successResponse(result, ResponseMessage.SUBSCRIPTION_CANCELLED, 200));
     } catch (err) {
       next(err);
     }

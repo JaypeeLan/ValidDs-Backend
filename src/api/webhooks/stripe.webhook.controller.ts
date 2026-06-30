@@ -78,7 +78,6 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
 
 async function dispatchEvent(stripe: Stripe, event: Stripe.Event): Promise<void> {
   switch (event.type) {
-
     // ── New payment completed ─────────────────────────────────────────────────
     case 'checkout.session.completed':
       await handleCheckoutCompleted(stripe, event.data.object as Stripe.Checkout.Session);
@@ -116,27 +115,30 @@ async function dispatchEvent(stripe: Stripe, event: Stripe.Event): Promise<void>
  */
 async function handleCheckoutCompleted(
   stripe: Stripe,
-  session: Stripe.Checkout.Session
+  session: Stripe.Checkout.Session,
 ): Promise<void> {
   const userId = session.client_reference_id ?? meta(session.metadata, 'userId');
   if (!userId) {
-    log.error('checkout.session.completed: no userId in client_reference_id or metadata', { sessionId: session.id });
+    log.error('checkout.session.completed: no userId in client_reference_id or metadata', {
+      sessionId: session.id,
+    });
     return;
   }
 
   const plan = planFromMetadata(session.metadata);
   if (!plan) {
-    log.error('checkout.session.completed: no valid plan in session metadata', { sessionId: session.id, metadata: session.metadata });
+    log.error('checkout.session.completed: no valid plan in session metadata', {
+      sessionId: session.id,
+      metadata: session.metadata,
+    });
     return;
   }
 
-  const customerId = (typeof session.customer === 'string'
-    ? session.customer
-    : session.customer?.id) ?? '';
+  const customerId =
+    (typeof session.customer === 'string' ? session.customer : session.customer?.id) ?? '';
 
-  const subId = typeof session.subscription === 'string'
-    ? session.subscription
-    : session.subscription?.id;
+  const subId =
+    typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
 
   if (!subId) {
     log.error('checkout.session.completed: missing subscription ID', { sessionId: session.id });
@@ -144,26 +146,27 @@ async function handleCheckoutCompleted(
   }
 
   const subscription = await stripe.subscriptions.retrieve(subId);
-  const priceId      = subscription.items.data[0]?.price?.id ?? '';
+  const priceId = subscription.items.data[0]?.price?.id ?? '';
 
   // During a trial the session total is $0 and there is no payment_intent yet
-  const amount   = session.amount_total ?? 0;
+  const amount = session.amount_total ?? 0;
   const currency = session.currency ?? 'usd';
-  const paymentIntentId = typeof session.payment_intent === 'string'
-    ? session.payment_intent
-    : (session.payment_intent?.id ?? null);
+  const paymentIntentId =
+    typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null);
 
   await BillingService.provisionPlan({
     userId,
-    userEmail:             session.customer_details?.email ?? '',
+    userEmail: session.customer_details?.email ?? '',
     plan,
-    stripeCustomerId:      customerId,
-    stripeSubscriptionId:  subId,
-    stripePriceId:         priceId,
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: subId,
+    stripePriceId: priceId,
     amount,
     currency,
     stripePaymentIntentId: paymentIntentId,
-    stripeSessionId:       session.id,
+    stripeSessionId: session.id,
   });
 }
 
@@ -172,9 +175,8 @@ async function handleCheckoutCompleted(
  * Fired on plan changes, cancellations scheduled, trial ends, etc.
  */
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
-  const customerId = typeof subscription.customer === 'string'
-    ? subscription.customer
-    : subscription.customer?.id;
+  const customerId =
+    typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
   if (!customerId) return;
 
   const user = await User.findOne({ stripeCustomerId: customerId, status: 'active' });
@@ -183,13 +185,22 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Pro
     return;
   }
 
-  // Subscription was cancelled at period end — let it run out, no immediate action
+  // Subscription was cancelled at period end — sync local expiry date
   if (subscription.cancel_at_period_end) {
+    user.planExpiresAt = subscription.current_period_end
+      ? new Date(subscription.current_period_end * 1000)
+      : undefined;
+    await user.save();
     log.info('Subscription scheduled to cancel at period end', {
-      userId:    String(user._id),
-      cancelAt:  subscription.cancel_at,
+      userId: String(user._id),
+      cancelAt: subscription.cancel_at,
     });
     return;
+  }
+
+  if (user.planExpiresAt) {
+    user.planExpiresAt = undefined;
+    await user.save();
   }
 
   // Status change (e.g. past_due, unpaid) — log for now
@@ -206,7 +217,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Pro
   if (newPriceId && newPriceId !== user.stripePriceId) {
     const plan = planFromMetadata(subscription.metadata);
     if (plan) {
-      user.plan          = plan;
+      user.plan = plan;
       user.creditBalance = creditsForPlan(plan);
       user.stripePriceId = newPriceId;
       await user.save();
@@ -235,9 +246,8 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
     return;
   }
 
-  const customerId = typeof invoice.customer === 'string'
-    ? invoice.customer
-    : (invoice.customer as any)?.id;
+  const customerId =
+    typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id;
 
   if (!customerId) return;
 
@@ -249,14 +259,13 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
  * Fired when a renewal charge fails. Log and optionally notify the user.
  */
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
-  const customerId = typeof invoice.customer === 'string'
-    ? invoice.customer
-    : (invoice.customer as any)?.id;
+  const customerId =
+    typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id;
 
   log.warn('Invoice payment failed', {
-    invoiceId:  invoice.id,
+    invoiceId: invoice.id,
     customerId,
-    amount:     invoice.amount_due,
+    amount: invoice.amount_due,
     attemptCount: invoice.attempt_count,
   });
   // TODO: Send an email via ResendService to warn the user their payment failed

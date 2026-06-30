@@ -7,3 +7,10 @@ export const BillingTransactionsQuerySchema = z.object({
 });
 
 export type BillingTransactionsQueryInput = z.infer<typeof BillingTransactionsQuerySchema>;
+
+export const CancelSubscriptionBodySchema = z.object({
+  /** When true, ends the subscription immediately. Default: cancel at period end. */
+  immediate: z.boolean().optional().default(false),
+});
+
+export type CancelSubscriptionBodyInput = z.infer<typeof CancelSubscriptionBodySchema>;

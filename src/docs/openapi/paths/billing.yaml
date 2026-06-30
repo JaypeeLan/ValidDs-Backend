@@ -367,6 +367,7 @@ stripeWebhook:
   post:
     tags: [Billing]
     summary: Stripe webhook receiver
+    security: []
     description: |
       Receives signed events from Stripe. Must receive the **raw** request body — do not pass through
       any middleware that re-serialises JSON.

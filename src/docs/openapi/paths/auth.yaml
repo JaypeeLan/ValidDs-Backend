@@ -3,6 +3,7 @@ register:
     tags: [Auth]
     summary: Initial registration step
     description: Sends a verification code to the provided email address.
+    security: []
     requestBody:
       required: true
       content:
@@ -22,6 +23,10 @@ login:
   post:
     tags: [Auth]
     summary: Login with email and password
+    description: |
+      Returns `data.token` — use that string as the Bearer JWT on all other routes.
+      In Swagger **Authorize**, paste the token only (no `Bearer ` prefix).
+    security: []
     requestBody:
       required: true
       content:
@@ -63,6 +68,7 @@ verifyCode:
   post:
     tags: [Auth]
     summary: Verify email code
+    security: []
     requestBody:
       required: true
       content:
@@ -81,6 +87,7 @@ completeRegistration:
   post:
     tags: [Auth]
     summary: Complete registration after verification
+    security: []
     requestBody:
       required: true
       content:
@@ -100,6 +107,7 @@ forgotPassword:
   post:
     tags: [Auth]
     summary: Request password reset
+    security: []
     requestBody:
       required: true
       content:
@@ -117,6 +125,7 @@ resetPassword:
   post:
     tags: [Auth]
     summary: Reset password with token
+    security: []
     requestBody:
       required: true
       content:

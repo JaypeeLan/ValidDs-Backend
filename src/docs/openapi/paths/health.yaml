@@ -3,6 +3,7 @@ get:
     - Health
   summary: Liveness check
   description: Returns 200 if the server is up and running.
+  security: []
   responses:
     '200':
       description: Server is alive

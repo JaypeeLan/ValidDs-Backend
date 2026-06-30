@@ -118,10 +118,9 @@ export function creativeAdDedupeKey(creative: Record<string, unknown>): string {
     if (/^\d+$/.test(ext)) return `tiktok:${ext}`;
   }
 
-  // Hero listing image — collapse look-alikes within the same platform only.
-  // Meta Ad Library rows must not evict TikTok videos (or vice versa) on ingest.
+  // Hero listing image — one feed slot per product (Meta and TikTok hero cards collapse).
   if (isProductHeroThumbnail(creative) && pid) {
-    return isMeta ? `meta:product-card:${pid}` : `tiktok:product-card:${pid}`;
+    return `product-card:${pid}`;
   }
 
   if (isMeta) {
@@ -296,27 +295,18 @@ function mongoTiktokVideoDedupeKeyExpr(): Record<string, unknown> {
 }
 
 /**
- * Mongo stages: one organic TikTok + one Meta/paid row per product in global feeds.
- * Run after $sort so the highest-ranked creative per product slot is kept.
+ * Mongo stages: one creative per product in global feeds.
+ * Run after $sort so the highest-ranked row per product is kept.
  */
 export function creativeOneAdPerProductFeedStages(): Record<string, unknown>[] {
-  const isMeta = {
-    $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' },
-  };
   return [
     {
-      $addFields: {
-        _productFeedSlot: { $cond: [isMeta, 'meta', 'tiktok'] },
-      },
-    },
-    {
       $group: {
-        _id: { productId: '$productId', slot: '$_productFeedSlot' },
+        _id: '$productId',
         doc: { $first: '$$ROOT' },
       },
     },
     { $replaceRoot: { newRoot: '$doc' } },
-    { $unset: ['_productFeedSlot'] },
   ];
 }
 
@@ -329,7 +319,7 @@ export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
   const isMeta = {
     $regexMatch: { input: { $ifNull: ['$externalVideoId', ''] }, regex: '^meta:' },
   };
-  // Order must match creativeAdDedupeKey(): hero (per platform) → meta → tiktok video id.
+  // Order must match creativeAdDedupeKey(): hero product card → meta → tiktok video id.
   const computedKey = {
     $cond: [
       {
@@ -340,13 +330,7 @@ export function creativeAdDedupeAggregationStages(): Record<string, unknown>[] {
           { $ne: [pid, ''] },
         ],
       },
-      {
-        $cond: [
-          isMeta,
-          { $concat: ['meta:product-card:', pid] },
-          { $concat: ['tiktok:product-card:', pid] },
-        ],
-      },
+      { $concat: ['product-card:', pid] },
       {
         $cond: [isMeta, mongoMetaAdDedupeKeyExpr(), mongoTiktokVideoDedupeKeyExpr()],
       },

@@ -10,6 +10,8 @@ info:
     - **API Key**: Required for internal/service-to-service communication.
     - **JWT**: Required on all `/api/v1/*` user routes except public **auth** flows (`/auth/login`, `/auth/register`, OAuth callbacks, password reset, etc.). Webhooks, `/internal/*`, and `/jobs/*` use their own keys.
 
+    **Swagger UI:** click **Authorize**, paste the raw token from `POST /auth/login` → `data.token` (do **not** include a `Bearer ` prefix). Use the **same server** you logged in against — tokens are signed per deployment.
+
     **Admin & ops** (`/api/v1/admin/*`, `/jobs/*`, TikTok operator routes) → **`/admin-docs`** only.
 
     ### Quick reference
@@ -53,6 +55,10 @@ tags:
     description: Shopify OAuth — connect a merchant store and push ValidDs products via Admin REST
   - name: TikTok Live
     description: Live sessions from MongoDB — `GET /tiktok/live/discover`, `POST /tiktok/live/reconcile` (JWT)
+
+# Default: JWT on all operations below. Public routes override with `security: []`.
+security:
+  - BearerAuth: []
 
 paths:
   /health:

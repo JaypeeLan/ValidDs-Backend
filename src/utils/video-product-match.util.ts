@@ -149,13 +149,14 @@ function stemsAlign(a: string, b: string): boolean {
 
 function extractProductBrandStems(productTitle: string, shopName?: string): Set<string> {
   const stems = new Set<string>();
+  const titleCf = productTitle.toLowerCase();
   const bracket = productTitle.match(/^\s*\[([^\]]{2,40})\]/);
   if (bracket) {
     const b = normalizeBrandStem(bracket[1]);
     if (b.length >= 3) stems.add(b);
   }
   const shop = (shopName ?? '').trim();
-  if (shop) {
+  if (shop && titleCf) {
     const shopWords = shop
       .toLowerCase()
       .replace(/[,.-]+/g, ' ')
@@ -165,9 +166,14 @@ function extractProductBrandStems(productTitle: string, shopName?: string): Set<
           w &&
           !['inc', 'llc', 'ltd', 'co', 'store', 'shop', 'official', 'us', 'usa', 'uk'].includes(w),
       );
-    if (shopWords[0] && shopWords[0].length >= 3) stems.add(normalizeBrandStem(shopWords[0]));
+    if (shopWords[0] && shopWords[0].length >= 3 && titleCf.includes(shopWords[0])) {
+      stems.add(normalizeBrandStem(shopWords[0]));
+    }
     if (shopWords.length >= 2) {
-      stems.add(normalizeBrandStem(`${shopWords[0]}${shopWords[1]}`));
+      const combined = `${shopWords[0]}${shopWords[1]}`;
+      if (titleCf.replace(/[^a-z0-9]/g, '').includes(combined)) {
+        stems.add(normalizeBrandStem(combined));
+      }
     }
   }
   return stems;

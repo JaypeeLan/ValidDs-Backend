@@ -416,12 +416,11 @@ detail:
     tags: [Products]
     summary: Get product by ID
     description: |
-      Returns the full product, same-category **related products** (feed card shape),
-      **you may like** recommendations (personalized when JWT is sent),
-      **related videos** (commercial — non-ad creatives) and **related ads** (paid / top-ad only).
+      Returns the full product, **related videos** (commercial — non-ad creatives)
+      and **related ads** (paid / top-ad only).
 
-      Personalization blends saved products, search history, and Shopify import history.
-      Send a Bearer token for best `youMayLike` results; anonymous users get related-only picks.
+      Related product cards and personalized picks are separate endpoints:
+      `GET /products/{id}/related-products` and `GET /products/{id}/you-may-like`.
 
       The two video arrays are **mutually exclusive**.
       Each item uses the `Creative` schema (proxy URLs + nested `relatedVideos` on each doc).
@@ -442,35 +441,10 @@ detail:
                   properties:
                     data:
                       type: object
-                      required:
-                        [
-                          product,
-                          relatedProducts,
-                          youMayLike,
-                          personalized,
-                          relatedVideos,
-                          relatedAds,
-                          freshness,
-                        ]
+                      required: [product, relatedVideos, relatedAds, freshness]
                       properties:
                         product:
                           $ref: '../components/schemas/Product.yaml'
-                        relatedProducts:
-                          type: array
-                          description: Up to 8 products in the same L2 subcategory (feed card shape).
-                          items:
-                            $ref: '../components/schemas/ProductFeedItem.yaml'
-                        youMayLike:
-                          type: array
-                          description: |
-                            Personalized recommendations for this product context (feed card shape).
-                            Blends user activity with related products when JWT is present.
-                          items:
-                            $ref: '../components/schemas/ProductFeedItem.yaml'
-                        personalized:
-                          type: boolean
-                          description: |
-                            `true` when `youMayLike` used user activity; `false` for related-only fallback.
                         relatedVideos:
                           type: array
                           description: |
@@ -494,10 +468,9 @@ youMayLike:
     tags: [Products]
     summary: Products you may like (for a product)
     description: |
-      Contextual recommendations for a product detail page. When the caller sends a JWT,
-      results blend **saved products**, **search history**, and **Shopify import history**
-      with same-subcategory related products. Anonymous or cold-start users receive
-      related products only (`personalized: false`).
+      Personalized recommendations for a product detail page. Requires a JWT with user
+      activity (saved products, search history, or Shopify imports). Returns an empty list
+      when anonymous or cold-start (`personalized: false`).
     parameters:
       - name: id
         in: path
@@ -534,10 +507,10 @@ relatedProducts:
     tags: [Products]
     summary: Related products for a product
     description: |
-      Related products in the same L2 subcategory (feed card shape), including L2 alias
-      variants (e.g. Makeup vs Makeup & Cosmetics). Excludes the current product, duplicate
-      titles, and non-listable rows. Same data as `relatedProducts` on
-      `GET /products/{id}` without loading the full product payload.
+      Related products for a product. L2 narrows the candidate pool (including alias variants).
+      When the anchor has L3, candidates must share that L3 — same L2 with a different L3
+      is excluded. When the anchor has no L3, L2-only narrowing is used as a fallback.
+      Excludes the current product, duplicate titles, and non-listable rows.
     parameters:
       - name: id
         in: path
@@ -564,41 +537,6 @@ relatedProducts:
       '404':
         $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
 
-similarProducts:
-  get:
-    tags: [Products]
-    summary: Similar products for a product
-    description: |
-      Alias of `GET /products/{id}/related-products` (feed card shape).
-      Returns products in the same L2 subcategory only (including alias variants).
-      Excludes the current product, items with the same `normalizedTitle`, and duplicate
-      listings (same title + shop).
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
-    responses:
-      '200':
-        description: Similar products retrieved
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      required: [relatedProducts]
-                      properties:
-                        relatedProducts:
-                          type: array
-                          items:
-                            $ref: '../components/schemas/ProductFeedItem.yaml'
-      '404':
-        $ref: '../components/responses/Standard.yaml#/NotFoundResponse'
-
 relatedVideos:
   get:
     tags: [Products]
@@ -606,6 +544,9 @@ relatedVideos:
     description: |
       Commercial TikTok creatives linked to this product (DB `top-ads`, API `trending` bucket).
       Coexists with `relatedAds` (Meta / paid). Sorted by view count descending.
+      Pass `excludeCreativeId` to omit the creative the user is already viewing (e.g. on
+      creative detail). Returns `[]` when that creative is the only video for the product.
+      Prefer `GET /creatives/{id}/product-related-videos` from a creative context.
     parameters:
       - name: id
         in: path
@@ -614,6 +555,10 @@ relatedVideos:
       - name: limit
         in: query
         schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      - name: excludeCreativeId
+        in: query
+        description: Creative MongoDB id to omit from results (typically the video being viewed).
+        schema: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
     responses:
       '200':
         description: Related videos retrieved

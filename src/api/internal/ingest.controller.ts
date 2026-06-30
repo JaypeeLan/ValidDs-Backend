@@ -165,6 +165,15 @@ export async function ingestProduct(
       return;
     }
 
+    if (
+      String(product.status ?? '')
+        .trim()
+        .toLowerCase() === 'invalid'
+    ) {
+      res.status(422).json({ reasons: ['status invalid is not allowed'] });
+      return;
+    }
+
     const prepared = prepareProductDoc(product, market);
     await enrichProductMediaForIngest(prepared, market);
     stripProductCdnAvatars(prepared);

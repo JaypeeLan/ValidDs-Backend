@@ -11,7 +11,7 @@ All endpoints return standardized success envelopes detailed in `docs/api-respon
 ### `GET /products`
 
 Returns a paginated list of products (full catalog by page). Supports optional full-text search and filters on the **same** route.
-**Authentication:** Not required (optional JWT improves default `region` when logged in).
+**Authentication:** Required (Bearer JWT).
 **Query Parameters:**
 
 - `page` _(number, optional)_: Page number (defaults to 1).
@@ -46,8 +46,8 @@ Personalized product recommendations for the signed-in user (saved products, sea
 
 ### `GET /products/:id/you-may-like`
 
-Products you may like for a specific product detail context. Blends personalization with same-subcategory related products when the user is signed in; falls back to related products only when anonymous or cold-start.
-**Authentication:** Optional (JWT improves personalization).
+Products you may like for a specific product detail context. Requires a signed-in user with activity (saved products, search history, or Shopify imports). Returns an empty list when anonymous or cold-start.
+**Authentication:** Required (Bearer JWT).
 
 - `limit` _(number, optional)_: Max items (default 8, max 16).
 
@@ -56,7 +56,7 @@ Products you may like for a specific product detail context. Blends personalizat
 ### `GET /products/compare`
 
 AI-assisted comparison of 2–5 products by MongoDB ObjectId.
-**Authentication:** Not required.
+**Authentication:** Required (Bearer JWT).
 
 - `ids` _(string, required)_: Comma-separated ObjectIds, or repeat the query param (`?ids=id1,id2` or `?ids=id1&ids=id2`). Minimum 2, maximum 5.
 
@@ -69,32 +69,28 @@ AI-assisted comparison of 2–5 products by MongoDB ObjectId.
 ### `GET /products/:id`
 
 Returns comprehensive data for a single product.
-**Authentication:** Not required (optional JWT improves `youMayLike` personalization).
+**Authentication:** Required (Bearer JWT).
 **Path Parameters:** `id` (MongoDB ObjectId).
 
-**Response `data`:** `product` (full detail), `relatedProducts` (up to 8 feed cards in the same L2 subcategory), `youMayLike` (personalized or related-only feed cards), `personalized` (`true` when user activity was used), `relatedVideos` (commercial/non-ad creatives), `relatedAds` (top-ad/paid creatives), `freshness`.
+**Response `data`:** `product` (full detail), `relatedVideos` (commercial/non-ad creatives), `relatedAds` (top-ad/paid creatives), `freshness`. Related products: `GET /products/:id/related-products`. Personalized picks: `GET /products/:id/you-may-like`.
 
 **Product detail highlights:** `originalPrice`, `storeLinks`, `officialWebsiteUrl`, `officialProductUrl`, and `aiInsight.pageSummary` / `aiInsight.reviewSummary` on `GET /products/:id` when populated by ingest.
-
-### `GET /products/:id/similar-products`
-
-Alias of `GET /products/:id/related-products`.
 
 ### `GET /products/categories`
 
 Returns L1 category names that have at least one listable product in the request market (flat array, canonical order). Categories with zero products are omitted.
-**Authentication:** Not required (optional JWT sets market via `attachMarketModels`).
+**Authentication:** Required (Bearer JWT).
 **Response `data`:** `{ "categories": ["Beauty & Personal Care", ...] }`
 
 ### `GET /products/subcategories`
 
 Returns L2 subcategories that have at least one listable product. Optional query `?category=<L1>` for a flat list; omit for full L1→L2 map (only L1/L2 keys with products are included).
-**Authentication:** Not required.
+**Authentication:** Required (Bearer JWT).
 
 ### `GET /products/taxonomy`
 
 Full L1 → L2 → L3 taxonomy tree.
-**Authentication:** Not required.
+**Authentication:** Required (Bearer JWT).
 
 ---
 
@@ -105,7 +101,7 @@ Public discovery and detail for TikTok/Meta ad creatives. **OpenAPI:** `src/docs
 ### `GET /creatives`
 
 Paginated creative feed with filters (category, product, section, engagement, etc.).
-**Authentication:** Not required.
+**Authentication:** Required (Bearer JWT).
 
 - `sortBy` _(string, optional)_: `views` (default), `likes`, `recent` (post publish date), `last_ingested` (when ValidDs ingested the creative; aliases `last-ingested`, `ingested_desc`), `engagement`.
 
@@ -305,7 +301,7 @@ Admin route reference (health, analytics, users, transactions, waitlist) lives i
 ### `POST /waitlist`
 
 Public endpoint. Adds an email to the pre-launch waitlist. Idempotent — a duplicate email returns `200` with `alreadyOnWaitlist: true` instead of erroring.
-**Authentication:** None.
+**Authentication:** Required (Bearer JWT).
 **Body:** `{ "email": "founder@example.com", "source": "landing-hero", "referrer": "https://..." }`
 **Responses:** `201` for new entries, `200` for duplicates, `400` on invalid email.
 

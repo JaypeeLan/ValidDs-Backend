@@ -228,6 +228,10 @@ export const ProductIdParamSchema = z.object({
 
 export const ProductRelatedCreativesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  excludeCreativeId: z
+    .string()
+    .regex(/^[0-9a-fA-F]{24}$/, 'Invalid creative ID format')
+    .optional(),
 });
 
 export const ProductForYouQuerySchema = z.object({

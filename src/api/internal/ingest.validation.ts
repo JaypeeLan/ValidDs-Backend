@@ -135,6 +135,13 @@ export function validateProductForIngest(
   const reasons: string[] = [];
   const partnerPool = isPartnerPoolProduct(doc);
 
+  const status = String(doc.status ?? '')
+    .trim()
+    .toLowerCase();
+  if (status === 'invalid') {
+    reasons.push('status invalid is not allowed');
+  }
+
   if (!doc.externalId) reasons.push('missing externalId');
   if (!doc.source) reasons.push('missing source');
 

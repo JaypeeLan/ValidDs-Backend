@@ -19,7 +19,7 @@ import type { MarketCode } from '../utils/markets';
 const PRODUCT_FEED_CACHE_REVISION = 'v7';
 
 /** Bump when related-product matching semantics change. */
-const PRODUCT_RELATED_CACHE_REVISION = 'l2-complete';
+const PRODUCT_RELATED_CACHE_REVISION = 'l2-narrow-l3-required';
 
 export const CacheKeys = {
   // Product feed — varies by market + page + limit + filters

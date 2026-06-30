@@ -120,3 +120,22 @@ export function expandSubcategoryFilterValues(subcategories: string[]): string[]
 export function canonicalSubcategoriesForL1(l1: string): string[] {
   return Object.keys(CATEGORY_TAXONOMY[l1] ?? {});
 }
+
+/** Expand an L3 label to taxonomy case variants within an L1/L2 (e.g. lip color ↔ Lip Color). */
+export function expandCategoryL3FilterValues(l1: string, rawL2: string, rawL3: string): string[] {
+  const trimmed = rawL3.trim();
+  if (!trimmed) return [];
+
+  const expanded = new Set<string>([trimmed]);
+  const canonicalL2 = normalizeCategoryL2(l1, rawL2);
+  const leaves = CATEGORY_TAXONOMY[l1]?.[canonicalL2] ?? [];
+  const lower = trimmed.toLowerCase();
+
+  for (const leaf of leaves) {
+    if (leaf.toLowerCase() === lower) {
+      expanded.add(leaf);
+    }
+  }
+
+  return [...expanded];
+}

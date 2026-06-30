@@ -6,16 +6,14 @@ import { BillingTransactionsQuerySchema } from './billing.validator';
 
 const router = Router();
 
-// Public
+router.use(requireAuth);
+
 router.get('/stripe-config', BillingController.stripeConfig);
 router.get('/plans', BillingController.listPlans);
-
-// Auth required
-router.post('/checkout', requireAuth, BillingController.createCheckoutSession);
-router.get('/subscription', requireAuth, BillingController.getSubscription);
+router.post('/checkout', BillingController.createCheckoutSession);
+router.get('/subscription', BillingController.getSubscription);
 router.get(
   '/transactions',
-  requireAuth,
   validate(BillingTransactionsQuerySchema, 'query'),
   BillingController.getTransactions,
 );

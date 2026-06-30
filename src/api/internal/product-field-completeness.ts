@@ -451,7 +451,7 @@ function joinPath(prefix: string, key: string): string {
   return prefix ? `${prefix}.${key}` : key;
 }
 
-const VALID_STATUS = new Set(['active', 'review', 'invalid']);
+const VALID_STATUS = new Set(['active', 'review']);
 const VALID_PRODUCT_TYPE = new Set(['evergreen', 'trend-driven', 'seasonal', 'unknown']);
 const VALID_PRICE_BAND = new Set(['budget', 'mid-range', 'premium']);
 const VALID_SENTIMENT = new Set(['positive', 'neutral', 'negative']);

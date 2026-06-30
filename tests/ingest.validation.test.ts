@@ -169,6 +169,11 @@ describe('validateProductForIngest', () => {
     expect(validateProductForIngest(doc, 'US')).toEqual([]);
   });
 
+  it('rejects status invalid', () => {
+    const reasons = validateProductForIngest(minimalProduct({ status: 'invalid' }), 'US');
+    expect(reasons).toContain('status invalid is not allowed');
+  });
+
   it('rejects products priced below $10', () => {
     const low = validateProductForIngest(minimalProduct({ price: 9.99 }), 'US');
     expect(low).toContain('price must be >= $10');

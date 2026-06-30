@@ -36,6 +36,7 @@
     "typecheck": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.build.json --noEmit",
     "start": "node dist/server.js",
     "test": "NODE_OPTIONS='--max-old-space-size=8192' jest --runInBand --forceExit",
+    "test:unit": "NODE_OPTIONS='--max-old-space-size=8192' jest --testPathIgnorePatterns=all-endpoints.integration.test.ts --runInBand --forceExit",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src tests scripts --ext .ts",

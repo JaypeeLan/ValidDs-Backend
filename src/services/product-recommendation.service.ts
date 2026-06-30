@@ -13,7 +13,6 @@ import {
   creativeCollectionForProductCollection,
 } from '../utils/creative-response.util';
 import { mapFrontendCategories } from '../api/products/product-feed-filters.util';
-import { getRelatedProducts } from './product.service';
 import type { MarketCode } from '../utils/markets';
 
 export const SIGNAL_WEIGHTS = {
@@ -291,20 +290,17 @@ export async function getYouMayLikeProducts(
   productId: string,
   user: IUserDocument | undefined,
   productModel: IProductModel,
-  market: MarketCode,
+  _market: MarketCode,
   limit = 8,
 ): Promise<{ products: IProductDocument[]; personalized: boolean }> {
-  const related = await getRelatedProducts(productId, productModel, market);
-
   if (!user || !hasPersonalizationSignals(user)) {
-    return { products: related.slice(0, limit), personalized: false };
+    return { products: [], personalized: false };
   }
 
   const { savedIdToProduct, importIdToProduct } = await loadSignalProductMaps(user, productModel);
   const profile = buildPersonalizationProfile(user, [], savedIdToProduct, importIdToProduct);
   profile.excludeIds.add(productId);
 
-  const personalized = await queryPersonalizedProducts(profile, productModel, Math.max(limit, 6));
-  const merged = dedupeProducts([...personalized, ...related]).slice(0, limit);
-  return { products: merged, personalized: true };
+  const products = await queryPersonalizedProducts(profile, productModel, limit);
+  return { products, personalized: true };
 }

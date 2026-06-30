@@ -408,7 +408,12 @@ export const ProductController = {
       const creativeModel = req.models?.Creative;
 
       await ProductService.getById(id, productModel, req.market, creativeModel);
-      const relatedVideos = await findCreativesByProductId(id, creativeModel, query.limit);
+      const relatedVideos = await findCreativesByProductId(
+        id,
+        creativeModel,
+        query.limit,
+        query.excludeCreativeId,
+      );
 
       res.json(successResponse({ relatedVideos }, ResponseMessage.CREATIVES_RETRIEVED, 200));
     } catch (err) {
@@ -424,7 +429,12 @@ export const ProductController = {
       const creativeModel = req.models?.Creative;
 
       await ProductService.getById(id, productModel, req.market, creativeModel);
-      const relatedAds = await findRelatedAdsByProductId(id, creativeModel, query.limit);
+      const relatedAds = await findRelatedAdsByProductId(
+        id,
+        creativeModel,
+        query.limit,
+        query.excludeCreativeId,
+      );
 
       res.json(successResponse({ relatedAds }, ResponseMessage.CREATIVES_RETRIEVED, 200));
     } catch (err) {
@@ -438,31 +448,14 @@ export const ProductController = {
       const productModel = req.models?.Product;
       const creativeModel = req.models?.Creative;
 
-      const user = req.user?._id
-        ? await User.findById(req.user._id).select(
-            'savedProducts searchHistory shopifyImportHistory',
-          )
-        : null;
-
-      const [{ product, freshness }, relatedDocs, youMayLikeResult, relatedVideos, relatedAds] =
-        await Promise.all([
-          ProductService.getById(id, productModel, req.market, creativeModel),
-          getRelatedProducts(id, productModel, req.market),
-          getYouMayLikeProducts(id, user ?? undefined, productModel!, req.market, 8),
-          findCreativesByProductId(id, creativeModel),
-          findRelatedAdsByProductId(id, creativeModel),
-        ]);
+      const [{ product, freshness }, relatedVideos, relatedAds] = await Promise.all([
+        ProductService.getById(id, productModel, req.market, creativeModel),
+        findCreativesByProductId(id, creativeModel),
+        findRelatedAdsByProductId(id, creativeModel),
+      ]);
 
       const [plain] = await enrichProductsWithCreatorAvatars(
         await toPlainWithImages([product as unknown as ProductLike]),
-        creativeModel,
-      );
-      const relatedPlains = await enrichProductsWithCreatorAvatars(
-        await toPlainWithImages(relatedDocs as unknown as ProductLike[]),
-        creativeModel,
-      );
-      const youMayLikePlains = await enrichProductsWithCreatorAvatars(
-        await toPlainWithImages(youMayLikeResult.products as unknown as ProductLike[]),
         creativeModel,
       );
 
@@ -470,9 +463,6 @@ export const ProductController = {
         successResponse(
           {
             product: formatProductResponse(plain as ProductLike),
-            relatedProducts: relatedPlains.map(formatProductFeedItem),
-            youMayLike: youMayLikePlains.map(formatProductFeedItem),
-            personalized: youMayLikeResult.personalized,
             relatedVideos,
             relatedAds,
             freshness,

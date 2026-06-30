@@ -395,15 +395,15 @@ describe('Products Endpoints', () => {
     expect(titles).not.toContain(`${prefix} Nail`);
   });
 
-  it('GET /api/v1/products/:id/related-products returns same L2 only with alias expansion', async () => {
+  it('GET /api/v1/products/:id/related-products returns same L3 when present', async () => {
     const { Product } = await getSeededTestMarketModels();
-    const prefix = 'Related L2';
+    const prefix = 'Related L3';
     const anchor = await Product.create(
       minimalTestProduct({
-        externalId: 'rel_l2_anchor',
+        externalId: 'rel_l3_anchor',
         source: 'tiktok',
         title: `${prefix} Anchor Lipstick`,
-        normalizedTitle: 'related l2 anchor lipstick',
+        normalizedTitle: 'related l3 anchor lipstick',
         categoryL1: 'Beauty & Personal Care',
         categoryL2: 'Makeup',
         categoryL3: 'Lipstick',
@@ -413,44 +413,59 @@ describe('Products Endpoints', () => {
     );
     const relatedProducts = await Product.create([
       minimalTestProduct({
-        externalId: 'rel_l2_canonical',
+        externalId: 'rel_l3_same',
         source: 'tiktok',
-        title: `${prefix} Canonical Blush`,
-        normalizedTitle: 'related l2 canonical blush',
+        title: `${prefix} Same Lipstick`,
+        normalizedTitle: 'related l3 same lipstick',
         categoryL1: 'Beauty & Personal Care',
         categoryL2: 'Makeup & Cosmetics',
-        categoryL3: 'Blush',
+        categoryL3: 'Lipstick',
         totalGmv: 18_000,
       }),
       minimalTestProduct({
-        externalId: 'rel_l2_wrong_l2',
+        externalId: 'rel_l3_other_l3',
+        source: 'tiktok',
+        title: `${prefix} Other L3 Blush`,
+        normalizedTitle: 'related l3 other l3 blush',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup & Cosmetics',
+        categoryL3: 'Blush',
+        totalGmv: 50_000,
+      }),
+      minimalTestProduct({
+        externalId: 'rel_l3_wrong_l2',
         source: 'tiktok',
         title: `${prefix} Wrong L2 Shampoo`,
-        normalizedTitle: 'related l2 wrong l2 shampoo',
+        normalizedTitle: 'related l3 wrong l2 shampoo',
         categoryL1: 'Beauty & Personal Care',
         categoryL2: 'Hair Care',
         totalGmv: 99_000,
       }),
       minimalTestProduct({
-        externalId: 'rel_l2_dup_title',
+        externalId: 'rel_l3_dup_title',
         source: 'tiktok',
         title: `${prefix} Anchor Lipstick Duplicate`,
-        normalizedTitle: 'related l2 anchor lipstick',
+        normalizedTitle: 'related l3 anchor lipstick',
         categoryL1: 'Beauty & Personal Care',
         categoryL2: 'Makeup & Cosmetics',
-        totalGmv: 50_000,
-      }),
-      minimalTestProduct({
-        externalId: 'rel_l2_invalid',
-        source: 'tiktok',
-        status: 'invalid',
-        title: `${prefix} Invalid Status`,
-        normalizedTitle: 'related l2 invalid status',
-        categoryL1: 'Beauty & Personal Care',
-        categoryL2: 'Makeup & Cosmetics',
+        categoryL3: 'Lipstick',
         totalGmv: 40_000,
       }),
+      minimalTestProduct({
+        externalId: 'rel_l3_archived',
+        source: 'tiktok',
+        title: `${prefix} Archived Status`,
+        normalizedTitle: 'related l3 archived status',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Makeup & Cosmetics',
+        categoryL3: 'Lipstick',
+        totalGmv: 30_000,
+      }),
     ]);
+    await Product.collection.updateOne(
+      { externalId: 'rel_l3_archived', source: 'tiktok' },
+      { $set: { status: 'archived' } },
+    );
     await attachPlayableCreatives([anchor, ...relatedProducts]);
 
     const id = String(anchor._id);
@@ -466,15 +481,109 @@ describe('Products Endpoints', () => {
     const titles = (body.data.relatedProducts as { title: string }[])
       .filter((p) => p.title.startsWith(prefix))
       .map((p) => p.title);
-    expect(titles).toEqual([`${prefix} Canonical Blush`]);
+    expect(titles).toEqual([`${prefix} Same Lipstick`]);
+    expect(titles).not.toContain(`${prefix} Other L3 Blush`);
     expect(titles).not.toContain(`${prefix} Wrong L2 Shampoo`);
     expect(titles).not.toContain(`${prefix} Anchor Lipstick Duplicate`);
-    expect(titles).not.toContain(`${prefix} Invalid Status`);
+    expect(titles).not.toContain(`${prefix} Archived Status`);
+  });
+
+  it('GET /api/v1/products/:id/related-videos excludes the viewed creative', async () => {
+    const { Product, Creative } = await getSeededTestMarketModels();
+    const product = await Product.create(
+      minimalTestProduct({
+        externalId: 'rel_vid_product',
+        source: 'tiktok',
+        title: 'Related Video Product',
+        normalizedTitle: 'related video product',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Skincare',
+        totalGmv: 12_000,
+      }),
+    );
+    const feedMetrics = {
+      productTotalGmv: 12_000,
+      productTotalSales: 120,
+      section: 'top-ads' as const,
+      categoryL1: 'Beauty & Personal Care',
+      categoryL2: 'Skincare',
+      publishedAt: new Date('2020-01-01'),
+    };
+    const [anchor, sibling] = await Creative.create([
+      minimalTestCreative({
+        ...feedMetrics,
+        productId: product._id,
+        externalVideoId: 'vid_anchor_related',
+        metrics: { viewCount: 9000, likeCount: 900, commentCount: 0, shareCount: 0 },
+      }),
+      minimalTestCreative({
+        ...feedMetrics,
+        productId: product._id,
+        externalVideoId: 'vid_sibling_related',
+        metrics: { viewCount: 7000, likeCount: 700, commentCount: 0, shareCount: 0 },
+      }),
+    ]);
+
+    const productId = String(product._id);
+    const anchorId = String(anchor._id);
+    const siblingId = String(sibling._id);
+
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: `/api/v1/products/${productId}/related-videos?excludeCreativeId=${anchorId}`,
+      token: testToken,
+    });
+
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    const ids = (body.data.relatedVideos as { id: string }[]).map((row) => row.id);
+    expect(ids).toEqual([siblingId]);
+    expect(ids).not.toContain(anchorId);
+  });
+
+  it('GET /api/v1/creatives/:id/product-related-videos returns [] when only one creative exists', async () => {
+    const { Product, Creative } = await getSeededTestMarketModels();
+    const product = await Product.create(
+      minimalTestProduct({
+        externalId: 'solo_vid_product',
+        source: 'tiktok',
+        title: 'Solo Video Product',
+        normalizedTitle: 'solo video product',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Skincare',
+        totalGmv: 8000,
+      }),
+    );
+    const creative = await Creative.create(
+      minimalTestCreative({
+        productId: product._id,
+        externalVideoId: 'vid_solo_only',
+        productTotalGmv: 8000,
+        productTotalSales: 80,
+        section: 'top-ads',
+        categoryL1: 'Beauty & Personal Care',
+        categoryL2: 'Skincare',
+        publishedAt: new Date('2020-01-01'),
+        metrics: { viewCount: 5000, likeCount: 500, commentCount: 0, shareCount: 0 },
+      }),
+    );
+
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: `/api/v1/creatives/${String(creative._id)}/product-related-videos`,
+      token: testToken,
+    });
+
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    expect(body.data.relatedVideos).toEqual([]);
   });
 
   it('GET /api/v1/products/compare should return basic info and AI comparison', async () => {
     const { Product } = await getSeededTestMarketModels();
-    const [productA, productB, productInvalid] = await Product.create([
+    const [productA, productB, productArchived] = await Product.create([
       minimalTestProduct({
         externalId: 'compare_a',
         source: 'tiktok',
@@ -500,26 +609,29 @@ describe('Products Endpoints', () => {
         totalSales: 400,
       }),
       minimalTestProduct({
-        externalId: 'compare_invalid',
+        externalId: 'compare_archived',
         source: 'tiktok',
-        status: 'invalid',
-        title: 'Compare Invalid Product',
-        normalizedTitle: 'compare invalid product',
+        title: 'Compare Archived Product',
+        normalizedTitle: 'compare archived product',
         categoryL1: 'Beauty & Personal Care',
         categoryL2: 'Makeup',
       }),
     ]);
-    await attachPlayableCreatives([productA, productB, productInvalid]);
+    await Product.collection.updateOne(
+      { externalId: 'compare_archived', source: 'tiktok' },
+      { $set: { status: 'archived' } },
+    );
+    await attachPlayableCreatives([productA, productB, productArchived]);
 
     const idA = String(productA._id);
     const idB = String(productB._id);
-    const idInvalid = String(productInvalid._id);
+    const idArchived = String(productArchived._id);
     const missingId = '507f1f77bcf86cd799439099';
 
     const res = await httpJson({
       baseUrl,
       method: 'GET',
-      path: `/api/v1/products/compare?ids=${idA},${idB},${idInvalid},${missingId}`,
+      path: `/api/v1/products/compare?ids=${idA},${idB},${idArchived},${missingId}`,
       token: testToken,
     });
 
@@ -527,7 +639,7 @@ describe('Products Endpoints', () => {
     const body = JSON.parse(res.text);
     const titles = (body.data.products as { title: string }[]).map((p) => p.title);
     expect(titles).toEqual(['Compare Product A', 'Compare Product B']);
-    expect(body.data.notFound).toEqual(expect.arrayContaining([idInvalid, missingId]));
+    expect(body.data.notFound).toEqual(expect.arrayContaining([idArchived, missingId]));
     expect(body.data.products[0]).toMatchObject({
       id: idA,
       title: 'Compare Product A',

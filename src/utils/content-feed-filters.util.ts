@@ -99,6 +99,19 @@ function appendAnd(filter: Record<string, unknown>, clause: Record<string, unkno
   }
 }
 
+/**
+ * Combine user filters (including text search `$or`) with a feed bucket match such as
+ * `CREATIVE_TOP_ADS_MATCH`, which also uses `$or`. Object.assign would drop search.
+ */
+export function mergeCreativeFeedExtraMatch(
+  base: Record<string, unknown>,
+  extraMatch: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!extraMatch || Object.keys(extraMatch).length === 0) return base;
+  if (!base || Object.keys(base).length === 0) return { ...extraMatch };
+  return { $and: [base, extraMatch] };
+}
+
 /** likes / views × 100 (percent). */
 export function likesPerViewsPercentExpr(
   likesField: string,

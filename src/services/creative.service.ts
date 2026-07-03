@@ -49,6 +49,7 @@ import {
 } from '../api/creatives/creative-feed-filters.util';
 import {
   applyCreativeMetricFilters,
+  mergeCreativeFeedExtraMatch,
   type ContentMetricFilters,
 } from '../utils/content-feed-filters.util';
 import { enrichCreativesWithResolvedVideoS3Keys } from './meta-video-s3-resolve.service';
@@ -746,12 +747,13 @@ export const CreativeService = {
         { externalVideoId: regex },
       ];
     }
-    if (extraMatch && Object.keys(extraMatch).length > 0) {
-      Object.assign(query, extraMatch);
-    }
-
     const metricFilters = (_metricFilters as ContentMetricFilters | undefined) ?? {};
     applyCreativeMetricFilters(query, metricFilters);
+
+    const matchQuery =
+      extraMatch && Object.keys(extraMatch).length > 0
+        ? mergeCreativeFeedExtraMatch(query, extraMatch)
+        : query;
 
     const skip = (Number(page) - 1) * Number(limit);
     const mLimit = Number(limit);
@@ -762,7 +764,7 @@ export const CreativeService = {
 
     // Global feeds: one card per product; extras live under relatedVideos / relatedAds.
     const oneAdPerProduct = query.productId === undefined;
-    const baseStages = buildCreativeFeedBaseStages(query, sortKey, sort, {
+    const baseStages = buildCreativeFeedBaseStages(matchQuery, sortKey, sort, {
       oneAdPerProduct,
     });
     const groupByCreator = groupBy === 'creator';

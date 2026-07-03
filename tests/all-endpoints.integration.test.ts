@@ -337,6 +337,15 @@ describe('All API endpoints (HTTP integration)', () => {
   it('GET /creatives/top-ads', () =>
     hit('GET', `${API}/creatives/top-ads?market=US`, { token: 'user', allowed: [200] }));
 
+  it('GET /creatives/top-ads with search query', () =>
+    hit('GET', `${API}/creatives/top-ads?market=US&q=widget`, { token: 'user', allowed: [200] }));
+
+  it('GET /creatives/top-ads with search alias', () =>
+    hit('GET', `${API}/creatives/top-ads?market=US&search=widget`, {
+      token: 'user',
+      allowed: [200],
+    }));
+
   it('GET /creatives/:id', () =>
     hit('GET', `${API}/creatives/${creativeId}`, { token: 'user', allowed: [200] }));
 

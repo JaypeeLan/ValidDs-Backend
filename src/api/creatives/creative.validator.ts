@@ -16,6 +16,7 @@ const CreativeListQueryBaseSchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
   q: z.string().trim().min(1).max(120).optional(),
+  search: z.string().trim().min(1).max(120).optional(),
   productId: z
     .string()
     .regex(/^[0-9a-fA-F]{24}$/, 'Invalid productId format')
@@ -43,8 +44,10 @@ const CreativeListQueryBaseSchema = z.object({
 function normalizeCreativeListQuery(
   val: z.infer<typeof CreativeListQueryBaseSchema> & { sortBy?: CreativeSortBy },
 ) {
+  const q = val.q ?? val.search;
   return {
     ...val,
+    q,
     sortBy: val.sortBy ?? 'views',
     _metricFilters: buildContentMetricFilters(val),
     hashtags: flattenMultiStringParam(val.hashtags),

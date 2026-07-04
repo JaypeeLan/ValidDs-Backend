@@ -7,6 +7,7 @@ import { CacheKeys, CACHE_TTL } from '../cache/cache.keys';
 import type { MarketCode } from '../utils/markets';
 import { DEFAULT_MARKET } from '../utils/markets';
 import { resolveEngagementTrend } from '../utils/product-trend.util';
+import { supplierHasRating } from '../utils/product-response.util';
 import type {
   IAIIntelligence,
   ProductCompareAnalysis,
@@ -50,6 +51,7 @@ function maxCompetitorScore(suppliers: unknown): number | null {
   if (!Array.isArray(suppliers)) return null;
   let max: number | null = null;
   for (const row of suppliers) {
+    if (!supplierHasRating(row)) continue;
     const score = Number((row as { competitorScore?: number })?.competitorScore);
     if (Number.isFinite(score) && (max === null || score > max)) max = score;
   }

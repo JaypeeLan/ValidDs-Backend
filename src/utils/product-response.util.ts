@@ -129,9 +129,24 @@ export function normalizePrimaryCreatorOnProduct(
   product.primaryCreator = apiCreator;
 }
 
-function normalizeSuppliersOnProduct(product: Record<string, unknown>): void {
+/** True when a competitor store has a real rating (not missing / zero). */
+export function supplierHasRating(supplier: unknown): boolean {
+  if (!supplier || typeof supplier !== 'object') return false;
+  const row = supplier as Record<string, unknown>;
+  const rating = Number(row.rating);
+  if (Number.isFinite(rating) && rating > 0) return true;
+  const shop = row.shop;
+  if (shop && typeof shop === 'object') {
+    const shopRating = Number((shop as Record<string, unknown>).rating);
+    if (Number.isFinite(shopRating) && shopRating > 0) return true;
+  }
+  return false;
+}
+
+/** Drop unrated / 0-rating competitor stores from API payloads. */
+export function normalizeSuppliersOnProduct(product: Record<string, unknown>): void {
   if (!Array.isArray(product.suppliers)) return;
-  product.suppliers = product.suppliers.map((s) => {
+  product.suppliers = product.suppliers.filter(supplierHasRating).map((s) => {
     if (!s || typeof s !== 'object') return s;
     return stripLegacySupplierSalesFields({ ...(s as Record<string, unknown>) });
   });

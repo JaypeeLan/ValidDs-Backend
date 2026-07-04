@@ -35,6 +35,7 @@ import type {
 import {
   enrichProductsWithCreatorAvatars,
   normalizePrimaryCreatorOnProduct,
+  normalizeSuppliersOnProduct,
 } from '../../utils/product-response.util';
 import {
   deriveAverageRatingFromSources,
@@ -126,6 +127,7 @@ async function toPlainWithImages(inputs: ProductLike[]): Promise<Record<string, 
 
 function formatProductResponse(input: ProductLike): ProductApiResponse {
   const product = toProductPlain(input);
+  normalizeSuppliersOnProduct(product);
   const engagement = resolveEngagementTrend(product);
   const ratingSources = Array.isArray(product.ratingSources) ? product.ratingSources : [];
   const derivedRating = deriveAverageRatingFromSources(ratingSources);

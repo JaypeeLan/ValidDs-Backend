@@ -15,15 +15,15 @@ export const INGEST_QUALITY = {
   MIN_UNITS_SOLD: 200,
   /** New product ingest only — scraper skips this on Mongo upsert updates. */
   MAX_POST_AGE_DAYS: 30,
-  /** Non-primary ad/promo creatives skip the creative age cap. */
+  /** Max age for date posted on organic creatives and paid ads (same guard). */
   MAX_CREATIVE_AGE_DAYS: 90,
   MAX_CREATIVE_AGE_HOURS: 90 * 24,
   MIN_RELATED_VIDEOS: 1,
   MIN_MARKETING_ANGLES: 5,
   /** Optional at ingest — text-only angles are enough; video can be backfilled later. */
   MIN_ANGLES_WITH_VIDEO: 0,
-  /** Angle promo clips: no age limit (0). Listing id must match via shop card or anchor. */
-  ANGLES_PROMO_MAX_AGE_DAYS: 0,
+  /** @deprecated Ads use MAX_CREATIVE_AGE_DAYS; kept for older callers. */
+  ANGLES_PROMO_MAX_AGE_DAYS: 90,
   MIN_REVIEWS: 1,
   MIN_SUPPLIERS: 0,
 } as const;
@@ -104,6 +104,7 @@ export function postAgeRejectionHours(
 }
 
 export function isAngleVideoCreative(doc: Record<string, unknown>): boolean {
+  /** Non-primary promo/ad creatives (paid ads bucket). Date-posted age uses the same cap as organics. */
   if (doc.isPrimaryDiscovery === true) return false;
   return doc.isAd === true;
 }

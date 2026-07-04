@@ -226,7 +226,8 @@ export class BillingService {
     stripeCustomerId: string;
     stripeSubscriptionId: string;
     stripePriceId: string;
-    amount: number; // in cents (0 during trial)
+    amount: number; // in cents — plan price for display; use chargedAmountCents for actual charge
+    chargedAmountCents?: number;
     currency: string;
     stripePaymentIntentId: string | null;
     stripeSessionId: string;
@@ -254,18 +255,25 @@ export class BillingService {
     user.planExpiresAt = undefined; // subscription handles its own renewal
     await user.save();
 
+    const chargedCents = params.chargedAmountCents ?? params.amount;
+
     await Transaction.create({
       userId: user._id,
       userEmail: params.userEmail || user.email,
       provider: 'stripe',
       mode: isStripeLiveMode() ? 'live' : 'test',
       status: 'paid',
-      amount: params.amount / 100, // cents → dollars
+      amount: params.amount / 100, // cents → dollars (plan price when trial signup)
       currency: (params.currency ?? 'usd').toUpperCase(),
       reference: params.stripeSessionId,
       stripePaymentIntentId: params.stripePaymentIntentId ?? undefined,
       stripeCustomerId: params.stripeCustomerId,
-      metadata: { plan: params.plan, priceId: params.stripePriceId },
+      metadata: {
+        plan: params.plan,
+        priceId: params.stripePriceId,
+        ...(chargedCents === 0 && params.amount > 0 ? { trialSignup: 'true' } : {}),
+        ...(chargedCents > 0 ? { chargedAmountCents: String(chargedCents) } : {}),
+      },
     });
 
     log.info('Plan provisioned', {
@@ -285,6 +293,63 @@ export class BillingService {
     } catch (err) {
       log.warn('Socket emit failed after plan provision', { userId: params.userId, err });
     }
+  }
+
+  /**
+   * Records a successful Stripe invoice payment (renewal or first charge after trial).
+   */
+  static async recordInvoicePayment(params: {
+    invoiceId: string;
+    stripeCustomerId: string;
+    amountPaidCents: number;
+    currency: string;
+    stripePaymentIntentId?: string | null;
+    billingReason?: string;
+    plan?: UserPlan;
+    priceId?: string;
+  }): Promise<void> {
+    if (params.amountPaidCents <= 0) return;
+
+    const existing = await Transaction.findOne({ reference: params.invoiceId });
+    if (existing) {
+      log.info('recordInvoicePayment skipped — already processed', { invoiceId: params.invoiceId });
+      return;
+    }
+
+    const user = await User.findOne({
+      stripeCustomerId: params.stripeCustomerId,
+      status: 'active',
+    });
+    if (!user) {
+      log.warn('recordInvoicePayment: user not found', { customerId: params.stripeCustomerId });
+      return;
+    }
+
+    const plan = params.plan ?? (user.plan as UserPlan);
+    const metadata: Record<string, string> = {};
+    if (plan) metadata.plan = plan;
+    if (params.priceId) metadata.priceId = params.priceId;
+    if (params.billingReason) metadata.billingReason = params.billingReason;
+
+    await Transaction.create({
+      userId: user._id,
+      userEmail: user.email,
+      provider: 'stripe',
+      mode: isStripeLiveMode() ? 'live' : 'test',
+      status: 'paid',
+      amount: params.amountPaidCents / 100,
+      currency: (params.currency ?? 'usd').toUpperCase(),
+      reference: params.invoiceId,
+      stripePaymentIntentId: params.stripePaymentIntentId ?? undefined,
+      stripeCustomerId: params.stripeCustomerId,
+      metadata,
+    });
+
+    log.info('Invoice payment recorded', {
+      userId: String(user._id),
+      invoiceId: params.invoiceId,
+      amount: params.amountPaidCents / 100,
+    });
   }
 
   /**

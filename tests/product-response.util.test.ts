@@ -1,6 +1,8 @@
 import {
   normalizePrimaryCreatorForStorage,
   normalizePrimaryCreatorOnProduct,
+  normalizeSuppliersOnProduct,
+  supplierHasRating,
   type CreatorAvatarEnrichment,
 } from '../src/utils/product-response.util';
 
@@ -103,5 +105,55 @@ describe('normalizePrimaryCreatorOnProduct', () => {
     const pc = product.primaryCreator as Record<string, unknown>;
     expect(pc.primaryImageUrl).toBe('https://cdn.example/stored.jpg');
     expect(pc.avatarProxyUrl).toContain('/creatives/507f1f77bcf86cd799439099/');
+  });
+});
+
+describe('supplierHasRating', () => {
+  it('accepts product rating > 0', () => {
+    expect(supplierHasRating({ rating: 4.2 })).toBe(true);
+  });
+
+  it('accepts shop.rating when product rating is missing', () => {
+    expect(supplierHasRating({ shop: { rating: 3.5 } })).toBe(true);
+  });
+
+  it('rejects zero, null, and missing ratings', () => {
+    expect(supplierHasRating({ rating: 0 })).toBe(false);
+    expect(supplierHasRating({ rating: null, shop: { rating: 0 } })).toBe(false);
+    expect(supplierHasRating({ title: 'Store' })).toBe(false);
+    expect(supplierHasRating(null)).toBe(false);
+  });
+});
+
+describe('normalizeSuppliersOnProduct', () => {
+  it('hides stores with 0 or no ratings', () => {
+    const product: Record<string, unknown> = {
+      suppliers: [
+        {
+          source: 'apify_store_leads',
+          title: 'Rated Store',
+          rating: 4.5,
+          productUrl: 'https://a.example',
+        },
+        {
+          source: 'apify_store_leads',
+          title: 'Zero Store',
+          rating: 0,
+          productUrl: 'https://b.example',
+        },
+        { source: 'apify_store_leads', title: 'No Rating', productUrl: 'https://c.example' },
+        {
+          source: 'apify_store_leads',
+          title: 'Shop Rated',
+          shop: { name: 'Shop', rating: 4.1 },
+          productUrl: 'https://d.example',
+        },
+      ],
+    };
+
+    normalizeSuppliersOnProduct(product);
+
+    const titles = (product.suppliers as Array<{ title: string }>).map((s) => s.title);
+    expect(titles).toEqual(['Rated Store', 'Shop Rated']);
   });
 });

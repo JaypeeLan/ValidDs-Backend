@@ -99,7 +99,11 @@ export function isSuspiciousShopAvatarUrl(input: ShopAvatarSuspicionInput): bool
   const primary = typeof input.primaryImageUrl === 'string' ? input.primaryImageUrl.trim() : '';
 
   if (creator && shopAvatarUrlBase(shop) === shopAvatarUrlBase(creator)) return true;
-  if (primary && shopAvatarUrlBase(shop) === shopAvatarUrlBase(primary)) return true;
+  if (primary && shopAvatarUrlBase(shop) === shopAvatarUrlBase(primary)) {
+    // Product hero image is acceptable when TikTok has no storefront logo.
+    if (shop.includes('oec-general')) return false;
+    return true;
+  }
   if (isLikelyCreatorProfileAvatarCdnUrl(shop)) return true;
   return false;
 }

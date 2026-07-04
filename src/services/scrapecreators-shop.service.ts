@@ -7,6 +7,25 @@ const log = logger.child({ module: 'scrapecreators-shop' });
 
 const MIN_CATALOG_NAME_SCORE = 0.45;
 
+function slugFromShopName(shopName: string): string {
+  return shopName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function catalogUrlSlugMatchesShop(catalogUrl: string, shopName: string): boolean {
+  const slug = slugFromShopName(shopName);
+  if (!slug) return false;
+  try {
+    const path = new URL(catalogUrl).pathname.toLowerCase();
+    return path.includes(`/shop/store/${slug}/`) || path.endsWith(`/shop/store/${slug}`);
+  } catch {
+    return catalogUrl.toLowerCase().includes(`/shop/store/${slug}/`);
+  }
+}
+
 function nameSimilarity(a: string, b: string): number {
   const x = a.toLowerCase().trim();
   const y = b.toLowerCase().trim();
@@ -56,7 +75,7 @@ async function scFetch(path: string, params: Record<string, string>): Promise<un
   try {
     const res = await fetch(url, {
       headers: { 'x-api-key': env.SCRAPECREATORS_API_KEY!, Accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) return null;
     return res.json();
@@ -86,7 +105,12 @@ export async function fetchShopLogoFromCatalog(
   if (shopInfo && typeof shopInfo === 'object') {
     const info = shopInfo as Record<string, unknown>;
     const catalogShopName = String(info.shop_name ?? '').trim();
-    if (catalogShopName && nameSimilarity(shopName, catalogShopName) < MIN_CATALOG_NAME_SCORE) {
+    const slugMatches = catalogUrlSlugMatchesShop(catalogUrl, shopName);
+    if (
+      catalogShopName &&
+      !slugMatches &&
+      nameSimilarity(shopName, catalogShopName) < MIN_CATALOG_NAME_SCORE
+    ) {
       log.debug('Shop catalog name mismatch', { shopName, catalogShopName, catalogUrl });
       return undefined;
     }

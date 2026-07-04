@@ -5,7 +5,7 @@ import { logger } from '../logger';
 import type { ICreativeDocument, ICreatorProfile } from '../types/creative.types';
 import { collectThumbnailProxyCandidates } from '../utils/creative-image-proxy.util';
 import { creatorAvatarS3Key, shopAvatarS3Key } from '../utils/creator-avatar.util';
-import { cacheImageToS3, collectHttpsUrls } from '../utils/image-s3-cache.util';
+import { cacheImageToS3, collectHttpsUrls, verifyS3ImageKey } from '../utils/image-s3-cache.util';
 import { isSuspiciousShopAvatarUrl } from '../utils/shop-avatar.util';
 import { getS3Object, isS3Configured } from '../utils/s3-video.util';
 import { fetchFreshShopLogoUrls } from './scrapecreators-shop.service';
@@ -103,6 +103,7 @@ export async function ensureShopAvatarCached(input: {
     sourceUrls,
     logLabel: `shop:${shopName}`,
     forceRefresh: input.forceRefresh,
+    primaryImageUrl: input.primaryImageUrl,
     fetchFreshUrls: () =>
       fetchFreshShopLogoUrls({
         shopName,
@@ -112,8 +113,39 @@ export async function ensureShopAvatarCached(input: {
   });
   if (!cached) return null;
 
+  let sourceUrl = cached.sourceUrl;
+  if (!sourceUrl && cached.s3Key && !input.forceRefresh && (await verifyS3ImageKey(cached.s3Key))) {
+    if (useStoredSource) {
+      sourceUrl = storedSource;
+    } else {
+      const fresh = collectHttpsUrls(
+        ...(await fetchFreshShopLogoUrls({
+          shopName,
+          shopUrl: input.shopUrl,
+          region: market.toUpperCase(),
+        })),
+      );
+      sourceUrl = fresh.find(
+        (url) =>
+          !isSuspiciousShopAvatarUrl({
+            shopAvatarUrl: url,
+            creatorAvatarUrl: input.creatorAvatarUrl,
+            primaryImageUrl: input.primaryImageUrl,
+          }),
+      );
+    }
+  }
+
+  // Storefront unavailable — use product hero CDN URL for display when S3 already has bytes.
+  if (!sourceUrl && cached.s3Key) {
+    const productFallback = String(input.primaryImageUrl ?? '').trim();
+    if (productFallback.includes('oec-general')) {
+      sourceUrl = productFallback;
+    }
+  }
+
   return {
-    ...(cached.sourceUrl ? { shopAvatarUrl: cached.sourceUrl } : {}),
+    ...(sourceUrl ? { shopAvatarUrl: sourceUrl } : {}),
     ...(cached.s3Key ? { shopAvatarS3Key: cached.s3Key } : {}),
   };
 }

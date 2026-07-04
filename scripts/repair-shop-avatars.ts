@@ -30,10 +30,11 @@ async function main(): Promise<void> {
         (args.includes('--market') ? args[args.indexOf('--market') + 1] : 'US'),
     ).toUpperCase(),
   );
-  const shopFilter = args
-    .find((a) => a.startsWith('--shop='))
-    ?.split('=')[1]
-    ?.trim();
+  const shopFilter =
+    args
+      .find((a) => a.startsWith('--shop='))
+      ?.split('=')[1]
+      ?.trim() ?? (args.includes('--shop') ? args[args.indexOf('--shop') + 1]?.trim() : undefined);
   const scanOnly = args.includes('--scan-only');
   const limit = Number(args.find((a) => a.startsWith('--limit='))?.split('=')[1] ?? 0) || 0;
 
@@ -50,7 +51,7 @@ async function main(): Promise<void> {
     };
   }
 
-  const cursor = Product.find(query)
+  const rows = (await Product.find(query)
     .select({
       shopName: 1,
       shopUrl: 1,
@@ -60,7 +61,7 @@ async function main(): Promise<void> {
       'primaryCreator.primaryImageUrl': 1,
     })
     .lean()
-    .cursor();
+    .exec()) as ShopRow[];
 
   const seen = new Set<string>();
   let scanned = 0;
@@ -68,8 +69,8 @@ async function main(): Promise<void> {
   let repaired = 0;
   let failed = 0;
 
-  for await (const row of cursor) {
-    const doc = row as ShopRow;
+  for (const row of rows) {
+    const doc = row;
     const shopName = String(doc.shopName ?? '').trim();
     const dedupeKey = `${market}:${shopName.toLowerCase()}`;
     if (!shopName || seen.has(dedupeKey)) continue;

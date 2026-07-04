@@ -32,6 +32,8 @@ export type CacheImageToS3Input = {
   s3Key: string;
   sourceUrls?: string[];
   fetchFreshUrls?: () => Promise<string[]>;
+  /** Product hero image — used when TikTok storefront has no logo. */
+  primaryImageUrl?: string;
   logLabel?: string;
   /** Re-download even when S3 already has bytes (repair bad cached logos). */
   forceRefresh?: boolean;
@@ -87,6 +89,13 @@ export async function cacheImageToS3(
   if (input.fetchFreshUrls) {
     const fresh = collectHttpsUrls(...(await input.fetchFreshUrls()));
     result = await tryDownloadAndUpload(s3Key, fresh, input.logLabel);
+    if (result) return result;
+  }
+
+  // TikTok storefront missing — fall back to product hero image (shop CDN, not creator profile).
+  const productFallback = String(input.primaryImageUrl ?? '').trim();
+  if (productFallback.includes('oec-general')) {
+    result = await tryDownloadAndUpload(s3Key, [productFallback], input.logLabel);
     if (result) return result;
   }
 

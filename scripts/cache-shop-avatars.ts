@@ -21,7 +21,7 @@ async function main(): Promise<void> {
 
   await connectMongo();
   const { Product, Creative } = getMarketModels(market);
-  const cursor = Product.find({
+  const rows = (await Product.find({
     shopName: { $type: 'string', $regex: /\S/ },
     $or: [
       { shopAvatarUrl: { $type: 'string', $regex: /^https:\/\// } },
@@ -30,7 +30,7 @@ async function main(): Promise<void> {
   })
     .select({ _id: 1, shopName: 1 })
     .lean()
-    .cursor();
+    .exec()) as { _id: unknown; shopName?: string }[];
 
   const seenShops = new Set<string>();
   let n = 0;
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
   let failed = 0;
   let skippedDup = 0;
 
-  for await (const row of cursor) {
+  for (const row of rows) {
     const shopName = String((row as { shopName?: string }).shopName ?? '').trim();
     const dedupeKey = `${market}:${shopName.toLowerCase()}`;
     if (!shopName || seenShops.has(dedupeKey)) {
@@ -57,6 +57,18 @@ async function main(): Promise<void> {
       });
       if (r?.shopAvatarS3Key) s3Ok += 1;
       else failed += 1;
+
+      if (r?.shopAvatarUrl && r?.shopAvatarS3Key) {
+        const shopRegex = new RegExp(`^${shopName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const setFields: Record<string, unknown> = {
+          shopAvatarUrl: r.shopAvatarUrl,
+          shopAvatarS3Key: r.shopAvatarS3Key,
+        };
+        await Promise.all([
+          Product.updateMany({ shopName: shopRegex }, { $set: setFields }),
+          Creative.updateMany({ shopName: shopRegex }, { $set: setFields }),
+        ]);
+      }
     } catch (err) {
       failed += 1;
       console.warn(`  skip ${shopName} (${row._id}):`, String(err));

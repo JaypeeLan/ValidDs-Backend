@@ -346,6 +346,7 @@ describe('validateCreativeForIngest', () => {
       thumbnailUrl: 'https://example.com/t.jpg',
       creator: { handle: 'page', avatarUrl: 'https://example.com/a.jpg' },
       productRating: 4.0,
+      publishedAt: new Date(),
     };
     expect(validateCreativeForIngest(meta)).toEqual(validateMetaCreativeForIngest(meta));
     expect(validateCreativeForIngest(meta)).not.toContain(
@@ -361,9 +362,26 @@ describe('validateCreativeForIngest', () => {
       thumbnailUrl: 'https://example.com/t.jpg',
       creator: { handle: 'page', avatarUrl: 'https://example.com/a.jpg' },
       productRating: 4.0,
+      publishedAt: new Date(),
     };
     expect(validateMetaCreativeForIngest(meta)).toContain(
       'videoS3Key required — Meta MP4 must be in S3 before ingest',
     );
+  });
+
+  it('applies the same date-posted age cap to ads as organic creatives', () => {
+    const old = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000);
+    const meta = {
+      externalVideoId: 'meta:123',
+      productId: '507f1f77bcf86cd799439011',
+      tiktokPostUrl: 'https://www.facebook.com/ads/library/?id=123',
+      videoS3Key: 'brightdata/meta-videos/123.mp4',
+      thumbnailUrl: 'https://example.com/t.jpg',
+      creator: { handle: 'page', avatarUrl: 'https://example.com/a.jpg' },
+      productRating: 4.0,
+      publishedAt: old,
+      isAd: true,
+    };
+    expect(validateMetaCreativeForIngest(meta).some((r) => r.includes('older than'))).toBe(true);
   });
 });

@@ -2,7 +2,7 @@ import type { IAIIntelligence, IProduct, ProductFeedItem } from '../types/produc
 import { imageAssetKey } from './creative-response.util';
 import { buildProductItemFreshness } from './product-freshness.util';
 import { postRecencyFlags } from './product-recency.util';
-import { normalizePrimaryCreatorOnProduct } from './product-response.util';
+import { normalizePrimaryCreatorOnProduct, supplierHasRating } from './product-response.util';
 import { resolveEngagementTrend } from './product-trend.util';
 import { resolveShopProductUrl, resolveShopStoreUrl } from './shop-avatar.util';
 import { buildStoreLinks } from './store-links.util';
@@ -55,6 +55,7 @@ function maxCompetitorScore(suppliers: unknown): number | null {
   if (!Array.isArray(suppliers)) return null;
   let max: number | null = null;
   for (const row of suppliers) {
+    if (!supplierHasRating(row)) continue;
     const score = Number((row as { competitorScore?: number })?.competitorScore);
     if (Number.isFinite(score) && (max === null || score > max)) max = score;
   }

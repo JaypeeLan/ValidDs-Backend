@@ -147,9 +147,11 @@ async function handleCheckoutCompleted(
 
   const subscription = await stripe.subscriptions.retrieve(subId);
   const priceId = subscription.items.data[0]?.price?.id ?? '';
+  const priceUnitAmount = subscription.items.data[0]?.price?.unit_amount ?? 0;
 
-  // During a trial the session total is $0 and there is no payment_intent yet
-  const amount = session.amount_total ?? 0;
+  // During a trial the session total is $0 — show the plan price in billing history.
+  const sessionAmount = session.amount_total ?? 0;
+  const amount = sessionAmount > 0 ? sessionAmount : priceUnitAmount;
   const currency = session.currency ?? 'usd';
   const paymentIntentId =
     typeof session.payment_intent === 'string'
@@ -164,6 +166,7 @@ async function handleCheckoutCompleted(
     stripeSubscriptionId: subId,
     stripePriceId: priceId,
     amount,
+    chargedAmountCents: sessionAmount,
     currency,
     stripePaymentIntentId: paymentIntentId,
     stripeSessionId: session.id,
@@ -239,17 +242,50 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
  * Fired on successful renewal billing. Refresh the user's monthly credits.
  */
 async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
-  // Only process subscription renewals (not the initial payment — that's covered by checkout.session.completed)
-  const billingReason = (invoice as any).billing_reason as string | undefined;
-  if (billingReason === 'subscription_create') {
-    log.debug('invoice.paid: skipping subscription_create (handled by checkout.session.completed)');
+  const billingReason = invoice.billing_reason as string | undefined;
+  const customerId =
+    typeof invoice.customer === 'string'
+      ? invoice.customer
+      : (invoice.customer as { id?: string })?.id;
+  const amountPaid = invoice.amount_paid ?? 0;
+
+  if (!customerId) return;
+
+  // Skip $0 subscription_create invoices — checkout.session.completed records plan price.
+  if (billingReason === 'subscription_create' && amountPaid <= 0) {
+    log.debug(
+      'invoice.paid: skipping $0 subscription_create (handled by checkout.session.completed)',
+    );
+    await BillingService.refreshCreditsForRenewal(customerId);
     return;
   }
 
-  const customerId =
-    typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id;
+  const paymentIntentId =
+    typeof invoice.payment_intent === 'string'
+      ? invoice.payment_intent
+      : ((invoice.payment_intent as { id?: string } | null)?.id ?? null);
 
-  if (!customerId) return;
+  const priceId = invoice.lines?.data?.[0]?.price?.id;
+  const subMeta =
+    typeof invoice.subscription === 'object' &&
+    invoice.subscription &&
+    'metadata' in invoice.subscription
+      ? (invoice.subscription as Stripe.Subscription).metadata
+      : undefined;
+  const plan = planFromMetadata(subMeta ?? invoice.metadata);
+
+  if (amountPaid > 0) {
+    await BillingService.recordInvoicePayment({
+      invoiceId: invoice.id,
+      stripeCustomerId: customerId,
+      amountPaidCents: amountPaid,
+      currency: invoice.currency ?? 'usd',
+      stripePaymentIntentId: paymentIntentId,
+      billingReason,
+      plan,
+      priceId,
+    });
+  }
 
   await BillingService.refreshCreditsForRenewal(customerId);
 }

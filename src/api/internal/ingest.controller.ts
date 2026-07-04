@@ -9,7 +9,7 @@ import {
   validateCreativeForIngest,
   validateProductForIngest,
 } from './ingest.validation';
-import { INGEST_QUALITY, hasTrendCurrentWindow, isAngleVideoCreative } from './ingest-quality';
+import { INGEST_QUALITY, hasTrendCurrentWindow } from './ingest-quality';
 import { normalizeCreativePayload, normalizeProductPayload } from './ingest.normalize';
 import { persistAllCreatorAvatarsOnCreative } from '../../services/creator-avatar-cache.service';
 import {
@@ -327,17 +327,19 @@ export async function ingestCreative(
     await enrichCreativeShopAvatarForIngest(payload, market);
     stripExternalPlaybackUrls(payload);
 
-    // Clamp stale publishedAt to yesterday instead of rejecting — mirrors Python finalize_creative_doc.
-    // Angle-video creatives skip the age check entirely so they are not touched here.
-    if (!isAngleVideoCreative(payload)) {
-      const pubDate = parsePublishedAt(payload.publishedAt);
-      const ageHours =
-        pubDate === null ? Infinity : (Date.now() - pubDate.getTime()) / (1000 * 60 * 60);
-      if (ageHours > INGEST_QUALITY.MAX_CREATIVE_AGE_HOURS) {
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        yesterday.setUTCHours(12, 0, 0, 0);
-        payload.publishedAt = yesterday;
-      }
+    // Clamp stale / missing publishedAt to yesterday — same date-posted guard for organic
+    // creatives and paid ads (mirrors Python finalize_creative_doc).
+    const pubDate = parsePublishedAt(payload.publishedAt);
+    const ageHours =
+      pubDate === null ? Infinity : (Date.now() - pubDate.getTime()) / (1000 * 60 * 60);
+    const publishedWithinAge =
+      published != null &&
+      (Date.now() - published.getTime()) / (1000 * 60 * 60) <=
+        INGEST_QUALITY.MAX_CREATIVE_AGE_HOURS;
+    if (ageHours > INGEST_QUALITY.MAX_CREATIVE_AGE_HOURS) {
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      yesterday.setUTCHours(12, 0, 0, 0);
+      payload.publishedAt = yesterday;
     }
 
     const reasons = validateCreativeForIngest(payload);
@@ -348,7 +350,8 @@ export async function ingestCreative(
 
     const { Creative, Product } = getMarketModels(market);
     const externalVideoId = String(payload.externalVideoId ?? '');
-    if (published) payload.publishedAt = published;
+    // Keep the real post date only when it is within the creative age cap.
+    if (publishedWithinAge) payload.publishedAt = published;
 
     const existingByVideo = await Creative.findOne({ externalVideoId }).select('productId').lean();
     if (existingByVideo && isCrossProductVideoReuse(payload, existingByVideo.productId)) {

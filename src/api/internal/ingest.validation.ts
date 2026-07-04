@@ -19,7 +19,6 @@ import {
   marketingAngleFieldReasons,
   marketingAngles,
   creativeAngleFieldReasons,
-  isAngleVideoCreative,
   postAgeRejection,
   postAgeRejectionHours,
   isPartnerPoolProduct,
@@ -82,6 +81,9 @@ export function validateMetaCreativeForIngest(doc: Record<string, unknown>): str
     reasons.push('videoS3Key required — Meta MP4 must be in S3 before ingest');
   }
 
+  const creativeAge = postAgeRejectionHours(doc.publishedAt, 'creative');
+  if (creativeAge) reasons.push(creativeAge);
+
   reasons.push(...creativeAngleFieldReasons(doc));
 
   return reasons;
@@ -122,6 +124,9 @@ export function validateTikTokCcAdCreativeForIngest(doc: Record<string, unknown>
   if (typeof videoS3 !== 'string' || !videoS3.trim()) {
     reasons.push('videoS3Key required — TikTok CC MP4 must be in S3 before ingest');
   }
+
+  const creativeAge = postAgeRejectionHours(doc.publishedAt, 'creative');
+  if (creativeAge) reasons.push(creativeAge);
 
   reasons.push(...creativeAngleFieldReasons(doc));
 
@@ -313,10 +318,9 @@ export function validateCreativeForIngest(doc: Record<string, unknown>): string[
   }
 
   const isStandaloneAd = doc.isAd === true && doc.isPrimaryDiscovery !== true;
-  if (!isAngleVideoCreative(doc)) {
-    const creativeAge = postAgeRejectionHours(doc.publishedAt, 'creative');
-    if (creativeAge) reasons.push(creativeAge);
-  }
+  // Same date-posted age cap for organic creatives and paid ads.
+  const creativeAge = postAgeRejectionHours(doc.publishedAt, 'creative');
+  if (creativeAge) reasons.push(creativeAge);
 
   const related = doc.relatedVideos;
   if (

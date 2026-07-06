@@ -193,6 +193,46 @@ export async function listJobHeartbeats(opts?: {
   return docs.map((d) => serializeJob(d as Record<string, unknown>));
 }
 
+function marketRowDetail(row: Record<string, unknown>): string {
+  if (row.error) return String(row.error);
+  if (row.aborted) return String(row.abortReason ?? 'Cycle aborted');
+  const err = Number(row.err ?? 0);
+  const ok = Number(row.ok ?? 0);
+  const skip = Number(row.skip ?? row.not_due ?? 0);
+  if (err > 0) return `${err} errors, ${ok} ok, ${skip} skipped`;
+  if (Number(row.scrape_failed ?? 0) > 0) {
+    return `${row.scrape_failed} scrape failures (see summary)`;
+  }
+  return 'Failed with no error message recorded';
+}
+
+function asMarketMap(
+  data: Record<string, unknown>,
+): Record<string, Record<string, unknown>> | null {
+  const nested = data.markets;
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    return nested as Record<string, Record<string, unknown>>;
+  }
+
+  const entries = Object.entries(data);
+  if (entries.length === 0) return null;
+
+  const looksLikeMarketMap = entries.every(([, value]) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const row = value as Record<string, unknown>;
+    return (
+      'ok' in row ||
+      'err' in row ||
+      'aborted' in row ||
+      'processed' in row ||
+      'error' in row ||
+      'updated' in row
+    );
+  });
+
+  return looksLikeMarketMap ? (data as Record<string, Record<string, unknown>>) : null;
+}
+
 function extractCycleIssues(summary: Record<string, unknown>): Array<{
   market: string;
   cycle: string;
@@ -210,22 +250,20 @@ function extractCycleIssues(summary: Record<string, unknown>): Array<{
     detail: string;
   }> = [];
 
-  const markets = summary.markets as Record<string, Record<string, unknown>> | undefined;
-  if (markets && typeof markets === 'object') {
+  const markets = asMarketMap(summary);
+  if (markets) {
     for (const [market, data] of Object.entries(markets)) {
-      const ok = Number(data.ok ?? 0);
+      const ok = Number(data.ok ?? data.processed ?? 0);
       const err = Number(data.err ?? 0);
-      const skip = Number(data.skip ?? 0);
-      if (err > 0 || data.aborted) {
+      const skip = Number(data.skip ?? data.not_due ?? 0);
+      if (err > 0 || data.aborted || data.error) {
         issues.push({
           market,
           cycle: 'market',
           ok,
           err,
           skip,
-          detail: data.aborted
-            ? String(data.abortReason ?? 'Aborted')
-            : `${err} errors, ${ok} ok, ${skip} skipped`,
+          detail: marketRowDetail(data),
         });
       }
     }
@@ -234,22 +272,20 @@ function extractCycleIssues(summary: Record<string, unknown>): Array<{
   const cycles = summary.cycles as Record<string, Record<string, unknown>> | undefined;
   if (cycles && typeof cycles === 'object') {
     for (const [cycle, data] of Object.entries(cycles)) {
-      const nested = data.markets as Record<string, Record<string, unknown>> | undefined;
+      const nested = asMarketMap(data);
       if (!nested) continue;
       for (const [market, row] of Object.entries(nested)) {
-        const ok = Number(row.ok ?? 0);
+        const ok = Number(row.ok ?? row.processed ?? 0);
         const err = Number(row.err ?? 0);
-        const skip = Number(row.skip ?? 0);
-        if (err > 0 || row.aborted) {
+        const skip = Number(row.skip ?? row.not_due ?? 0);
+        if (err > 0 || row.aborted || row.error) {
           issues.push({
             market,
             cycle,
             ok,
             err,
             skip,
-            detail: row.aborted
-              ? String(row.abortReason ?? 'Aborted')
-              : `${err} errors, ${ok} ok, ${skip} skipped`,
+            detail: marketRowDetail(row),
           });
         }
       }
@@ -257,6 +293,19 @@ function extractCycleIssues(summary: Record<string, unknown>): Array<{
   }
 
   return issues;
+}
+
+function buildFailureReason(error: string | null, summary: Record<string, unknown>): string | null {
+  if (error) return error;
+  const issues = extractCycleIssues(summary);
+  if (issues.length === 0) return null;
+  return issues
+    .map((issue) =>
+      issue.cycle === 'market'
+        ? `${issue.market}: ${issue.detail}`
+        : `${issue.cycle} / ${issue.market}: ${issue.detail}`,
+    )
+    .join('\n');
 }
 
 export async function getOperationsOverview(forceProviderCheck = false): Promise<{
@@ -322,12 +371,13 @@ export async function getOperationsOverview(forceProviderCheck = false): Promise
     for (const doc of failedRuns) {
       const row = serializeRun(doc as Record<string, unknown>);
       const cycleIssues = extractCycleIssues(row.summary);
-      if (row.error || cycleIssues.length > 0) {
+      const failureReason = buildFailureReason(row.error, row.summary);
+      if (failureReason || cycleIssues.length > 0) {
         recentIssues.push({
           runId: row.id,
           runType: row.runType,
           startedAt: row.startedAt,
-          error: row.error,
+          error: failureReason ?? row.error,
           cycleIssues,
         });
       }

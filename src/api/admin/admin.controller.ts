@@ -8,6 +8,10 @@ import { getMarketModels } from '../../models/market-models.factory';
 import { deleteCreativeAndOrphanProduct } from '../../services/creative.service';
 import { MARKET_CODES, toMarketCode, type MarketCode } from '../../utils/markets';
 import { successResponse } from '../../utils/response.util';
+import {
+  CREATIVE_TOP_ADS_MATCH,
+  CREATIVE_TRENDING_MATCH,
+} from '../../utils/creative-response.util';
 import { AppError } from '../../middleware/error.middleware';
 import type {
   AdminTransactionsQueryInput,
@@ -505,28 +509,41 @@ export const listCreatives = async (
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const filter: Record<string, unknown> = {};
-    if (query.section) filter.section = query.section;
-    if (query.category) filter.categoryL1 = query.category;
-    if (query.platform === 'meta') {
-      filter.externalVideoId = { $regex: /^meta:/ };
-    } else if (query.platform === 'tiktok') {
-      filter.externalVideoId = { $not: { $regex: /^meta:/ } };
-    }
+    const filterParts: Record<string, unknown>[] = [];
+
     if (query.adType === 'ads') {
-      filter.isAd = true;
+      filterParts.push(CREATIVE_TOP_ADS_MATCH);
     } else if (query.adType === 'organic') {
-      filter.isAd = false;
+      filterParts.push(CREATIVE_TRENDING_MATCH);
     }
+
+    if (query.section) filterParts.push({ section: query.section });
+    if (query.category) filterParts.push({ categoryL1: query.category });
+
+    if (query.platform === 'meta') {
+      filterParts.push({ externalVideoId: { $regex: /^meta:/ } });
+    } else if (query.platform === 'tiktok') {
+      filterParts.push({ externalVideoId: { $not: { $regex: /^meta:/ } } });
+    }
+
     if (query.q) {
       const regex = new RegExp(query.q, 'i');
-      filter.$or = [
-        { externalVideoId: regex },
-        { productName: regex },
-        { 'creator.handle': regex },
-        { description: regex },
-      ];
+      filterParts.push({
+        $or: [
+          { externalVideoId: regex },
+          { productName: regex },
+          { 'creator.handle': regex },
+          { description: regex },
+        ],
+      });
     }
+
+    const filter: Record<string, unknown> =
+      filterParts.length === 0
+        ? {}
+        : filterParts.length === 1
+          ? filterParts[0]
+          : { $and: filterParts };
 
     const [rows, total] = await Promise.all([
       MarketCreative.find(filter).sort({ ingestedAt: -1 }).skip(skip).limit(limit).lean(),

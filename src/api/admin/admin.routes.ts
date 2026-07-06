@@ -14,6 +14,8 @@ import {
   AdminMaintenanceRunsQuerySchema,
   AdminJobHeartbeatsQuerySchema,
   AdminProviderHealthQuerySchema,
+  AdminQueueJobTriggerSchema,
+  AdminJobTriggersQuerySchema,
   AdminDeleteContentParamSchema,
   AdminMarketQuerySchema,
   AdminCreateProductSchema,
@@ -50,6 +52,17 @@ router.get(
 );
 
 router.get('/operations/overview', adminController.getOperationsOverviewHandler);
+router.get('/operations/triggerable-jobs', adminController.listTriggerableJobsHandler);
+router.post(
+  '/operations/trigger',
+  validate(AdminQueueJobTriggerSchema, 'body'),
+  adminController.queueJobTriggerHandler,
+);
+router.get(
+  '/operations/triggers',
+  validate(AdminJobTriggersQuerySchema, 'query'),
+  adminController.listJobTriggersHandler,
+);
 router.get(
   '/maintenance/runs',
   validate(AdminMaintenanceRunsQuerySchema, 'query'),

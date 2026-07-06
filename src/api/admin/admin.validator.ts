@@ -110,6 +110,16 @@ export const AdminProviderHealthQuerySchema = z.object({
   refresh: z.coerce.boolean().optional(),
 });
 
+export const AdminQueueJobTriggerSchema = z.object({
+  job: z.string().trim().min(1),
+  market: MarketCodeEnum.optional(),
+});
+
+export const AdminJobTriggersQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  status: z.enum(['pending', 'running', 'completed', 'failed']).optional(),
+});
+
 export const AdminTransactionsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -167,3 +177,5 @@ export type AdminAnalyticsQueryInput = z.infer<typeof AdminAnalyticsQuerySchema>
 export type AdminMaintenanceRunsQueryInput = z.infer<typeof AdminMaintenanceRunsQuerySchema>;
 export type AdminJobHeartbeatsQueryInput = z.infer<typeof AdminJobHeartbeatsQuerySchema>;
 export type AdminProviderHealthQueryInput = z.infer<typeof AdminProviderHealthQuerySchema>;
+export type AdminQueueJobTriggerInput = z.infer<typeof AdminQueueJobTriggerSchema>;
+export type AdminJobTriggersQueryInput = z.infer<typeof AdminJobTriggersQuerySchema>;

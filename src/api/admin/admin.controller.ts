@@ -25,6 +25,8 @@ import type {
   AdminMaintenanceRunsQueryInput,
   AdminJobHeartbeatsQueryInput,
   AdminProviderHealthQueryInput,
+  AdminQueueJobTriggerInput,
+  AdminJobTriggersQueryInput,
 } from './admin.validator';
 import { TransactionService } from '../../services/transaction.service';
 import { WaitlistService } from '../../services/waitlist.service';
@@ -35,6 +37,11 @@ import {
   listMaintenanceRuns,
 } from '../../services/admin-ops.service';
 import { providerSummary, runProviderHealthChecks } from '../../services/provider-health.service';
+import {
+  listJobTriggers,
+  listTriggerableJobs,
+  queueJobTrigger,
+} from '../../services/job-trigger.service';
 
 export const getSystemHealth = async (
   req: Request,
@@ -756,6 +763,55 @@ export const getProviderHealthHandler = async (
       success: true,
       data: { checkedAt, providers, summary: providerSummary(providers) },
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listTriggerableJobsHandler = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    res.json({ success: true, data: { jobs: listTriggerableJobs() } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const queueJobTriggerHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const body = req.body as AdminQueueJobTriggerInput;
+    const requestedBy =
+      (req.user as { email?: string; _id?: unknown } | undefined)?.email ??
+      (req.user?._id ? String(req.user._id) : null);
+    const trigger = await queueJobTrigger({
+      job: body.job,
+      market: body.market as MarketCode | undefined,
+      requestedBy,
+    });
+    res
+      .status(202)
+      .json(successResponse(trigger, `${body.job} queued — worker will pick it up within ~30s.`));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listJobTriggersHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminJobTriggersQueryInput;
+    const triggers = await listJobTriggers({ limit: query.limit, status: query.status });
+    res.json({ success: true, data: { triggers } });
   } catch (err) {
     next(err);
   }

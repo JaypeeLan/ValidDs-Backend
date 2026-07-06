@@ -143,6 +143,16 @@ async function checkScrapeCreators(): Promise<ProviderHealthCheck> {
   );
 }
 
+const APIFY_PROBE_ACTORS = [
+  'clearpath~shopify-store-leads',
+  'beyondops~tiktok-ad-library-scraper',
+  'pro100chok~tiktok-shop-scraper-usage',
+] as const;
+
+function apifyAuthHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
+}
+
 async function checkApify(): Promise<ProviderHealthCheck> {
   return probe(
     'apify',
@@ -150,24 +160,52 @@ async function checkApify(): Promise<ProviderHealthCheck> {
     'data',
     !!env.APIFY_API_TOKEN,
     async () => {
-      const res = await fetch(
-        `https://api.apify.com/v2/users/me?token=${encodeURIComponent(env.APIFY_API_TOKEN!)}`,
-        { signal: AbortSignal.timeout(12_000) },
-      );
-      if (res.status === 200) {
-        const data = (await res.json().catch(() => ({}))) as { data?: { username?: string } };
-        const user = data.data?.username ?? 'unknown';
-        return { status: 'ok', detail: `Token valid (${user})`, httpStatus: res.status };
+      const token = env.APIFY_API_TOKEN!;
+      const headers = apifyAuthHeaders(token);
+
+      // /users/me needs account-admin scope; actor tokens often return 403 there while
+      // still working for runs. Probe the actors we actually call instead.
+      for (const actorId of APIFY_PROBE_ACTORS) {
+        const res = await fetch(`https://api.apify.com/v2/acts/${actorId}`, {
+          headers,
+          signal: AbortSignal.timeout(12_000),
+        });
+        if (res.status === 200) {
+          const data = (await res.json().catch(() => ({}))) as {
+            data?: { name?: string; username?: string };
+          };
+          const name = data.data?.name ?? actorId;
+          const user = data.data?.username ?? actorId.split('~')[0];
+          return {
+            status: 'ok',
+            detail: `Token valid (${user}/${name})`,
+            httpStatus: res.status,
+          };
+        }
+        if (res.status === 401) {
+          return { status: 'fail', detail: 'Token rejected (401)', httpStatus: res.status };
+        }
       }
-      if (res.status === 401)
-        return { status: 'fail', detail: 'Token rejected (401)', httpStatus: res.status };
-      if (res.status === 402)
+
+      const listRes = await fetch('https://api.apify.com/v2/acts?limit=1', {
+        headers,
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (listRes.status === 200) {
+        return { status: 'ok', detail: 'Token valid', httpStatus: listRes.status };
+      }
+      if (listRes.status === 401) {
+        return { status: 'fail', detail: 'Token rejected (401)', httpStatus: listRes.status };
+      }
+      if (listRes.status === 403) {
         return {
           status: 'fail',
-          detail: 'Usage limit — payment may be required',
-          httpStatus: res.status,
+          detail:
+            'Token rejected (403) — regenerate in Apify Console with Actor read/run permissions',
+          httpStatus: listRes.status,
         };
-      return { status: 'fail', detail: `HTTP ${res.status}`, httpStatus: res.status };
+      }
+      return { status: 'fail', detail: `HTTP ${listRes.status}`, httpStatus: listRes.status };
     },
   );
 }

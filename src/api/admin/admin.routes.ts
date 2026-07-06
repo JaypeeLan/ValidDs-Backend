@@ -18,6 +18,7 @@ import {
   AdminMarketQuerySchema,
   AdminCreateProductSchema,
   AdminCreateCreativeSchema,
+  AdminCreativesQuerySchema,
 } from './admin.validator';
 
 const router = Router();
@@ -103,8 +104,15 @@ router.delete(
 
 // ── Creatives — market required on every operation ────────────────────────────
 //
+// GET    /admin/creatives?market=US             List creatives for a market
 // POST   /admin/creatives                      Create a creative in a market (body.market)
 // DELETE /admin/creatives/:id?market=US        Delete a creative from a market
+
+router.get(
+  '/creatives',
+  validate(AdminCreativesQuerySchema, 'query'),
+  adminController.listCreatives,
+);
 
 router.post(
   '/creatives',

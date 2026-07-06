@@ -20,6 +20,7 @@ import type {
   AdminDeleteContentParamInput,
   AdminCreateProductInput,
   AdminCreateCreativeInput,
+  AdminCreativesQueryInput,
   AdminAnalyticsQueryInput,
   AdminMaintenanceRunsQueryInput,
   AdminJobHeartbeatsQueryInput,
@@ -482,6 +483,103 @@ export const deleteProduct = async (
 };
 
 // ── Admin content creation ────────────────────────────────────────────────────
+
+export const listCreatives = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminCreativesQueryInput;
+    const market = toMarketCode(query.market);
+    const { Creative: MarketCreative } = getMarketModels(market);
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const filter: Record<string, unknown> = {};
+    if (query.section) filter.section = query.section;
+    if (query.category) filter.categoryL1 = query.category;
+    if (query.platform === 'meta') {
+      filter.externalVideoId = { $regex: /^meta:/ };
+    } else if (query.platform === 'tiktok') {
+      filter.externalVideoId = { $not: { $regex: /^meta:/ } };
+    }
+    if (query.adType === 'ads') {
+      filter.isAd = true;
+    } else if (query.adType === 'organic') {
+      filter.isAd = false;
+    }
+    if (query.q) {
+      const regex = new RegExp(query.q, 'i');
+      filter.$or = [
+        { externalVideoId: regex },
+        { productName: regex },
+        { 'creator.handle': regex },
+        { description: regex },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      MarketCreative.find(filter).sort({ ingestedAt: -1 }).skip(skip).limit(limit).lean(),
+      MarketCreative.countDocuments(filter),
+    ]);
+
+    const creatives = rows.map((row) => {
+      const externalVideoId = String(row.externalVideoId ?? '');
+      const isMeta = externalVideoId.startsWith('meta:');
+      return {
+        id: String(row._id),
+        externalVideoId,
+        tiktokPostUrl: row.tiktokPostUrl ?? '',
+        thumbnailUrl: row.thumbnailUrl ?? null,
+        section: row.section ?? '',
+        isIndependentCreator:
+          row.creator?.isIndependentCreator ?? row.isIndependentCreator ?? false,
+        isAd: row.isAd ?? false,
+        platform: isMeta ? 'meta' : 'tiktok',
+        productName: row.productName ?? null,
+        categoryL1: row.categoryL1 ?? '',
+        categoryL2: row.categoryL2 ?? '',
+        hashtags: row.hashtags ?? [],
+        metrics: row.metrics ?? {
+          viewCount: 0,
+          likeCount: 0,
+          commentCount: 0,
+          shareCount: 0,
+        },
+        creator: row.creator
+          ? {
+              handle: row.creator.handle ?? null,
+              displayName: row.creator.displayName ?? null,
+              followers: row.creator.followers ?? null,
+            }
+          : null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+    });
+
+    res.json(
+      successResponse(
+        {
+          market,
+          creatives,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+          },
+        },
+        'Creatives retrieved successfully.',
+      ),
+    );
+  } catch (err) {
+    next(err);
+  }
+};
 
 export const createProduct = async (
   req: Request,

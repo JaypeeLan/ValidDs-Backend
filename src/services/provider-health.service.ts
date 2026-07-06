@@ -143,71 +143,54 @@ async function checkScrapeCreators(): Promise<ProviderHealthCheck> {
   );
 }
 
-const APIFY_PROBE_ACTORS = [
-  'clearpath~shopify-store-leads',
-  'beyondops~tiktok-ad-library-scraper',
-  'pro100chok~tiktok-shop-scraper-usage',
-] as const;
+const APIFY_SHOPIFY_STORE_LEADS_ACTOR = 'clearpath~shopify-store-leads';
 
 function apifyAuthHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
 async function checkApify(): Promise<ProviderHealthCheck> {
-  return probe(
-    'apify',
-    'Apify (Shopify / TikTok scrapers)',
-    'data',
-    !!env.APIFY_API_TOKEN,
-    async () => {
-      const token = env.APIFY_API_TOKEN!;
-      const headers = apifyAuthHeaders(token);
+  return probe('apify', 'Apify (Shopify store leads)', 'data', !!env.APIFY_API_TOKEN, async () => {
+    const token = env.APIFY_API_TOKEN!;
+    const headers = apifyAuthHeaders(token);
 
-      // /users/me needs account-admin scope; actor tokens often return 403 there while
-      // still working for runs. Probe the actors we actually call instead.
-      for (const actorId of APIFY_PROBE_ACTORS) {
-        const res = await fetch(`https://api.apify.com/v2/acts/${actorId}`, {
-          headers,
-          signal: AbortSignal.timeout(12_000),
-        });
-        if (res.status === 200) {
-          const data = (await res.json().catch(() => ({}))) as {
-            data?: { name?: string; username?: string };
-          };
-          const name = data.data?.name ?? actorId;
-          const user = data.data?.username ?? actorId.split('~')[0];
-          return {
-            status: 'ok',
-            detail: `Token valid (${user}/${name})`,
-            httpStatus: res.status,
-          };
-        }
-        if (res.status === 401) {
-          return { status: 'fail', detail: 'Token rejected (401)', httpStatus: res.status };
-        }
-      }
-
-      const listRes = await fetch('https://api.apify.com/v2/acts?limit=1', {
-        headers,
-        signal: AbortSignal.timeout(12_000),
-      });
-      if (listRes.status === 200) {
-        return { status: 'ok', detail: 'Token valid', httpStatus: listRes.status };
-      }
-      if (listRes.status === 401) {
-        return { status: 'fail', detail: 'Token rejected (401)', httpStatus: listRes.status };
-      }
-      if (listRes.status === 403) {
-        return {
-          status: 'fail',
-          detail:
-            'Token rejected (403) — regenerate in Apify Console with Actor read/run permissions',
-          httpStatus: listRes.status,
-        };
-      }
-      return { status: 'fail', detail: `HTTP ${listRes.status}`, httpStatus: listRes.status };
-    },
-  );
+    // /users/me needs account-admin scope; probe the Shopify actor we actually run.
+    const res = await fetch(`https://api.apify.com/v2/acts/${APIFY_SHOPIFY_STORE_LEADS_ACTOR}`, {
+      headers,
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (res.status === 200) {
+      const data = (await res.json().catch(() => ({}))) as {
+        data?: { name?: string; username?: string };
+      };
+      const name = data.data?.name ?? 'shopify-store-leads';
+      const user = data.data?.username ?? 'clearpath';
+      return {
+        status: 'ok',
+        detail: `Token valid (${user}/${name})`,
+        httpStatus: res.status,
+      };
+    }
+    if (res.status === 401) {
+      return { status: 'fail', detail: 'Token rejected (401)', httpStatus: res.status };
+    }
+    if (res.status === 403) {
+      return {
+        status: 'fail',
+        detail:
+          'Token rejected (403) — regenerate in Apify Console with access to clearpath/shopify-store-leads',
+        httpStatus: res.status,
+      };
+    }
+    if (res.status === 404) {
+      return {
+        status: 'fail',
+        detail: 'Shopify store-leads actor not found (404)',
+        httpStatus: res.status,
+      };
+    }
+    return { status: 'fail', detail: `HTTP ${res.status}`, httpStatus: res.status };
+  });
 }
 
 async function checkMongo(): Promise<ProviderHealthCheck> {

@@ -11,6 +11,9 @@ import {
   AdminWaitlistQuerySchema,
   UpdateUserStatusSchema,
   AdminAnalyticsQuerySchema,
+  AdminMaintenanceRunsQuerySchema,
+  AdminJobHeartbeatsQuerySchema,
+  AdminProviderHealthQuerySchema,
   AdminDeleteContentParamSchema,
   AdminMarketQuerySchema,
   AdminCreateProductSchema,
@@ -28,16 +31,54 @@ router.get('/health', adminController.getSystemHealth);
 
 // ?market=US  → stats for US only
 // (no market) → aggregated across all markets
-router.get('/analytics/users',     adminController.getUserAnalytics);
-router.get('/analytics/products',  validate(AdminAnalyticsQuerySchema, 'query'), adminController.getProductAnalytics);
-router.get('/analytics/creatives', validate(AdminAnalyticsQuerySchema, 'query'), adminController.getCreativeAnalytics);
+router.get('/analytics/users', adminController.getUserAnalytics);
+router.get(
+  '/analytics/products',
+  validate(AdminAnalyticsQuerySchema, 'query'),
+  adminController.getProductAnalytics,
+);
+router.get(
+  '/analytics/creatives',
+  validate(AdminAnalyticsQuerySchema, 'query'),
+  adminController.getCreativeAnalytics,
+);
+router.get(
+  '/analytics/inventory',
+  validate(AdminAnalyticsQuerySchema, 'query'),
+  adminController.getInventoryAnalyticsHandler,
+);
+
+router.get('/operations/overview', adminController.getOperationsOverviewHandler);
+router.get(
+  '/maintenance/runs',
+  validate(AdminMaintenanceRunsQuerySchema, 'query'),
+  adminController.listMaintenanceRunsHandler,
+);
+router.get(
+  '/maintenance/jobs',
+  validate(AdminJobHeartbeatsQuerySchema, 'query'),
+  adminController.listJobHeartbeatsHandler,
+);
+router.get(
+  '/providers/health',
+  validate(AdminProviderHealthQuerySchema, 'query'),
+  adminController.getProviderHealthHandler,
+);
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 
-router.get(   '/users',               validate(AdminUsersQuerySchema,    'query'),  adminController.listUsers);
-router.delete('/users/:userId',        validate(AdminUserIdParamSchema,   'params'), adminController.deleteUser);
-router.patch( '/users/:userId/status', validate(AdminUserIdParamSchema,   'params'),
-                                       validate(UpdateUserStatusSchema,   'body'),   adminController.updateUserStatus);
+router.get('/users', validate(AdminUsersQuerySchema, 'query'), adminController.listUsers);
+router.delete(
+  '/users/:userId',
+  validate(AdminUserIdParamSchema, 'params'),
+  adminController.deleteUser,
+);
+router.patch(
+  '/users/:userId/status',
+  validate(AdminUserIdParamSchema, 'params'),
+  validate(UpdateUserStatusSchema, 'body'),
+  adminController.updateUserStatus,
+);
 
 // ── Products — market required on every operation ─────────────────────────────
 //
@@ -48,20 +89,16 @@ router.patch( '/users/:userId/status', validate(AdminUserIdParamSchema,   'param
 router.get(
   '/products',
   validate(AdminProductsQuerySchema_v2, 'query'),
-  adminController.listProducts
+  adminController.listProducts,
 );
 
-router.post(
-  '/products',
-  validate(AdminCreateProductSchema, 'body'),
-  adminController.createProduct
-);
+router.post('/products', validate(AdminCreateProductSchema, 'body'), adminController.createProduct);
 
 router.delete(
   '/products/:id',
   validate(AdminDeleteContentParamSchema, 'params'),
   validate(AdminMarketQuerySchema, 'query'),
-  adminController.deleteProduct
+  adminController.deleteProduct,
 );
 
 // ── Creatives — market required on every operation ────────────────────────────
@@ -72,14 +109,14 @@ router.delete(
 router.post(
   '/creatives',
   validate(AdminCreateCreativeSchema, 'body'),
-  adminController.createCreative
+  adminController.createCreative,
 );
 
 router.delete(
   '/creatives/:id',
   validate(AdminDeleteContentParamSchema, 'params'),
   validate(AdminMarketQuerySchema, 'query'),
-  adminController.deleteCreative
+  adminController.deleteCreative,
 );
 
 // ── Transactions ──────────────────────────────────────────────────────────────
@@ -87,21 +124,17 @@ router.delete(
 router.get(
   '/transactions',
   validate(AdminTransactionsQuerySchema, 'query'),
-  adminController.listTransactions
+  adminController.listTransactions,
 );
 
 router.post(
   '/transactions',
   validate(CreateTransactionSchema, 'body'),
-  adminController.createTransaction
+  adminController.createTransaction,
 );
 
 // ── Waitlist ──────────────────────────────────────────────────────────────────
 
-router.get(
-  '/waitlist',
-  validate(AdminWaitlistQuerySchema, 'query'),
-  adminController.listWaitlist
-);
+router.get('/waitlist', validate(AdminWaitlistQuerySchema, 'query'), adminController.listWaitlist);
 
 export default router;

@@ -20,10 +20,13 @@ import type {
   AdminDeleteContentParamInput,
   AdminCreateProductInput,
   AdminCreateCreativeInput,
+  AdminCreativesQueryInput,
   AdminAnalyticsQueryInput,
   AdminMaintenanceRunsQueryInput,
   AdminJobHeartbeatsQueryInput,
   AdminProviderHealthQueryInput,
+  AdminQueueJobTriggerInput,
+  AdminJobTriggersQueryInput,
 } from './admin.validator';
 import { TransactionService } from '../../services/transaction.service';
 import { WaitlistService } from '../../services/waitlist.service';
@@ -34,6 +37,11 @@ import {
   listMaintenanceRuns,
 } from '../../services/admin-ops.service';
 import { providerSummary, runProviderHealthChecks } from '../../services/provider-health.service';
+import {
+  listJobTriggers,
+  listTriggerableJobs,
+  queueJobTrigger,
+} from '../../services/job-trigger.service';
 
 export const getSystemHealth = async (
   req: Request,
@@ -483,6 +491,103 @@ export const deleteProduct = async (
 
 // ── Admin content creation ────────────────────────────────────────────────────
 
+export const listCreatives = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminCreativesQueryInput;
+    const market = toMarketCode(query.market);
+    const { Creative: MarketCreative } = getMarketModels(market);
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const filter: Record<string, unknown> = {};
+    if (query.section) filter.section = query.section;
+    if (query.category) filter.categoryL1 = query.category;
+    if (query.platform === 'meta') {
+      filter.externalVideoId = { $regex: /^meta:/ };
+    } else if (query.platform === 'tiktok') {
+      filter.externalVideoId = { $not: { $regex: /^meta:/ } };
+    }
+    if (query.adType === 'ads') {
+      filter.isAd = true;
+    } else if (query.adType === 'organic') {
+      filter.isAd = false;
+    }
+    if (query.q) {
+      const regex = new RegExp(query.q, 'i');
+      filter.$or = [
+        { externalVideoId: regex },
+        { productName: regex },
+        { 'creator.handle': regex },
+        { description: regex },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      MarketCreative.find(filter).sort({ ingestedAt: -1 }).skip(skip).limit(limit).lean(),
+      MarketCreative.countDocuments(filter),
+    ]);
+
+    const creatives = rows.map((row) => {
+      const externalVideoId = String(row.externalVideoId ?? '');
+      const isMeta = externalVideoId.startsWith('meta:');
+      return {
+        id: String(row._id),
+        externalVideoId,
+        tiktokPostUrl: row.tiktokPostUrl ?? '',
+        thumbnailUrl: row.thumbnailUrl ?? null,
+        section: row.section ?? '',
+        isIndependentCreator:
+          row.creator?.isIndependentCreator ?? row.isIndependentCreator ?? false,
+        isAd: row.isAd ?? false,
+        platform: isMeta ? 'meta' : 'tiktok',
+        productName: row.productName ?? null,
+        categoryL1: row.categoryL1 ?? '',
+        categoryL2: row.categoryL2 ?? '',
+        hashtags: row.hashtags ?? [],
+        metrics: row.metrics ?? {
+          viewCount: 0,
+          likeCount: 0,
+          commentCount: 0,
+          shareCount: 0,
+        },
+        creator: row.creator
+          ? {
+              handle: row.creator.handle ?? null,
+              displayName: row.creator.displayName ?? null,
+              followers: row.creator.followers ?? null,
+            }
+          : null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+    });
+
+    res.json(
+      successResponse(
+        {
+          market,
+          creatives,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+          },
+        },
+        'Creatives retrieved successfully.',
+      ),
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const createProduct = async (
   req: Request,
   res: Response,
@@ -658,6 +763,55 @@ export const getProviderHealthHandler = async (
       success: true,
       data: { checkedAt, providers, summary: providerSummary(providers) },
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listTriggerableJobsHandler = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    res.json({ success: true, data: { jobs: listTriggerableJobs() } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const queueJobTriggerHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const body = req.body as AdminQueueJobTriggerInput;
+    const requestedBy =
+      (req.user as { email?: string; _id?: unknown } | undefined)?.email ??
+      (req.user?._id ? String(req.user._id) : null);
+    const trigger = await queueJobTrigger({
+      job: body.job,
+      market: body.market as MarketCode | undefined,
+      requestedBy,
+    });
+    res
+      .status(202)
+      .json(successResponse(trigger, `${body.job} queued — worker will pick it up within ~30s.`));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listJobTriggersHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminJobTriggersQueryInput;
+    const triggers = await listJobTriggers({ limit: query.limit, status: query.status });
+    res.json({ success: true, data: { triggers } });
   } catch (err) {
     next(err);
   }

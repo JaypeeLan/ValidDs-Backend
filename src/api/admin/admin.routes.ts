@@ -14,10 +14,13 @@ import {
   AdminMaintenanceRunsQuerySchema,
   AdminJobHeartbeatsQuerySchema,
   AdminProviderHealthQuerySchema,
+  AdminQueueJobTriggerSchema,
+  AdminJobTriggersQuerySchema,
   AdminDeleteContentParamSchema,
   AdminMarketQuerySchema,
   AdminCreateProductSchema,
   AdminCreateCreativeSchema,
+  AdminCreativesQuerySchema,
 } from './admin.validator';
 
 const router = Router();
@@ -49,6 +52,17 @@ router.get(
 );
 
 router.get('/operations/overview', adminController.getOperationsOverviewHandler);
+router.get('/operations/triggerable-jobs', adminController.listTriggerableJobsHandler);
+router.post(
+  '/operations/trigger',
+  validate(AdminQueueJobTriggerSchema, 'body'),
+  adminController.queueJobTriggerHandler,
+);
+router.get(
+  '/operations/triggers',
+  validate(AdminJobTriggersQuerySchema, 'query'),
+  adminController.listJobTriggersHandler,
+);
 router.get(
   '/maintenance/runs',
   validate(AdminMaintenanceRunsQuerySchema, 'query'),
@@ -103,8 +117,15 @@ router.delete(
 
 // ── Creatives — market required on every operation ────────────────────────────
 //
+// GET    /admin/creatives?market=US             List creatives for a market
 // POST   /admin/creatives                      Create a creative in a market (body.market)
 // DELETE /admin/creatives/:id?market=US        Delete a creative from a market
+
+router.get(
+  '/creatives',
+  validate(AdminCreativesQuerySchema, 'query'),
+  adminController.listCreatives,
+);
 
 router.post(
   '/creatives',

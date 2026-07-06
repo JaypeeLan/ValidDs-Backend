@@ -62,6 +62,17 @@ export const AdminCreateProductSchema = z.object({
   primaryImageUrl: z.string().url().optional(),
 });
 
+export const AdminCreativesQuerySchema = z.object({
+  market: MarketCodeEnum,
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  section: z.enum(['top-ads', 'trending']).optional(),
+  category: z.string().optional(),
+  q: z.string().trim().min(1).optional(),
+  platform: z.enum(['tiktok', 'meta']).optional(),
+  adType: z.enum(['ads', 'organic']).optional(),
+});
+
 // Admin creative create body
 export const AdminCreateCreativeSchema = z.object({
   market: MarketCodeEnum,
@@ -97,6 +108,16 @@ export const AdminJobHeartbeatsQuerySchema = z.object({
 
 export const AdminProviderHealthQuerySchema = z.object({
   refresh: z.coerce.boolean().optional(),
+});
+
+export const AdminQueueJobTriggerSchema = z.object({
+  job: z.string().trim().min(1),
+  market: MarketCodeEnum.optional(),
+});
+
+export const AdminJobTriggersQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  status: z.enum(['pending', 'running', 'completed', 'failed']).optional(),
 });
 
 export const AdminTransactionsQuerySchema = z.object({
@@ -150,8 +171,11 @@ export type AdminProductsQueryV2Input = z.infer<typeof AdminProductsQuerySchema_
 export type AdminMarketQueryInput = z.infer<typeof AdminMarketQuerySchema>;
 export type AdminDeleteContentParamInput = z.infer<typeof AdminDeleteContentParamSchema>;
 export type AdminCreateProductInput = z.infer<typeof AdminCreateProductSchema>;
+export type AdminCreativesQueryInput = z.infer<typeof AdminCreativesQuerySchema>;
 export type AdminCreateCreativeInput = z.infer<typeof AdminCreateCreativeSchema>;
 export type AdminAnalyticsQueryInput = z.infer<typeof AdminAnalyticsQuerySchema>;
 export type AdminMaintenanceRunsQueryInput = z.infer<typeof AdminMaintenanceRunsQuerySchema>;
 export type AdminJobHeartbeatsQueryInput = z.infer<typeof AdminJobHeartbeatsQuerySchema>;
 export type AdminProviderHealthQueryInput = z.infer<typeof AdminProviderHealthQuerySchema>;
+export type AdminQueueJobTriggerInput = z.infer<typeof AdminQueueJobTriggerSchema>;
+export type AdminJobTriggersQueryInput = z.infer<typeof AdminJobTriggersQuerySchema>;

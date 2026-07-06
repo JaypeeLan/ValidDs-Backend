@@ -85,22 +85,6 @@ async function checkDeepSeek(): Promise<ProviderHealthCheck> {
   });
 }
 
-async function checkOpenAI(): Promise<ProviderHealthCheck> {
-  return probe('openai', 'OpenAI', 'ai', !!env.OPENAI_API_KEY, async () => {
-    const res = await fetch('https://api.openai.com/v1/models', {
-      headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` },
-      signal: AbortSignal.timeout(12_000),
-    });
-    if (res.status === 200)
-      return { status: 'ok', detail: 'API key valid', httpStatus: res.status };
-    if (res.status === 401)
-      return { status: 'fail', detail: 'Key rejected (401)', httpStatus: res.status };
-    if (res.status === 429)
-      return { status: 'warn', detail: 'Rate limited (429)', httpStatus: res.status };
-    return { status: 'fail', detail: `HTTP ${res.status}`, httpStatus: res.status };
-  });
-}
-
 async function checkGoogleAI(): Promise<ProviderHealthCheck> {
   const key = env.GOOGLE_AI_API_KEY ?? env.GOOGLE_API_KEY;
   return probe('google-ai', 'Google AI (Gemini)', 'ai', !!key, async () => {
@@ -224,7 +208,6 @@ export async function runProviderHealthChecks(force = false): Promise<{
     checkMongo(),
     checkRedis(),
     checkDeepSeek(),
-    checkOpenAI(),
     checkGoogleAI(),
     checkScrapeCreators(),
     checkApify(),

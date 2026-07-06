@@ -419,6 +419,21 @@ describe('All API endpoints (HTTP integration)', () => {
   it('GET /admin/analytics/creatives', () =>
     hit('GET', `${API}/admin/analytics/creatives?market=US`, { token: 'admin', allowed: [200] }));
 
+  it('GET /admin/analytics/inventory', () =>
+    hit('GET', `${API}/admin/analytics/inventory?market=US`, { token: 'admin', allowed: [200] }));
+
+  it('GET /admin/operations/overview', () =>
+    hit('GET', `${API}/admin/operations/overview`, { token: 'admin', allowed: [200] }));
+
+  it('GET /admin/maintenance/runs', () =>
+    hit('GET', `${API}/admin/maintenance/runs`, { token: 'admin', allowed: [200] }));
+
+  it('GET /admin/maintenance/jobs', () =>
+    hit('GET', `${API}/admin/maintenance/jobs`, { token: 'admin', allowed: [200] }));
+
+  it('GET /admin/providers/health', () =>
+    hit('GET', `${API}/admin/providers/health`, { token: 'admin', allowed: [200] }));
+
   it('GET /admin/users', () =>
     hit('GET', `${API}/admin/users`, { token: 'admin', allowed: [200] }));
 

@@ -21,9 +21,19 @@ import type {
   AdminCreateProductInput,
   AdminCreateCreativeInput,
   AdminAnalyticsQueryInput,
+  AdminMaintenanceRunsQueryInput,
+  AdminJobHeartbeatsQueryInput,
+  AdminProviderHealthQueryInput,
 } from './admin.validator';
 import { TransactionService } from '../../services/transaction.service';
 import { WaitlistService } from '../../services/waitlist.service';
+import {
+  getInventoryAnalytics,
+  getOperationsOverview,
+  listJobHeartbeats,
+  listMaintenanceRuns,
+} from '../../services/admin-ops.service';
+import { providerSummary, runProviderHealthChecks } from '../../services/provider-health.service';
 
 export const getSystemHealth = async (
   req: Request,
@@ -589,6 +599,79 @@ export const listWaitlist = async (
     const data = await WaitlistService.list(query);
 
     res.json(successResponse(data, 'Waitlist entries retrieved successfully.'));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getOperationsOverviewHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const refresh = String(req.query.refresh ?? '') === 'true';
+    const data = await getOperationsOverview(refresh);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listMaintenanceRunsHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminMaintenanceRunsQueryInput;
+    const data = await listMaintenanceRuns(query);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listJobHeartbeatsHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminJobHeartbeatsQueryInput;
+    const data = await listJobHeartbeats(query);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getProviderHealthHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminProviderHealthQueryInput;
+    const { checkedAt, providers } = await runProviderHealthChecks(Boolean(query.refresh));
+    res.json({
+      success: true,
+      data: { checkedAt, providers, summary: providerSummary(providers) },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getInventoryAnalyticsHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminAnalyticsQueryInput;
+    const data = await getInventoryAnalytics(query.market as MarketCode | undefined);
+    res.json({ success: true, data });
   } catch (err) {
     next(err);
   }

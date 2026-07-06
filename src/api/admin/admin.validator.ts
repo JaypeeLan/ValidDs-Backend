@@ -48,36 +48,55 @@ export const AdminDeleteContentParamSchema = z.object({
 
 // Admin product create body — minimal fields; the rest come from ingestion
 export const AdminCreateProductSchema = z.object({
-  market:      MarketCodeEnum,
-  title:       z.string().min(1).max(120),
-  categoryL1:  z.string().min(1),
-  categoryL2:  z.string().optional(),
-  externalId:  z.string().min(1),
-  source:      z.string().min(1).default('admin'),
-  price:       z.number().min(0).optional(),
-  currency:    z.string().length(3).default('USD'),
-  productUrl:  z.string().url().optional(),
-  shopName:    z.string().optional(),
+  market: MarketCodeEnum,
+  title: z.string().min(1).max(120),
+  categoryL1: z.string().min(1),
+  categoryL2: z.string().optional(),
+  externalId: z.string().min(1),
+  source: z.string().min(1).default('admin'),
+  price: z.number().min(0).optional(),
+  currency: z.string().length(3).default('USD'),
+  productUrl: z.string().url().optional(),
+  shopName: z.string().optional(),
   description: z.string().max(2000).optional(),
   primaryImageUrl: z.string().url().optional(),
 });
 
 // Admin creative create body
 export const AdminCreateCreativeSchema = z.object({
-  market:          MarketCodeEnum,
-  productId:       z.string().regex(/^[0-9a-fA-F]{24}$/).optional(),
+  market: MarketCodeEnum,
+  productId: z
+    .string()
+    .regex(/^[0-9a-fA-F]{24}$/)
+    .optional(),
   externalVideoId: z.string().min(1),
-  videoPlayUrl:    z.string().url().optional(),
-  thumbnailUrl:    z.string().url().optional(),
-  isAd:            z.boolean().default(false),
-  section:         z.enum(['store', 'affiliate', 'ads']).optional(),
-  creatorHandle:   z.string().optional(),
-  description:     z.string().max(2000).optional(),
+  videoPlayUrl: z.string().url().optional(),
+  thumbnailUrl: z.string().url().optional(),
+  isAd: z.boolean().default(false),
+  section: z.enum(['store', 'affiliate', 'ads']).optional(),
+  creatorHandle: z.string().optional(),
+  description: z.string().max(2000).optional(),
 });
 
 // Analytics query — optionally scoped to a market; omit for all-markets aggregate
 export const AdminAnalyticsQuerySchema = z.object({
   market: MarketCodeEnum.optional(),
+});
+
+export const AdminMaintenanceRunsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  runType: z.string().trim().min(1).optional(),
+  status: z.enum(['running', 'ok', 'failed']).optional(),
+});
+
+export const AdminJobHeartbeatsQuerySchema = z.object({
+  job: z.string().trim().min(1).optional(),
+  market: MarketCodeEnum.optional(),
+});
+
+export const AdminProviderHealthQuerySchema = z.object({
+  refresh: z.coerce.boolean().optional(),
 });
 
 export const AdminTransactionsQuerySchema = z.object({
@@ -133,3 +152,6 @@ export type AdminDeleteContentParamInput = z.infer<typeof AdminDeleteContentPara
 export type AdminCreateProductInput = z.infer<typeof AdminCreateProductSchema>;
 export type AdminCreateCreativeInput = z.infer<typeof AdminCreateCreativeSchema>;
 export type AdminAnalyticsQueryInput = z.infer<typeof AdminAnalyticsQuerySchema>;
+export type AdminMaintenanceRunsQueryInput = z.infer<typeof AdminMaintenanceRunsQuerySchema>;
+export type AdminJobHeartbeatsQueryInput = z.infer<typeof AdminJobHeartbeatsQuerySchema>;
+export type AdminProviderHealthQueryInput = z.infer<typeof AdminProviderHealthQuerySchema>;

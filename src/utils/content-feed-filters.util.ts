@@ -8,6 +8,7 @@ import { postDateCoalesceExpr } from './product-recency.util';
 
 export interface ContentMetricFilters {
   minLikes?: number;
+  maxLikes?: number;
   minGmv?: number;
   maxGmv?: number;
   minEngagementRate?: number;
@@ -27,6 +28,7 @@ export interface ContentMetricFilters {
 /** Zod fields — spread into product/creative list query schemas. */
 export const contentMetricFilterZodFields = {
   minLikes: z.coerce.number().min(0).optional(),
+  maxLikes: z.coerce.number().min(0).optional(),
   minGmv: z.coerce.number().min(0).optional(),
   maxGmv: z.coerce.number().min(0).optional(),
   minEngagementRate: z.coerce.number().min(0).max(100).optional(),
@@ -57,6 +59,7 @@ export function parseStartDateParam(raw?: string): Date | undefined {
 
 export function buildContentMetricFilters(raw: {
   minLikes?: number;
+  maxLikes?: number;
   minGmv?: number;
   maxGmv?: number;
   minEngagementRate?: number;
@@ -73,6 +76,7 @@ export function buildContentMetricFilters(raw: {
   const start = parseStartDateParam(raw.startDate);
   return {
     minLikes: raw.minLikes,
+    maxLikes: raw.maxLikes,
     minGmv: raw.minGmv ?? MIN_TOTAL_GMV,
     maxGmv: raw.maxGmv,
     minEngagementRate: raw.minEngagementRate,
@@ -131,8 +135,11 @@ export function applyProductMetricFilters(
   query: Record<string, unknown>,
   filters: ContentMetricFilters,
 ): void {
-  if (filters.minLikes != null) {
-    query.likeCount = { $gte: filters.minLikes };
+  if (filters.minLikes != null || filters.maxLikes != null) {
+    query.likeCount = {
+      ...(filters.minLikes != null ? { $gte: filters.minLikes } : {}),
+      ...(filters.maxLikes != null ? { $lte: filters.maxLikes } : {}),
+    };
   }
 
   if (filters.minEngagementRate != null) {
@@ -157,8 +164,11 @@ export function applyCreativeMetricFilters(
   query: Record<string, unknown>,
   filters: ContentMetricFilters,
 ): void {
-  if (filters.minLikes != null) {
-    query['metrics.likeCount'] = { $gte: filters.minLikes };
+  if (filters.minLikes != null || filters.maxLikes != null) {
+    query['metrics.likeCount'] = {
+      ...(filters.minLikes != null ? { $gte: filters.minLikes } : {}),
+      ...(filters.maxLikes != null ? { $lte: filters.maxLikes } : {}),
+    };
   }
 
   if (filters.minEngagementRate != null) {
@@ -276,6 +286,8 @@ function addRangeIssue(
 
 export function validateContentMetricRanges(
   raw: {
+    minLikes?: number;
+    maxLikes?: number;
     minGmv?: number;
     maxGmv?: number;
     minUnits?: number;
@@ -290,6 +302,7 @@ export function validateContentMetricRanges(
   },
   ctx: z.RefinementCtx,
 ): void {
+  addRangeIssue(ctx, 'minLikes', raw.minLikes, raw.maxLikes, 'minLikes');
   addRangeIssue(ctx, 'minGmv', raw.minGmv, raw.maxGmv, 'minGmv');
   addRangeIssue(ctx, 'minUnits', raw.minUnits, raw.maxUnits, 'minUnits');
   addRangeIssue(ctx, 'minCreatorGmv', raw.minCreatorGmv, raw.maxCreatorGmv, 'minCreatorGmv');

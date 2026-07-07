@@ -556,6 +556,11 @@ components:
       in: query
       description: Minimum video likes (`metrics.likeCount`).
       schema: { type: number, minimum: 0, example: 10000 }
+    maxLikes:
+      name: maxLikes
+      in: query
+      description: Maximum video likes (`metrics.likeCount`).
+      schema: { type: number, minimum: 0, example: 500000 }
     minGmv:
       name: minGmv
       in: query

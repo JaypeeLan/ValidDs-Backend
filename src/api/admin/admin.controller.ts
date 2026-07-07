@@ -8,10 +8,7 @@ import { getMarketModels } from '../../models/market-models.factory';
 import { deleteCreativeAndOrphanProduct } from '../../services/creative.service';
 import { MARKET_CODES, toMarketCode, type MarketCode } from '../../utils/markets';
 import { successResponse } from '../../utils/response.util';
-import {
-  CREATIVE_TOP_ADS_MATCH,
-  CREATIVE_TRENDING_MATCH,
-} from '../../utils/creative-response.util';
+import { adminCreativeAdTypeMatch } from '../../utils/creative-response.util';
 import { AppError } from '../../middleware/error.middleware';
 import { canManageAdminAccounts, isPrivilegedAdmin } from '../../utils/roles.util';
 import type {
@@ -231,8 +228,8 @@ export const getCreativeAnalytics = async (
         const [total, fresh, ads, organic, sectionAgg, catAgg, videoRows] = await Promise.all([
           MarketCreative.countDocuments(),
           MarketCreative.countDocuments({ ingestedAt: { $gte: oneDayAgo } }),
-          MarketCreative.countDocuments({ isAd: true }),
-          MarketCreative.countDocuments({ isAd: false }),
+          MarketCreative.countDocuments(adminCreativeAdTypeMatch('ads')),
+          MarketCreative.countDocuments(adminCreativeAdTypeMatch('organic')),
           MarketCreative.aggregate([{ $group: { _id: '$section', count: { $sum: 1 } } }]),
           MarketCreative.aggregate([
             { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
@@ -553,10 +550,8 @@ export const listCreatives = async (
 
     const filterParts: Record<string, unknown>[] = [];
 
-    if (query.adType === 'ads') {
-      filterParts.push(CREATIVE_TOP_ADS_MATCH);
-    } else if (query.adType === 'organic') {
-      filterParts.push(CREATIVE_TRENDING_MATCH);
+    if (query.adType) {
+      filterParts.push(adminCreativeAdTypeMatch(query.adType));
     }
 
     if (query.section) filterParts.push({ section: query.section });

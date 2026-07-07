@@ -1,7 +1,19 @@
 import {
+  adminCreativeAdTypeMatch,
+  CREATIVE_TOP_ADS_MATCH,
+  CREATIVE_TRENDING_MATCH,
   formatCreativeFeedItem,
   resolveCreatorAvatarUrl,
 } from '../src/utils/creative-response.util';
+
+describe('adminCreativeAdTypeMatch', () => {
+  it('maps ads and organic to disjoint feed buckets', () => {
+    expect(adminCreativeAdTypeMatch('ads')).toEqual(CREATIVE_TOP_ADS_MATCH);
+    expect(adminCreativeAdTypeMatch('organic')).toEqual(CREATIVE_TRENDING_MATCH);
+    expect(adminCreativeAdTypeMatch('ads').section).toBe('trending');
+    expect(adminCreativeAdTypeMatch('organic').section).toBe('top-ads');
+  });
+});
 
 describe('resolveCreatorAvatarUrl', () => {
   it('prefers creator.avatarUrl over shopAvatarUrl', () => {

@@ -3,6 +3,11 @@ import { getJobsStatus } from '../jobs/index';
 import { getMarketModels } from '../models/market-models.factory';
 import { MARKET_CODES, type MarketCode } from '../utils/markets';
 import {
+  adminCreativeAdTypeMatch,
+  CREATIVE_TOP_ADS_MATCH,
+  CREATIVE_TRENDING_MATCH,
+} from '../utils/creative-response.util';
+import {
   providerSummary,
   runProviderHealthChecks,
   type ProviderHealthCheck,
@@ -545,9 +550,11 @@ export async function getInventoryAnalytics(market?: MarketCode): Promise<{
         ]),
         Creative.countDocuments({ externalVideoId: { $regex: /^meta:/ } }),
         Creative.countDocuments({ externalVideoId: { $not: { $regex: /^meta:/ } } }),
-        Creative.countDocuments({ isAd: true }),
-        Creative.countDocuments({ isAd: false }),
-        Creative.countDocuments({ isAd: null }),
+        Creative.countDocuments(adminCreativeAdTypeMatch('ads')),
+        Creative.countDocuments(adminCreativeAdTypeMatch('organic')),
+        Creative.countDocuments({
+          $nor: [CREATIVE_TOP_ADS_MATCH, CREATIVE_TRENDING_MATCH],
+        }),
         Creative.aggregate([
           {
             $project: {

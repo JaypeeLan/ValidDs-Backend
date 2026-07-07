@@ -23,14 +23,10 @@ async function run() {
     process.exit(1);
   }
 
-  const connectionString = env.MONGODB_URI.includes('?')
-    ? env.MONGODB_URI.replace(/\/\?/, `/${env.MONGODB_DB_NAME}?`)
-    : env.MONGODB_URI.endsWith('/')
-      ? `${env.MONGODB_URI}${env.MONGODB_DB_NAME}`
-      : `${env.MONGODB_URI}/${env.MONGODB_DB_NAME}`;
-
-  console.log(`Connecting to MongoDB at ${connectionString.replace(/:([^@]+)@/, ':****@')}...`);
-  await mongoose.connect(connectionString);
+  console.log(
+    `Connecting to MongoDB (${env.MONGODB_DB_NAME}) at ${env.MONGODB_URI.replace(/:([^@]+)@/, ':****@')}...`,
+  );
+  await mongoose.connect(env.MONGODB_URI, { dbName: env.MONGODB_DB_NAME });
 
   try {
     const user = await User.findOne({ email: email.toLowerCase() });

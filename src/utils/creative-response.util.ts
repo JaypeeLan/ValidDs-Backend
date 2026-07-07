@@ -69,6 +69,13 @@ export const CREATIVE_META_ADS_MATCH = {
 };
 export const CREATIVE_COMMERCIAL_MATCH = CREATIVE_TRENDING_MATCH;
 
+export type AdminCreativeAdType = 'ads' | 'organic';
+
+/** Admin dashboard `adType` query → same buckets as public creative feeds. */
+export function adminCreativeAdTypeMatch(adType: AdminCreativeAdType): Record<string, unknown> {
+  return adType === 'ads' ? CREATIVE_TOP_ADS_MATCH : CREATIVE_TRENDING_MATCH;
+}
+
 const TIKTOK_VIDEO_ID_RE = /(?:\/video\/|embed\/v2\/)(\d+)/i;
 
 type CreativePlain = Record<string, unknown>;

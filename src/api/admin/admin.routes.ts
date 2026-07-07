@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../../middleware/auth.middleware';
+import { requireAuth, requireRole, requireSuperAdmin } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import * as adminController from './admin.controller';
 import {
@@ -10,6 +10,7 @@ import {
   AdminProductsQuerySchema_v2,
   AdminWaitlistQuerySchema,
   UpdateUserStatusSchema,
+  UpdateUserRoleSchema,
   AdminAnalyticsQuerySchema,
   AdminMaintenanceRunsQuerySchema,
   AdminJobHeartbeatsQuerySchema,
@@ -51,30 +52,39 @@ router.get(
   adminController.getInventoryAnalyticsHandler,
 );
 
-router.get('/operations/overview', adminController.getOperationsOverviewHandler);
-router.get('/operations/triggerable-jobs', adminController.listTriggerableJobsHandler);
+router.get('/operations/overview', requireSuperAdmin, adminController.getOperationsOverviewHandler);
+router.get(
+  '/operations/triggerable-jobs',
+  requireSuperAdmin,
+  adminController.listTriggerableJobsHandler,
+);
 router.post(
   '/operations/trigger',
+  requireSuperAdmin,
   validate(AdminQueueJobTriggerSchema, 'body'),
   adminController.queueJobTriggerHandler,
 );
 router.get(
   '/operations/triggers',
+  requireSuperAdmin,
   validate(AdminJobTriggersQuerySchema, 'query'),
   adminController.listJobTriggersHandler,
 );
 router.get(
   '/maintenance/runs',
+  requireSuperAdmin,
   validate(AdminMaintenanceRunsQuerySchema, 'query'),
   adminController.listMaintenanceRunsHandler,
 );
 router.get(
   '/maintenance/jobs',
+  requireSuperAdmin,
   validate(AdminJobHeartbeatsQuerySchema, 'query'),
   adminController.listJobHeartbeatsHandler,
 );
 router.get(
   '/providers/health',
+  requireSuperAdmin,
   validate(AdminProviderHealthQuerySchema, 'query'),
   adminController.getProviderHealthHandler,
 );
@@ -92,6 +102,13 @@ router.patch(
   validate(AdminUserIdParamSchema, 'params'),
   validate(UpdateUserStatusSchema, 'body'),
   adminController.updateUserStatus,
+);
+router.patch(
+  '/users/:userId/role',
+  requireSuperAdmin,
+  validate(AdminUserIdParamSchema, 'params'),
+  validate(UpdateUserRoleSchema, 'body'),
+  adminController.updateUserRole,
 );
 
 // ── Products — market required on every operation ─────────────────────────────

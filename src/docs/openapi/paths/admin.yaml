@@ -249,7 +249,7 @@ users:
         name: role
         schema:
           type: string
-          enum: [user, admin]
+          enum: [user, admin, super_admin]
         description: Filter by user role
       - in: query
         name: q

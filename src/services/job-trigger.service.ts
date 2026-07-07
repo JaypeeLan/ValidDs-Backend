@@ -16,7 +16,7 @@ export const TRIGGERABLE_JOBS: TriggerableJob[] = [
     job: 'full_maintenance',
     service: 'product-maintenance',
     label: 'Full daily maintenance',
-    description: 'Metrics → prices → meta ads → promo videos',
+    description: 'Metrics → prices (meta ads + promo videos run in scraper)',
   },
   {
     job: 'product_metrics_refresh',
@@ -32,13 +32,13 @@ export const TRIGGERABLE_JOBS: TriggerableJob[] = [
   },
   {
     job: 'meta_ads_refresh',
-    service: 'product-maintenance',
+    service: 'scraper',
     label: 'Meta ads refresh',
     description: 'Search Meta Ad Library and attach creatives',
   },
   {
     job: 'product_promo_videos_refresh',
-    service: 'product-maintenance',
+    service: 'scraper',
     label: 'Promo videos',
     description: 'Discover extra TikTok promo clips per product',
   },

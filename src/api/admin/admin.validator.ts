@@ -5,7 +5,7 @@ export const AdminUsersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   status: z.enum(['active', 'suspended', 'deleted']).optional(),
-  role: z.enum(['user', 'admin']).optional(),
+  role: z.enum(['user', 'admin', 'super_admin']).optional(),
   plan: z.enum(['free', 'explorer', 'pro', 'premium']).optional(),
   q: z.string().trim().min(1).optional(),
 });
@@ -16,6 +16,10 @@ export const AdminUserIdParamSchema = z.object({
 
 export const UpdateUserStatusSchema = z.object({
   status: z.enum(['active', 'suspended']),
+});
+
+export const UpdateUserRoleSchema = z.object({
+  role: z.enum(['user', 'admin', 'super_admin']),
 });
 
 // ── Market param — required on all content create/list/delete operations ──────
@@ -163,6 +167,7 @@ export type AdminTransactionsQueryInput = z.infer<typeof AdminTransactionsQueryS
 export type CreateTransactionInput = z.infer<typeof CreateTransactionSchema>;
 export type AdminUsersQueryInput = z.infer<typeof AdminUsersQuerySchema>;
 export type UpdateUserStatusInput = z.infer<typeof UpdateUserStatusSchema>;
+export type UpdateUserRoleInput = z.infer<typeof UpdateUserRoleSchema>;
 export type AdminUserIdParamInput = z.infer<typeof AdminUserIdParamSchema>;
 export type AdminProductIdParamInput = z.infer<typeof AdminProductIdParamSchema>;
 export type AdminProductsQueryInput = z.infer<typeof AdminProductsQuerySchema>;

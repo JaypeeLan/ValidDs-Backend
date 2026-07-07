@@ -236,7 +236,7 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     // Role & plan
     role: {
       type: String,
-      enum: ['user', 'admin'] as UserRole[],
+      enum: ['user', 'admin', 'super_admin'] as UserRole[],
       default: 'user',
       trim: true,
       set: (v: string) => (v ? v.trim().toLowerCase() : v),

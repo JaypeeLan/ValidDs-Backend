@@ -4,6 +4,7 @@ import { getStripe } from './stripe.service';
 import { ShopifyService } from './shopify.service';
 import { AuthService } from './auth.service';
 import { logger } from '../logger';
+import { isDashboardRole } from '../utils/roles.util';
 
 const log = logger.child({ module: 'account-service' });
 
@@ -23,7 +24,7 @@ export const AccountService = {
       throw new AppError(404, 'Account not found', 'USER_NOT_FOUND');
     }
 
-    if (user.role === 'admin') {
+    if (isDashboardRole(user.role)) {
       throw new AppError(
         400,
         'Admin accounts cannot be closed via this endpoint',

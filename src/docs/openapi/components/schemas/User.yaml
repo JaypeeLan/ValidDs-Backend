@@ -33,7 +33,7 @@ properties:
     nullable: true
   role:
     type: string
-    enum: [user, admin]
+    enum: [user, admin, super_admin]
     example: user
   status:
     type: string

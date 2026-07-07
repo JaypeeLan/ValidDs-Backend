@@ -4,7 +4,7 @@ import type { ProductFeedItem } from './product.types';
 
 export type AuthProvider = 'google' | 'local' | 'tiktok';
 export type UserPlan = 'free' | 'explorer' | 'pro' | 'premium';
-export type UserRole = 'user' | 'admin';
+export type UserRole = 'user' | 'admin' | 'super_admin';
 export type UserStatus = 'active' | 'suspended' | 'deleted';
 
 export interface IGoogleAuth {

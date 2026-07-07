@@ -13,12 +13,14 @@ import {
   CREATIVE_TRENDING_MATCH,
 } from '../../utils/creative-response.util';
 import { AppError } from '../../middleware/error.middleware';
+import { canManageAdminAccounts, isPrivilegedAdmin } from '../../utils/roles.util';
 import type {
   AdminTransactionsQueryInput,
   CreateTransactionInput,
   AdminUsersQueryInput,
   AdminUserIdParamInput,
   UpdateUserStatusInput,
+  UpdateUserRoleInput,
   AdminWaitlistQueryInput,
   AdminProductsQueryV2Input,
   AdminDeleteContentParamInput,
@@ -431,6 +433,10 @@ export const updateUserStatus = async (
       throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
     }
 
+    if (isPrivilegedAdmin(user.role) && !canManageAdminAccounts(req.user?.role)) {
+      throw new AppError(403, 'Only super admins can change admin account status', 'FORBIDDEN');
+    }
+
     user.status = status;
     await user.save();
 
@@ -438,6 +444,38 @@ export const updateUserStatus = async (
       successResponse(
         { id: userId, status: user.status },
         `User status updated to ${status} successfully.`,
+      ),
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateUserRole = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { userId } = req.params as unknown as AdminUserIdParamInput;
+    const { role } = req.body as UpdateUserRoleInput;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    if (req.user && String(req.user._id) === String(user._id)) {
+      throw new AppError(400, 'You cannot change your own role', 'INVALID_OPERATION');
+    }
+
+    user.role = role;
+    await user.save();
+
+    res.json(
+      successResponse(
+        { id: userId, role: user.role },
+        `User role updated to ${role} successfully.`,
       ),
     );
   } catch (err) {
@@ -460,6 +498,10 @@ export const deleteUser = async (
 
     if (req.user && String(req.user._id) === String(user._id)) {
       throw new AppError(400, 'Admin cannot delete their own account', 'INVALID_OPERATION');
+    }
+
+    if (isPrivilegedAdmin(user.role) && !canManageAdminAccounts(req.user?.role)) {
+      throw new AppError(403, 'Only super admins can delete admin accounts', 'FORBIDDEN');
     }
 
     await User.findByIdAndDelete(userId);

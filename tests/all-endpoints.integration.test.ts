@@ -455,6 +455,9 @@ describe('All API endpoints (HTTP integration)', () => {
 
   // ── Billing ───────────────────────────────────────────────────────────────
 
+  it('GET /billing/config', () =>
+    hit('GET', `${API}/billing/config`, { token: 'user', allowed: [200] }));
+
   it('GET /billing/plans', () =>
     hit('GET', `${API}/billing/plans`, { token: 'user', allowed: [200] }));
 
@@ -485,7 +488,6 @@ describe('All API endpoints (HTTP integration)', () => {
 
   it('POST /waitlist', () =>
     hit('POST', `${API}/waitlist`, {
-      token: 'user',
       body: { email: `waitlist-${Date.now()}@validds.test` },
       allowed: [200, 201],
     }));

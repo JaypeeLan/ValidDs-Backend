@@ -3,7 +3,7 @@ join:
     tags: [Waitlist]
     summary: Join the pre-launch waitlist
     description: |
-      Adds an email to the waitlist. Requires a Bearer JWT.
+      Adds an email to the waitlist. Public endpoint (no auth required).
 
       The email is normalised (trimmed + lowercased) before storage. If the
       email is already on the waitlist the endpoint responds **200** with
@@ -31,8 +31,6 @@ join:
                 maxLength: 512
                 description: Optional referring URL. Defaults to the `Referer` header when omitted.
                 example: https://twitter.com/validds
-    security:
-      - BearerAuth: []
     responses:
       '201':
         description: Email successfully added to the waitlist.
@@ -68,5 +66,3 @@ join:
                         joinedAt: { type: string, format: date-time }
       '400':
         $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
-      '401':
-        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'

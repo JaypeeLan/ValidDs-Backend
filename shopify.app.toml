@@ -11,6 +11,7 @@ api_version = "2026-04"
   [[webhooks.subscriptions]]
   uri = "https://validds-backend-g196.onrender.com/api/v1/webhooks/shopify"
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+  topics = [ "app/uninstalled", "app_subscriptions/update" ]
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes

@@ -138,6 +138,10 @@ feed:
         in: query
         description: Minimum total likes on the source TikTok post (`likeCount`).
         schema: { type: number, minimum: 0, example: 10000 }
+      - name: maxLikes
+        in: query
+        description: Maximum total likes on the source TikTok post (`likeCount`).
+        schema: { type: number, minimum: 0, example: 500000 }
       - name: minEngagementRate
         in: query
         description: Minimum likes÷views ratio as a percent (e.g. `1` = 1%).

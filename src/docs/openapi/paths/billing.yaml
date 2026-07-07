@@ -143,11 +143,14 @@ listPlans:
 createCheckoutSession:
   post:
     tags: [Billing]
-    summary: Create Stripe Checkout session (authenticated)
+    summary: Create checkout session (Stripe or Shopify) (authenticated)
     description: |
-      Creates a hosted Checkout Session for a paid plan.
+      Creates a hosted checkout session for a paid plan.
 
-      Returns `data.url` — redirect the user's browser to this URL to complete checkout on Stripe's hosted page.
+      Use `provider: "stripe"` (default) for Stripe Checkout, or `provider: "shopify"` to generate a Shopify
+      App Billing approval URL (requires a connected Shopify store).
+
+      Returns `data.url` — redirect the user's browser to this URL to complete checkout.
 
       **Free trial (default):** Stripe collects the card but does not charge until the trial ends (`trialDays` days).
 
@@ -169,6 +172,11 @@ createCheckoutSession:
             type: object
             required: [plan]
             properties:
+              provider:
+                type: string
+                enum: [stripe, shopify]
+                default: stripe
+                description: Billing provider. Shopify requires the user to have a connected store.
               plan:
                 type: string
                 enum: [explorer, pro, premium]
@@ -193,12 +201,19 @@ createCheckoutSession:
             withTrial:
               summary: Start free trial (default)
               value:
+                provider: stripe
                 plan: pro
             directSubscribe:
               summary: Subscribe immediately, no trial
               value:
+                provider: stripe
                 plan: pro
                 withTrial: false
+            shopifyApproval:
+              summary: Shopify App Billing approval (requires connected store)
+              value:
+                provider: shopify
+                plan: pro
     responses:
       '200':
         description: Checkout session created — redirect user to `data.url`
@@ -211,17 +226,21 @@ createCheckoutSession:
                   properties:
                     data:
                       type: object
-                      required: [url, sessionId]
+                      required: [url, provider]
                       properties:
                         url:
                           type: string
                           format: uri
-                          description: Stripe hosted checkout URL — navigate the browser here.
+                          description: Hosted checkout / approval URL — navigate the browser here.
                           example: 'https://checkout.stripe.com/pay/cs_test_...'
                         sessionId:
                           type: string
-                          description: Stripe Checkout Session ID.
+                          nullable: true
+                          description: Stripe Checkout Session ID (Stripe only).
                           example: 'cs_test_a1b2c3...'
+                        provider:
+                          type: string
+                          enum: [stripe, shopify]
       '400':
         $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
       '401':

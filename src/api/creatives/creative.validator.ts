@@ -32,6 +32,7 @@ const CreativeListQueryBaseSchema = z.object({
     .regex(/^[a-zA-Z]{2}$/, 'Region must be a 2-letter country code')
     .optional(),
   minViews: z.coerce.number().min(0).optional(),
+  maxViews: z.coerce.number().min(0).optional(),
   hashtags: z.union([z.string(), z.array(z.string())]).optional(),
   sortBy: z.string().max(40).optional(),
   groupBy: z.enum(['creator']).optional(),
@@ -62,6 +63,13 @@ function validateCreativeListQuery(
   ctx: z.RefinementCtx,
 ) {
   validateContentMetricRanges(val, ctx);
+  if (val.minViews != null && val.maxViews != null && val.minViews > val.maxViews) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['minViews'],
+      message: 'minViews minimum cannot exceed maximum',
+    });
+  }
   const sortBy = normalizeCreativeSortBy(val.sortBy);
   if (val.sortBy && !sortBy) {
     const options = val.groupBy === 'creator' ? CREATOR_LOBBY_SORT_OPTIONS : CREATIVE_SORT_OPTIONS;

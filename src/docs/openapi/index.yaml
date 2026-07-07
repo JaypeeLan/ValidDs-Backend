@@ -48,7 +48,7 @@ tags:
   - name: Creatives
     description: TikTok creatives — list, top ads, detail, CDN video/thumbnail proxy, and embed URLs
   - name: Billing
-    description: Stripe billing — plan catalog, Checkout session creation, subscription state, and publishable key (JWT)
+    description: Stripe and Shopify billing — provider config, plan catalog, checkout, subscription state, sync, and webhooks (JWT)
   - name: Waitlist
     description: Pre-launch email waitlist — `POST /api/v1/waitlist` (JWT)
   - name: Stores
@@ -135,12 +135,16 @@ paths:
     $ref: './paths/creatives.yaml#/creativeStreamVideo'
   /api/v1/creatives/{id}/thumbnail:
     $ref: './paths/creatives.yaml#/creativeStreamThumbnail'
+  /api/v1/billing/config:
+    $ref: './paths/billing.yaml#/billingConfig'
   /api/v1/billing/plans:
     $ref: './paths/billing.yaml#/listPlans'
   /api/v1/billing/stripe-config:
     $ref: './paths/billing.yaml#/stripeConfig'
   /api/v1/billing/checkout:
     $ref: './paths/billing.yaml#/createCheckoutSession'
+  /api/v1/billing/shopify/sync:
+    $ref: './paths/billing.yaml#/syncShopifySubscription'
   /api/v1/billing/subscription:
     $ref: './paths/billing.yaml#/getSubscription'
   /api/v1/billing/subscription/cancel:
@@ -149,6 +153,8 @@ paths:
     $ref: './paths/billing.yaml#/getTransactions'
   /api/v1/webhooks/stripe:
     $ref: './paths/billing.yaml#/stripeWebhook'
+  /api/v1/webhooks/shopify:
+    $ref: './paths/billing.yaml#/shopifyWebhook'
   /api/v1/waitlist:
     $ref: './paths/waitlist.yaml#/join'
   /api/v1/stores/shopify/install:

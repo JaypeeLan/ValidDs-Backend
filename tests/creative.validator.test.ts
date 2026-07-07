@@ -31,4 +31,14 @@ describe('CreativeListQuerySchema', () => {
     const parsed = CreativeListQuerySchema.parse({ hashtags: 'beautyfinds,skincare' });
     expect(parsed.hashtags).toEqual(['beautyfinds', 'skincare']);
   });
+
+  it('accepts minViews and maxViews', () => {
+    const parsed = CreativeListQuerySchema.parse({ minViews: 1000, maxViews: 500000 });
+    expect(parsed.minViews).toBe(1000);
+    expect(parsed.maxViews).toBe(500000);
+  });
+
+  it('rejects minViews greater than maxViews', () => {
+    expect(() => CreativeListQuerySchema.parse({ minViews: 100000, maxViews: 1000 })).toThrow();
+  });
 });

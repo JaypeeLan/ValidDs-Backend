@@ -46,7 +46,7 @@ export const TRIGGERABLE_JOBS: TriggerableJob[] = [
     job: 'discovery_sections_refresh',
     service: 'product-maintenance',
     label: 'Discovery sections',
-    description: 'Refresh new-3d / new-7d discovery tags',
+    description: 'Refresh product discovery section tags',
   },
   {
     job: 'ensure_videos',

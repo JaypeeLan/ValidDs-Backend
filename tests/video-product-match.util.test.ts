@@ -29,12 +29,22 @@ describe('video-product-match.util', () => {
     ).toBe(false);
   });
 
-  it('creativeVideoProductMatchReason skips listingVerified rows', () => {
+  it('creativeVideoProductMatchReason rejects listingVerified rows with mismatched caption', () => {
     expect(
       creativeVideoProductMatchReason({
         externalVideoId: '123',
         productName: 'Tarte Colored Clay CC Undereye Corrector',
         description: 'random unrelated caption',
+        listingVerified: true,
+      }),
+    ).toMatch(/listing-verified creative caption does not match product/);
+  });
+
+  it('creativeVideoProductMatchReason allows listingVerified rows without caption', () => {
+    expect(
+      creativeVideoProductMatchReason({
+        externalVideoId: '123',
+        productName: 'Tarte Colored Clay CC Undereye Corrector',
         listingVerified: true,
       }),
     ).toBeNull();

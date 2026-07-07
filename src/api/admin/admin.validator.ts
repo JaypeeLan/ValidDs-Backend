@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MARKET_CODES } from '../../utils/markets';
+import { PRODUCT_DISCOVERY_SECTIONS } from '../products/product.constants';
 
 export const AdminUsersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -43,6 +44,7 @@ export const AdminProductsQuerySchema_v2 = z.object({
   status: z.enum(['active', 'archived', 'stale']).optional(),
   source: z.string().optional(),
   category: z.string().optional(),
+  section: z.enum(PRODUCT_DISCOVERY_SECTIONS).optional(),
   q: z.string().trim().min(1).optional(),
 });
 

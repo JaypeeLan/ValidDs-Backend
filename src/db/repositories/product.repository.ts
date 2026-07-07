@@ -7,10 +7,7 @@ import {
   recencyPrioritySortSpec,
   recencyTierAddFields,
   usesRecencyPriorityWithGmv,
-  NEW_POST_PRIORITY_DAYS_3,
-  NEW_POST_PRIORITY_DAYS_7,
 } from '../../utils/product-recency.util';
-import { postPublishedWithinDaysFilter } from '../../utils/discovery-sections.util';
 import {
   applyProductCreatorMetricFilters,
   applyProductMetricFilters,
@@ -623,13 +620,7 @@ function applyDiscoverySectionRules(
   opts: { section?: string; isAd?: boolean },
 ): void {
   const parts: Record<string, unknown>[] = [];
-  if (opts.section === 'new-7d') {
-    parts.push({ discoverySections: 'new-7d' });
-    parts.push(postPublishedWithinDaysFilter(NEW_POST_PRIORITY_DAYS_7));
-  } else if (opts.section === 'new-3d') {
-    parts.push({ discoverySections: 'new-3d' });
-    parts.push(postPublishedWithinDaysFilter(NEW_POST_PRIORITY_DAYS_3));
-  } else if (opts.section) {
+  if (opts.section) {
     parts.push({ discoverySections: opts.section });
   }
   if (opts.isAd === true) parts.push({ discoverySections: 'top-ads' });

@@ -511,8 +511,13 @@ export const ALL_CATEGORY_PATHS: string[] = Object.entries(CATEGORY_TAXONOMY).fl
     Object.entries(subcats).flatMap(([l2, leaves]) => leaves.map((l3) => `${l1} > ${l2} > ${l3}`)),
 );
 
-/** Stored on `Product.discoverySections` */
-export const PRODUCT_DISCOVERY_SECTIONS = ['top-ads', 'trending', 'new-3d', 'new-7d'] as const;
+/** Stored on `Product.discoverySections` — each product has exactly one. */
+export const PRODUCT_DISCOVERY_SECTIONS = [
+  'top-ads',
+  'trending',
+  'high-opportunity',
+  'global-selling',
+] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -49,10 +49,12 @@ feed:
         schema: { type: boolean }
       - name: section
         in: query
-        description: Require this discovery section slug on the product (e.g. `top-ads` for top ads).
+        description: >-
+          Require this discovery section slug on the product (e.g. `top-ads` for top ads,
+          `high-opportunity` / `global-selling` for TikTok Shop Partner Center pools).
         schema:
           type: string
-          enum: [top-ads, trending, new-3d, new-7d]
+          enum: [top-ads, trending, high-opportunity, global-selling]
       - name: feed
         in: query
         required: false

@@ -7,7 +7,6 @@ import { normalizeMetaAdLibraryUrl } from '../../utils/meta-ad-url.util';
 import { isTikTokPostUrl } from '../../utils/tiktok-url.util';
 import {
   INGEST_QUALITY,
-  MAX_REVIEWS_INGEST,
   MIN_PRODUCT_IMAGES,
   MIN_PRODUCT_RATING,
   asFiniteNumber,
@@ -27,11 +26,11 @@ import {
 } from './ingest-quality';
 import { productFieldCompletenessReasons } from './product-field-completeness';
 import { creativeVideoProductMatchReason } from '../../utils/video-product-match.util';
+import { matchedBlockedBrand } from '../../utils/brand-blocklist.util';
 
 export {
   BASELINE_INGEST,
   INGEST_QUALITY,
-  MAX_REVIEWS_INGEST,
   MIN_PRODUCT_IMAGES,
   MIN_PRODUCT_PRICE,
 } from './ingest-quality';
@@ -155,6 +154,16 @@ export function validateProductForIngest(
     reasons.push('title too short (< 8 chars) — need TikTok Shop listing title');
   }
 
+  // Branded / big-name products (e.g. Samsung Galaxy Buds, iPhone) are not viable
+  // dropshipping candidates — reject regardless of other quality signals.
+  const brandMatch =
+    typeof title === 'string'
+      ? (matchedBlockedBrand(String(doc.listingTitleRaw ?? '')) ?? matchedBlockedBrand(title))
+      : null;
+  if (brandMatch) {
+    reasons.push(`branded product not allowed for dropshipping (matched "${brandMatch}")`);
+  }
+
   // Category L2/L3 filled by AI categorizer after ingest; only L1 is required at ingest time.
   if (!doc.categoryL1 && !partnerPool) {
     reasons.push('missing categoryL1');
@@ -201,9 +210,6 @@ export function validateProductForIngest(
   }
 
   const reviews = doc.reviews;
-  if (Array.isArray(reviews) && reviews.length > MAX_REVIEWS_INGEST) {
-    reasons.push(`reviews must be capped at ${MAX_REVIEWS_INGEST}`);
-  }
 
   const ai = (doc.aiIntelligence ?? {}) as Record<string, unknown>;
   const rs = (ai.reviewSummary ?? {}) as Record<string, unknown>;

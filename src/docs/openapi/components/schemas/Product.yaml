@@ -375,14 +375,33 @@ properties:
 
   discoverySections:
     type: array
-    description: Discovery buckets this product belongs to.
+    description: >-
+      The single discovery bucket this product belongs to. `global-selling` and
+      `high-opportunity` are explicit signals from the TikTok Shop Partner Center
+      pools (preserved on re-ingest); `top-ads`/`trending` are derived from the ad flag.
+      Resolved by priority: global-selling > high-opportunity > top-ads > trending.
     items:
       type: string
-      enum: [top-ads, trending, new-3d, new-7d]
+      enum: [top-ads, trending, high-opportunity, global-selling]
 
   isTopAd:
     type: boolean
     description: '`true` when `discoverySections` contains `top-ads`. Computed on read.'
+
+  isHighOpportunity:
+    type: boolean
+    description: >-
+      Ingest-only signal. When `true`, the scraper marks this product as coming from the
+      TikTok Shop Partner Center high-opportunity pool, and the backend sets
+      `discoverySections` to `[high-opportunity]` (preserved across re-ingest).
+
+  isGlobalSelling:
+    type: boolean
+    description: >-
+      Ingest-only signal. When `true`, the scraper marks this product as coming from the
+      TikTok Shop Partner Center "Global Selling" pool (cross-border sellers), and the
+      backend sets `discoverySections` to `[global-selling]` (preserved across re-ingest).
+      Takes priority over `high-opportunity`.
 
   shopName:
     type: string

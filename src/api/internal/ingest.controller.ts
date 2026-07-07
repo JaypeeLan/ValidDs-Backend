@@ -4,11 +4,7 @@ import { getMarketModels } from '../../models/market-models.factory';
 import { normalizeProductTitle } from '../../db/repositories/product.repository';
 import { normalizePrimaryCreatorForStorage } from '../../utils/product-response.util';
 import { toMarketCode, isValidMarket } from '../../utils/markets';
-import {
-  MAX_REVIEWS_INGEST,
-  validateCreativeForIngest,
-  validateProductForIngest,
-} from './ingest.validation';
+import { validateCreativeForIngest, validateProductForIngest } from './ingest.validation';
 import { INGEST_QUALITY, hasTrendCurrentWindow } from './ingest-quality';
 import { normalizeCreativePayload, normalizeProductPayload } from './ingest.normalize';
 import { persistAllCreatorAvatarsOnCreative } from '../../services/creator-avatar-cache.service';
@@ -92,7 +88,7 @@ function parsePublishedAt(value: unknown): Date | null {
 
 function mapReviews(reviews: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(reviews)) return [];
-  return reviews.slice(0, MAX_REVIEWS_INGEST).map((r) => {
+  return reviews.map((r) => {
     if (!r || typeof r !== 'object')
       return { author: null, rating: null, content: null, date: null, item: null, images: [] };
     const row = r as Record<string, unknown>;

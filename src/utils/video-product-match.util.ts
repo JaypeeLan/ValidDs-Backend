@@ -137,6 +137,26 @@ const GENERIC_VIDEO_BRAND_TAGS = new Set([
   'fyp',
   'viral',
   'dealsforyoudays',
+  'makeup',
+  'beauty',
+  'cosmetics',
+  'concealer',
+  'colorcorrection',
+  'colorcorrector',
+  'stitch',
+  'productreview',
+  'empties',
+  'decemberempties',
+  'makeuplook',
+  'undereyecorrector',
+  'ccundereyecorrector',
+  'darkcircles',
+  'makeuphacks',
+  'beautytips',
+  'makeupdeals',
+  'tiktokfinds',
+  'makeupsale',
+  'beautycommunity',
 ]);
 
 function normalizeBrandStem(raw: string): string {
@@ -156,19 +176,27 @@ function extractProductBrandStems(productTitle: string, shopName?: string): Set<
     if (b.length >= 3) stems.add(b);
   }
   const shop = (shopName ?? '').trim();
-  if (shop && titleCf) {
-    const shopWords = shop
-      .toLowerCase()
-      .replace(/[,.-]+/g, ' ')
-      .split(/\s+/)
-      .filter(
-        (w) =>
-          w &&
-          !['inc', 'llc', 'ltd', 'co', 'store', 'shop', 'official', 'us', 'usa', 'uk'].includes(w),
-      );
-    if (shopWords[0] && shopWords[0].length >= 3 && titleCf.includes(shopWords[0])) {
-      stems.add(normalizeBrandStem(shopWords[0]));
+  if (!shop) return stems;
+  const shopWords = shop
+    .toLowerCase()
+    .replace(/[,.-]+/g, ' ')
+    .split(/\s+/)
+    .filter(
+      (w) =>
+        w &&
+        !['inc', 'llc', 'ltd', 'co', 'store', 'shop', 'official', 'us', 'usa', 'uk'].includes(w),
+    );
+  if (shopWords.length === 0) return stems;
+  const firstInTitle = Boolean(titleCf && shopWords[0] && titleCf.includes(shopWords[0]));
+  if (shopWords.length <= 3 && firstInTitle) {
+    for (const w of shopWords.slice(0, 2)) {
+      if (w.length >= 3) stems.add(normalizeBrandStem(w));
     }
+    if (shopWords.length >= 2) {
+      stems.add(normalizeBrandStem(`${shopWords[0]}${shopWords[1]}`));
+    }
+  } else if (titleCf && firstInTitle) {
+    stems.add(normalizeBrandStem(shopWords[0]));
     if (shopWords.length >= 2) {
       const combined = `${shopWords[0]}${shopWords[1]}`;
       if (titleCf.replace(/[^a-z0-9]/g, '').includes(combined)) {
@@ -277,14 +305,11 @@ export function videoMatchesProduct(
   return !(sigOverlap < minOverlap && score < minScore);
 }
 
-export function creativeVideoProductMatchReason(doc: Record<string, unknown>): string | null {
-  const ext = String(doc.externalVideoId ?? '');
-  if (ext.startsWith('meta:')) return null;
-  if (doc.listingVerified === true) return null;
-
-  const productTitle = String(doc.productName ?? '').trim();
-  if (productTitle.length < 4) return null;
-
+function captionProductMismatchReason(
+  doc: Record<string, unknown>,
+  productTitle: string,
+  listingVerified: boolean,
+): string | null {
   const shopName = String(doc.shopName ?? '').trim() || undefined;
   const originalCaption = String(doc.originalCaption ?? '').trim();
   const item = {
@@ -307,11 +332,22 @@ export function creativeVideoProductMatchReason(doc: Record<string, unknown>): s
     return null;
   }
   if (!videoItemText(item).trim()) {
-    return 'video caption missing — cannot verify product match';
+    return listingVerified ? null : 'video caption missing — cannot verify product match';
   }
 
   if (videoMatchesProduct(item, productTitle)) return null;
-  return `video caption does not match product ${productTitle.slice(0, 60)}`;
+  const prefix = listingVerified ? 'listing-verified creative caption' : 'video caption';
+  return `${prefix} does not match product ${productTitle.slice(0, 60)}`;
+}
+
+export function creativeVideoProductMatchReason(doc: Record<string, unknown>): string | null {
+  const ext = String(doc.externalVideoId ?? '');
+  if (ext.startsWith('meta:')) return null;
+
+  const productTitle = String(doc.productName ?? '').trim();
+  if (productTitle.length < 4) return null;
+
+  return captionProductMismatchReason(doc, productTitle, doc.listingVerified === true);
 }
 
 export function creativeVideoMatchesProduct(doc: Record<string, unknown>): boolean {

@@ -300,6 +300,7 @@ export const listProducts = async (
     if (query.status) filter.status = query.status;
     if (query.source) filter.source = query.source;
     if (query.category) filter.categoryL1 = query.category;
+    if (query.section) filter.discoverySections = query.section;
     if (query.q) {
       const regex = new RegExp(query.q, 'i');
       filter.$or = [{ title: regex }, { description: regex }];

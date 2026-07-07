@@ -377,6 +377,12 @@ products:
           type: string
         description: Filter by categoryL1
       - in: query
+        name: section
+        schema:
+          type: string
+          enum: [top-ads, trending, high-opportunity, global-selling]
+        description: Filter by discovery section (e.g. `high-opportunity`, `global-selling`).
+      - in: query
         name: q
         schema:
           type: string

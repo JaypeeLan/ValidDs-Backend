@@ -29,7 +29,6 @@ export const INGEST_QUALITY = {
 } as const;
 
 export const MIN_PRODUCT_IMAGES = 3;
-export const MAX_REVIEWS_INGEST = 25;
 export const MIN_PRODUCT_RATING = 3.5;
 /** Minimum list price (USD or market currency) for ingest and public feeds. */
 export const MIN_PRODUCT_PRICE = 10;

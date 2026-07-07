@@ -1,32 +1,57 @@
 import {
   discoverySectionsForProduct,
+  resolveGlobalSelling,
+  resolveHighOpportunity,
   resolveProductIsAd,
 } from '../src/utils/discovery-sections.util';
 
 describe('discoverySectionsForProduct', () => {
-  const now = Date.parse('2026-06-08T12:00:00.000Z');
-
-  it('tags organic posts with trending + recency buckets', () => {
-    const publishedAt = new Date('2026-06-07T12:00:00.000Z');
-    expect(
-      discoverySectionsForProduct({ publishedAt, discoverySections: ['tiktok_shop'] }, now),
-    ).toEqual(['trending', 'new-7d', 'new-3d']);
+  it('tags organic products with trending', () => {
+    expect(discoverySectionsForProduct({ discoverySections: ['tiktok_shop'] })).toEqual([
+      'trending',
+    ]);
   });
 
-  it('tags ad posts with top-ads', () => {
-    const publishedAt = new Date('2026-05-20T12:00:00.000Z');
-    expect(discoverySectionsForProduct({ publishedAt, isAd: true }, now)).toEqual(['top-ads']);
+  it('tags ad products with top-ads', () => {
+    expect(discoverySectionsForProduct({ isAd: true })).toEqual(['top-ads']);
+    expect(discoverySectionsForProduct({ discoverySections: ['top-ads'] })).toEqual(['top-ads']);
   });
 
-  it('drops new-7d once the post is older than 7 days', () => {
-    const publishedAt = new Date('2026-05-27T12:00:00.000Z');
+  it('tags high-opportunity products (explicit signal)', () => {
+    expect(discoverySectionsForProduct({ isHighOpportunity: true })).toEqual(['high-opportunity']);
+    expect(discoverySectionsForProduct({ discoverySections: ['high-opportunity'] })).toEqual([
+      'high-opportunity',
+    ]);
+  });
+
+  it('tags global-selling products (explicit signal)', () => {
+    expect(discoverySectionsForProduct({ isGlobalSelling: true })).toEqual(['global-selling']);
+    expect(discoverySectionsForProduct({ discoverySections: ['global-selling'] })).toEqual([
+      'global-selling',
+    ]);
+  });
+
+  it('resolves exactly one section by priority (global-selling wins)', () => {
     expect(
-      discoverySectionsForProduct({ publishedAt, discoverySections: ['top-ads', 'new-7d'] }, now),
-    ).toEqual(['top-ads']);
+      discoverySectionsForProduct({
+        isGlobalSelling: true,
+        isHighOpportunity: true,
+        isAd: true,
+      }),
+    ).toEqual(['global-selling']);
+    expect(discoverySectionsForProduct({ isHighOpportunity: true, isAd: true })).toEqual([
+      'high-opportunity',
+    ]);
   });
 
   it('resolveProductIsAd from stored top-ads section', () => {
-    expect(resolveProductIsAd({ discoverySections: ['top-ads', 'new-7d'] })).toBe(true);
+    expect(resolveProductIsAd({ discoverySections: ['top-ads'] })).toBe(true);
     expect(resolveProductIsAd({ discoverySections: ['trending'] })).toBe(false);
+  });
+
+  it('resolveHighOpportunity / resolveGlobalSelling from signals', () => {
+    expect(resolveHighOpportunity({ isHighOpportunity: true })).toBe(true);
+    expect(resolveGlobalSelling({ discoverySections: ['global-selling'] })).toBe(true);
+    expect(resolveGlobalSelling({ discoverySections: ['trending'] })).toBe(false);
   });
 });

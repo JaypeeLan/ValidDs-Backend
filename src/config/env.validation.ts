@@ -196,6 +196,18 @@ const envSchema = z.object({
     z.string().min(1).optional(),
   ),
 
+  /** `stripe` (default) or `shopify` for App Billing via connected store */
+  BILLING_PROVIDER: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.enum(['stripe', 'shopify']).optional().default('stripe'),
+  ),
+  /** When true, Shopify app subscriptions are test charges (dev stores). */
+  SHOPIFY_BILLING_TEST: z.coerce.boolean().optional().default(false),
+  SHOPIFY_PLAN_PRICE_EXPLORER_CENTS: z.coerce.number().int().min(0).optional().default(2900),
+  SHOPIFY_PLAN_PRICE_PRO_CENTS: z.coerce.number().int().min(0).optional().default(7900),
+  SHOPIFY_PLAN_PRICE_PREMIUM_CENTS: z.coerce.number().int().min(0).optional().default(19900),
+  SHOPIFY_BILLING_TRIAL_DAYS: z.coerce.number().int().min(0).max(365).optional().default(7),
+
   // ScrapeCreators
   SCRAPECREATORS_API_KEY: z.preprocess(
     (val) => (val === '' ? undefined : val),

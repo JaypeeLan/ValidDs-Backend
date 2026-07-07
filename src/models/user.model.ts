@@ -255,6 +255,13 @@ const UserSchema = new Schema<IUserDocument, IUserModel>(
     stripeCustomerId: { type: String, sparse: true },
     stripeSubscriptionId: { type: String, sparse: true },
     stripePriceId: { type: String, sparse: true },
+    billingProvider: {
+      type: String,
+      enum: ['stripe', 'shopify'],
+      sparse: true,
+    },
+    shopifySubscriptionId: { type: String, sparse: true },
+    shopifyBillingStatus: { type: String, sparse: true },
 
     // Usage
     usage: { type: UsageStatsSchema, default: () => ({}) },

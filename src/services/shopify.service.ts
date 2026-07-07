@@ -838,6 +838,54 @@ export const ShopifyService = {
     return (await res.json()) as T;
   },
 
+  /**
+   * Shopify Admin GraphQL API helper.
+   */
+  async adminGraphql<T>(
+    shop: string,
+    accessToken: string,
+    query: string,
+    variables?: Record<string, unknown>,
+  ): Promise<T> {
+    const url = `https://${shop}/admin/api/${env.SHOPIFY_API_VERSION}/graphql.json`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    if (res.status === 401) {
+      throw new AppError(
+        401,
+        'Shopify rejected our access token. Please reconnect your store.',
+        'SHOPIFY_AUTH_REVOKED',
+      );
+    }
+
+    const body = (await res.json()) as { data?: T; errors?: unknown };
+    const graphqlError = formatGraphqlErrors(body.errors);
+    if (!res.ok || graphqlError) {
+      log.warn('Shopify GraphQL request failed', {
+        shop,
+        status: res.status,
+        errors: body.errors,
+      });
+      throw new AppError(
+        502,
+        graphqlError
+          ? `Shopify GraphQL error: ${graphqlError}`
+          : `Shopify GraphQL error (${res.status})`,
+        'SHOPIFY_API_ERROR',
+      );
+    }
+
+    return body.data as T;
+  },
+
   // ── Add item to Shopify store ─────────────────────────────────────────────
 
   /**

@@ -11,27 +11,51 @@ import { BillingService } from '../../services/billing.service';
 import { TransactionService } from '../../services/transaction.service';
 import { UserPlan, IUserDocument } from '../../models/user.model';
 import { Transaction } from '../../models/transaction.model';
+import {
+  isShopifyBillingTestMode,
+  ShopifyBillingService,
+} from '../../services/shopify-billing.service';
+import { ShopifyService } from '../../services/shopify.service';
 import type {
   BillingTransactionsQueryInput,
   CancelSubscriptionBodyInput,
 } from './billing.validator';
 
-// ── Validation ────────────────────────────────────────────────────────────────
-
 const CheckoutBodySchema = z.object({
+  provider: z.enum(['stripe', 'shopify']).optional().default('stripe'),
   plan: z.enum(['explorer', 'pro', 'premium'] as const),
   withTrial: z.boolean().optional().default(true),
   successUrl: z.string().url().optional(),
   cancelUrl: z.string().url().optional(),
 });
 
-// ── Controller ────────────────────────────────────────────────────────────────
-
 export const BillingController = {
-  /**
-   * GET /api/v1/billing/stripe-config
-   * Public — returns publishable key for Stripe.js on the frontend.
-   */
+  billingConfig(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const stripeConfigured = Boolean(getStripe());
+      const shopifyConfigured = ShopifyService.isConfigured();
+      res.json(
+        successResponse(
+          {
+            providers: [
+              ...(stripeConfigured ? (['stripe'] as const) : []),
+              ...(shopifyConfigured ? (['shopify'] as const) : []),
+            ],
+            defaultProvider: 'stripe',
+            stripeConfigured,
+            shopifyConfigured,
+            shopifyBillingTest: isShopifyBillingTestMode(),
+            requiresShopifyStore: true,
+          },
+          ResponseMessage.SUCCESS,
+          200,
+        ),
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
   stripeConfig(_req: Request, res: Response, next: NextFunction): void {
     try {
       const publishableKey = getStripePublishableKey();
@@ -61,14 +85,6 @@ export const BillingController = {
     }
   },
 
-  /**
-   * GET /api/v1/billing/plans
-   * Public — returns all purchasable plans with live Stripe pricing, credit limits,
-   * trial days, and default success/cancel redirect URLs for checkout.
-   *
-   * Frontend uses this to render the pricing page and to know which plan ID to
-   * send to POST /checkout.
-   */
   async listPlans(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await BillingService.listPublicPlans();
@@ -78,19 +94,6 @@ export const BillingController = {
     }
   },
 
-  /**
-   * POST /api/v1/billing/checkout
-   * Auth required — creates a Stripe Checkout Session for the requested plan.
-   *
-   * Body: { plan: 'explorer' | 'pro' | 'premium', successUrl?, cancelUrl? }
-   * Returns: { url }  — frontend redirects the browser to this URL.
-   *
-   * After payment Stripe redirects to:
-   *   Success → FRONTEND_URL/billing/success?session_id=cs_...
-   *   Cancel  → FRONTEND_URL/billing
-   *
-   * All plans include a 7-day free trial (card required, not charged until trial ends).
-   */
   async createCheckoutSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const parsed = CheckoutBodySchema.safeParse(req.body);
@@ -103,8 +106,30 @@ export const BillingController = {
         return;
       }
 
-      const { plan, withTrial, successUrl, cancelUrl } = parsed.data;
+      const { provider, plan, withTrial, successUrl, cancelUrl } = parsed.data;
       const user = req.user as IUserDocument;
+
+      if (provider === 'shopify') {
+        const result = await ShopifyBillingService.createCheckout({
+          userId: String(user._id),
+          plan: plan as UserPlan,
+          withTrial,
+          returnUrl: successUrl,
+        });
+
+        res.json(
+          successResponse(
+            {
+              url: result.url,
+              sessionId: result.subscriptionId,
+              provider: 'shopify',
+            },
+            ResponseMessage.SUCCESS,
+            200,
+          ),
+        );
+        return;
+      }
 
       const priceId = getPriceIdForPlan(plan as UserPlan);
       if (!priceId) {
@@ -127,19 +152,24 @@ export const BillingController = {
         cancelUrl,
       });
 
-      res.json(successResponse({ url, sessionId }, ResponseMessage.SUCCESS, 200));
+      res.json(
+        successResponse({ url, sessionId, provider: 'stripe' }, ResponseMessage.SUCCESS, 200),
+      );
     } catch (err) {
       next(err);
     }
   },
 
-  /**
-   * GET /api/v1/billing/subscription
-   * Auth required — returns the current user's active plan, credit balance, Stripe IDs,
-   * and the last 10 transactions.
-   *
-   * Frontend calls this after the Stripe success redirect to confirm the plan is active.
-   */
+  async syncShopifySubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user as IUserDocument;
+      const result = await ShopifyBillingService.syncUserSubscription(String(user._id));
+      res.json(successResponse(result, 'Shopify subscription synced', 200));
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async getSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const user = req.user as IUserDocument;
@@ -155,8 +185,11 @@ export const BillingController = {
             plan: user.plan,
             creditBalance: user.creditBalance,
             planExpiresAt: user.planExpiresAt ?? null,
+            billingProvider: user.billingProvider ?? 'stripe',
             stripeCustomerId: user.stripeCustomerId ?? null,
             stripeSubscriptionId: user.stripeSubscriptionId ?? null,
+            shopifySubscriptionId: user.shopifySubscriptionId ?? null,
+            shopifyBillingStatus: user.shopifyBillingStatus ?? null,
             mode: isStripeLiveMode() ? 'live' : 'test',
             transactions,
           },
@@ -169,12 +202,6 @@ export const BillingController = {
     }
   },
 
-  /**
-   * POST /api/v1/billing/subscription/cancel
-   * Auth required — cancels the user's active Stripe subscription.
-   *
-   * Body: { immediate?: boolean } — default false (cancel at period end).
-   */
   async cancelSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const body = req.body as CancelSubscriptionBodyInput;
@@ -190,10 +217,6 @@ export const BillingController = {
     }
   },
 
-  /**
-   * GET /api/v1/billing/transactions
-   * Auth required — paginated billing history for the authenticated user.
-   */
   async getTransactions(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = req.query as unknown as BillingTransactionsQueryInput;

@@ -14,17 +14,22 @@ creatives:
       otherwise embed via `embedUrl` in an iframe.
 
       Market collection (`creatives_us`, `creatives_uk`, …) follows optional JWT content region.
+
+      **Video metrics:** `minViews`, `maxViews`, `minLikes`, `maxLikes` filter on `metrics.viewCount` /
+      `metrics.likeCount`. Combine with `minEngagementRate`, GMV/units, creator, and date filters below.
     tags:
       - Creatives
     parameters:
       - $ref: '#/components/creativeListParams/page'
       - $ref: '#/components/creativeListParams/limit'
       - $ref: '#/components/creativeListParams/q'
+      - $ref: '#/components/creativeListParams/search'
       - $ref: '#/components/creativeListParams/productId'
       - $ref: '#/components/creativeListParams/source'
       - $ref: '#/components/creativeListParams/section'
       - $ref: '#/components/creativeListParams/isAd'
       - $ref: '#/components/creativeListParams/minViews'
+      - $ref: '#/components/creativeListParams/maxViews'
       - $ref: '#/components/creativeListParams/hashtags'
       - $ref: '#/components/creativeListParams/sortBy'
       - $ref: '#/components/creativeListParams/groupBy'
@@ -32,6 +37,7 @@ creatives:
       - $ref: '#/components/creativeListParams/categoryL2'
       - $ref: '#/components/creativeListParams/categoryL3'
       - $ref: '#/components/creativeListParams/minLikes'
+      - $ref: '#/components/creativeListParams/maxLikes'
       - $ref: '#/components/creativeListParams/minGmv'
       - $ref: '#/components/creativeListParams/maxGmv'
       - $ref: '#/components/creativeListParams/minEngagementRate'
@@ -94,16 +100,21 @@ topAdsList:
       Contrast with `GET /creatives` (trending bucket). Does not accept a `section` filter.
 
       **Images:** use `creator.avatarProxyUrl` (not raw `avatarUrl`) for profile photos.
+
+      **Video metrics:** `minViews`, `maxViews`, `minLikes`, `maxLikes` filter on `metrics.viewCount` /
+      `metrics.likeCount`.
     tags:
       - Creatives
     parameters:
       - $ref: '#/components/creativeListParams/page'
       - $ref: '#/components/creativeListParams/limit'
       - $ref: '#/components/creativeListParams/q'
+      - $ref: '#/components/creativeListParams/search'
       - $ref: '#/components/creativeListParams/productId'
       - $ref: '#/components/creativeListParams/source'
       - $ref: '#/components/creativeListParams/isAd'
       - $ref: '#/components/creativeListParams/minViews'
+      - $ref: '#/components/creativeListParams/maxViews'
       - $ref: '#/components/creativeListParams/hashtags'
       - $ref: '#/components/creativeListParams/sortBy'
       - $ref: '#/components/creativeListParams/groupBy'
@@ -111,6 +122,7 @@ topAdsList:
       - $ref: '#/components/creativeListParams/categoryL2'
       - $ref: '#/components/creativeListParams/categoryL3'
       - $ref: '#/components/creativeListParams/minLikes'
+      - $ref: '#/components/creativeListParams/maxLikes'
       - $ref: '#/components/creativeListParams/minGmv'
       - $ref: '#/components/creativeListParams/maxGmv'
       - $ref: '#/components/creativeListParams/minEngagementRate'
@@ -454,6 +466,14 @@ components:
         type: string
         minLength: 1
         maxLength: 120
+    search:
+      name: search
+      in: query
+      description: Alias for `q`.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 120
     productId:
       name: productId
       in: query
@@ -483,9 +503,19 @@ components:
     minViews:
       name: minViews
       in: query
+      description: Minimum video views (`metrics.viewCount`).
       schema:
         type: integer
         minimum: 0
+        example: 10000
+    maxViews:
+      name: maxViews
+      in: query
+      description: Maximum video views (`metrics.viewCount`).
+      schema:
+        type: integer
+        minimum: 0
+        example: 5000000
     hashtags:
       name: hashtags
       in: query

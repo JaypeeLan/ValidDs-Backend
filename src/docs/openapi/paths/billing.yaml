@@ -1,19 +1,100 @@
+billingConfig:
+  get:
+    tags: [Billing]
+    summary: Available billing providers (authenticated)
+    description: |
+      Returns which checkout providers the API can use right now. Call this before rendering a pricing
+      page so the client knows whether to offer Stripe, Shopify, or both.
+
+      - **stripe** — included when the Stripe secret key is configured.
+      - **shopify** — included when Shopify OAuth credentials are configured (`SHOPIFY_API_KEY`, etc.).
+
+      Use `defaultProvider` (`stripe`) when the user does not choose a provider. Pass `provider` explicitly
+      to `POST /billing/checkout`.
+
+      Shopify checkout additionally requires `BILLING_PROVIDER=shopify`, plan price env vars
+      (`SHOPIFY_PLAN_PRICE_*_CENTS`), and a connected store (`GET /stores/shopify/status`).
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Provider availability
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required:
+                        - providers
+                        - defaultProvider
+                        - stripeConfigured
+                        - shopifyConfigured
+                        - shopifyBillingTest
+                        - requiresShopifyStore
+                      properties:
+                        providers:
+                          type: array
+                          items:
+                            type: string
+                            enum: [stripe, shopify]
+                          description: Checkout providers available on this deployment.
+                          example: [stripe, shopify]
+                        defaultProvider:
+                          type: string
+                          enum: [stripe, shopify]
+                          example: stripe
+                        stripeConfigured:
+                          type: boolean
+                        shopifyConfigured:
+                          type: boolean
+                          description: True when Shopify OAuth env vars are set.
+                        shopifyBillingTest:
+                          type: boolean
+                          description: True when `SHOPIFY_BILLING_TEST=true` or `NODE_ENV` is not production.
+                        requiresShopifyStore:
+                          type: boolean
+                          description: Always `true` — Shopify checkout needs a connected merchant store.
+            example:
+              success: true
+              message: OK
+              data:
+                providers: [stripe, shopify]
+                defaultProvider: stripe
+                stripeConfigured: true
+                shopifyConfigured: true
+                shopifyBillingTest: true
+                requiresShopifyStore: true
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+
 listPlans:
   get:
     tags: [Billing]
     summary: List purchasable plans
     description: |
-      Returns **explorer**, **pro**, and **premium** plan metadata — credit limits, live Stripe price data,
-      free trial days, and the default redirect URLs Checkout will use.
+      Returns **explorer**, **pro**, and **premium** plan metadata — credit limits, price data, free trial
+      days, and the default redirect URLs checkout will use.
 
-      **Free trial:** every plan includes `trialDays` days free. The user enters card details but is not
-      charged until the trial ends. Pass `withTrial: false` in `POST /billing/checkout` to skip the trial.
+      The top-level `provider` field reflects the server's `BILLING_PROVIDER` env (`stripe` or `shopify`) and
+      controls which price source populates `plans[].price`. For side-by-side checkout, call
+      `GET /billing/config` to see which providers are available, then pass `provider` to
+      `POST /billing/checkout`.
 
-      **checkoutRedirects** shows what `POST /billing/checkout` uses by default when `successUrl` / `cancelUrl`
-      are omitted. The `{CHECKOUT_SESSION_ID}` placeholder in `defaultSuccessUrl` is filled in by Stripe.
+      Each plan includes `stripePriceConfigured` and `shopifyPriceConfigured` so the UI can show which
+      providers are ready for that tier.
 
-      After the success redirect, call `GET /billing/subscription` (or listen for the `planUpgraded`
-      WebSocket event) — plan provisioning happens via webhook, not the redirect itself.
+      **Free trial:** every plan includes `trialDays` days free. Pass `withTrial: false` in
+      `POST /billing/checkout` to skip the trial.
+
+      **checkoutRedirects** shows default success/cancel URLs when `successUrl` / `cancelUrl` are omitted.
+      Stripe success URLs contain `{CHECKOUT_SESSION_ID}`; Shopify uses `?provider=shopify`.
+
+      After checkout, call `GET /billing/subscription` (or `POST /billing/shopify/sync` for Shopify) —
+      plan provisioning happens via webhook, not the browser redirect alone.
     responses:
       '200':
         description: Plan catalog, Stripe price data, and default redirect URLs
@@ -26,12 +107,20 @@ listPlans:
                   properties:
                     data:
                       type: object
-                      required: [mode, trialDays, plans, checkoutRedirects]
+                      required:
+                        [provider, mode, trialDays, requiresShopifyStore, plans, checkoutRedirects]
                       properties:
+                        provider:
+                          type: string
+                          enum: [stripe, shopify]
+                          description: Catalog price source — mirrors `BILLING_PROVIDER` env.
                         mode:
                           type: string
                           enum: [test, live]
-                          description: Reflects NODE_ENV — test unless production.
+                          description: Test unless production (Stripe) or `SHOPIFY_BILLING_TEST` (Shopify).
+                        requiresShopifyStore:
+                          type: boolean
+                          description: True when `provider` is `shopify`.
                         trialDays:
                           type: integer
                           example: 7
@@ -53,7 +142,13 @@ listPlans:
                           type: array
                           items:
                             type: object
-                            required: [id, limits, trialDays, stripePriceConfigured, price]
+                            required:
+                              - id
+                              - limits
+                              - trialDays
+                              - stripePriceConfigured
+                              - shopifyPriceConfigured
+                              - price
                             properties:
                               id:
                                 type: string
@@ -63,7 +158,10 @@ listPlans:
                                 example: 7
                               stripePriceConfigured:
                                 type: boolean
-                                description: False if the price ID env var is missing — checkout will return 503.
+                                description: False if the Stripe price ID env var is missing — Stripe checkout returns 503.
+                              shopifyPriceConfigured:
+                                type: boolean
+                                description: False if `SHOPIFY_PLAN_PRICE_*_CENTS` is missing — Shopify checkout returns 503.
                               limits:
                                 type: object
                                 properties:
@@ -100,8 +198,10 @@ listPlans:
               success: true
               message: 'OK'
               data:
+                provider: stripe
                 mode: test
                 trialDays: 7
+                requiresShopifyStore: false
                 checkoutRedirects:
                   defaultSuccessUrl: 'https://app.validds.com/billing/success?session_id={CHECKOUT_SESSION_ID}'
                   defaultCancelUrl: 'https://app.validds.com/billing'
@@ -109,6 +209,7 @@ listPlans:
                   - id: explorer
                     trialDays: 7
                     stripePriceConfigured: true
+                    shopifyPriceConfigured: true
                     limits:
                       {
                         creditsPerMonth: 15000,
@@ -120,6 +221,7 @@ listPlans:
                   - id: pro
                     trialDays: 7
                     stripePriceConfigured: true
+                    shopifyPriceConfigured: true
                     limits:
                       {
                         creditsPerMonth: 60000,
@@ -131,6 +233,7 @@ listPlans:
                   - id: premium
                     trialDays: 7
                     stripePriceConfigured: true
+                    shopifyPriceConfigured: true
                     limits:
                       {
                         creditsPerMonth: 200000,
@@ -147,21 +250,24 @@ createCheckoutSession:
     description: |
       Creates a hosted checkout session for a paid plan.
 
-      Use `provider: "stripe"` (default) for Stripe Checkout, or `provider: "shopify"` to generate a Shopify
-      App Billing approval URL (requires a connected Shopify store).
+      Use `provider: "stripe"` (default) for Stripe Checkout, or `provider: "shopify"` for Shopify App
+      Billing (requires a connected store and `BILLING_PROVIDER=shopify`).
 
       Returns `data.url` — redirect the user's browser to this URL to complete checkout.
 
-      **Free trial (default):** Stripe collects the card but does not charge until the trial ends (`trialDays` days).
+      **Stripe**
+      - Free trial (default): card is collected but not charged until `trialDays` elapse.
+      - Pass `"withTrial": false` to charge on the first billing cycle immediately.
+      - Success redirect → `FRONTEND_URL/billing/success?session_id=cs_...`
+      - Plan is provisioned via `checkout.session.completed` webhook.
 
-      **Subscribe directly:** Pass `"withTrial": false` to skip the trial and charge on the first billing cycle immediately.
+      **Shopify**
+      - Merchant approves the charge in Shopify Admin (`confirmationUrl`).
+      - Success redirect → `FRONTEND_URL/billing/success?provider=shopify&plan=...`
+      - Call `POST /billing/shopify/sync` after redirect (or rely on `app_subscriptions/update` webhook).
+      - Returns 409 `BILLING_PROVIDER_CONFLICT` if the user already has an active Stripe subscription.
 
-      After checkout Stripe redirects to:
-      - **Success** → `FRONTEND_URL/billing/success?session_id=cs_...`
-      - **Cancel** → `FRONTEND_URL/billing`
-
-      The plan is provisioned via webhook (`checkout.session.completed`), not the redirect.
-      After the success redirect, call `GET /billing/subscription` or `GET /auth/me` to refresh the user's plan in your UI.
+      After checkout, call `GET /billing/subscription` or `GET /auth/me` to refresh plan state in the UI.
     security:
       - BearerAuth: []
     requestBody:
@@ -236,7 +342,7 @@ createCheckoutSession:
                         sessionId:
                           type: string
                           nullable: true
-                          description: Stripe Checkout Session ID (Stripe only).
+                          description: Stripe Checkout Session ID (Stripe), or Shopify subscription GID (Shopify).
                           example: 'cs_test_a1b2c3...'
                         provider:
                           type: string
@@ -245,19 +351,110 @@ createCheckoutSession:
         $ref: '../components/responses/Standard.yaml#/BadRequestResponse'
       '401':
         $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '409':
+        description: Active Stripe subscription blocks Shopify checkout (`BILLING_PROVIDER_CONFLICT`).
       '503':
-        description: Stripe price ID for the requested plan is not configured in env.
+        description: Price ID / Shopify plan price not configured, or Shopify billing disabled.
+
+syncShopifySubscription:
+  post:
+    tags: [Billing]
+    summary: Sync Shopify subscription state (authenticated)
+    description: |
+      Polls the merchant's connected Shopify store for the active App Billing subscription and applies the
+      matching ValidDs plan. Use this after the merchant approves Shopify billing when webhooks are not
+      forwarded (local dev) or as a fallback if `app_subscriptions/update` was missed.
+
+      Requires `BILLING_PROVIDER=shopify`, a connected store, and Shopify OAuth credentials.
+
+      If no active subscription is found, the user is downgraded to `free`.
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Subscription synced from Shopify
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/Common.yaml#/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required: [synced, plan, subscription]
+                      properties:
+                        synced:
+                          type: boolean
+                          description: False when Shopify subscription name could not be mapped to a plan.
+                        plan:
+                          type: string
+                          enum: [free, explorer, pro, premium]
+                        subscription:
+                          nullable: true
+                          type: object
+                          description: Active or pending Shopify app subscription row, if any.
+                          properties:
+                            id:
+                              type: string
+                              description: Shopify GraphQL subscription GID.
+                            name:
+                              type: string
+                              example: ValidDs Pro
+                            status:
+                              type: string
+                              enum: [ACTIVE, PENDING, CANCELLED, DECLINED, EXPIRED, FROZEN]
+                            test:
+                              type: boolean
+                            trialDays:
+                              type: integer
+                            currentPeriodEnd:
+                              nullable: true
+                              type: string
+                              format: date-time
+                            amountCents:
+                              nullable: true
+                              type: integer
+                            currency:
+                              nullable: true
+                              type: string
+                            interval:
+                              nullable: true
+                              type: string
+                              enum: [month, year]
+            example:
+              success: true
+              message: Shopify subscription synced
+              data:
+                synced: true
+                plan: pro
+                subscription:
+                  id: 'gid://shopify/AppSubscription/123456789'
+                  name: ValidDs Pro
+                  status: ACTIVE
+                  test: true
+                  trialDays: 7
+                  currentPeriodEnd: null
+                  amountCents: 7900
+                  currency: usd
+                  interval: month
+      '401':
+        $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
+      '503':
+        description: Shopify billing not enabled or OAuth not configured.
 
 getSubscription:
   get:
     tags: [Billing]
     summary: Current subscription and billing snapshot (authenticated)
     description: |
-      Returns the authenticated user's live plan, credit balance, Stripe IDs, and last 10 transactions.
+      Returns the authenticated user's live plan, credit balance, billing provider, Stripe/Shopify IDs,
+      and last 10 transactions.
 
-      Call this after the Stripe success redirect to confirm the plan upgrade has been applied.
-      Because the auth middleware fetches the user live from the DB on every request, the plan will
-      always be up-to-date — no re-login or token refresh needed.
+      Call after checkout success to confirm the plan upgrade. Auth middleware loads the user from the DB
+      on every request, so plan state is current without re-login.
+
+      For Shopify, call `POST /billing/shopify/sync` first if the plan has not updated yet.
     security:
       - BearerAuth: []
     responses:
@@ -283,12 +480,24 @@ getSubscription:
                           nullable: true
                           type: string
                           format: date-time
+                        billingProvider:
+                          type: string
+                          enum: [stripe, shopify]
+                          description: Which provider bills this user (`stripe` when unset).
                         stripeCustomerId:
                           nullable: true
                           type: string
                         stripeSubscriptionId:
                           nullable: true
                           type: string
+                        shopifySubscriptionId:
+                          nullable: true
+                          type: string
+                          description: Shopify App Billing subscription GID.
+                        shopifyBillingStatus:
+                          nullable: true
+                          type: string
+                          description: Last known Shopify subscription status (e.g. ACTIVE, CANCELLED).
                         mode:
                           type: string
                           enum: [test, live]
@@ -297,6 +506,21 @@ getSubscription:
                           description: Last 10 transactions for this user.
                           items:
                             type: object
+                            properties:
+                              provider:
+                                type: string
+                                enum: [stripe, shopify]
+                              status:
+                                type: string
+                                enum: [pending, paid, failed, refunded]
+                              amount:
+                                type: number
+                              currency:
+                                type: string
+                              reference:
+                                nullable: true
+                                type: string
+                                description: Stripe session/subscription ID or Shopify subscription GID.
       '401':
         $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
 
@@ -305,15 +529,17 @@ cancelSubscription:
     tags: [Billing]
     summary: Cancel the authenticated user's subscription
     description: |
-      Cancels the user's active Stripe subscription.
+      Cancels the user's active subscription on Stripe or Shopify, depending on `billingProvider`.
 
-      **Default (`immediate: false`):** schedules cancellation at the end of the current billing
-      period. The user keeps plan access until `cancelAt`. Stripe sends
-      `customer.subscription.deleted` when the period ends, which downgrades the user to `free`.
+      **Stripe (default `immediate: false`):** schedules cancellation at period end. Access continues until
+      `cancelAt`. Stripe sends `customer.subscription.deleted` when the period ends, downgrading to `free`.
 
-      **`immediate: true`:** ends the subscription immediately and downgrades the user to `free`.
+      **Stripe (`immediate: true`):** ends the subscription now and downgrades to `free`.
 
-      Requires an active paid subscription (`stripeSubscriptionId` on the user).
+      **Shopify:** always cancels immediately via `appSubscriptionCancel` and downgrades to `free`.
+      The `immediate` body field is ignored for Shopify.
+
+      Requires an active paid plan and a `stripeSubscriptionId` or `shopifySubscriptionId` on the user.
     security:
       - BearerAuth: []
     requestBody:
@@ -339,7 +565,14 @@ cancelSubscription:
                   properties:
                     data:
                       type: object
-                      required: [canceled, immediate, plan, cancelAt, stripeSubscriptionId]
+                      required:
+                        - canceled
+                        - immediate
+                        - plan
+                        - cancelAt
+                        - provider
+                        - stripeSubscriptionId
+                        - shopifySubscriptionId
                       properties:
                         canceled:
                           type: boolean
@@ -355,18 +588,25 @@ cancelSubscription:
                           type: string
                           format: date-time
                           description: When access ends (null when cancelled immediately).
+                        provider:
+                          type: string
+                          enum: [stripe, shopify]
                         stripeSubscriptionId:
                           nullable: true
                           type: string
-                          description: Stripe subscription ID (null after immediate cancel).
+                          description: Remaining Stripe subscription ID (null after immediate cancel).
+                        shopifySubscriptionId:
+                          nullable: true
+                          type: string
+                          description: Cleared after Shopify cancel.
       '400':
         description: No active subscription to cancel
       '401':
         $ref: '../components/responses/Standard.yaml#/UnauthorizedResponse'
       '502':
-        description: Stripe cancellation failed
+        description: Stripe or Shopify cancellation failed
       '503':
-        description: Stripe is not configured
+        description: Billing provider not configured
 
 getTransactions:
   get:
@@ -375,6 +615,9 @@ getTransactions:
     description: |
       Returns the authenticated user's full billing transaction history with pagination.
       Only transactions belonging to the current user are returned — `userId` is never accepted from the client.
+
+      Each row includes `provider` (`stripe` or `shopify`) and `reference` (Stripe session/subscription ID
+      or Shopify subscription GID).
     security:
       - BearerAuth: []
     parameters:
@@ -407,6 +650,23 @@ getTransactions:
                           type: array
                           items:
                             type: object
+                            properties:
+                              provider:
+                                type: string
+                                enum: [stripe, shopify]
+                              status:
+                                type: string
+                                enum: [pending, paid, failed, refunded]
+                              amount:
+                                type: number
+                              currency:
+                                type: string
+                              reference:
+                                nullable: true
+                                type: string
+                              mode:
+                                type: string
+                                enum: [test, live]
                         pagination:
                           type: object
                           properties:
@@ -490,3 +750,67 @@ stripeWebhook:
         description: Missing or invalid Stripe signature, or malformed payload.
       '503':
         description: Stripe or webhook secret not configured in env.
+
+shopifyWebhook:
+  post:
+    tags: [Billing]
+    summary: Shopify webhook receiver
+    security: []
+    description: |
+      Receives signed webhooks from Shopify. Must receive the **raw** request body — registered before
+      `express.json` in `app.ts`.
+
+      **Headers (required):**
+      - `X-Shopify-Topic` — event name
+      - `X-Shopify-Hmac-Sha256` — HMAC signature
+      - `X-Shopify-Shop-Domain` — store domain
+
+      **Billing topics** (register in Partner Dashboard or `shopify.app.toml`):
+      - `app_subscriptions/update` — provisions or downgrades plan when App Billing status changes
+      - `app/uninstalled` — clears the ValidDs Shopify connection for that store
+
+      **Compliance topics** (acknowledged, no side effects):
+      - `customers/data_request`, `customers/redact`, `shop/redact`
+
+      **Production URL:** `https://<api-host>/api/v1/webhooks/shopify`
+
+      Without webhooks in local dev, use `POST /billing/shopify/sync` after the merchant approves billing.
+    parameters:
+      - in: header
+        name: X-Shopify-Topic
+        required: true
+        schema:
+          type: string
+          example: app_subscriptions/update
+      - in: header
+        name: X-Shopify-Hmac-Sha256
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: X-Shopify-Shop-Domain
+        required: true
+        schema:
+          type: string
+          example: my-store.myshopify.com
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            description: Raw Shopify webhook JSON (must be Buffer on server side for HMAC verification).
+    responses:
+      '200':
+        description: Event acknowledged
+        content:
+          text/plain:
+            schema:
+              type: string
+              example: OK
+      '401':
+        description: Invalid HMAC signature.
+      '500':
+        description: Handler error or body was not raw Buffer.
+      '503':
+        description: Shopify env vars not configured.

@@ -678,6 +678,7 @@ export const CreativeService = {
       section,
       isAd,
       minViews,
+      maxViews,
       hashtags,
       page = 1,
       limit = 20,
@@ -717,7 +718,12 @@ export const CreativeService = {
     if (source === 'tiktok') query.externalVideoId = { $not: /^meta:/ };
     if (section) query.section = apiSectionToDb(String(section));
     if (isAd !== undefined) query.isAd = isAd;
-    if (minViews) query['metrics.viewCount'] = { $gte: Number(minViews) };
+    if (minViews != null || maxViews != null) {
+      query['metrics.viewCount'] = {
+        ...(minViews != null ? { $gte: Number(minViews) } : {}),
+        ...(maxViews != null ? { $lte: Number(maxViews) } : {}),
+      };
+    }
     const categoryL1List = categoryL1 as string[] | undefined;
     const categoryL2List = categoryL2 as string[] | undefined;
     const categoryL3List = categoryL3 as string[] | undefined;

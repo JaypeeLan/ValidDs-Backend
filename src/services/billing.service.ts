@@ -7,6 +7,11 @@ import {
   isStripeLiveMode,
   STRIPE_TRIAL_DAYS,
 } from './stripe.service';
+import {
+  isShopifyBillingProvider,
+  isShopifyBillingTestMode,
+  shopifyPriceCentsForPlan,
+} from './shopify-billing.service';
 import { env } from '../config/env.validation';
 import { AppError } from '../middleware/error.middleware';
 import { logger } from '../logger';
@@ -29,7 +34,9 @@ export type SubscriptionCancellationResult = {
   immediate: boolean;
   plan: UserPlan;
   cancelAt: string | null;
+  provider: 'stripe' | 'shopify';
   stripeSubscriptionId: string | null;
+  shopifySubscriptionId: string | null;
 };
 
 export type PublicPlanRow = {
@@ -37,6 +44,7 @@ export type PublicPlanRow = {
   limits: (typeof PLAN_LIMITS)['free'];
   trialDays: number;
   stripePriceConfigured: boolean;
+  shopifyPriceConfigured: boolean;
   /** Fetched live from Stripe; null when Stripe is not configured or price lookup fails. */
   price: {
     amountCents: number | null;
@@ -53,20 +61,33 @@ export class BillingService {
    * Fetches live price data from Stripe so the frontend always shows accurate amounts.
    */
   static async listPublicPlans(): Promise<{
+    provider: 'stripe' | 'shopify';
     mode: 'test' | 'live';
     trialDays: number;
+    requiresShopifyStore: boolean;
     plans: PublicPlanRow[];
     checkoutRedirects: { defaultSuccessUrl: string; defaultCancelUrl: string };
   }> {
     const frontendUrl = env.FRONTEND_URL ?? 'http://localhost:3001';
+    const provider = isShopifyBillingProvider() ? 'shopify' : 'stripe';
+    const trialDays = isShopifyBillingProvider()
+      ? env.SHOPIFY_BILLING_TRIAL_DAYS
+      : STRIPE_TRIAL_DAYS;
     const stripe = getStripe();
     const plans: PublicPlanRow[] = [];
 
     for (const plan of PAID_PLANS) {
       const priceId = getPriceIdForPlan(plan);
       let price: PublicPlanRow['price'] = null;
+      const shopifyCents = shopifyPriceCentsForPlan(plan);
 
-      if (stripe && priceId) {
+      if (provider === 'shopify' && shopifyCents) {
+        price = {
+          amountCents: shopifyCents,
+          currency: 'usd',
+          interval: 'month',
+        };
+      } else if (stripe && priceId) {
         try {
           const p = await stripe.prices.retrieve(priceId);
           price = {
@@ -86,18 +107,32 @@ export class BillingService {
       plans.push({
         id: plan,
         limits: { ...PLAN_LIMITS[plan] },
-        trialDays: STRIPE_TRIAL_DAYS,
+        trialDays,
         stripePriceConfigured: Boolean(priceId),
+        shopifyPriceConfigured: Boolean(shopifyCents && shopifyCents > 0),
         price,
       });
     }
 
+    const successUrl =
+      provider === 'shopify'
+        ? `${frontendUrl}/billing/success?provider=shopify`
+        : `${frontendUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+
     return {
-      mode: isStripeLiveMode() ? 'live' : 'test',
-      trialDays: STRIPE_TRIAL_DAYS,
+      provider,
+      mode: isShopifyBillingProvider()
+        ? isShopifyBillingTestMode()
+          ? 'test'
+          : 'live'
+        : isStripeLiveMode()
+          ? 'live'
+          : 'test',
+      trialDays,
+      requiresShopifyStore: provider === 'shopify',
       plans,
       checkoutRedirects: {
-        defaultSuccessUrl: `${frontendUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+        defaultSuccessUrl: successUrl,
         defaultCancelUrl: `${frontendUrl}/billing`,
       },
     };
@@ -399,7 +434,25 @@ export class BillingService {
       throw new AppError(404, 'Account not found', 'USER_NOT_FOUND');
     }
 
-    if (user.plan === 'free' || !user.stripeSubscriptionId) {
+    if (user.plan === 'free') {
+      throw new AppError(400, 'No active subscription to cancel', 'NO_ACTIVE_SUBSCRIPTION');
+    }
+
+    if (user.billingProvider === 'shopify' || user.shopifySubscriptionId) {
+      const { ShopifyBillingService } = await import('./shopify-billing.service');
+      await ShopifyBillingService.cancelSubscription(userId);
+      return {
+        canceled: true,
+        immediate: true,
+        plan: 'free',
+        cancelAt: null,
+        provider: 'shopify',
+        stripeSubscriptionId: null,
+        shopifySubscriptionId: null,
+      };
+    }
+
+    if (!user.stripeSubscriptionId) {
       throw new AppError(400, 'No active subscription to cancel', 'NO_ACTIVE_SUBSCRIPTION');
     }
 
@@ -421,7 +474,9 @@ export class BillingService {
           immediate: true,
           plan: 'free',
           cancelAt: null,
+          provider: 'stripe',
           stripeSubscriptionId: null,
+          shopifySubscriptionId: null,
         };
       }
 
@@ -449,7 +504,9 @@ export class BillingService {
         immediate: false,
         plan: user.plan as UserPlan,
         cancelAt: cancelAt?.toISOString() ?? null,
+        provider: 'stripe',
         stripeSubscriptionId: subscriptionId,
+        shopifySubscriptionId: null,
       };
     } catch (err) {
       log.error('Failed to cancel Stripe subscription', { userId, subscriptionId, err });
@@ -479,5 +536,109 @@ export class BillingService {
     await user.save();
 
     log.info('Subscription cancelled — downgraded to free', { userId: String(user._id) });
+  }
+
+  /**
+   * Provisions a paid plan after Shopify App Billing approval.
+   */
+  static async provisionShopifyPlan(params: {
+    userId: string;
+    userEmail: string;
+    plan: UserPlan;
+    shop: string;
+    shopifySubscriptionId: string;
+    shopifyBillingStatus: string;
+    amountCents: number;
+    currency: string;
+  }): Promise<void> {
+    const existing = await Transaction.findOne({ reference: params.shopifySubscriptionId });
+    if (existing) {
+      const user = await User.findActiveById(params.userId);
+      if (user) {
+        user.plan = params.plan;
+        user.creditBalance = creditsForPlan(params.plan);
+        user.billingProvider = 'shopify';
+        user.shopifySubscriptionId = params.shopifySubscriptionId;
+        user.shopifyBillingStatus = params.shopifyBillingStatus;
+        user.planExpiresAt = undefined;
+        await user.save();
+      }
+      log.info('provisionShopifyPlan skipped transaction — already processed', {
+        subscriptionId: params.shopifySubscriptionId,
+      });
+      return;
+    }
+
+    const user = await User.findActiveById(params.userId);
+    if (!user) {
+      log.error('provisionShopifyPlan: user not found', { userId: params.userId });
+      return;
+    }
+
+    if (user.stripeSubscriptionId && user.billingProvider !== 'shopify') {
+      log.warn('provisionShopifyPlan skipped — user has Stripe subscription', {
+        userId: params.userId,
+        stripeSubscriptionId: user.stripeSubscriptionId,
+      });
+      return;
+    }
+
+    const credits = creditsForPlan(params.plan);
+    user.plan = params.plan;
+    user.creditBalance = credits;
+    user.billingProvider = 'shopify';
+    user.shopifySubscriptionId = params.shopifySubscriptionId;
+    user.shopifyBillingStatus = params.shopifyBillingStatus;
+    user.planExpiresAt = undefined;
+    await user.save();
+
+    await Transaction.create({
+      userId: user._id,
+      userEmail: params.userEmail || user.email,
+      provider: 'shopify',
+      mode: isShopifyBillingTestMode() ? 'test' : 'live',
+      status: 'paid',
+      amount: params.amountCents / 100,
+      currency: (params.currency ?? 'usd').toUpperCase(),
+      reference: params.shopifySubscriptionId,
+      metadata: {
+        plan: params.plan,
+        shop: params.shop,
+        shopifyBillingStatus: params.shopifyBillingStatus,
+      },
+    });
+
+    log.info('Shopify plan provisioned', {
+      userId: params.userId,
+      plan: params.plan,
+      shop: params.shop,
+      credits,
+    });
+
+    try {
+      SocketService.emitToUser(params.userId, 'planUpgraded', {
+        plan: params.plan,
+        creditBalance: credits,
+        provider: 'shopify',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      log.warn('Socket emit failed after Shopify plan provision', { userId: params.userId, err });
+    }
+  }
+
+  static async cancelShopifySubscription(userId: string): Promise<void> {
+    const user = await User.findActiveById(userId);
+    if (!user) return;
+
+    user.plan = 'free';
+    user.creditBalance = creditsForPlan('free');
+    user.shopifySubscriptionId = undefined;
+    user.shopifyBillingStatus = undefined;
+    user.billingProvider = undefined;
+    user.planExpiresAt = undefined;
+    await user.save();
+
+    log.info('Shopify subscription cancelled — downgraded to free', { userId });
   }
 }

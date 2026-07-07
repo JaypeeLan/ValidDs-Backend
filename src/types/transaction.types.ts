@@ -1,6 +1,6 @@
 import mongoose, { Document, Model } from 'mongoose';
 
-export type TransactionProvider = 'stripe';
+export type TransactionProvider = 'stripe' | 'shopify';
 export type TransactionMode = 'test' | 'live';
 export type TransactionStatus = 'pending' | 'paid' | 'failed' | 'refunded';
 

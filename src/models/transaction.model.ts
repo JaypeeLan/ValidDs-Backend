@@ -21,7 +21,7 @@ const TransactionSchema = new Schema<ITransactionDocument>(
     userEmail: { type: String, lowercase: true, trim: true },
     provider: {
       type: String,
-      enum: ['stripe'],
+      enum: ['stripe', 'shopify'],
       required: true,
       default: 'stripe',
       index: true,
@@ -66,7 +66,7 @@ const TransactionSchema = new Schema<ITransactionDocument>(
   {
     timestamps: true,
     versionKey: false,
-  }
+  },
 );
 
 TransactionSchema.index({ createdAt: -1 });

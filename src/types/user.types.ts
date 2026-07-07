@@ -114,6 +114,9 @@ export interface IUser {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   stripePriceId?: string;
+  billingProvider?: 'stripe' | 'shopify';
+  shopifySubscriptionId?: string;
+  shopifyBillingStatus?: string;
   usage: IUsageStats;
   savedProducts: ISavedProduct[];
   savedCreatives: ISavedCreative[];

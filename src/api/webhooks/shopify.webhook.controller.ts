@@ -20,14 +20,14 @@ export async function handleShopifyWebhook(req: Request, res: Response): Promise
     return;
   }
 
-  const payload = req.body;
-  if (!Buffer.isBuffer(payload)) {
+  const rawBody = req.body;
+  if (!Buffer.isBuffer(rawBody)) {
     log.error('Shopify webhook body is not a Buffer');
     res.status(500).send('Invalid webhook body');
     return;
   }
 
-  if (!ShopifyService.verifyWebhookHmac(payload, typeof hmac === 'string' ? hmac : undefined)) {
+  if (!ShopifyService.verifyWebhookHmac(rawBody, typeof hmac === 'string' ? hmac : undefined)) {
     log.warn('Shopify webhook HMAC verification failed', { topic, shopDomain });
     res.status(401).send('Invalid HMAC');
     return;
@@ -37,9 +37,17 @@ export async function handleShopifyWebhook(req: Request, res: Response): Promise
   const shop = typeof shopDomain === 'string' ? shopDomain : undefined;
 
   try {
+    const body = JSON.parse(rawBody.toString('utf8')) as Record<string, unknown>;
+
     switch (topicName) {
       case 'app/uninstalled':
         if (shop) await ShopifyService.handleAppUninstalled(shop);
+        break;
+      case 'app_subscriptions/update':
+        if (shop) {
+          const { ShopifyBillingService } = await import('../../services/shopify-billing.service');
+          await ShopifyBillingService.handleSubscriptionWebhook(shop, body);
+        }
         break;
       case 'customers/data_request':
       case 'customers/redact':

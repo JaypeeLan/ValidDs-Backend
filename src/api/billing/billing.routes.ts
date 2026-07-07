@@ -8,9 +8,11 @@ const router = Router();
 
 router.use(requireAuth);
 
+router.get('/config', BillingController.billingConfig);
 router.get('/stripe-config', BillingController.stripeConfig);
 router.get('/plans', BillingController.listPlans);
 router.post('/checkout', BillingController.createCheckoutSession);
+router.post('/shopify/sync', BillingController.syncShopifySubscription);
 router.get('/subscription', BillingController.getSubscription);
 router.post(
   '/subscription/cancel',

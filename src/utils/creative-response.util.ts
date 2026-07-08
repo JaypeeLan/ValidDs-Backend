@@ -21,50 +21,38 @@ import { creativeVideoMatchesProduct } from './video-product-match.util';
 import { sanitizeVideoMetrics } from './video-metrics.util';
 import { resolveCreativeTikTokUrl } from './tiktok-url.util';
 
-/** API `trending` ↔ DB `top-ads`; API `top-ads` ↔ DB `trending`. */
-const API_TO_DB_SECTION: Record<string, CreativeSection> = {
-  trending: 'top-ads',
-  'top-ads': 'trending',
-};
+export const CREATIVE_DEFAULT_SECTION: CreativeSection = 'default';
 
-const DB_TO_API_SECTION: Record<string, CreativeSection> = {
-  'top-ads': 'trending',
-  trending: 'top-ads',
-};
-
-export function apiSectionToDb(section: string): CreativeSection | string {
-  return API_TO_DB_SECTION[section as CreativeSection] ?? section;
+/** Legacy API/DB section slugs — all map to `default`. */
+export function apiSectionToDb(_section?: string): CreativeSection {
+  return CREATIVE_DEFAULT_SECTION;
 }
 
-export function dbSectionToApi(section: string | undefined): CreativeSection | undefined {
-  if (!section) return undefined;
-  return (DB_TO_API_SECTION[section as CreativeSection] ?? section) as CreativeSection;
+export function dbSectionToApi(_section?: string): CreativeSection {
+  return CREATIVE_DEFAULT_SECTION;
 }
 
 /**
- * Organic TikTok shop / creator videos (DB `top-ads`, API default creatives list).
+ * Organic TikTok shop / creator videos (default creatives list).
  * Excludes Meta rows and TikTok posts flagged `isAd` (sponsored / ad copy).
  */
 export const CREATIVE_TRENDING_MATCH = {
-  section: 'top-ads' as const,
   externalVideoId: { $not: { $regex: /^(meta:|ttad:)/ } },
   isAd: { $ne: true },
 };
 /**
- * Paid ads bucket (DB `trending`, API `GET /creatives/top-ads`):
+ * Paid ads bucket (`GET /creatives/top-ads`):
  * Meta Ad Library + TikTok Creative Center + TikTok with ad/sponsored signals.
  */
 export const CREATIVE_TOP_ADS_MATCH = {
-  section: 'trending' as const,
   $or: [
     { externalVideoId: { $regex: /^meta:/ } },
     { externalVideoId: { $regex: /^ttad:/ } },
     { isAd: true },
   ],
 };
-/** Meta Ad Library rows only (DB section `trending`, API top-ads / related-ads). */
+/** Meta Ad Library rows only (related-ads). */
 export const CREATIVE_META_ADS_MATCH = {
-  section: 'trending' as const,
   externalVideoId: { $regex: /^meta:/ },
 };
 export const CREATIVE_COMMERCIAL_MATCH = CREATIVE_TRENDING_MATCH;
@@ -737,7 +725,7 @@ export function formatCreativeForApi(
   const baseUrl = id ? `/api/${apiVersion}/creatives/${id}` : undefined;
   const externalVideoId = String(creative.externalVideoId ?? '');
 
-  const apiSection = dbSectionToApi(creative.section as string | undefined) ?? 'trending';
+  const apiSection = dbSectionToApi(creative.section as string | undefined);
   const creator = creative.creator as ICreatorProfile | undefined;
   const creatorAvatarUrl = resolveCreatorAvatarUrl(creative);
 

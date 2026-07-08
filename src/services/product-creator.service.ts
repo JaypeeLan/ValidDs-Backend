@@ -224,7 +224,7 @@ function formatProductCreatorFeedItem(
       shareCount: Number(top.shareCount) || 0,
       engagementRate: typeof top.engagementRate === 'number' ? top.engagementRate : null,
     },
-    section: 'trending',
+    section: 'default',
     isIndependentCreator: false,
     productName: typeof top.title === 'string' ? top.title : undefined,
     categoryL1: typeof top.categoryL1 === 'string' ? top.categoryL1 : undefined,

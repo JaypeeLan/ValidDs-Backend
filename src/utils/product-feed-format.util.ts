@@ -6,6 +6,7 @@ import { normalizePrimaryCreatorOnProduct, supplierHasRating } from './product-r
 import { resolveEngagementTrend } from './product-trend.util';
 import { resolveShopProductUrl, resolveShopStoreUrl } from './shop-avatar.util';
 import { buildStoreLinks } from './store-links.util';
+import { resolveProductIsAd } from './discovery-sections.util';
 
 export type ProductFeedFormatInput = Record<string, unknown> & {
   aiIntelligence?: IAIIntelligence;
@@ -96,9 +97,6 @@ export function formatProductFeedItem(input: ProductFeedFormatInput): ProductFee
   const derivedRating = deriveAverageRatingFromSources(ratingSources);
   const finalRating =
     typeof product.rating === 'number' && product.rating > 0 ? product.rating : derivedRating;
-  const discoverySections = Array.isArray(product.discoverySections)
-    ? (product.discoverySections as string[])
-    : [];
   const imageUrls = collectProductImageUrls(product);
   const postDate = product.publishedAt ?? product.postCreatedAt;
   const { isNew3d, isNew7d } = postRecencyFlags(postDate);
@@ -160,7 +158,7 @@ export function formatProductFeedItem(input: ProductFeedFormatInput): ProductFee
     publishedAt: postDate as string | Date | null | undefined,
     isNew3d,
     isNew7d,
-    isTopAd: discoverySections.includes('top-ads'),
+    isTopAd: resolveProductIsAd(product),
     competitionScore: maxCompetitorScore(product.suppliers),
     aiInsight: {
       confidence: { score: ai?.confidence },

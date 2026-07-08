@@ -513,8 +513,7 @@ export const ALL_CATEGORY_PATHS: string[] = Object.entries(CATEGORY_TAXONOMY).fl
 
 /** Stored on `Product.discoverySections` — each product has exactly one. */
 export const PRODUCT_DISCOVERY_SECTIONS = [
-  'top-ads',
-  'trending',
+  'default',
   'high-opportunity',
   'global-selling',
 ] as const;

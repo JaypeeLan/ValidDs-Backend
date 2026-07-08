@@ -14,7 +14,7 @@ export interface IMetricTrend {
 }
 
 /** UI buckets — paid/Meta vs organic TikTok (API labels invert DB storage; see creative-response.util). */
-export type CreativeSection = 'top-ads' | 'trending';
+export type CreativeSection = 'default';
 
 export interface ICreatorProfile {
   handle: string;

@@ -25,6 +25,7 @@ import type {
   AdminCreateCreativeInput,
   AdminCreativesQueryInput,
   AdminAnalyticsQueryInput,
+  AdminIngestionAnalyticsQueryInput,
   AdminMaintenanceRunsQueryInput,
   AdminJobHeartbeatsQueryInput,
   AdminProviderHealthQueryInput,
@@ -35,6 +36,7 @@ import { TransactionService } from '../../services/transaction.service';
 import { WaitlistService } from '../../services/waitlist.service';
 import {
   getInventoryAnalytics,
+  getIngestionAnalytics,
   getOperationsOverview,
   listJobHeartbeats,
   listMaintenanceRuns,
@@ -880,6 +882,24 @@ export const getInventoryAnalyticsHandler = async (
   try {
     const query = req.query as unknown as AdminAnalyticsQueryInput;
     const data = await getInventoryAnalytics(query.market as MarketCode | undefined);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getIngestionAnalyticsHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminIngestionAnalyticsQueryInput;
+    const data = await getIngestionAnalytics({
+      market: query.market as MarketCode | undefined,
+      period: query.period,
+      buckets: query.buckets,
+    });
     res.json({ success: true, data });
   } catch (err) {
     next(err);

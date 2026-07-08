@@ -6,15 +6,13 @@ import {
 } from '../src/utils/discovery-sections.util';
 
 describe('discoverySectionsForProduct', () => {
-  it('tags organic products with trending', () => {
+  it('tags regular products with default', () => {
     expect(discoverySectionsForProduct({ discoverySections: ['tiktok_shop'] })).toEqual([
-      'trending',
+      'default',
     ]);
-  });
-
-  it('tags ad products with top-ads', () => {
-    expect(discoverySectionsForProduct({ isAd: true })).toEqual(['top-ads']);
-    expect(discoverySectionsForProduct({ discoverySections: ['top-ads'] })).toEqual(['top-ads']);
+    expect(discoverySectionsForProduct({ isAd: true })).toEqual(['default']);
+    expect(discoverySectionsForProduct({ discoverySections: ['top-ads'] })).toEqual(['default']);
+    expect(discoverySectionsForProduct({ discoverySections: ['trending'] })).toEqual(['default']);
   });
 
   it('tags high-opportunity products (explicit signal)', () => {
@@ -44,14 +42,17 @@ describe('discoverySectionsForProduct', () => {
     ]);
   });
 
-  it('resolveProductIsAd from stored top-ads section', () => {
+  it('resolveProductIsAd from ad signals (not discovery section)', () => {
+    expect(resolveProductIsAd({ isAd: true })).toBe(true);
     expect(resolveProductIsAd({ discoverySections: ['top-ads'] })).toBe(true);
+    expect(resolveProductIsAd({ creativeCounts: { ads: 2 } })).toBe(true);
+    expect(resolveProductIsAd({ discoverySections: ['default'] })).toBe(false);
     expect(resolveProductIsAd({ discoverySections: ['trending'] })).toBe(false);
   });
 
   it('resolveHighOpportunity / resolveGlobalSelling from signals', () => {
     expect(resolveHighOpportunity({ isHighOpportunity: true })).toBe(true);
     expect(resolveGlobalSelling({ discoverySections: ['global-selling'] })).toBe(true);
-    expect(resolveGlobalSelling({ discoverySections: ['trending'] })).toBe(false);
+    expect(resolveGlobalSelling({ discoverySections: ['default'] })).toBe(false);
   });
 });

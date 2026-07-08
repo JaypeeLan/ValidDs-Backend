@@ -123,7 +123,7 @@ export const CreativeSchema = new Schema<ICreativeDocument>(
 
     section: {
       type: String,
-      enum: ['top-ads', 'trending'],
+      enum: ['default', 'top-ads', 'trending'],
       required: true,
       index: true,
     },

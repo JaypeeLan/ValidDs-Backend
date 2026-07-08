@@ -25,6 +25,10 @@ import {
   productPlayableCreativeLookupStages,
 } from '../../utils/creative-response.util';
 import type { ICreativeDocument } from '../../types/creative.types';
+import {
+  LEGACY_DEFAULT_SECTIONS,
+  normalizeProductSectionFilter,
+} from '../../utils/discovery-sections.util';
 import type { Model } from 'mongoose';
 
 const log = logger.child({ module: 'product-repository' });
@@ -621,10 +625,28 @@ function applyDiscoverySectionRules(
 ): void {
   const parts: Record<string, unknown>[] = [];
   if (opts.section) {
-    parts.push({ discoverySections: opts.section });
+    const normalized = normalizeProductSectionFilter(opts.section);
+    if (normalized === 'default') {
+      parts.push({ discoverySections: { $in: [...LEGACY_DEFAULT_SECTIONS] } });
+    } else {
+      parts.push({ discoverySections: normalized });
+    }
   }
-  if (opts.isAd === true) parts.push({ discoverySections: 'top-ads' });
-  if (opts.isAd === false) parts.push({ $nor: [{ discoverySections: 'top-ads' }] });
+  if (opts.isAd === true) {
+    parts.push({
+      $or: [{ 'creativeCounts.ads': { $gte: 1 } }, { discoverySections: 'top-ads' }],
+    });
+  }
+  if (opts.isAd === false) {
+    parts.push({
+      $and: [
+        {
+          $or: [{ 'creativeCounts.ads': { $lt: 1 } }, { 'creativeCounts.ads': { $exists: false } }],
+        },
+        { $nor: [{ discoverySections: 'top-ads' }] },
+      ],
+    });
+  }
 
   if (parts.length === 0) return;
   if (parts.length === 1) Object.assign(filter, parts[0]!);

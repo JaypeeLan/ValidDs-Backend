@@ -72,7 +72,7 @@ export const AdminCreativesQuerySchema = z.object({
   market: MarketCodeEnum,
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  section: z.enum(['top-ads', 'trending']).optional(),
+  section: z.enum(['default', 'top-ads', 'trending']).optional(),
   category: z.string().optional(),
   q: z.string().trim().min(1).optional(),
   platform: z.enum(['tiktok', 'meta']).optional(),
@@ -98,6 +98,12 @@ export const AdminCreateCreativeSchema = z.object({
 // Analytics query — optionally scoped to a market; omit for all-markets aggregate
 export const AdminAnalyticsQuerySchema = z.object({
   market: MarketCodeEnum.optional(),
+});
+
+export const AdminIngestionAnalyticsQuerySchema = z.object({
+  market: MarketCodeEnum.optional(),
+  period: z.enum(['daily', 'weekly', 'monthly']).default('daily'),
+  buckets: z.coerce.number().int().min(1).max(90).optional(),
 });
 
 export const AdminMaintenanceRunsQuerySchema = z.object({
@@ -181,6 +187,7 @@ export type AdminCreateProductInput = z.infer<typeof AdminCreateProductSchema>;
 export type AdminCreativesQueryInput = z.infer<typeof AdminCreativesQuerySchema>;
 export type AdminCreateCreativeInput = z.infer<typeof AdminCreateCreativeSchema>;
 export type AdminAnalyticsQueryInput = z.infer<typeof AdminAnalyticsQuerySchema>;
+export type AdminIngestionAnalyticsQueryInput = z.infer<typeof AdminIngestionAnalyticsQuerySchema>;
 export type AdminMaintenanceRunsQueryInput = z.infer<typeof AdminMaintenanceRunsQuerySchema>;
 export type AdminJobHeartbeatsQueryInput = z.infer<typeof AdminJobHeartbeatsQuerySchema>;
 export type AdminProviderHealthQueryInput = z.infer<typeof AdminProviderHealthQuerySchema>;

@@ -55,6 +55,7 @@ import {
 } from '../../utils/creative-response.util';
 import { enrichCreativesWithResolvedVideoS3Keys } from '../../services/meta-video-s3-resolve.service';
 import { formatUserBookmarks } from '../../services/bookmark.service';
+import { resolveProductIsAd } from '../../utils/discovery-sections.util';
 
 type ProductLike = Record<string, unknown> & {
   aiIntelligence?: IAIIntelligence;
@@ -133,9 +134,6 @@ function formatProductResponse(input: ProductLike): ProductApiResponse {
   const derivedRating = deriveAverageRatingFromSources(ratingSources);
   const finalRating =
     typeof product.rating === 'number' && product.rating > 0 ? product.rating : derivedRating;
-  const discoverySections = Array.isArray(product.discoverySections)
-    ? (product.discoverySections as string[])
-    : [];
 
   const resolvedShopUrl = resolveShopStoreUrl(
     product.shopUrl as string | undefined,
@@ -173,7 +171,7 @@ function formatProductResponse(input: ProductLike): ProductApiResponse {
     rating: finalRating,
     ratings: finalRating,
     reviewCount: product.reviewCount,
-    isTopAd: discoverySections.includes('top-ads'),
+    isTopAd: resolveProductIsAd(product),
     trend: engagement,
     trends: product.trends ?? { engagement },
     freshness: buildProductItemFreshness(product),

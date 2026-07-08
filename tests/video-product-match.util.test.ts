@@ -75,7 +75,7 @@ describe('video-product-match.util', () => {
     ).toMatch(/video caption (does not match product|references a different brand)/);
   });
 
-  it('rejects MediCube promo attached to Anua glass skin bundle', () => {
+  it('rejects MediCube promo attached to Anua glass skin bundle (brand guard kept under loose)', () => {
     const productName =
       '[Anua] Viral Ultimate Glass Skin Bundle | Salmon PDRN Cream + Niacinamide Serum';
     expect(
@@ -87,8 +87,44 @@ describe('video-product-match.util', () => {
         description: "Glass skin goals for less! MediCube's Glass Skin Bundle is on a BIG sale",
         hashtags: ['medicube', 'medicubeskincare', 'glassskin'],
         isAd: true,
+        isPrimaryDiscovery: false,
         angle: 'Glass skin goals for less!',
       }),
     ).toBe(false);
+  });
+
+  it('keeps a secondary ad from another seller that names no competing brand', () => {
+    // Fails the strict primary gate (missing model token) but passes loose for a secondary.
+    const productName = 'Stanley Quencher H2.0 Tumbler 40oz Insulated Cup';
+    expect(
+      creativeVideoProductMatchReason({
+        externalVideoId: '9001',
+        productName,
+        shopName: 'Stanley',
+        originalCaption: 'this 40oz quencher tumbler keeps my drink cold all day',
+        description: 'this 40oz quencher tumbler keeps my drink cold all day',
+        hashtags: ['tumbler'],
+        isAd: true,
+        isPrimaryDiscovery: false,
+        angle: 'Stays cold all day',
+      }),
+    ).toBeNull();
+  });
+
+  it('rejects a secondary clip that names a competitor brand', () => {
+    const productName = 'Stanley Quencher H2.0 Tumbler 40oz Insulated Cup';
+    expect(
+      creativeVideoProductMatchReason({
+        externalVideoId: '9002',
+        productName,
+        shopName: 'Stanley',
+        originalCaption: 'Simple Modern 40oz tumbler quencher dupe review',
+        description: 'Simple Modern 40oz tumbler quencher dupe review',
+        hashtags: ['simplemodern'],
+        isAd: true,
+        isPrimaryDiscovery: false,
+        angle: 'A great dupe',
+      }),
+    ).toMatch(/different brand/);
   });
 });

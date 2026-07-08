@@ -145,6 +145,35 @@ properties:
   productTotalGmv:
     type: number
     nullable: true
+    description: Parent product lifetime GMV (`price × units sold`). Not video-attributed.
+  estimatedVideoGmv:
+    type: number
+    nullable: true
+    description: |
+      Estimated GMV attributed to this video by splitting parent `productTotalGmv` across
+      creatives on the same SKU (view-share by default). Not TikTok-reported revenue.
+  estimatedVideoSales:
+    type: integer
+    nullable: true
+    description: Estimated units sold attributed to this video (same allocation as `estimatedVideoGmv`).
+  estimatedVideoGmvShare:
+    type: number
+    nullable: true
+    minimum: 0
+    maximum: 1
+    description: Fraction of parent product GMV allocated to this video (0–1).
+  estimatedVideoGmvMethod:
+    type: string
+    nullable: true
+    enum: [view_share, sole_video, equal_split, none]
+    description: |
+      Allocation method: `view_share` (multiple creatives, split by views),
+      `sole_video` (only creative on SKU), `equal_split` (zero views fallback),
+      `none` (no product GMV to allocate).
+  estimatedVideoGmvComputedAt:
+    type: string
+    format: date-time
+    nullable: true
   productPrice:
     type: number
     nullable: true

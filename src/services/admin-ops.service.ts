@@ -4,6 +4,7 @@ import { getMarketModels } from '../models/market-models.factory';
 import { MARKET_CODES, type MarketCode } from '../utils/markets';
 import {
   adminCreativeAdTypeMatch,
+  CREATIVE_META_ADS_MATCH,
   CREATIVE_TOP_ADS_MATCH,
   CREATIVE_TRENDING_MATCH,
 } from '../utils/creative-response.util';
@@ -653,5 +654,189 @@ export async function getInventoryAnalytics(market?: MarketCode): Promise<{
       endedLast24h,
       byMarket: liveByMarket,
     },
+  };
+}
+
+export type IngestionPeriod = 'daily' | 'weekly' | 'monthly';
+
+export interface IngestionEntityCounts {
+  products: number;
+  creatives: number;
+  ads: number;
+  metaAds: number;
+}
+
+export interface IngestionTimeBucket {
+  period: string;
+  count: number;
+}
+
+export interface IngestionAnalytics {
+  markets: MarketCode[];
+  period: IngestionPeriod;
+  range: { from: string; to: string };
+  windows: {
+    daily: IngestionEntityCounts;
+    weekly: IngestionEntityCounts;
+    monthly: IngestionEntityCounts;
+  };
+  series: {
+    products: IngestionTimeBucket[];
+    creatives: IngestionTimeBucket[];
+    ads: IngestionTimeBucket[];
+    metaAds: IngestionTimeBucket[];
+  };
+}
+
+const INGESTION_DATE_FORMAT: Record<IngestionPeriod, string> = {
+  daily: '%Y-%m-%d',
+  weekly: '%G-W%V',
+  monthly: '%Y-%m',
+};
+
+const DEFAULT_BUCKETS: Record<IngestionPeriod, number> = {
+  daily: 30,
+  weekly: 12,
+  monthly: 12,
+};
+
+type IngestionEntityKey = keyof IngestionEntityCounts;
+
+const INGESTION_ENTITY_CONFIG: Record<
+  IngestionEntityKey,
+  { dateField: string; isProduct: boolean; extraMatch: Record<string, unknown> }
+> = {
+  products: { dateField: 'lastIngestedAt', isProduct: true, extraMatch: {} },
+  creatives: { dateField: 'ingestedAt', isProduct: false, extraMatch: {} },
+  ads: { dateField: 'ingestedAt', isProduct: false, extraMatch: adminCreativeAdTypeMatch('ads') },
+  metaAds: { dateField: 'ingestedAt', isProduct: false, extraMatch: CREATIVE_META_ADS_MATCH },
+};
+
+function periodStartDate(period: IngestionPeriod, buckets: number): Date {
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (period === 'daily') return new Date(now - buckets * dayMs);
+  if (period === 'weekly') return new Date(now - buckets * 7 * dayMs);
+  return new Date(now - buckets * 30 * dayMs);
+}
+
+function windowStart(window: 'daily' | 'weekly' | 'monthly'): Date {
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (window === 'daily') return new Date(Date.now() - dayMs);
+  if (window === 'weekly') return new Date(Date.now() - 7 * dayMs);
+  return new Date(Date.now() - 30 * dayMs);
+}
+
+async function countIngestedForEntity(
+  markets: MarketCode[],
+  entity: IngestionEntityKey,
+  since: Date,
+): Promise<number> {
+  const { dateField, isProduct, extraMatch } = INGESTION_ENTITY_CONFIG[entity];
+  const match = {
+    [dateField]: { $gte: since, $ne: null },
+    ...extraMatch,
+  };
+
+  let total = 0;
+  await Promise.all(
+    markets.map(async (market) => {
+      const models = getMarketModels(market);
+      const Model = isProduct ? models.Product : models.Creative;
+      total += await Model.countDocuments(match);
+    }),
+  );
+  return total;
+}
+
+async function aggregateIngestionSeries(
+  markets: MarketCode[],
+  entity: IngestionEntityKey,
+  period: IngestionPeriod,
+  startDate: Date,
+): Promise<IngestionTimeBucket[]> {
+  const { dateField, isProduct, extraMatch } = INGESTION_ENTITY_CONFIG[entity];
+  const merged = new Map<string, number>();
+
+  await Promise.all(
+    markets.map(async (market) => {
+      const models = getMarketModels(market);
+      const Model = isProduct ? models.Product : models.Creative;
+      const rows = await Model.aggregate([
+        {
+          $match: {
+            [dateField]: { $gte: startDate, $ne: null },
+            ...extraMatch,
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: INGESTION_DATE_FORMAT[period],
+                date: `$${dateField}`,
+                timezone: 'UTC',
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+      for (const row of rows) {
+        const key = String(row._id);
+        merged.set(key, (merged.get(key) ?? 0) + row.count);
+      }
+    }),
+  );
+
+  return Array.from(merged.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([bucketPeriod, count]) => ({ period: bucketPeriod, count }));
+}
+
+async function buildIngestionWindowCounts(
+  markets: MarketCode[],
+  since: Date,
+): Promise<IngestionEntityCounts> {
+  const [products, creatives, ads, metaAds] = await Promise.all([
+    countIngestedForEntity(markets, 'products', since),
+    countIngestedForEntity(markets, 'creatives', since),
+    countIngestedForEntity(markets, 'ads', since),
+    countIngestedForEntity(markets, 'metaAds', since),
+  ]);
+  return { products, creatives, ads, metaAds };
+}
+
+export async function getIngestionAnalytics(opts: {
+  market?: MarketCode;
+  period?: IngestionPeriod;
+  buckets?: number;
+}): Promise<IngestionAnalytics> {
+  const markets: MarketCode[] = opts.market ? [opts.market] : [...MARKET_CODES];
+  const period = opts.period ?? 'daily';
+  const bucketCount = Math.min(Math.max(opts.buckets ?? DEFAULT_BUCKETS[period], 1), 90);
+  const startDate = periodStartDate(period, bucketCount);
+
+  const [dailyWindow, weeklyWindow, monthlyWindow, products, creatives, ads, metaAds] =
+    await Promise.all([
+      buildIngestionWindowCounts(markets, windowStart('daily')),
+      buildIngestionWindowCounts(markets, windowStart('weekly')),
+      buildIngestionWindowCounts(markets, windowStart('monthly')),
+      aggregateIngestionSeries(markets, 'products', period, startDate),
+      aggregateIngestionSeries(markets, 'creatives', period, startDate),
+      aggregateIngestionSeries(markets, 'ads', period, startDate),
+      aggregateIngestionSeries(markets, 'metaAds', period, startDate),
+    ]);
+
+  return {
+    markets,
+    period,
+    range: { from: startDate.toISOString(), to: new Date().toISOString() },
+    windows: {
+      daily: dailyWindow,
+      weekly: weeklyWindow,
+      monthly: monthlyWindow,
+    },
+    series: { products, creatives, ads, metaAds },
   };
 }

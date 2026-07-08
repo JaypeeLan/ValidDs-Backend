@@ -378,15 +378,18 @@ properties:
     description: >-
       The single discovery bucket this product belongs to. `global-selling` and
       `high-opportunity` are explicit signals from the TikTok Shop Partner Center
-      pools (preserved on re-ingest); `top-ads`/`trending` are derived from the ad flag.
-      Resolved by priority: global-selling > high-opportunity > top-ads > trending.
+      pools (preserved on re-ingest). All other products use `default` (legacy
+      `top-ads` / `trending` slugs are treated as `default` on read).
+      Resolved by priority: global-selling > high-opportunity > default.
     items:
       type: string
-      enum: [top-ads, trending, high-opportunity, global-selling]
+      enum: [default, top-ads, trending, high-opportunity, global-selling]
 
   isTopAd:
     type: boolean
-    description: '`true` when `discoverySections` contains `top-ads`. Computed on read.'
+    description: >-
+      `true` when the product has ad-backed creatives or legacy ad signals.
+      Computed on read from `creativeCounts.ads`, `isAd`, or legacy `top-ads` section.
 
   isHighOpportunity:
     type: boolean

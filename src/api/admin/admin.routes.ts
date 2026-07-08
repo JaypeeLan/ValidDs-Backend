@@ -12,6 +12,7 @@ import {
   UpdateUserStatusSchema,
   UpdateUserRoleSchema,
   AdminAnalyticsQuerySchema,
+  AdminIngestionAnalyticsQuerySchema,
   AdminMaintenanceRunsQuerySchema,
   AdminJobHeartbeatsQuerySchema,
   AdminProviderHealthQuerySchema,
@@ -50,6 +51,11 @@ router.get(
   '/analytics/inventory',
   validate(AdminAnalyticsQuerySchema, 'query'),
   adminController.getInventoryAnalyticsHandler,
+);
+router.get(
+  '/analytics/ingestion',
+  validate(AdminIngestionAnalyticsQuerySchema, 'query'),
+  adminController.getIngestionAnalyticsHandler,
 );
 
 router.get('/operations/overview', requireSuperAdmin, adminController.getOperationsOverviewHandler);

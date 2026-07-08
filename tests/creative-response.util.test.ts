@@ -10,8 +10,8 @@ describe('adminCreativeAdTypeMatch', () => {
   it('maps ads and organic to disjoint feed buckets', () => {
     expect(adminCreativeAdTypeMatch('ads')).toEqual(CREATIVE_TOP_ADS_MATCH);
     expect(adminCreativeAdTypeMatch('organic')).toEqual(CREATIVE_TRENDING_MATCH);
-    expect(adminCreativeAdTypeMatch('ads').section).toBe('trending');
-    expect(adminCreativeAdTypeMatch('organic').section).toBe('top-ads');
+    expect(adminCreativeAdTypeMatch('ads')).not.toHaveProperty('section');
+    expect(adminCreativeAdTypeMatch('organic')).not.toHaveProperty('section');
   });
 });
 

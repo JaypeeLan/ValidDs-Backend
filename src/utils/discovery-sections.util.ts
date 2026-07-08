@@ -2,21 +2,27 @@
  * Discovery section tags for ingested products.
  * Mirrors scraper/pipeline/discovery_sections.py
  *
- * Every product belongs to EXACTLY ONE of four sections, resolved by priority:
+ * Every product belongs to EXACTLY ONE of three sections, resolved by priority:
  *   global-selling  → Partner Center "Global Selling" pool (cross-border sellers)
  *   high-opportunity → Partner Center "High opportunity products" pool
- *   top-ads          → product is ad-backed
- *   trending         → default (organic products)
+ *   default         → all other products (organic + ad-backed)
  */
 
-export type ProductDiscoverySection =
-  | 'top-ads'
-  | 'trending'
-  | 'high-opportunity'
-  | 'global-selling';
+export type ProductDiscoverySection = 'default' | 'high-opportunity' | 'global-selling';
 
+/** Legacy section slugs stored on older products — treated as `default` on read/filter. */
+export const LEGACY_DEFAULT_SECTIONS = ['default', 'top-ads', 'trending'] as const;
+
+export function normalizeProductSectionFilter(section: string): string {
+  if (section === 'top-ads' || section === 'trending') return 'default';
+  return section;
+}
+
+/** True when the product is ad-backed (for `isTopAd` / `?isAd=` filters, not discovery section). */
 export function resolveProductIsAd(raw: Record<string, unknown>): boolean {
   if (raw.isAd === true) return true;
+  const counts = raw.creativeCounts as { ads?: number } | undefined;
+  if (counts != null && Number(counts.ads) >= 1) return true;
   const sections = Array.isArray(raw.discoverySections) ? raw.discoverySections : [];
   return sections.includes('top-ads');
 }
@@ -46,9 +52,7 @@ export function resolveGlobalSelling(raw: Record<string, unknown>): boolean {
 /**
  * Resolve a product's single discovery section.
  *
- * Priority: global-selling > high-opportunity > top-ads > trending.
- * The Partner Center pool signals win because they are explicit, intentional
- * buckets; everything else falls back to the ad/organic split.
+ * Priority: global-selling > high-opportunity > default.
  */
 export function discoverySectionsForProduct(
   raw: Record<string, unknown>,
@@ -56,6 +60,5 @@ export function discoverySectionsForProduct(
 ): ProductDiscoverySection[] {
   if (resolveGlobalSelling(raw)) return ['global-selling'];
   if (resolveHighOpportunity(raw)) return ['high-opportunity'];
-  if (resolveProductIsAd(raw)) return ['top-ads'];
-  return ['trending'];
+  return ['default'];
 }

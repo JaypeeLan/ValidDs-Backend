@@ -25,7 +25,7 @@ const CreativeListQueryBaseSchema = z.object({
     (v) => (typeof v === 'string' ? v.toLowerCase() : v),
     z.enum(['tiktok', 'meta']).optional(),
   ),
-  section: z.enum(['top-ads', 'trending']).optional(),
+  section: z.enum(['default', 'top-ads', 'trending']).optional(),
   isAd: z.coerce.boolean().optional(),
   region: z
     .string()

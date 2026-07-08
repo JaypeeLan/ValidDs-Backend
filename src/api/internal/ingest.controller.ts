@@ -23,6 +23,7 @@ import { extractMetaAdIdFromUrl } from '../../utils/meta-ad-url.util';
 import { extractTikTokVideoId } from '../../utils/tiktok-url.util';
 import { recomputeProductGmvFields } from './product-field-completeness';
 import { syncCreativeProductTrends } from '../../services/sync-creative-product-trends.service';
+import { syncEstimatedVideoGmvForProduct } from '../../services/sync-estimated-video-gmv.service';
 import {
   clearCreativeAdDedupeConflicts,
   creativeUpsertFilter,
@@ -432,6 +433,16 @@ export async function ingestCreative(
       await persistAllCreatorAvatarsOnCreative(String(saved._id), Creative, { market });
     } catch (err) {
       log.warn('Avatar cache on ingest failed', { id: saved.id, err: String(err) });
+    }
+
+    try {
+      await syncEstimatedVideoGmvForProduct(payload.productId as Types.ObjectId, Creative);
+    } catch (err) {
+      log.warn('Failed to sync estimated video GMV after creative ingest', {
+        market,
+        productId: String(payload.productId),
+        err: String(err),
+      });
     }
 
     log.info('Creative ingested', { market, externalVideoId, adDedupeKey, id: saved.id });

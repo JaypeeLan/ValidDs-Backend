@@ -275,9 +275,14 @@ function videoItemText(item: { description?: unknown; hashtags?: unknown }): str
 export function videoMatchesProduct(
   item: { description?: unknown; hashtags?: unknown },
   productTitle: string,
-  opts?: { minScore?: number; minOverlap?: number; minDistinctiveOverlap?: number },
+  opts?: {
+    minScore?: number;
+    minOverlap?: number;
+    minDistinctiveOverlap?: number;
+    allowOtherBrands?: boolean;
+  },
 ): boolean {
-  if (videoBrandConflictsWithProduct(item, productTitle)) return false;
+  if (!opts?.allowOtherBrands && videoBrandConflictsWithProduct(item, productTitle)) return false;
 
   const minScore = opts?.minScore ?? 0.28;
   const minOverlap = opts?.minOverlap ?? 2;
@@ -305,10 +310,26 @@ export function videoMatchesProduct(
   return !(sigOverlap < minOverlap && score < minScore);
 }
 
+/**
+ * Relaxed "same product, best match" gate for secondary creatives and ads.
+ * Keeps the brand-conflict guard; only loosens the token thresholds.
+ */
+function videoMatchesProductLoose(
+  item: { description?: unknown; hashtags?: unknown },
+  productTitle: string,
+): boolean {
+  return videoMatchesProduct(item, productTitle, {
+    minScore: 0.2,
+    minOverlap: 1,
+    minDistinctiveOverlap: 1,
+  });
+}
+
 function captionProductMismatchReason(
   doc: Record<string, unknown>,
   productTitle: string,
   listingVerified: boolean,
+  loose = false,
 ): string | null {
   const shopName = String(doc.shopName ?? '').trim() || undefined;
   const originalCaption = String(doc.originalCaption ?? '').trim();
@@ -316,6 +337,16 @@ function captionProductMismatchReason(
     description: originalCaption || doc.description,
     hashtags: doc.hashtags,
   };
+
+  if (loose) {
+    if (videoBrandConflictsWithProduct(item, productTitle, shopName)) {
+      return `video caption references a different brand than ${productTitle.slice(0, 60)}`;
+    }
+    if (!videoItemText(item).trim()) return null;
+    if (videoMatchesProductLoose(item, productTitle)) return null;
+    return `video caption does not match product ${productTitle.slice(0, 60)}`;
+  }
+
   if (videoBrandConflictsWithProduct(item, productTitle, shopName)) {
     return `video caption references a different brand than ${productTitle.slice(0, 60)}`;
   }
@@ -346,6 +377,12 @@ export function creativeVideoProductMatchReason(doc: Record<string, unknown>): s
 
   const productTitle = String(doc.productName ?? '').trim();
   if (productTitle.length < 4) return null;
+
+  // Primary discovery and anchor/thumbnail listing-verified rows stay strict;
+  // other secondary creatives + ads use the loose "same product, any brand" gate.
+  if (!doc.isPrimaryDiscovery && doc.listingVerified !== true) {
+    return captionProductMismatchReason(doc, productTitle, false, true);
+  }
 
   return captionProductMismatchReason(doc, productTitle, doc.listingVerified === true);
 }

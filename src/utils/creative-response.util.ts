@@ -788,6 +788,13 @@ export function formatCreativeForApi(
     productRating: creative.productRating as number | null | undefined,
     productTotalSales: creative.productTotalSales as number | null | undefined,
     productTotalGmv: creative.productTotalGmv as number | null | undefined,
+    estimatedVideoGmv: creative.estimatedVideoGmv as number | null | undefined,
+    estimatedVideoSales: creative.estimatedVideoSales as number | null | undefined,
+    estimatedVideoGmvShare: creative.estimatedVideoGmvShare as number | null | undefined,
+    estimatedVideoGmvMethod: creative.estimatedVideoGmvMethod as
+      | CreativeApiItem['estimatedVideoGmvMethod']
+      | undefined,
+    estimatedVideoGmvComputedAt: creative.estimatedVideoGmvComputedAt as Date | string | undefined,
     productPrice: creative.productPrice as number | null | undefined,
     productUrl: creative.productUrl as string | null | undefined,
     shopName: creative.shopName as string | null | undefined,

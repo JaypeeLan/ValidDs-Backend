@@ -16,6 +16,9 @@ export interface IMetricTrend {
 /** UI buckets — paid/Meta vs organic TikTok (API labels invert DB storage; see creative-response.util). */
 export type CreativeSection = 'default';
 
+/** How per-video GMV was estimated from parent product metrics. */
+export type EstimatedVideoGmvMethod = 'view_share' | 'sole_video' | 'equal_split' | 'none';
+
 export interface ICreatorProfile {
   handle: string;
   displayName?: string;
@@ -116,6 +119,15 @@ export interface ICreative {
   productRating?: number | null;
   productTotalSales?: number | null;
   productTotalGmv?: number | null;
+  /** Estimated share of parent product GMV attributed to this video (not TikTok-reported). */
+  estimatedVideoGmv?: number | null;
+  /** Estimated share of parent product units sold attributed to this video. */
+  estimatedVideoSales?: number | null;
+  /** Fraction of parent product GMV (0–1) used for `estimatedVideoGmv`. */
+  estimatedVideoGmvShare?: number | null;
+  /** How `estimatedVideoGmv` was derived (`view_share`, `sole_video`, …). */
+  estimatedVideoGmvMethod?: EstimatedVideoGmvMethod | null;
+  estimatedVideoGmvComputedAt?: Date | null;
   productPrice?: number | null;
   productUrl?: string | null;
   shopName?: string | null;
@@ -208,6 +220,11 @@ export interface CreativeApiItem {
   productRating?: number | null;
   productTotalSales?: number | null;
   productTotalGmv?: number | null;
+  estimatedVideoGmv?: number | null;
+  estimatedVideoSales?: number | null;
+  estimatedVideoGmvShare?: number | null;
+  estimatedVideoGmvMethod?: EstimatedVideoGmvMethod | null;
+  estimatedVideoGmvComputedAt?: Date | string | null;
   productPrice?: number | null;
   productUrl?: string | null;
   shopName?: string | null;

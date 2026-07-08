@@ -2,6 +2,7 @@ import mongoose, { type Model } from 'mongoose';
 import type { ICreativeDocument } from '../types/creative.types';
 import type { IProductDocument } from '../types/product.types';
 import { logger } from '../logger';
+import { syncEstimatedVideoGmvForProduct } from './sync-estimated-video-gmv.service';
 
 function creativeProductTrendPatch(product: Record<string, unknown>): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
@@ -42,6 +43,16 @@ export async function syncCreativeProductTrends(
   if (modified > 0) {
     logger.debug('Synced product trends to creatives', { productId: String(productId), modified });
   }
+
+  try {
+    await syncEstimatedVideoGmvForProduct(productId, creativeModel);
+  } catch (err) {
+    logger.warn('Failed to sync estimated video GMV after product trend sync', {
+      productId: String(productId),
+      err: String(err),
+    });
+  }
+
   return modified;
 }
 

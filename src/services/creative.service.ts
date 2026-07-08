@@ -331,6 +331,41 @@ type CreativeFeedStageOpts = {
   oneAdPerProduct?: boolean;
 };
 
+/**
+ * Large denormalized time-series arrays (per-product trends copied onto every
+ * creative). They dominate document size, so we strip them BEFORE the in-memory
+ * `$sort` — otherwise the sort blows past MongoDB's 32MB limit (Atlas shared
+ * tiers ignore `allowDiskUse`) and the whole feed request 500s. They are
+ * re-attached for the final page via `buildCreativeFeedTrendRestoreStages`.
+ */
+const CREATIVE_FEED_HEAVY_TREND_FIELDS = ['productRevenueTrend', 'productSalesTrend'] as const;
+
+/** Re-join the heavy trend arrays onto the (small) final page after sorting/paging. */
+function buildCreativeFeedTrendRestoreStages(collectionName: string): PipelineStage[] {
+  return [
+    {
+      $lookup: {
+        from: collectionName,
+        localField: '_id',
+        foreignField: '_id',
+        as: '_trendSource',
+        pipeline: [{ $project: { productRevenueTrend: 1, productSalesTrend: 1 } }],
+      },
+    },
+    {
+      $addFields: {
+        productRevenueTrend: {
+          $ifNull: [{ $arrayElemAt: ['$_trendSource.productRevenueTrend', 0] }, null],
+        },
+        productSalesTrend: {
+          $ifNull: [{ $arrayElemAt: ['$_trendSource.productSalesTrend', 0] }, null],
+        },
+      },
+    },
+    { $unset: '_trendSource' },
+  ] as unknown as PipelineStage[];
+}
+
 function buildCreativeFeedBaseStages(
   query: Record<string, unknown>,
   sortKey: string,
@@ -341,6 +376,7 @@ function buildCreativeFeedBaseStages(
   return [
     { $match: query },
     creativeFeedExposureMatchStage() as PipelineStage,
+    { $unset: [...CREATIVE_FEED_HEAVY_TREND_FIELDS] },
     ...(creativeSortSkipsRecencyTier(sortKey) ? [] : [{ $addFields: recencyTierAddFields() }]),
     { $sort: sort as PipelineStage.Sort['$sort'] },
     ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
@@ -391,6 +427,7 @@ async function countCreativeFeed(
   const [result] = (await creativeModel
     .aggregate([...countStages, { $count: 'count' }])
     .option({ maxTimeMS: 15_000 })
+    .allowDiskUse(true)
     .exec()) as [{ count: number }] | [];
   return result?.count ?? 0;
 }
@@ -403,18 +440,21 @@ async function fetchCreativeFeedBatch(
   skip: number,
   limit: number,
 ): Promise<CreativeFeedDoc[]> {
+  const trendRestoreStages = buildCreativeFeedTrendRestoreStages(creativeModel.collection.name);
   const dataStages = groupByCreator
     ? [
         ...baseStages,
         ...buildCreativeFeedGroupByCreatorStages(sort),
         { $skip: skip },
         { $limit: limit },
+        ...trendRestoreStages,
       ]
-    : [...baseStages, { $skip: skip }, { $limit: limit }];
+    : [...baseStages, { $skip: skip }, { $limit: limit }, ...trendRestoreStages];
 
   return (await creativeModel
     .aggregate(dataStages)
     .option({ maxTimeMS: 15_000 })
+    .allowDiskUse(true)
     .exec()) as CreativeFeedDoc[];
 }
 

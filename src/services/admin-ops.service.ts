@@ -734,19 +734,18 @@ async function countIngestedForEntity(
 ): Promise<number> {
   const { dateField, isProduct, extraMatch } = INGESTION_ENTITY_CONFIG[entity];
   const match = {
-    [dateField]: { $gte: since, $ne: null },
+    [dateField]: { $gte: since },
     ...extraMatch,
   };
 
-  let total = 0;
-  await Promise.all(
+  const counts = await Promise.all(
     markets.map(async (market) => {
       const models = getMarketModels(market);
       const Model = isProduct ? models.Product : models.Creative;
-      total += await Model.countDocuments(match);
+      return Model.countDocuments(match);
     }),
   );
-  return total;
+  return counts.reduce((sum, n) => sum + n, 0);
 }
 
 async function aggregateIngestionSeries(
@@ -765,7 +764,7 @@ async function aggregateIngestionSeries(
       const rows = await Model.aggregate([
         {
           $match: {
-            [dateField]: { $gte: startDate, $ne: null },
+            [dateField]: { $gte: startDate },
             ...extraMatch,
           },
         },

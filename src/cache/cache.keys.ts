@@ -16,7 +16,10 @@
 import type { MarketCode } from '../utils/markets';
 
 /** Bump when feed query semantics change so Redis does not serve stale empty/wrong slices. */
-const PRODUCT_FEED_CACHE_REVISION = 'v7';
+const PRODUCT_FEED_CACHE_REVISION = 'v8';
+
+/** Bump when creative feed query semantics change. */
+const CREATIVE_FEED_CACHE_REVISION = 'v1';
 
 /** Bump when related-product matching semantics change. */
 const PRODUCT_RELATED_CACHE_REVISION = 'l2-narrow-l3-required';
@@ -25,6 +28,14 @@ export const CacheKeys = {
   // Product feed — varies by market + page + limit + filters
   productFeed: (market: MarketCode, page: number, limit: number, filters?: string) =>
     `product:feed:${PRODUCT_FEED_CACHE_REVISION}:${market}:${page}:${limit}${filters ? `:${filters}` : ''}`,
+
+  // Stable total for a product feed filter set (shared across pages for the TTL window)
+  productFeedTotal: (market: MarketCode, filters?: string) =>
+    `product:feed:${PRODUCT_FEED_CACHE_REVISION}:${market}:total${filters ? `:${filters}` : ''}`,
+
+  // Stable total for a creative feed filter set (shared across pages for the TTL window)
+  creativeFeedTotal: (market: MarketCode, filters?: string) =>
+    `creative:feed:${CREATIVE_FEED_CACHE_REVISION}:${market}:total${filters ? `:${filters}` : ''}`,
 
   // Individual product detail
   productDetail: (market: MarketCode, id: string) => `product:detail:${market}:${id}`,
@@ -78,6 +89,7 @@ export const CacheKeys = {
  */
 export const CACHE_TTL = {
   PRODUCT_FEED: 60, // 1 minute
+  CREATIVE_FEED_TOTAL: 60, // 1 minute — stabilizes pagination.total across pages
   PRODUCT_DETAIL: 60, // 1 minute
   PRODUCT_RELATED: 60, // 1 minute
   PRODUCT_COMPARE: 900, // 15 minutes — AI comparison is expensive

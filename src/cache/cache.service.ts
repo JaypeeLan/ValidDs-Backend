@@ -40,7 +40,6 @@ async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
 }
 
 export const CacheService = {
-
   /**
    * Get a cached value.
    * Returns null on miss or error — also returns null when PRODUCT_CACHE_DISABLED=true
@@ -138,11 +137,7 @@ export const CacheService = {
    *     () => productRepository.findFeed({ page, limit })
    *   );
    */
-  async getOrSet<T>(
-    key: string,
-    ttlSeconds: number,
-    loader: () => Promise<T>
-  ): Promise<T> {
+  async getOrSet<T>(key: string, ttlSeconds: number, loader: () => Promise<T>): Promise<T> {
     const cached = await CacheService.get<T>(key);
     if (cached !== null) return cached;
 
@@ -150,5 +145,20 @@ export const CacheService = {
     // Do not block the response on a slow cache write.
     void CacheService.set(key, value, ttlSeconds);
     return value;
+  },
+
+  /**
+   * Pin feed totals for a filter set so page 1 and page N return the same `total`
+   * during the TTL window (avoids pagination jumping while ingestion is running).
+   */
+  async stabilizeFeedTotal(
+    key: string,
+    computedTotal: number,
+    ttlSeconds: number,
+  ): Promise<number> {
+    const cached = await CacheService.get<number>(key);
+    if (cached !== null) return cached;
+    void CacheService.set(key, computedTotal, ttlSeconds);
+    return computedTotal;
   },
 };

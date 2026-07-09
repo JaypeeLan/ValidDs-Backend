@@ -134,10 +134,29 @@ export const ProductService: ProductServiceType = {
       filters.limit ?? 20,
       JSON.stringify({ ...filters, page: undefined, limit: undefined }),
     );
+    const filtersKey = JSON.stringify({ ...filters, page: undefined, limit: undefined });
+    const totalCacheKey = CacheKeys.productFeedTotal(market, filtersKey);
 
     let feed = await CacheService.get<PaginatedResponse<IProductDocument>>(cacheKey);
     if (feed === null) {
       feed = await ProductRepository.findFeed(filters, productModel);
+      const stableTotal = await CacheService.stabilizeFeedTotal(
+        totalCacheKey,
+        feed.pagination.total,
+        CACHE_TTL.PRODUCT_FEED,
+      );
+      if (stableTotal !== feed.pagination.total) {
+        const limit = feed.pagination.limit;
+        feed = {
+          ...feed,
+          pagination: {
+            ...feed.pagination,
+            total: stableTotal,
+            totalPages: Math.ceil(stableTotal / limit) || 0,
+            hasNextPage: feed.pagination.page < Math.ceil(stableTotal / limit),
+          },
+        };
+      }
       // Do not cache an empty page — avoids locking in "no products" for 5m after deploy or ingestion lag.
       if (feed.pagination.total > 0) {
         await CacheService.set(cacheKey, feed, CACHE_TTL.PRODUCT_FEED);

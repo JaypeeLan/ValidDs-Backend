@@ -21,7 +21,8 @@ export const TIKTOK_CDN_HEADERS: Record<string, string> = {
 
 import { s3ImagePrefix } from './s3-video.util';
 
-const BLOCKED_AVATAR_URL_RE = /favicon\.ico|\/favicon(?:[/?#]|$)|default[_-]?avatar|placeholder/i;
+const BLOCKED_AVATAR_URL_RE =
+  /favicon\.ico|\/favicon(?:[/?#]|$)|default[_-]?avatar|placeholder|ui-avatars\.com|gravatar\.com|dicebear\.com|robohash\.org/i;
 
 /** TikTok CDN / S3 profile image suitable for UI (not favicon / placeholder junk). */
 export function isUsableCreatorAvatarUrl(url: unknown): url is string {
@@ -30,6 +31,15 @@ export function isUsableCreatorAvatarUrl(url: unknown): url is string {
   if (!trimmed.startsWith('https://')) return false;
   if (BLOCKED_AVATAR_URL_RE.test(trimmed)) return false;
   return true;
+}
+
+/** True when we have a real image source to back a creator avatar (not handle-only). */
+export function hasCachedCreatorAvatarSource(opts: {
+  avatarUrl?: string;
+  avatarS3Key?: string;
+}): boolean {
+  if (typeof opts.avatarS3Key === 'string' && opts.avatarS3Key.trim()) return true;
+  return isUsableCreatorAvatarUrl(opts.avatarUrl);
 }
 
 export function creatorAvatarS3Key(handle: string, market = 'us'): string {
@@ -56,10 +66,7 @@ export function buildCreatorAvatarProxyUrl(
   opts: { avatarUrl?: string; avatarS3Key?: string; handle?: string },
 ): string | undefined {
   if (!baseUrl?.trim()) return undefined;
-  const hasHandle = typeof opts.handle === 'string' && opts.handle.trim().length > 0;
-  const hasSource =
-    Boolean(opts.avatarUrl?.trim()) || Boolean(opts.avatarS3Key?.trim()) || hasHandle;
-  if (!hasSource) return undefined;
+  if (!hasCachedCreatorAvatarSource(opts)) return undefined;
   return `${baseUrl}/thumbnail?index=${index}&kind=avatar`;
 }
 

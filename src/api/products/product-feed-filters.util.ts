@@ -7,9 +7,6 @@ export const FRONTEND_CATEGORY_TO_L1: Record<string, string> = {
   'Beauty & Personal Care': 'Beauty & Personal Care',
   'Fitness & Health': 'Health & Wellness',
   'Home & Kitchen': 'Home & Kitchen',
-  'Tech / Gadgets': 'Electronics & Tech',
-  'Tech/Gadgets': 'Electronics & Tech',
-  'Electronics & Tech': 'Electronics & Tech',
   Fashion: 'Fashion',
 };
 

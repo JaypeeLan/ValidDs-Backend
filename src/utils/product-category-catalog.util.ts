@@ -1,6 +1,7 @@
 import { PRODUCT_CATEGORIES, SUBCATEGORIES_BY_CATEGORY } from '../api/products/product.constants';
 import { normalizeCategoryL1 } from './category-l1-normalize.util';
 import { normalizeCategoryL2 } from './category-l2-normalize.util';
+import { isExcludedProductCategoryL1 } from './excluded-product-categories.util';
 
 const CANONICAL_L1_SET = new Set(PRODUCT_CATEGORIES);
 
@@ -9,9 +10,11 @@ export function filterL1CategoriesWithProducts(dbL1: string[]): string[] {
   const have = new Set<string>();
   for (const raw of dbL1) {
     const canonical = normalizeCategoryL1(raw);
-    if (canonical && CANONICAL_L1_SET.has(canonical)) have.add(canonical);
+    if (canonical && CANONICAL_L1_SET.has(canonical) && !isExcludedProductCategoryL1(canonical)) {
+      have.add(canonical);
+    }
   }
-  return PRODUCT_CATEGORIES.filter((c) => have.has(c));
+  return PRODUCT_CATEGORIES.filter((c) => have.has(c) && !isExcludedProductCategoryL1(c));
 }
 
 /**
@@ -32,6 +35,7 @@ export function filterSubcategoriesWithProducts(
 
   const out: Record<string, string[]> = {};
   for (const l1 of PRODUCT_CATEGORIES) {
+    if (isExcludedProductCategoryL1(l1)) continue;
     const have = new Set((dbByL1[l1] ?? []).map((s) => normalizeCategoryL2(l1, s)).filter(Boolean));
     const subs = (SUBCATEGORIES_BY_CATEGORY[l1] ?? []).filter((s) => have.has(s));
     if (subs.length > 0) {

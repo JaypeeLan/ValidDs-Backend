@@ -44,6 +44,7 @@
     "generate-api-key": "ts-node scripts/generate-api-key.ts",
     "make-admin": "ts-node src/scripts/make-admin.ts",
     "remove-branded-products": "ts-node src/scripts/remove-branded-products.ts",
+    "archive-gadget-products": "ts-node src/scripts/archive-gadget-products.ts",
     "dedupe-creatives": "node scripts/dedupe-creatives.cjs",
     "cache-creator-avatars": "ts-node --transpile-only scripts/cache-creator-avatars.ts",
     "cache-shop-avatars": "ts-node --transpile-only scripts/cache-shop-avatars.ts",

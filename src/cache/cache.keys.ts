@@ -16,7 +16,7 @@
 import type { MarketCode } from '../utils/markets';
 
 /** Bump when feed query semantics change so Redis does not serve stale empty/wrong slices. */
-const PRODUCT_FEED_CACHE_REVISION = 'v8';
+const PRODUCT_FEED_CACHE_REVISION = 'v9';
 
 /** Bump when creative feed query semantics change. */
 const CREATIVE_FEED_CACHE_REVISION = 'v1';

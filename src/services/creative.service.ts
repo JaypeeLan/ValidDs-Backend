@@ -56,6 +56,7 @@ import { enrichCreativesWithResolvedVideoS3Keys } from './meta-video-s3-resolve.
 import { metaAdIdFromCreative } from '../utils/meta-video-s3.util';
 import { findProductCreators } from './product-creator.service';
 import type { IProductDocument } from '../types/product.types';
+import { excludedProductCategoryL1Filter } from '../utils/excluded-product-categories.util';
 
 export {
   apiSectionToDb,
@@ -810,7 +811,9 @@ export const CreativeService = {
       );
     }
 
-    const query: Record<string, unknown> = {};
+    const query: Record<string, unknown> = {
+      ...excludedProductCategoryL1Filter(),
+    };
     if (productId) {
       query.productId = mongoose.isValidObjectId(productId)
         ? new mongoose.Types.ObjectId(productId)

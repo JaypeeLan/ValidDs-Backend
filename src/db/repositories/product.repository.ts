@@ -19,6 +19,7 @@ import {
   normalizeCategoryL2,
 } from '../../utils/category-l2-normalize.util';
 import { expandCategoryL1FilterValues } from '../../utils/category-l1-normalize.util';
+import { excludedProductCategoryL1Filter } from '../../utils/excluded-product-categories.util';
 import {
   creativeCollectionForProductCollection,
   creativeFeedExposureMatchStage,
@@ -763,6 +764,7 @@ function applyProductFeedFilters(
 /** Same eligibility as `findFeed` — categories/subcategories only count listable products. */
 export const LISTABLE_PRODUCT_FILTER: Record<string, unknown> = {
   status: { $nin: ['archived', 'invalid'] },
+  ...excludedProductCategoryL1Filter(),
 };
 
 const NON_EMPTY_STRING = { $exists: true, $nin: [null, ''] };

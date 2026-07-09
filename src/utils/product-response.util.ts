@@ -1,7 +1,7 @@
 import mongoose, { type Model } from 'mongoose';
 import { Creative, type ICreativeDocument } from '../models/creative.model';
 import type { IPrimaryCreator, IPrimaryCreatorApi } from '../types/product.types';
-import { isUsableCreatorAvatarUrl } from './creator-avatar.util';
+import { hasCachedCreatorAvatarSource, isUsableCreatorAvatarUrl } from './creator-avatar.util';
 import { stripLegacySupplierSalesFields } from './supplier-apify.util';
 
 export type CreatorAvatarEnrichment = {
@@ -13,6 +13,13 @@ export type CreatorAvatarEnrichment = {
 function pickUrl(...vals: unknown[]): string | undefined {
   for (const v of vals) {
     if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function pickUsableAvatarUrl(...vals: unknown[]): string | undefined {
+  for (const v of vals) {
+    if (isUsableCreatorAvatarUrl(v)) return v.trim();
   }
   return undefined;
 }
@@ -43,7 +50,7 @@ export function normalizePrimaryCreatorForStorage(
       avatarUrl: '',
     };
   }
-  const primaryImageUrl = pickUrl(creator.primaryImageUrl, creator.avatarUrl) ?? '';
+  const primaryImageUrl = pickUsableAvatarUrl(creator.primaryImageUrl, creator.avatarUrl) ?? '';
   const shopGmv =
     typeof creator.shopGmv === 'number' && Number.isFinite(creator.shopGmv) ? creator.shopGmv : 0;
   const shopTotalSales =
@@ -102,14 +109,15 @@ export function normalizePrimaryCreatorOnProduct(
   if ((!raw || typeof raw !== 'object') && !hasEnrichment) return;
 
   const pc = raw && typeof raw === 'object' ? { ...raw } : {};
-  // Canonical creator avatar is primaryImageUrl; avatarUrl is kept in sync for legacy clients.
   const primaryImageUrl =
-    pickUrl(pc.primaryImageUrl, pc.avatarUrl, enrichment?.primaryImageUrl) ?? null;
-
-  const avatarProxyUrl = enrichment?.creativeId
-    ? creatorAvatarProxyPath(enrichment.creativeId)
-    : pickUrl(pc.avatarProxyUrl);
-  const displayAvatarUrl = primaryImageUrl ?? avatarProxyUrl ?? null;
+    pickUsableAvatarUrl(pc.primaryImageUrl, pc.avatarUrl, enrichment?.primaryImageUrl) ?? null;
+  const avatarS3Key = typeof pc.avatarS3Key === 'string' ? pc.avatarS3Key : undefined;
+  const hasAvatar = hasCachedCreatorAvatarSource({
+    avatarUrl: primaryImageUrl ?? undefined,
+    avatarS3Key,
+  });
+  const avatarProxyUrl =
+    enrichment?.creativeId && hasAvatar ? creatorAvatarProxyPath(enrichment.creativeId) : undefined;
 
   const apiCreator: IPrimaryCreatorApi = {
     handle: typeof pc.handle === 'string' ? pc.handle : '',
@@ -122,8 +130,8 @@ export function normalizePrimaryCreatorOnProduct(
     region: typeof pc.region === 'string' ? pc.region : '',
     verified: typeof pc.verified === 'boolean' ? pc.verified : false,
     tiktokPostUrl: typeof pc.tiktokPostUrl === 'string' ? pc.tiktokPostUrl : '',
-    primaryImageUrl: displayAvatarUrl,
-    avatarUrl: displayAvatarUrl,
+    primaryImageUrl,
+    avatarUrl: primaryImageUrl,
     ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
   };
   product.primaryCreator = apiCreator;

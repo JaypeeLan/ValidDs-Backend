@@ -22,6 +22,7 @@ import { expandCategoryL1FilterValues } from '../utils/category-l1-normalize.uti
 import {
   buildCreatorAvatarProxyUrl,
   buildShopAvatarProxyUrl,
+  hasCachedCreatorAvatarSource,
   isUsableCreatorAvatarUrl,
 } from '../utils/creator-avatar.util';
 import {
@@ -175,14 +176,18 @@ function formatProductCreatorFeedItem(
     creatorRaw.avatarUrl,
     creatorRaw.primaryImageUrl,
     enrichment?.primaryImageUrl,
-    top.shopAvatarUrl,
   ].find(isUsableCreatorAvatarUrl);
-
-  const avatarProxyUrl = buildCreatorAvatarProxyUrl(baseUrl, 0, {
-    avatarUrl,
-    avatarS3Key: typeof creatorRaw.avatarS3Key === 'string' ? creatorRaw.avatarS3Key : undefined,
-    handle: row.handle,
-  });
+  const avatarS3Key =
+    typeof creatorRaw.avatarS3Key === 'string' ? creatorRaw.avatarS3Key : undefined;
+  const hasAvatar = hasCachedCreatorAvatarSource({ avatarUrl, avatarS3Key });
+  const avatarProxyUrl =
+    hasAvatar && baseUrl
+      ? buildCreatorAvatarProxyUrl(baseUrl, 0, {
+          avatarUrl,
+          avatarS3Key,
+          handle: row.handle,
+        })
+      : undefined;
   const shopAvatarUrl = isUsableCreatorAvatarUrl(top.shopAvatarUrl)
     ? String(top.shopAvatarUrl)
     : undefined;
@@ -190,7 +195,6 @@ function formatProductCreatorFeedItem(
     shopAvatarUrl,
     shopName: row.shopName ?? (typeof top.shopName === 'string' ? top.shopName : undefined),
   });
-  const displayAvatarUrl = avatarUrl ?? avatarProxyUrl ?? shopAvatarUrl ?? shopAvatarProxyUrl;
 
   const thumb =
     typeof top.primaryImageUrl === 'string' && top.primaryImageUrl.startsWith('https://')
@@ -213,7 +217,7 @@ function formatProductCreatorFeedItem(
       region: typeof creatorRaw.region === 'string' ? creatorRaw.region : undefined,
       verified: Boolean(creatorRaw.verified),
       isIndependentCreator: false,
-      ...(displayAvatarUrl ? { avatarUrl: displayAvatarUrl } : {}),
+      ...(avatarUrl ? { avatarUrl } : {}),
       ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
       ...(shopAvatarProxyUrl ? { shopAvatarProxyUrl } : {}),
     },

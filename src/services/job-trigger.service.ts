@@ -43,6 +43,24 @@ export const TRIGGERABLE_JOBS: TriggerableJob[] = [
     description: 'Discover extra TikTok promo clips per product',
   },
   {
+    job: 'partner_pool',
+    service: 'scraper',
+    label: 'Partner pool ingest',
+    description: 'Partner Center affiliate pool → seller product ingest',
+  },
+  {
+    job: 'high_opportunity',
+    service: 'scraper',
+    label: 'High-opportunity ingest',
+    description: 'Partner Center high-opportunity products → ingest',
+  },
+  {
+    job: 'scraper_run_all',
+    service: 'scraper',
+    label: 'Run all scraper cycles',
+    description: 'Meta ads, promo videos, partner pool, and high-opportunity (enabled jobs only)',
+  },
+  {
     job: 'discovery_sections_refresh',
     service: 'product-maintenance',
     label: 'Discovery sections',

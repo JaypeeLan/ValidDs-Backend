@@ -36,6 +36,14 @@ import {
 import { getS3VideoObject, isS3VideoConfigured } from '../../utils/s3-video.util';
 import { logger } from '../../logger';
 
+function finishThumbnailResponse(res: Response, kind: 'thumbnail' | 'avatar' | 'shop'): void {
+  if (kind === 'avatar') {
+    res.status(404).end();
+    return;
+  }
+  sendImagePlaceholder(res);
+}
+
 const log = logger.child({ module: 'creative-controller' });
 
 // ── Lazy refresh dedupe ──────────────────────────────────────────────────────
@@ -438,19 +446,20 @@ export const CreativeController = {
    * GET /api/v1/creatives/:id/thumbnail?index=0&kind=thumbnail|avatar|shop
    */
   async streamThumbnail(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const kindRaw = req.query.kind;
+    const kind = kindRaw === 'avatar' ? 'avatar' : kindRaw === 'shop' ? 'shop' : 'thumbnail';
+
     try {
       const { id } = req.params;
       const indexRaw = req.query.index;
       const index = Number.isFinite(Number(indexRaw))
         ? Math.max(0, Math.floor(Number(indexRaw)))
         : 0;
-      const kindRaw = req.query.kind;
-      const kind = kindRaw === 'avatar' ? 'avatar' : kindRaw === 'shop' ? 'shop' : 'thumbnail';
 
       const creativeModel = req.models?.Creative ?? Creative;
       let creative = await creativeModel.findById(id).lean();
       if (!creative) {
-        sendImagePlaceholder(res);
+        finishThumbnailResponse(res, kind);
         return;
       }
 
@@ -556,10 +565,10 @@ export const CreativeController = {
 
       triggerLazyRefresh(id, index, `thumbnail-exhausted-${kind}`);
       log.info('Serving placeholder image for creative thumbnail', { id, index, kind });
-      sendImagePlaceholder(res);
+      finishThumbnailResponse(res, kind);
     } catch (err) {
       if (!res.headersSent) {
-        sendImagePlaceholder(res);
+        finishThumbnailResponse(res, kind);
         return;
       }
       next(err);

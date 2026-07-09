@@ -27,6 +27,7 @@ import {
 import { productFieldCompletenessReasons } from './product-field-completeness';
 import { creativeVideoProductMatchReason } from '../../utils/video-product-match.util';
 import { matchedBlockedBrand } from '../../utils/brand-blocklist.util';
+import { isExcludedProductCategoryL1 } from '../../utils/excluded-product-categories.util';
 
 export {
   BASELINE_INGEST,
@@ -162,6 +163,10 @@ export function validateProductForIngest(
       : null;
   if (brandMatch) {
     reasons.push(`branded product not allowed for dropshipping (matched "${brandMatch}")`);
+  }
+
+  if (doc.categoryL1 && isExcludedProductCategoryL1(String(doc.categoryL1))) {
+    reasons.push('electronics / tech gadgets are excluded from the catalog');
   }
 
   // Category L2/L3 filled by AI categorizer after ingest; only L1 is required at ingest time.

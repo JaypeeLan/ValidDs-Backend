@@ -1,4 +1,8 @@
-import { buildCreatorAvatarProxyUrl, isUsableCreatorAvatarUrl } from './creator-avatar.util';
+import {
+  buildCreatorAvatarProxyUrl,
+  isUsableCreatorAvatarUrl,
+  hasCachedCreatorAvatarSource,
+} from './creator-avatar.util';
 import type {
   CreativeApiItem,
   CreativeCreatorFeedItem,
@@ -605,12 +609,16 @@ function formatCreator(
 ): ICreatorProfileApi {
   const c = creator ?? ({ handle: '', verified: false, tiktokPostUrl: '' } as ICreatorProfile);
   const avatarUrl = pickAvatarUrl(resolvedAvatarUrl, c.avatarUrl);
-  const avatarProxyUrl = buildCreatorAvatarProxyUrl(baseUrl, index, {
-    avatarUrl,
-    avatarS3Key: c.avatarS3Key,
-    handle: c.handle,
-  });
-  const displayAvatarUrl = avatarUrl ?? avatarProxyUrl;
+  const avatarS3Key = typeof c.avatarS3Key === 'string' ? c.avatarS3Key : undefined;
+  const hasAvatar = hasCachedCreatorAvatarSource({ avatarUrl, avatarS3Key });
+  const avatarProxyUrl =
+    hasAvatar && baseUrl
+      ? buildCreatorAvatarProxyUrl(baseUrl, index, {
+          avatarUrl,
+          avatarS3Key,
+          handle: c.handle,
+        })
+      : undefined;
   return {
     handle: c.handle ?? '',
     displayName: c.displayName,
@@ -620,7 +628,7 @@ function formatCreator(
     verified: Boolean(c.verified),
     region: c.region,
     isIndependentCreator: Boolean(c.isIndependentCreator),
-    ...(displayAvatarUrl ? { avatarUrl: displayAvatarUrl } : {}),
+    ...(avatarUrl ? { avatarUrl } : {}),
     ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
   };
 }

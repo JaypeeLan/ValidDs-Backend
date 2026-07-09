@@ -7,13 +7,13 @@ import {
 } from '../src/utils/product-response.util';
 
 describe('normalizePrimaryCreatorForStorage', () => {
-  it('writes primaryImageUrl from avatarUrl when only legacy field is set', () => {
+  it('drops generated placeholder avatar URLs from storage', () => {
     const stored = normalizePrimaryCreatorForStorage({
       handle: 'colorkey_vn',
       avatarUrl: 'https://ui-avatars.com/api/?name=CC',
     });
-    expect(stored.primaryImageUrl).toBe('https://ui-avatars.com/api/?name=CC');
-    expect(stored.avatarUrl).toBe('https://ui-avatars.com/api/?name=CC');
+    expect(stored.primaryImageUrl).toBe('');
+    expect(stored.avatarUrl).toBe('');
   });
 });
 
@@ -70,7 +70,7 @@ describe('normalizePrimaryCreatorOnProduct', () => {
     );
   });
 
-  it('adds avatarProxyUrl from creativeId even when primaryImageUrl is missing', () => {
+  it('omits avatar fields when creative enrichment has no usable image', () => {
     const product: Record<string, unknown> = {
       primaryCreator: { handle: 'creator5' },
     };
@@ -81,11 +81,9 @@ describe('normalizePrimaryCreatorOnProduct', () => {
     normalizePrimaryCreatorOnProduct(product, enrichment);
 
     const pc = product.primaryCreator as Record<string, unknown>;
-    expect(pc.primaryImageUrl).toBe(
-      '/api/v1/creatives/507f1f77bcf86cd799439099/thumbnail?index=0&kind=avatar',
-    );
-    expect(pc.avatarUrl).toBe(pc.primaryImageUrl);
-    expect(pc.avatarProxyUrl).toBe(pc.primaryImageUrl);
+    expect(pc.primaryImageUrl).toBeNull();
+    expect(pc.avatarUrl).toBeNull();
+    expect(pc.avatarProxyUrl).toBeUndefined();
   });
 
   it('keeps stored primaryImageUrl over creative enrichment when both exist', () => {

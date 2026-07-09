@@ -324,6 +324,11 @@ async function syncProductCreatorAvatar(
 const PRODUCT_CREATIVE_LIMIT = 100;
 const MAX_PAGE_FILL_ROUNDS = 8;
 
+function marketFromCreativeCollection(collectionName: string): MarketCode {
+  const match = collectionName.match(/^creatives_([a-z]{2})$/i);
+  return (match?.[1]?.toUpperCase() ?? DEFAULT_MARKET) as MarketCode;
+}
+
 type CreativeFeedDoc = Record<string, unknown>;
 
 type CreativeFeedStageOpts = {
@@ -415,21 +420,37 @@ function buildCreativeFeedGroupByCreatorStages(sort: Record<string, unknown>): P
   ];
 }
 
-async function countCreativeFeed(
+async function fetchCreativeFeedFacetBatch(
   creativeModel: Model<ICreativeDocument>,
   baseStages: PipelineStage[],
   groupByCreator: boolean,
   sort: Record<string, unknown>,
-): Promise<number> {
-  const countStages = groupByCreator
+  skip: number,
+  limit: number,
+): Promise<{ total: number; batch: CreativeFeedDoc[] }> {
+  const trendRestoreStages = buildCreativeFeedTrendRestoreStages(creativeModel.collection.name);
+  const preFacetStages = groupByCreator
     ? [...baseStages, ...buildCreativeFeedGroupByCreatorStages(sort)]
     : baseStages;
-  const [result] = (await creativeModel
-    .aggregate([...countStages, { $count: 'count' }])
+
+  const [facet] = (await creativeModel
+    .aggregate([
+      ...preFacetStages,
+      {
+        $facet: {
+          total: [{ $count: 'count' }],
+          batch: [{ $skip: skip }, { $limit: limit }, ...trendRestoreStages],
+        },
+      },
+    ])
     .option({ maxTimeMS: 15_000 })
     .allowDiskUse(true)
-    .exec()) as [{ count: number }] | [];
-  return result?.count ?? 0;
+    .exec()) as [{ total?: { count: number }[]; batch?: CreativeFeedDoc[] }] | [];
+
+  return {
+    total: facet?.total?.[0]?.count ?? 0,
+    batch: facet?.batch ?? [],
+  };
 }
 
 async function fetchCreativeFeedBatch(
@@ -458,27 +479,41 @@ async function fetchCreativeFeedBatch(
     .exec()) as CreativeFeedDoc[];
 }
 
-async function fillCreativeFeedPage(
+async function fillCreativeFeedPageWithTotal(
   creativeModel: Model<ICreativeDocument>,
   baseStages: PipelineStage[],
   groupByCreator: boolean,
   sort: Record<string, unknown>,
   skip: number,
   mLimit: number,
-): Promise<CreativeFeedDoc[]> {
+): Promise<{ total: number; docs: CreativeFeedDoc[] }> {
   const collected: CreativeFeedDoc[] = [];
   let cursor = skip;
   const batchSize = Math.max(mLimit * 2, mLimit + 4);
+  let total: number | null = null;
 
   for (let round = 0; round < MAX_PAGE_FILL_ROUNDS && collected.length < mLimit; round++) {
-    const batch = await fetchCreativeFeedBatch(
-      creativeModel,
-      baseStages,
-      groupByCreator,
-      sort,
-      cursor,
-      batchSize,
-    );
+    const batch =
+      round === 0
+        ? await fetchCreativeFeedFacetBatch(
+            creativeModel,
+            baseStages,
+            groupByCreator,
+            sort,
+            cursor,
+            batchSize,
+          ).then((result) => {
+            total = result.total;
+            return result.batch;
+          })
+        : await fetchCreativeFeedBatch(
+            creativeModel,
+            baseStages,
+            groupByCreator,
+            sort,
+            cursor,
+            batchSize,
+          );
     if (!batch.length) break;
 
     const enriched = await enrichCreativesWithResolvedVideoS3Keys(batch, creativeModel);
@@ -488,7 +523,26 @@ async function fillCreativeFeedPage(
     if (batch.length < batchSize) break;
   }
 
-  return collected.slice(0, mLimit);
+  return { total: total ?? 0, docs: collected.slice(0, mLimit) };
+}
+
+async function fillCreativeFeedPage(
+  creativeModel: Model<ICreativeDocument>,
+  baseStages: PipelineStage[],
+  groupByCreator: boolean,
+  sort: Record<string, unknown>,
+  skip: number,
+  mLimit: number,
+): Promise<CreativeFeedDoc[]> {
+  const { docs } = await fillCreativeFeedPageWithTotal(
+    creativeModel,
+    baseStages,
+    groupByCreator,
+    sort,
+    skip,
+    mLimit,
+  );
+  return docs;
 }
 
 async function loadCreativesForProduct(
@@ -708,7 +762,15 @@ export const CreativeService = {
     productModel?: Model<IProductDocument>,
   ): Promise<{
     data: CreativeFeedItem[] | CreativeCreatorFeedItem[] | CreatorLobbyItem[];
-    pagination: { total: number; page: number; limit: number; pages: number };
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      pages: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
     groupBy?: 'creator';
   }> {
     const {
@@ -815,10 +877,33 @@ export const CreativeService = {
     });
     const groupByCreator = groupBy === 'creator';
 
-    const [total, rawData] = await Promise.all([
-      countCreativeFeed(creativeModel, baseStages, groupByCreator, sort),
-      fillCreativeFeedPage(creativeModel, baseStages, groupByCreator, sort, skip, mLimit),
-    ]);
+    const { total: computedTotal, docs: rawData } = await fillCreativeFeedPageWithTotal(
+      creativeModel,
+      baseStages,
+      groupByCreator,
+      sort,
+      skip,
+      mLimit,
+    );
+
+    const market = marketFromCreativeCollection(creativeModel.collection.name);
+    const totalCacheKey = CacheKeys.creativeFeedTotal(
+      market,
+      JSON.stringify({
+        matchQuery,
+        sortKey,
+        groupByCreator,
+        oneAdPerProduct,
+        extraMatch: extraMatch ?? null,
+      }),
+    );
+    const total = await CacheService.stabilizeFeedTotal(
+      totalCacheKey,
+      computedTotal,
+      CACHE_TTL.CREATIVE_FEED_TOTAL,
+    );
+    const totalPages = Math.ceil(total / mLimit) || 0;
+    const pageNum = Number(page);
 
     const feedDocs = rawData.map((doc) => ({ ...(doc as Record<string, unknown>) }));
     if (!groupByCreator) {
@@ -842,9 +927,12 @@ export const CreativeService = {
       data,
       pagination: {
         total,
-        page: Number(page),
+        page: pageNum,
         limit: mLimit,
-        pages: Math.ceil(total / mLimit) || 0,
+        pages: totalPages,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
       },
       ...(groupByCreator ? { groupBy: 'creator' as const } : {}),
     };

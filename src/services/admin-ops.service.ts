@@ -709,6 +709,9 @@ export interface IngestionAnalytics {
   period: IngestionPeriod;
   range: { from: string; to: string };
   windows: {
+    hours3: IngestionEntityCounts;
+    hours6: IngestionEntityCounts;
+    hours12: IngestionEntityCounts;
     daily: IngestionEntityCounts;
     weekly: IngestionEntityCounts;
     monthly: IngestionEntityCounts;
@@ -740,7 +743,12 @@ const INGESTION_ENTITY_CONFIG: Record<
   { dateField: string; isProduct: boolean; extraMatch: Record<string, unknown> }
 > = {
   products: { dateField: 'lastIngestedAt', isProduct: true, extraMatch: {} },
-  creatives: { dateField: 'ingestedAt', isProduct: false, extraMatch: {} },
+  // Match Creatives page (organic only) — not all creatives, or Ads duplicates the count.
+  creatives: {
+    dateField: 'ingestedAt',
+    isProduct: false,
+    extraMatch: adminCreativeAdTypeMatch('organic'),
+  },
   ads: { dateField: 'ingestedAt', isProduct: false, extraMatch: adminCreativeAdTypeMatch('ads') },
   metaAds: { dateField: 'ingestedAt', isProduct: false, extraMatch: CREATIVE_META_ADS_MATCH },
 };
@@ -753,8 +761,14 @@ function periodStartDate(period: IngestionPeriod, buckets: number): Date {
   return new Date(now - buckets * 30 * dayMs);
 }
 
-function windowStart(window: 'daily' | 'weekly' | 'monthly'): Date {
-  const dayMs = 24 * 60 * 60 * 1000;
+type IngestionWindowKey = keyof IngestionAnalytics['windows'];
+
+function windowStart(window: IngestionWindowKey): Date {
+  const hourMs = 60 * 60 * 1000;
+  const dayMs = 24 * hourMs;
+  if (window === 'hours3') return new Date(Date.now() - 3 * hourMs);
+  if (window === 'hours6') return new Date(Date.now() - 6 * hourMs);
+  if (window === 'hours12') return new Date(Date.now() - 12 * hourMs);
   if (window === 'daily') return new Date(Date.now() - dayMs);
   if (window === 'weekly') return new Date(Date.now() - 7 * dayMs);
   return new Date(Date.now() - 30 * dayMs);
@@ -849,22 +863,38 @@ export async function getIngestionAnalytics(opts: {
   const bucketCount = Math.min(Math.max(opts.buckets ?? DEFAULT_BUCKETS[period], 1), 90);
   const startDate = periodStartDate(period, bucketCount);
 
-  const [dailyWindow, weeklyWindow, monthlyWindow, products, creatives, ads, metaAds] =
-    await Promise.all([
-      buildIngestionWindowCounts(markets, windowStart('daily')),
-      buildIngestionWindowCounts(markets, windowStart('weekly')),
-      buildIngestionWindowCounts(markets, windowStart('monthly')),
-      aggregateIngestionSeries(markets, 'products', period, startDate),
-      aggregateIngestionSeries(markets, 'creatives', period, startDate),
-      aggregateIngestionSeries(markets, 'ads', period, startDate),
-      aggregateIngestionSeries(markets, 'metaAds', period, startDate),
-    ]);
+  const [
+    hours3Window,
+    hours6Window,
+    hours12Window,
+    dailyWindow,
+    weeklyWindow,
+    monthlyWindow,
+    products,
+    creatives,
+    ads,
+    metaAds,
+  ] = await Promise.all([
+    buildIngestionWindowCounts(markets, windowStart('hours3')),
+    buildIngestionWindowCounts(markets, windowStart('hours6')),
+    buildIngestionWindowCounts(markets, windowStart('hours12')),
+    buildIngestionWindowCounts(markets, windowStart('daily')),
+    buildIngestionWindowCounts(markets, windowStart('weekly')),
+    buildIngestionWindowCounts(markets, windowStart('monthly')),
+    aggregateIngestionSeries(markets, 'products', period, startDate),
+    aggregateIngestionSeries(markets, 'creatives', period, startDate),
+    aggregateIngestionSeries(markets, 'ads', period, startDate),
+    aggregateIngestionSeries(markets, 'metaAds', period, startDate),
+  ]);
 
   return {
     markets,
     period,
     range: { from: startDate.toISOString(), to: new Date().toISOString() },
     windows: {
+      hours3: hours3Window,
+      hours6: hours6Window,
+      hours12: hours12Window,
       daily: dailyWindow,
       weekly: weeklyWindow,
       monthly: monthlyWindow,

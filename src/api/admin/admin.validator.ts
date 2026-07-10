@@ -106,6 +106,10 @@ export const AdminIngestionAnalyticsQuerySchema = z.object({
   buckets: z.coerce.number().int().min(1).max(90).optional(),
 });
 
+export const AdminMetricsSnapshotsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(365).default(30),
+});
+
 export const AdminMaintenanceRunsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -204,6 +208,7 @@ export type AdminCreativesQueryInput = z.infer<typeof AdminCreativesQuerySchema>
 export type AdminCreateCreativeInput = z.infer<typeof AdminCreateCreativeSchema>;
 export type AdminAnalyticsQueryInput = z.infer<typeof AdminAnalyticsQuerySchema>;
 export type AdminIngestionAnalyticsQueryInput = z.infer<typeof AdminIngestionAnalyticsQuerySchema>;
+export type AdminMetricsSnapshotsQueryInput = z.infer<typeof AdminMetricsSnapshotsQuerySchema>;
 export type AdminMaintenanceRunsQueryInput = z.infer<typeof AdminMaintenanceRunsQuerySchema>;
 export type AdminJobHeartbeatsQueryInput = z.infer<typeof AdminJobHeartbeatsQuerySchema>;
 export type AdminProviderHealthQueryInput = z.infer<typeof AdminProviderHealthQuerySchema>;

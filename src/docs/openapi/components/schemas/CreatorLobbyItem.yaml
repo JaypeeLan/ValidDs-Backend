@@ -6,7 +6,9 @@ required:
 properties:
   creatorGmv:
     type: number
-    description: TikTok shop GMV (`storeGmv`) for this creator — shop-wide, independent of how many SKUs are ingested.
+    description: |
+      TikTok shop-wide GMV from the live storefront catalog (`primaryCreator.shopGmv`).
+      Not a single listing's `storeGmv` / `totalGmv`.
     example: 3000000
   creator:
     type: object

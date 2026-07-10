@@ -114,20 +114,28 @@ describe('findProductCreators', () => {
       ),
     );
 
-    const result = await findProductCreators(Product, {
-      page: 1,
-      limit: 20,
-      sortBy: 'views',
-    });
+    const result = await findProductCreators(
+      Product,
+      {
+        page: 1,
+        limit: 20,
+        sortBy: 'views',
+      },
+      Creative,
+    );
 
     expect(result.groupBy).toBe('creator');
     expect(result.pagination.total).toBe(2);
     expect(result.data.map((r) => r.creator.handle).sort()).toEqual(['shopa', 'shopb']);
 
     const shopA = result.data.find((r) => r.creator.handle === 'shopa');
-    expect(shopA?.videoCount).toBe(2);
-    expect(shopA?.productTotalGmv).toBe(2_000_000);
+    expect(shopA?.creatorGmv).toBe(2_000_000);
     expect(shopA?.creator.totalLikes).toBe(55_000);
-    expect(shopA?.productName).toBe('Product A');
+    expect(shopA?.creator.followers).toBe(10_000);
+    expect(shopA?.topProduct.productName).toBe('Product A');
+
+    const shopB = result.data.find((r) => r.creator.handle === 'shopb');
+    // No shopGmv stored — falls back to product storeGmv until catalog enrich runs.
+    expect(shopB?.creatorGmv).toBe(800_000);
   });
 });

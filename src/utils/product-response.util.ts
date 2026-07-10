@@ -191,9 +191,7 @@ export async function loadCreatorAvatarEnrichmentByProductId(
       },
       {
         $addFields: {
-          displayAvatar: {
-            $ifNull: ['$creator.avatarUrl', '$shopAvatarUrl'],
-          },
+          displayAvatar: '$creator.avatarUrl',
         },
       },
       { $sort: { 'metrics.viewCount': -1 } },

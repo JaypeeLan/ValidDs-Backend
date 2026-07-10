@@ -1,4 +1,5 @@
 import { runProductRefreshJob, runStaleCleanupJob } from './product-refresh.job';
+import { ensureTodaySnapshot } from '../services/metrics-snapshot.service';
 import { Product } from '../models/product.model';
 import { Creative } from '../models/creative.model';
 import { CreativeService } from '../services/creative.service';
@@ -13,6 +14,7 @@ const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const HALF_DAY_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const LIVE_MONITOR_INTERVAL_MS = 60 * 60 * 1000;
 const LIVE_MONITOR_INITIAL_DELAY_MS = 30_000;
+const METRICS_SNAPSHOT_INITIAL_DELAY_MS = 15_000;
 const STALE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const PRODUCT_INGESTION_HOUR_LAGOS = 0;
 const CREATIVE_INGESTION_HOURS_LAGOS = [0, 12] as const;
@@ -27,6 +29,9 @@ let creativeIngestionTimeout: ReturnType<typeof setTimeout> | null = null;
 let creativeIngestionInterval: ReturnType<typeof setInterval> | null = null;
 let liveMonitorTimeout: ReturnType<typeof setTimeout> | null = null;
 let liveMonitorInterval: ReturnType<typeof setInterval> | null = null;
+let metricsSnapshotTimeout: ReturnType<typeof setTimeout> | null = null;
+let metricsSnapshotInterval: ReturnType<typeof setInterval> | null = null;
+let lastMetricsSnapshotRun: Date | null = null;
 let lastProductRefreshRun: Date | null = null;
 let lastStaleCleanupRun: Date | null = null;
 let lastProductIngestionRun: Date | null = null;
@@ -261,6 +266,7 @@ export function getJobsStatus() {
       productIngestion: !!productIngestionInterval || !!productIngestionTimeout,
       creativeIngestion: !!creativeIngestionInterval || !!creativeIngestionTimeout,
       liveMonitorDiscover: !!liveMonitorInterval || !!liveMonitorTimeout,
+      metricsSnapshot: !!metricsSnapshotInterval || !!metricsSnapshotTimeout,
     },
     lastRuns: {
       productRefresh: lastProductRefreshRun,
@@ -268,6 +274,7 @@ export function getJobsStatus() {
       productIngestion: lastProductIngestionRun,
       creativeIngestion: lastCreativeIngestionRun,
       liveMonitorDiscover: lastLiveMonitorRun,
+      metricsSnapshot: lastMetricsSnapshotRun,
     },
     outcomes: {
       productRefresh: {
@@ -346,6 +353,21 @@ export function startJobs(): void {
       LIVE_MONITOR_INTERVAL_MS,
     );
   }, LIVE_MONITOR_INITIAL_DELAY_MS);
+
+  // Daily metrics snapshot: capture shortly after boot (so "today" exists from
+  // day one), then re-arm at the next Lagos midnight and every 24h after.
+  metricsSnapshotTimeout = setTimeout(() => {
+    lastMetricsSnapshotRun = new Date();
+    void ensureTodaySnapshot();
+    metricsSnapshotTimeout = setTimeout(() => {
+      lastMetricsSnapshotRun = new Date();
+      void ensureTodaySnapshot();
+      metricsSnapshotInterval = setInterval(() => {
+        lastMetricsSnapshotRun = new Date();
+        void ensureTodaySnapshot();
+      }, DAILY_INTERVAL_MS);
+    }, getDelayUntilNextLagosHour(0));
+  }, METRICS_SNAPSHOT_INITIAL_DELAY_MS);
 }
 
 export function stopJobs(): void {
@@ -356,5 +378,7 @@ export function stopJobs(): void {
   if (creativeIngestionInterval) clearInterval(creativeIngestionInterval);
   if (liveMonitorTimeout) clearTimeout(liveMonitorTimeout);
   if (liveMonitorInterval) clearInterval(liveMonitorInterval);
+  if (metricsSnapshotTimeout) clearTimeout(metricsSnapshotTimeout);
+  if (metricsSnapshotInterval) clearInterval(metricsSnapshotInterval);
   log.info('Background jobs stopped');
 }

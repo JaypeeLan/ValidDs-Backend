@@ -26,6 +26,7 @@ import type {
   AdminCreativesQueryInput,
   AdminAnalyticsQueryInput,
   AdminIngestionAnalyticsQueryInput,
+  AdminMetricsSnapshotsQueryInput,
   AdminMaintenanceRunsQueryInput,
   AdminJobHeartbeatsQueryInput,
   AdminProviderHealthQueryInput,
@@ -43,6 +44,7 @@ import {
   listMaintenanceRuns,
 } from '../../services/admin-ops.service';
 import { providerSummary, runProviderHealthChecks } from '../../services/provider-health.service';
+import { ensureTodaySnapshot, listSnapshots } from '../../services/metrics-snapshot.service';
 import {
   listJobTriggers,
   listTriggerableJobs,
@@ -933,6 +935,23 @@ export const getInventoryAnalyticsHandler = async (
     const query = req.query as unknown as AdminAnalyticsQueryInput;
     const data = await getInventoryAnalytics(query.market as MarketCode | undefined);
     res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listMetricsSnapshotsHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query as unknown as AdminMetricsSnapshotsQueryInput;
+    // Lazily capture today's snapshot so the history is populated from the
+    // first day this feature ships, without depending on the timer.
+    await ensureTodaySnapshot();
+    const snapshots = await listSnapshots(query.limit);
+    res.json({ success: true, data: { snapshots } });
   } catch (err) {
     next(err);
   }

@@ -13,6 +13,7 @@ import {
   UpdateUserRoleSchema,
   AdminAnalyticsQuerySchema,
   AdminIngestionAnalyticsQuerySchema,
+  AdminMetricsSnapshotsQuerySchema,
   AdminMaintenanceRunsQuerySchema,
   AdminJobHeartbeatsQuerySchema,
   AdminProviderHealthQuerySchema,
@@ -57,6 +58,13 @@ router.get(
   '/analytics/ingestion',
   validate(AdminIngestionAnalyticsQuerySchema, 'query'),
   adminController.getIngestionAnalyticsHandler,
+);
+
+// Daily timestamped snapshots of the dashboard's headline numbers — all admins.
+router.get(
+  '/metrics/snapshots',
+  validate(AdminMetricsSnapshotsQuerySchema, 'query'),
+  adminController.listMetricsSnapshotsHandler,
 );
 
 router.get('/operations/overview', requireSuperAdmin, adminController.getOperationsOverviewHandler);

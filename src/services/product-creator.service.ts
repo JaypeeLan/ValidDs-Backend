@@ -6,7 +6,7 @@
 import type { Model } from 'mongoose';
 import type { PipelineStage } from 'mongoose';
 import type { IProductDocument } from '../types/product.types';
-import type { CreativeCreatorFeedItem, ICreativeDocument } from '../types/creative.types';
+import type { CreatorLobbyItem, ICreativeDocument } from '../types/creative.types';
 import {
   loadCreatorAvatarEnrichmentByHandle,
   loadCreatorAvatarEnrichmentByProductId,
@@ -21,7 +21,6 @@ import { LISTABLE_PRODUCT_FILTER } from '../db/repositories/product.repository';
 import { expandCategoryL1FilterValues } from '../utils/category-l1-normalize.util';
 import {
   buildCreatorAvatarProxyUrl,
-  buildShopAvatarProxyUrl,
   hasCachedCreatorAvatarSource,
   isUsableCreatorAvatarUrl,
 } from '../utils/creator-avatar.util';
@@ -161,24 +160,25 @@ type AggregatedCreator = {
 function formatProductCreatorFeedItem(
   row: AggregatedCreator,
   enrichment?: CreatorAvatarEnrichment | null,
-): CreativeCreatorFeedItem {
+): CreatorLobbyItem {
   const top = row.topProduct ?? {};
   const creatorRaw = {
     ...(row.creator ?? {}),
     ...((top.primaryCreator as Record<string, unknown> | undefined) ?? {}),
   };
-  const productId = String(top._id ?? '');
+  const productId = String(top._id ?? row.topProductId ?? '');
   const apiVersion = process.env.API_VERSION || 'v1';
   const creativeId = enrichment?.creativeId;
   const baseUrl = creativeId ? `/api/${apiVersion}/creatives/${creativeId}` : undefined;
 
-  const avatarUrl = [
-    creatorRaw.avatarUrl,
-    creatorRaw.primaryImageUrl,
-    enrichment?.primaryImageUrl,
-  ].find(isUsableCreatorAvatarUrl);
+  // Prefer real profile avatar URL only — never product photos / shop logos.
+  const avatarUrl = [creatorRaw.avatarUrl, enrichment?.primaryImageUrl].find(
+    isUsableCreatorAvatarUrl,
+  );
   const avatarS3Key =
-    typeof creatorRaw.avatarS3Key === 'string' ? creatorRaw.avatarS3Key : undefined;
+    typeof creatorRaw.avatarS3Key === 'string' && creatorRaw.avatarS3Key.trim()
+      ? creatorRaw.avatarS3Key.trim()
+      : undefined;
   const hasAvatar = hasCachedCreatorAvatarSource({ avatarUrl, avatarS3Key });
   const avatarProxyUrl =
     hasAvatar && baseUrl
@@ -188,74 +188,34 @@ function formatProductCreatorFeedItem(
           handle: row.handle,
         })
       : undefined;
-  const shopAvatarUrl = isUsableCreatorAvatarUrl(top.shopAvatarUrl)
-    ? String(top.shopAvatarUrl)
-    : undefined;
-  const shopAvatarProxyUrl = buildShopAvatarProxyUrl(baseUrl, {
-    shopAvatarUrl,
-    shopName: row.shopName ?? (typeof top.shopName === 'string' ? top.shopName : undefined),
-  });
 
   const thumb =
     typeof top.primaryImageUrl === 'string' && top.primaryImageUrl.startsWith('https://')
       ? top.primaryImageUrl
       : Array.isArray(top.imageUrls) && typeof top.imageUrls[0] === 'string'
         ? top.imageUrls[0]
-        : undefined;
+        : null;
 
   return {
-    id: productId,
-    productId,
-    externalVideoId: String(top.externalId ?? top.videoId ?? ''),
-    thumbnailUrl: thumb,
+    creatorGmv: Number(row.creatorGmv) || 0,
     creator: {
       handle: row.handle,
       displayName: typeof creatorRaw.displayName === 'string' ? creatorRaw.displayName : row.handle,
-      followers: row.maxFollowers,
-      following: typeof creatorRaw.following === 'number' ? creatorRaw.following : undefined,
-      totalLikes: row.maxTotalLikes,
-      region: typeof creatorRaw.region === 'string' ? creatorRaw.region : undefined,
-      verified: Boolean(creatorRaw.verified),
-      isIndependentCreator: false,
-      ...(avatarUrl ? { avatarUrl } : {}),
+      followers: Number(row.maxFollowers) || 0,
+      totalLikes: Number(row.maxTotalLikes) || 0,
       ...(avatarProxyUrl ? { avatarProxyUrl } : {}),
-      ...(shopAvatarProxyUrl ? { shopAvatarProxyUrl } : {}),
     },
-    metrics: {
-      viewCount: Number(top.viewCount) || row.maxViews || 0,
-      likeCount: Number(top.likeCount) || 0,
-      commentCount: Number(top.commentCount) || 0,
-      shareCount: Number(top.shareCount) || 0,
-      engagementRate: typeof top.engagementRate === 'number' ? top.engagementRate : null,
+    topProduct: {
+      productId,
+      productName: typeof top.title === 'string' ? top.title : '',
+      productRating: typeof top.rating === 'number' ? top.rating : null,
+      productPrimaryImageUrl: thumb,
     },
-    section: 'default',
-    isIndependentCreator: false,
-    productName: typeof top.title === 'string' ? top.title : undefined,
-    categoryL1: typeof top.categoryL1 === 'string' ? top.categoryL1 : undefined,
-    categoryL2: typeof top.categoryL2 === 'string' ? top.categoryL2 : undefined,
-    categoryL3: typeof top.categoryL3 === 'string' ? top.categoryL3 : undefined,
-    productRating: typeof top.rating === 'number' ? top.rating : null,
-    productTotalSales: typeof top.totalSales === 'number' ? top.totalSales : null,
-    productTotalGmv: row.creatorGmv,
-    productPrice: typeof top.price === 'number' ? top.price : null,
-    productUrl: typeof top.productUrl === 'string' ? top.productUrl : null,
-    shopName: row.shopName ?? (typeof top.shopName === 'string' ? top.shopName : null),
-    productPrimaryImageUrl: thumb ?? null,
-    publishedAt:
-      (top.publishedAt as Date | string | undefined) ??
-      (top.postCreatedAt as Date | string | undefined) ??
-      (top.lastIngestedAt as Date | string | undefined) ??
-      null,
-    ingestedAt: top.lastIngestedAt as Date | string | undefined,
     updatedAt:
       (row.latestActivity as Date | string | undefined) ??
       (top.updatedAt as Date | string | undefined) ??
       (top.lastIngestedAt as Date | string | undefined) ??
       null,
-    hashtags: [],
-    topComments: [],
-    relatedVideos: [],
-    videoCount: row.productCount,
   };
 }
 
@@ -273,7 +233,7 @@ export async function findProductCreators(
   filters: ProductCreatorFilters,
   creativeModel?: Model<ICreativeDocument>,
 ): Promise<{
-  data: CreativeCreatorFeedItem[];
+  data: CreatorLobbyItem[];
   pagination: { total: number; page: number; limit: number; pages: number };
   groupBy: 'creator';
 }> {
@@ -302,8 +262,14 @@ export async function findProductCreators(
         shopName: { $first: '$shopName' },
         productCount: { $sum: 1 },
         creatorGmv: {
+          // Prefer live storefront catalog GMV; never treat a single SKU's storeGmv
+          // as shop-wide unless shopGmv was never fetched.
           $max: {
-            $ifNull: ['$primaryCreator.shopGmv', { $ifNull: ['$storeGmv', 0] }],
+            $cond: [
+              { $gt: [{ $ifNull: ['$primaryCreator.shopGmv', 0] }, 0] },
+              '$primaryCreator.shopGmv',
+              { $ifNull: ['$storeGmv', 0] },
+            ],
           },
         },
         topProductId: {

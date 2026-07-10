@@ -7,13 +7,13 @@ billingConfig:
       page so the client knows whether to offer Stripe, Shopify, or both.
 
       - **stripe** — included when the Stripe secret key is configured.
-      - **shopify** — included when Shopify OAuth credentials are configured (`SHOPIFY_API_KEY`, etc.).
+      - **shopify** — included when Shopify OAuth credentials are configured.
 
-      Use `defaultProvider` (`stripe`) when the user does not choose a provider. Pass `provider` explicitly
-      to `POST /billing/checkout`.
+      `defaultProvider` is **per user**: `"shopify"` when this account has a connected store (and Shopify
+      OAuth is configured), otherwise `"stripe"`. Omitting `provider` on checkout uses the same rule.
 
-      Shopify checkout additionally requires `BILLING_PROVIDER=shopify`, plan price env vars
-      (`SHOPIFY_PLAN_PRICE_*_CENTS`), and a connected store (`GET /stores/shopify/status`).
+      Shopify checkout also needs plan price env vars (`SHOPIFY_PLAN_PRICE_*_CENTS`) and a connected
+      store (`GET /stores/shopify/status`).
     security:
       - BearerAuth: []
     responses:
@@ -33,6 +33,8 @@ billingConfig:
                         - defaultProvider
                         - stripeConfigured
                         - shopifyConfigured
+                        - hasShopifyStore
+                        - shopifyBillingEnabled
                         - shopifyBillingTest
                         - requiresShopifyStore
                       properties:
@@ -46,26 +48,35 @@ billingConfig:
                         defaultProvider:
                           type: string
                           enum: [stripe, shopify]
-                          example: stripe
+                          description: Per-user — shopify when a store is connected, else stripe.
+                          example: shopify
                         stripeConfigured:
                           type: boolean
                         shopifyConfigured:
                           type: boolean
                           description: True when Shopify OAuth env vars are set.
+                        hasShopifyStore:
+                          type: boolean
+                          description: True when this authenticated user has a connected Shopify store.
+                        shopifyBillingEnabled:
+                          type: boolean
+                          description: True when Shopify OAuth is configured (App Billing available).
                         shopifyBillingTest:
                           type: boolean
                           description: True when `SHOPIFY_BILLING_TEST=true` or `NODE_ENV` is not production.
                         requiresShopifyStore:
                           type: boolean
-                          description: Always `true` — Shopify checkout needs a connected merchant store.
+                          description: True when `defaultProvider` is shopify for this user.
             example:
               success: true
               message: OK
               data:
                 providers: [stripe, shopify]
-                defaultProvider: stripe
+                defaultProvider: shopify
                 stripeConfigured: true
                 shopifyConfigured: true
+                hasShopifyStore: true
+                shopifyBillingEnabled: true
                 shopifyBillingTest: true
                 requiresShopifyStore: true
       '401':
@@ -79,10 +90,10 @@ listPlans:
       Returns **explorer**, **pro**, and **premium** plan metadata — credit limits, price data, free trial
       days, and the default redirect URLs checkout will use.
 
-      The top-level `provider` field reflects the server's `BILLING_PROVIDER` env (`stripe` or `shopify`) and
-      controls which price source populates `plans[].price`. For side-by-side checkout, call
-      `GET /billing/config` to see which providers are available, then pass `provider` to
-      `POST /billing/checkout`.
+      The top-level `provider` field is **per user**: `"shopify"` when this account has a connected
+      store, otherwise `"stripe"`. That controls which price source populates `plans[].price`.
+      Call `GET /billing/config` for `hasShopifyStore` / `defaultProvider`, then
+      `POST /billing/checkout` (omit `provider` to use the same rule).
 
       Each plan includes `stripePriceConfigured` and `shopifyPriceConfigured` so the UI can show which
       providers are ready for that tier.
@@ -108,12 +119,20 @@ listPlans:
                     data:
                       type: object
                       required:
-                        [provider, mode, trialDays, requiresShopifyStore, plans, checkoutRedirects]
+                        [
+                          provider,
+                          mode,
+                          trialDays,
+                          requiresShopifyStore,
+                          hasShopifyStore,
+                          plans,
+                          checkoutRedirects,
+                        ]
                       properties:
                         provider:
                           type: string
                           enum: [stripe, shopify]
-                          description: Catalog price source — mirrors `BILLING_PROVIDER` env.
+                          description: Catalog price source — shopify when the user has a connected store, else stripe.
                         mode:
                           type: string
                           enum: [test, live]
@@ -121,6 +140,9 @@ listPlans:
                         requiresShopifyStore:
                           type: boolean
                           description: True when `provider` is `shopify`.
+                        hasShopifyStore:
+                          type: boolean
+                          description: True when this authenticated user has a connected Shopify store.
                         trialDays:
                           type: integer
                           example: 7
@@ -250,8 +272,8 @@ createCheckoutSession:
     description: |
       Creates a hosted checkout session for a paid plan.
 
-      Use `provider: "stripe"` (default) for Stripe Checkout, or `provider: "shopify"` for Shopify App
-      Billing (requires a connected store and `BILLING_PROVIDER=shopify`).
+      Omitting `provider` auto-selects: connected Shopify store → Shopify App Billing, otherwise Stripe
+      Checkout. Pass `provider` explicitly only to override.
 
       Returns `data.url` — redirect the user's browser to this URL to complete checkout.
 
@@ -262,6 +284,7 @@ createCheckoutSession:
       - Plan is provisioned via `checkout.session.completed` webhook.
 
       **Shopify**
+      - Requires a connected store (`GET /stores/shopify/status`).
       - Merchant approves the charge in Shopify Admin (`confirmationUrl`).
       - Success redirect → `FRONTEND_URL/billing/success?provider=shopify&plan=...`
       - Call `POST /billing/shopify/sync` after redirect (or rely on `app_subscriptions/update` webhook).
@@ -354,7 +377,7 @@ createCheckoutSession:
       '409':
         description: Active Stripe subscription blocks Shopify checkout (`BILLING_PROVIDER_CONFLICT`).
       '503':
-        description: Price ID / Shopify plan price not configured, or Shopify billing disabled.
+        description: Price ID / Shopify plan price not configured, or Shopify OAuth not configured.
 
 syncShopifySubscription:
   post:
@@ -365,7 +388,7 @@ syncShopifySubscription:
       matching ValidDs plan. Use this after the merchant approves Shopify billing when webhooks are not
       forwarded (local dev) or as a fallback if `app_subscriptions/update` was missed.
 
-      Requires `BILLING_PROVIDER=shopify`, a connected store, and Shopify OAuth credentials.
+      Requires a connected store and Shopify OAuth credentials.
 
       If no active subscription is found, the user is downgraded to `free`.
     security:

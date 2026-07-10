@@ -13,6 +13,7 @@ import { UserPlan, IUserDocument } from '../../models/user.model';
 import { Transaction } from '../../models/transaction.model';
 import {
   isShopifyBillingTestMode,
+  resolveCheckoutProvider,
   ShopifyBillingService,
 } from '../../services/shopify-billing.service';
 import { ShopifyService } from '../../services/shopify.service';
@@ -22,7 +23,7 @@ import type {
 } from './billing.validator';
 
 const CheckoutBodySchema = z.object({
-  provider: z.enum(['stripe', 'shopify']).optional().default('stripe'),
+  provider: z.enum(['stripe', 'shopify']).optional(),
   plan: z.enum(['explorer', 'pro', 'premium'] as const),
   withTrial: z.boolean().optional().default(true),
   successUrl: z.string().url().optional(),
@@ -30,10 +31,16 @@ const CheckoutBodySchema = z.object({
 });
 
 export const BillingController = {
-  billingConfig(_req: Request, res: Response, next: NextFunction): void {
+  async billingConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const user = req.user as IUserDocument;
       const stripeConfigured = Boolean(getStripe());
       const shopifyConfigured = ShopifyService.isConfigured();
+      const hasShopifyStore = shopifyConfigured
+        ? await ShopifyService.hasConnection(String(user._id))
+        : false;
+      const defaultProvider = await resolveCheckoutProvider(String(user._id));
+
       res.json(
         successResponse(
           {
@@ -41,11 +48,13 @@ export const BillingController = {
               ...(stripeConfigured ? (['stripe'] as const) : []),
               ...(shopifyConfigured ? (['shopify'] as const) : []),
             ],
-            defaultProvider: 'stripe',
+            defaultProvider,
             stripeConfigured,
             shopifyConfigured,
+            hasShopifyStore,
+            shopifyBillingEnabled: shopifyConfigured,
             shopifyBillingTest: isShopifyBillingTestMode(),
-            requiresShopifyStore: true,
+            requiresShopifyStore: defaultProvider === 'shopify',
           },
           ResponseMessage.SUCCESS,
           200,
@@ -85,9 +94,10 @@ export const BillingController = {
     }
   },
 
-  async listPlans(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async listPlans(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await BillingService.listPublicPlans();
+      const user = req.user as IUserDocument;
+      const data = await BillingService.listPublicPlans(String(user._id));
       res.json(successResponse(data, ResponseMessage.SUCCESS, 200));
     } catch (err) {
       next(err);
@@ -106,8 +116,9 @@ export const BillingController = {
         return;
       }
 
-      const { provider, plan, withTrial, successUrl, cancelUrl } = parsed.data;
+      const { plan, withTrial, successUrl, cancelUrl } = parsed.data;
       const user = req.user as IUserDocument;
+      const provider = await resolveCheckoutProvider(String(user._id), parsed.data.provider);
 
       if (provider === 'shopify') {
         const result = await ShopifyBillingService.createCheckout({

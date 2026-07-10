@@ -753,6 +753,12 @@ export const ShopifyService = {
     await User.updateOne({ _id: userId }, { $unset: { shopifyConnection: '' } });
   },
 
+  /** True when the user has a Shopify store linked (does not validate the token). */
+  async hasConnection(userId: string): Promise<boolean> {
+    const user = await User.findById(userId).select('+shopifyConnection');
+    return Boolean(user?.shopifyConnection?.shop);
+  },
+
   /**
    * Load the connected store for a user, decrypting the access token in memory.
    * Throws 400 if the user has no connected store.

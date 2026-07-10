@@ -8,10 +8,11 @@ import {
   STRIPE_TRIAL_DAYS,
 } from './stripe.service';
 import {
-  isShopifyBillingProvider,
   isShopifyBillingTestMode,
+  resolveCheckoutProvider,
   shopifyPriceCentsForPlan,
 } from './shopify-billing.service';
+import { ShopifyService } from './shopify.service';
 import { env } from '../config/env.validation';
 import { AppError } from '../middleware/error.middleware';
 import { logger } from '../logger';
@@ -58,21 +59,23 @@ export type PublicPlanRow = {
 export class BillingService {
   /**
    * Public catalog for the pricing UI.
-   * Fetches live price data from Stripe so the frontend always shows accurate amounts.
+   * Provider follows the user: connected Shopify store → Shopify prices, else Stripe.
    */
-  static async listPublicPlans(): Promise<{
+  static async listPublicPlans(userId?: string): Promise<{
     provider: 'stripe' | 'shopify';
     mode: 'test' | 'live';
     trialDays: number;
     requiresShopifyStore: boolean;
+    hasShopifyStore: boolean;
     plans: PublicPlanRow[];
     checkoutRedirects: { defaultSuccessUrl: string; defaultCancelUrl: string };
   }> {
     const frontendUrl = env.FRONTEND_URL ?? 'http://localhost:3001';
-    const provider = isShopifyBillingProvider() ? 'shopify' : 'stripe';
-    const trialDays = isShopifyBillingProvider()
-      ? env.SHOPIFY_BILLING_TRIAL_DAYS
-      : STRIPE_TRIAL_DAYS;
+    const provider = userId ? await resolveCheckoutProvider(userId) : 'stripe';
+    const hasShopifyStore = userId
+      ? ShopifyService.isConfigured() && (await ShopifyService.hasConnection(userId))
+      : false;
+    const trialDays = provider === 'shopify' ? env.SHOPIFY_BILLING_TRIAL_DAYS : STRIPE_TRIAL_DAYS;
     const stripe = getStripe();
     const plans: PublicPlanRow[] = [];
 
@@ -121,15 +124,17 @@ export class BillingService {
 
     return {
       provider,
-      mode: isShopifyBillingProvider()
-        ? isShopifyBillingTestMode()
-          ? 'test'
-          : 'live'
-        : isStripeLiveMode()
-          ? 'live'
-          : 'test',
+      mode:
+        provider === 'shopify'
+          ? isShopifyBillingTestMode()
+            ? 'test'
+            : 'live'
+          : isStripeLiveMode()
+            ? 'live'
+            : 'test',
       trialDays,
       requiresShopifyStore: provider === 'shopify',
+      hasShopifyStore,
       plans,
       checkoutRedirects: {
         defaultSuccessUrl: successUrl,

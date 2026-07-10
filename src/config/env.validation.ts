@@ -202,7 +202,10 @@ const envSchema = z.object({
     z.string().min(1).optional(),
   ),
 
-  /** `stripe` (default) or `shopify` for App Billing via connected store */
+  /**
+   * @deprecated Unused for routing. Checkout uses Shopify when the user has a connected store,
+   * otherwise Stripe. Kept so existing deployments' .env files still validate.
+   */
   BILLING_PROVIDER: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.enum(['stripe', 'shopify']).optional().default('stripe'),

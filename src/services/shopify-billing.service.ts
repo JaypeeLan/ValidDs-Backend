@@ -36,8 +36,35 @@ export interface ShopifyAppSubscriptionRow {
   interval: 'month' | 'year' | null;
 }
 
+/**
+ * @deprecated Prefer per-user routing via `resolveCheckoutProvider`.
+ * Kept for callers that only need "is Shopify App Billing configured on this server".
+ */
 export function isShopifyBillingProvider(): boolean {
-  return env.BILLING_PROVIDER === 'shopify';
+  return ShopifyService.isConfigured();
+}
+
+/** Checkout provider for a user: connected Shopify store → shopify, otherwise stripe. */
+export async function resolveCheckoutProvider(
+  userId: string,
+  explicit?: 'stripe' | 'shopify',
+): Promise<'stripe' | 'shopify'> {
+  if (explicit === 'stripe') return 'stripe';
+  if (explicit === 'shopify') {
+    if (!ShopifyService.isConfigured()) {
+      throw new AppError(
+        503,
+        'Shopify billing is not configured on this server.',
+        'SHOPIFY_NOT_CONFIGURED',
+      );
+    }
+    return 'shopify';
+  }
+
+  if (ShopifyService.isConfigured() && (await ShopifyService.hasConnection(userId))) {
+    return 'shopify';
+  }
+  return 'stripe';
 }
 
 export function isShopifyBillingTestMode(): boolean {
@@ -74,13 +101,6 @@ function centsToShopifyAmount(cents: number): number {
 export const ShopifyBillingService = {
   assertConfigured(): void {
     ShopifyService.assertConfigured();
-    if (!isShopifyBillingProvider()) {
-      throw new AppError(
-        503,
-        'Shopify billing is not enabled. Set BILLING_PROVIDER=shopify.',
-        'SHOPIFY_BILLING_DISABLED',
-      );
-    }
   },
 
   listPlanPrices(): Record<UserPlan, number | null> {

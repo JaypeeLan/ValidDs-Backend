@@ -52,6 +52,30 @@ export interface JobHeartbeatRow {
 }
 
 const MAINTENANCE_SCHEDULE = '09:00 WAT (Africa/Lagos) daily';
+
+/** Jobs we still schedule / care about on the Operations surface. */
+export const OPS_TRACKED_HEARTBEAT_JOBS = [
+  'product_metrics_refresh',
+  'product_prices_refresh',
+  'meta_ads_refresh',
+  'product_promo_videos_refresh',
+  'discovery_sections_refresh',
+] as const;
+
+/** Product-maintenance owned run types (meta/promo moved to scraper). */
+const MAINTENANCE_RUN_TYPES = [
+  'full_maintenance',
+  'product_metrics_refresh',
+  'product_prices_refresh',
+  'discovery_sections_refresh',
+] as const;
+
+/** Legacy cycle names that used to abort full_maintenance — ignore in issue lists. */
+const LEGACY_FULL_MAINTENANCE_CYCLES = new Set([
+  'meta_ads_refresh',
+  'product_promo_videos_refresh',
+]);
+
 const STALE_HOURS_BY_JOB: Record<string, number> = {
   product_metrics_refresh: 30,
   product_prices_refresh: 30,
@@ -165,7 +189,11 @@ export async function listMaintenanceRuns(opts: {
   }
 
   const filter: Record<string, unknown> = {};
-  if (opts.runType) filter.runType = opts.runType;
+  if (opts.runType) {
+    filter.runType = opts.runType;
+  } else {
+    filter.runType = { $in: [...MAINTENANCE_RUN_TYPES] };
+  }
   if (opts.status) filter.status = opts.status;
 
   const [docs, total] = await Promise.all([
@@ -196,7 +224,10 @@ export async function listJobHeartbeats(opts?: {
   if (opts?.market) filter.market = opts.market.toUpperCase();
 
   const docs = await col.find(filter).sort({ job: 1, market: 1 }).toArray();
-  return docs.map((d) => serializeJob(d as Record<string, unknown>));
+  const tracked = new Set<string>(OPS_TRACKED_HEARTBEAT_JOBS);
+  return docs
+    .map((d) => serializeJob(d as Record<string, unknown>))
+    .filter((row) => tracked.has(row.job));
 }
 
 function marketRowDetail(row: Record<string, unknown>): string {
@@ -301,19 +332,6 @@ function extractCycleIssues(summary: Record<string, unknown>): Array<{
   return issues;
 }
 
-function buildFailureReason(error: string | null, summary: Record<string, unknown>): string | null {
-  if (error) return error;
-  const issues = extractCycleIssues(summary);
-  if (issues.length === 0) return null;
-  return issues
-    .map((issue) =>
-      issue.cycle === 'market'
-        ? `${issue.market}: ${issue.detail}`
-        : `${issue.cycle} / ${issue.market}: ${issue.detail}`,
-    )
-    .join('\n');
-}
-
 export async function getOperationsOverview(forceProviderCheck = false): Promise<{
   schedule: string;
   maintenance: {
@@ -355,38 +373,53 @@ export async function getOperationsOverview(forceProviderCheck = false): Promise
     const fullDoc = await col.findOne({ runType: 'full_maintenance' }, { sort: { startedAt: -1 } });
     if (fullDoc) latestFullRun = serializeRun(fullDoc as Record<string, unknown>);
 
-    const runTypes = [
-      'full_maintenance',
-      'product_metrics_refresh',
-      'product_prices_refresh',
-      'meta_ads_refresh',
-      'product_promo_videos_refresh',
-      'discovery_sections_refresh',
-    ];
+    const runTypes = [...MAINTENANCE_RUN_TYPES];
     for (const runType of runTypes) {
       const doc = await col.findOne({ runType }, { sort: { startedAt: -1 } });
       if (doc) latestRunsByType[runType] = serializeRun(doc as Record<string, unknown>);
     }
 
     const failedRuns = await col
-      .find({ $or: [{ status: 'failed' }, { ok: false }] })
+      .find({
+        runType: { $in: [...MAINTENANCE_RUN_TYPES] },
+        $or: [{ status: 'failed' }, { ok: false }],
+      })
       .sort({ startedAt: -1 })
-      .limit(10)
+      .limit(25)
       .toArray();
 
     for (const doc of failedRuns) {
       const row = serializeRun(doc as Record<string, unknown>);
-      const cycleIssues = extractCycleIssues(row.summary);
-      const failureReason = buildFailureReason(row.error, row.summary);
-      if (failureReason || cycleIssues.length > 0) {
+      let cycleIssues = extractCycleIssues(row.summary);
+      if (row.runType === 'full_maintenance') {
+        // Meta ads / promo videos no longer run inside product-maintenance.
+        cycleIssues = cycleIssues.filter((c) => !LEGACY_FULL_MAINTENANCE_CYCLES.has(c.cycle));
+      }
+
+      let error = row.error;
+      if (error && /meta_ads_refresh|product_promo_videos_refresh/.test(error)) {
+        error = null;
+      }
+      if (!error && cycleIssues.length > 0) {
+        error = cycleIssues
+          .map((c) =>
+            c.cycle === 'market'
+              ? `${c.market}: ${c.detail}`
+              : `${c.cycle} / ${c.market}: ${c.detail}`,
+          )
+          .join('\n');
+      }
+
+      if (error || cycleIssues.length > 0) {
         recentIssues.push({
           runId: row.id,
           runType: row.runType,
           startedAt: row.startedAt,
-          error: failureReason ?? row.error,
+          error,
           cycleIssues,
         });
       }
+      if (recentIssues.length >= 8) break;
     }
   }
 

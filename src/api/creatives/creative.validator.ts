@@ -101,6 +101,12 @@ export const CreativeStreamQuerySchema = z.object({
 export const CreativeThumbnailQuerySchema = z.object({
   index: z.coerce.number().int().min(0).max(50).default(0),
   kind: z.enum(['thumbnail', 'avatar', 'shop']).default('thumbnail'),
+  /** Admin dashboard may override market (attachMarketModels honors this for dashboard roles). */
+  market: z
+    .string()
+    .trim()
+    .regex(/^[a-zA-Z]{2}$/, 'Market must be a 2-letter code')
+    .optional(),
 });
 
 export type CreativeListQuery = ReturnType<typeof normalizeCreativeListQuery>;

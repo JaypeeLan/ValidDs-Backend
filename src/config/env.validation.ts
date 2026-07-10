@@ -65,6 +65,12 @@ const envSchema = z.object({
   ),
   RESEND_FROM: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
 
+  // Render API — super-admin cookie secret-file updates + worker restart
+  RENDER_API_KEY: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional(),
+  ),
+
   TIKTOK_REGION: z.preprocess(
     (val) => (val === '' ? undefined : val),
     z.string().min(1).optional().default('US'),

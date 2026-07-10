@@ -30,6 +30,7 @@ import type {
   AdminJobHeartbeatsQueryInput,
   AdminProviderHealthQueryInput,
   AdminQueueJobTriggerInput,
+  AdminUpdateCookiesInput,
   AdminJobTriggersQueryInput,
 } from './admin.validator';
 import { TransactionService } from '../../services/transaction.service';
@@ -47,6 +48,7 @@ import {
   listTriggerableJobs,
   queueJobTrigger,
 } from '../../services/job-trigger.service';
+import { listCookieTargets, updateServiceCookies } from '../../services/cookie-update.service';
 
 export const getSystemHealth = async (
   req: Request,
@@ -590,14 +592,23 @@ export const listCreatives = async (
       MarketCreative.countDocuments(filter),
     ]);
 
+    const apiVersion = process.env.API_VERSION || 'v1';
     const creatives = rows.map((row) => {
       const externalVideoId = String(row.externalVideoId ?? '');
       const isMeta = externalVideoId.startsWith('meta:');
+      const id = String(row._id);
+      const hasThumb = Boolean(
+        typeof row.thumbnailUrl === 'string' && row.thumbnailUrl.startsWith('https://'),
+      );
       return {
-        id: String(row._id),
+        id,
         externalVideoId,
         tiktokPostUrl: row.tiktokPostUrl ?? '',
         thumbnailUrl: row.thumbnailUrl ?? null,
+        // Same proxy path as consumer feed — admin UI fetches with Bearer (blob URL).
+        thumbnailProxyUrl: hasThumb
+          ? `/api/${apiVersion}/creatives/${id}/thumbnail?index=0&kind=thumbnail&market=${market}`
+          : null,
         section: row.section ?? '',
         isIndependentCreator:
           row.creator?.isIndependentCreator ?? row.isIndependentCreator ?? false,
@@ -869,6 +880,45 @@ export const listJobTriggersHandler = async (
     const query = req.query as unknown as AdminJobTriggersQueryInput;
     const triggers = await listJobTriggers({ limit: query.limit, status: query.status });
     res.json({ success: true, data: { triggers } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listCookieTargetsHandler = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    res.json({ success: true, data: listCookieTargets() });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateServiceCookiesHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const body = req.body as AdminUpdateCookiesInput;
+    const updatedBy =
+      (req.user as { email?: string; _id?: unknown } | undefined)?.email ??
+      (req.user?._id ? String(req.user._id) : null);
+    const result = await updateServiceCookies({
+      service: body.service,
+      cookieKind: body.cookieKind,
+      content: body.content,
+      updatedBy,
+    });
+    res.json(
+      successResponse(
+        result,
+        `Updated ${result.secretFileName} (${result.cookieCount} cookies) and restarted ${result.renderServiceName}.`,
+      ),
+    );
   } catch (err) {
     next(err);
   }

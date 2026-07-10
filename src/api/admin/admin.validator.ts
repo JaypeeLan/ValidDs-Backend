@@ -127,6 +127,22 @@ export const AdminQueueJobTriggerSchema = z.object({
   market: MarketCodeEnum.optional(),
 });
 
+export const AdminUpdateCookiesSchema = z
+  .object({
+    service: z.enum(['scraper', 'live_scraper']),
+    cookieKind: z.enum(['consumer', 'partner']),
+    content: z.string().min(20).max(2_000_000),
+  })
+  .superRefine((val, ctx) => {
+    if (val.service === 'live_scraper' && val.cookieKind === 'partner') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Live scraper only uses consumer TikTok cookies',
+        path: ['cookieKind'],
+      });
+    }
+  });
+
 export const AdminJobTriggersQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
   status: z.enum(['pending', 'running', 'completed', 'failed']).optional(),
@@ -192,4 +208,5 @@ export type AdminMaintenanceRunsQueryInput = z.infer<typeof AdminMaintenanceRuns
 export type AdminJobHeartbeatsQueryInput = z.infer<typeof AdminJobHeartbeatsQuerySchema>;
 export type AdminProviderHealthQueryInput = z.infer<typeof AdminProviderHealthQuerySchema>;
 export type AdminQueueJobTriggerInput = z.infer<typeof AdminQueueJobTriggerSchema>;
+export type AdminUpdateCookiesInput = z.infer<typeof AdminUpdateCookiesSchema>;
 export type AdminJobTriggersQueryInput = z.infer<typeof AdminJobTriggersQuerySchema>;

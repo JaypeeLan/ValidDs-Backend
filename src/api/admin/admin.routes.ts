@@ -17,6 +17,7 @@ import {
   AdminJobHeartbeatsQuerySchema,
   AdminProviderHealthQuerySchema,
   AdminQueueJobTriggerSchema,
+  AdminUpdateCookiesSchema,
   AdminJobTriggersQuerySchema,
   AdminDeleteContentParamSchema,
   AdminMarketQuerySchema,
@@ -75,6 +76,17 @@ router.get(
   requireSuperAdmin,
   validate(AdminJobTriggersQuerySchema, 'query'),
   adminController.listJobTriggersHandler,
+);
+router.get(
+  '/operations/cookie-targets',
+  requireSuperAdmin,
+  adminController.listCookieTargetsHandler,
+);
+router.post(
+  '/operations/cookies',
+  requireSuperAdmin,
+  validate(AdminUpdateCookiesSchema, 'body'),
+  adminController.updateServiceCookiesHandler,
 );
 router.get(
   '/maintenance/runs',

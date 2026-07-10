@@ -1,29 +1,26 @@
 /**
  * Market middleware — attaches market-scoped Mongoose models to every request.
  *
- * Reads `req.user.contentRegion` (set by requireAuth) and resolves the correct
- * per-market model bundle, so controllers never reference the global singleton
- * models (Product, Creative, LiveSession) directly.
+ * Default: `req.user.contentRegion` (set by requireAuth).
+ * Dashboard roles may override with `?market=US` (admin creatives / media proxy).
  *
  * Falls back to 'US' if the user has no contentRegion or the value is invalid.
- *
- * Usage on market-scoped routers:
- *   router.use(requireAuth, attachMarketModels);
- *
- * `requireAuth` must run first so `req.user.contentRegion` is loaded from the DB
- * before models are resolved.
- *
- * In controllers:
- *   const { Product } = req.models;
- *   const results = await Product.find(…);
  */
 
 import type { Request, Response, NextFunction } from 'express';
 import { getMarketModels, type MarketModels } from '../models/market-models.factory';
 import { toMarketCode, type MarketCode } from '../utils/markets';
+import { isDashboardRole } from '../utils/roles.util';
 
 export function attachMarketModels(req: Request, _res: Response, next: NextFunction): void {
-  const market = toMarketCode(req.user?.contentRegion);
+  // Admins browsing another market (e.g. thumbnail proxy) may pass ?market=US.
+  const raw = req.query?.market;
+  const queryMarket =
+    typeof raw === 'string' ? raw : Array.isArray(raw) ? String(raw[0] ?? '') : '';
+  const market =
+    isDashboardRole(req.user?.role) && queryMarket
+      ? toMarketCode(queryMarket)
+      : toMarketCode(req.user?.contentRegion);
   req.market = market;
   req.models = getMarketModels(market);
   next();

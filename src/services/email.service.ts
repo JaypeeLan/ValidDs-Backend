@@ -17,7 +17,7 @@ export const EmailService = {
       console.log('='.repeat(40));
       console.log(`To:      ${input.to}`);
       console.log(`Subject: ${input.subject}`);
-      
+
       // Extract numeric codes for easier viewing
       const codeMatch = input.html.match(/>(\d{6})</);
       if (codeMatch) {
@@ -29,7 +29,7 @@ export const EmailService = {
       console.log('--- HTML CONTENT ---');
       console.log(input.html);
       console.log('='.repeat(40) + '\n');
-      
+
       if (process.env.NODE_ENV === 'development') return;
       throw new AppError(500, 'Email service not configured', 'EMAIL_NOT_CONFIGURED');
     }
@@ -39,6 +39,8 @@ export const EmailService = {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'User-Agent': 'ValidDs-Backend/1.0 (+https://validds.com; email)',
+        Accept: 'application/json',
       },
       body: JSON.stringify({
         from,
@@ -57,4 +59,3 @@ export const EmailService = {
     }
   },
 };
-

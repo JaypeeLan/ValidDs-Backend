@@ -6,7 +6,7 @@ export type JobTriggerStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export interface TriggerableJob {
   job: string;
-  service: 'product-maintenance' | 'scraper';
+  service: 'product-maintenance' | 'scraper' | 'product-videos';
   label: string;
   description: string;
 }
@@ -38,9 +38,9 @@ export const TRIGGERABLE_JOBS: TriggerableJob[] = [
   },
   {
     job: 'product_promo_videos_refresh',
-    service: 'scraper',
+    service: 'product-videos',
     label: 'Promo videos',
-    description: 'Discover extra TikTok promo clips per product',
+    description: 'Discover extra TikTok promo clips per product (product-videos worker)',
   },
   {
     job: 'partner_pool',

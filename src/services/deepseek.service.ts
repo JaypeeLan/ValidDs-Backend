@@ -58,11 +58,25 @@ export const DeepSeekService = {
       const content = response.data.choices[0].message.content;
       return JSON.parse(content) as T;
     } catch (err: any) {
+      const status = err.response?.status;
       log.error('DeepSeek request failed', {
         error: err.message,
-        status: err.response?.status,
+        status,
         data: err.response?.data,
       });
+      if (status === 402 || status === 401) {
+        const { sendOpsAlert } = await import('./ops-alert.service');
+        void sendOpsAlert({
+          issue: status === 402 ? 'DeepSeek balance exhausted' : 'DeepSeek API key rejected',
+          service: 'backend',
+          detail: `HTTP ${status} from DeepSeek chat completions`,
+          fix:
+            status === 402
+              ? ['Top up DeepSeek balance', 'Confirm DEEPSEEK_API_KEY on backend']
+              : ['Rotate DEEPSEEK_API_KEY on the backend Render service'],
+          dedupeKey: `backend:deepseek:${status}`,
+        });
+      }
       return null;
     }
   },

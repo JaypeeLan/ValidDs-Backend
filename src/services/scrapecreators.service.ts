@@ -144,9 +144,28 @@ export const ScrapeCreatorsService = {
     });
 
     if (res.status === 402) {
+      const { sendOpsAlert } = await import('./ops-alert.service');
+      void sendOpsAlert({
+        issue: 'ScrapeCreators credits exhausted',
+        service: 'backend',
+        detail: 'HTTP 402 from ScrapeCreators while checking live status',
+        fix: [
+          'Top up credits at https://scrapecreators.com',
+          'Confirm SCRAPECREATORS_API_KEY on the backend Render service',
+        ],
+        dedupeKey: 'backend:scrapecreators:credits',
+      });
       throw new AppError(402, 'ScrapeCreators credits exhausted', 'SCRAPECREATORS_NO_CREDITS');
     }
     if (res.status === 401) {
+      const { sendOpsAlert } = await import('./ops-alert.service');
+      void sendOpsAlert({
+        issue: 'ScrapeCreators API key rejected',
+        service: 'backend',
+        detail: 'HTTP 401 from ScrapeCreators',
+        fix: ['Rotate SCRAPECREATORS_API_KEY on the backend Render service'],
+        dedupeKey: 'backend:scrapecreators:auth',
+      });
       throw new AppError(401, 'Invalid ScrapeCreators API key', 'SCRAPECREATORS_INVALID_KEY');
     }
     if (!res.ok) {

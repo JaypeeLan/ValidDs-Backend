@@ -61,6 +61,13 @@ export const TRIGGERABLE_JOBS: TriggerableJob[] = [
     description: 'Meta ads, promo videos, partner pool, and high-opportunity (enabled jobs only)',
   },
   {
+    job: 'scraper_resume',
+    service: 'scraper',
+    label: 'Resume paused scraper',
+    description:
+      'Clear auto-pause after ScrapeCreators credits / Partner Center cookies / upstream outage are fixed',
+  },
+  {
     job: 'discovery_sections_refresh',
     service: 'product-maintenance',
     label: 'Discovery sections',

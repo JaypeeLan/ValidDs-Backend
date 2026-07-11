@@ -68,6 +68,13 @@ export const TRIGGERABLE_JOBS: TriggerableJob[] = [
       'Clear auto-pause after ScrapeCreators credits / Partner Center cookies / upstream outage are fixed',
   },
   {
+    job: 'scraper_test_alert',
+    service: 'scraper',
+    label: 'Test ops alert email',
+    description:
+      'Send a sample ISSUE: ScrapeCreators credits exhausted email via Resend (verifies Render alert config)',
+  },
+  {
     job: 'discovery_sections_refresh',
     service: 'product-maintenance',
     label: 'Discovery sections',

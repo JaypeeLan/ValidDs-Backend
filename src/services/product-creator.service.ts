@@ -262,15 +262,9 @@ export async function findProductCreators(
         shopName: { $first: '$shopName' },
         productCount: { $sum: 1 },
         creatorGmv: {
-          // Prefer live storefront catalog GMV; never treat a single SKU's storeGmv
-          // as shop-wide unless shopGmv was never fetched.
-          $max: {
-            $cond: [
-              { $gt: [{ $ifNull: ['$primaryCreator.shopGmv', 0] }, 0] },
-              '$primaryCreator.shopGmv',
-              { $ifNull: ['$storeGmv', 0] },
-            ],
-          },
+          // Shop-owning creators only (`primaryCreator.shopGmv` from storefront catalog).
+          // Never fall back to product storeGmv — that is listing revenue, not creator GMV.
+          $max: { $ifNull: ['$primaryCreator.shopGmv', 0] },
         },
         topProductId: {
           $top: {

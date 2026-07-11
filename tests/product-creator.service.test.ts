@@ -135,7 +135,52 @@ describe('findProductCreators', () => {
     expect(shopA?.topProduct.productName).toBe('Product A');
 
     const shopB = result.data.find((r) => r.creator.handle === 'shopb');
-    // No shopGmv stored — falls back to product storeGmv until catalog enrich runs.
-    expect(shopB?.creatorGmv).toBe(800_000);
+    // No shopGmv on creator — do not fall back to product storeGmv (listing revenue).
+    expect(shopB?.creatorGmv).toBe(0);
+  });
+
+  it('does not attribute merchant shopGmv to an affiliate creator', async () => {
+    await Product.insertMany([
+      minimalTestProduct({
+        externalId: 'sku-aff',
+        title: 'Affiliate promo',
+        shopName: 'Aorunova',
+        accountHandle: 'stylesbyfaithhoward',
+        primaryCreator: {
+          handle: 'stylesbyfaithhoward',
+          displayName: 'Faith',
+          followers: 40_000,
+          totalLikes: 200_000,
+          verified: false,
+          tiktokPostUrl: 'https://www.tiktok.com/@stylesbyfaithhoward/video/1',
+          primaryImageUrl: '',
+          avatarUrl: '',
+          // Wrongly stamped merchant catalog GMV from shared shopUrl — lobby must ignore
+          // unless we only expose shopGmv for owners (cleared at ingest). Here shopGmv
+          // is absent so creatorGmv stays 0 even if storeGmv is huge.
+          shopGmv: 0,
+        },
+        totalGmv: 50_000,
+        storeGmv: 4_298_309,
+        publishedAt: new Date('2026-06-01'),
+        postCreatedAt: new Date('2026-06-01'),
+      }),
+    ]);
+    await Creative.insertMany([
+      minimalTestCreative({
+        productId: (await Product.findOne({ externalId: 'sku-aff' }).lean())!._id,
+        externalVideoId: 'vid-aff',
+        videoS3Key: 'videos/aff.mp4',
+      }),
+    ]);
+
+    const result = await findProductCreators(
+      Product,
+      { page: 1, limit: 20, sortBy: 'views' },
+      Creative,
+    );
+    const row = result.data.find((r) => r.creator.handle === 'stylesbyfaithhoward');
+    expect(row?.creatorGmv).toBe(0);
+    expect(row?.creator.totalLikes).toBe(200_000);
   });
 });

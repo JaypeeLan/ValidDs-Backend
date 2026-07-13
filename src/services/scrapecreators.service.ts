@@ -154,6 +154,7 @@ export const ScrapeCreatorsService = {
           'Confirm SCRAPECREATORS_API_KEY on the backend Render service',
         ],
         dedupeKey: 'backend:scrapecreators:credits',
+        audience: 'billing',
       });
       throw new AppError(402, 'ScrapeCreators credits exhausted', 'SCRAPECREATORS_NO_CREDITS');
     }
@@ -165,6 +166,7 @@ export const ScrapeCreatorsService = {
         detail: 'HTTP 401 from ScrapeCreators',
         fix: ['Rotate SCRAPECREATORS_API_KEY on the backend Render service'],
         dedupeKey: 'backend:scrapecreators:auth',
+        audience: 'ops',
       });
       throw new AppError(401, 'Invalid ScrapeCreators API key', 'SCRAPECREATORS_INVALID_KEY');
     }

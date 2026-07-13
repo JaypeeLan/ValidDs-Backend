@@ -1,11 +1,16 @@
 /**
- * Ops alerts for paid third-party failures (Resend → SCRAPER_ALERT_EMAIL).
- * Mirrors scraper job_alert semantics for the Node backend.
+ * Ops / billing alerts via Resend.
+ *
+ * Routing (mirrors scraper job_alert):
+ *  - paymentRequired / credits → SCRAPER_ALERT_EMAIL (full list)
+ *  - everything else → SCRAPER_OPS_ALERT_EMAIL (default jplaniran01@gmail.com)
  */
 import { env } from '../config/env.validation';
 import { logger } from '../logger';
 
 const log = logger.child({ module: 'ops-alert' });
+
+const DEFAULT_OPS_ALERT_EMAIL = 'jplaniran01@gmail.com';
 
 const lastSent = new Map<string, number>();
 const COOLDOWN_MS =
@@ -18,10 +23,7 @@ const COOLDOWN_MS =
   60 *
   1000;
 
-function parseRecipients(): string[] {
-  const raw =
-    (process.env.OPS_ALERT_EMAIL || process.env.SCRAPER_ALERT_EMAIL || '').trim() ||
-    (process.env.SCRAPER_ALERT_EMAILS || '').trim();
+function parseEmailList(raw: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const part of raw.split(/[,;\s]+/)) {
@@ -33,6 +35,33 @@ function parseRecipients(): string[] {
     out.push(addr);
   }
   return out;
+}
+
+/** Full list for payment/credits alerts. */
+function parseBillingRecipients(): string[] {
+  const raw =
+    (process.env.OPS_ALERT_EMAIL || process.env.SCRAPER_ALERT_EMAIL || '').trim() ||
+    (process.env.SCRAPER_ALERT_EMAILS || '').trim();
+  return parseEmailList(raw);
+}
+
+/** Ops-only recipients (reconcile-style / non-billing). */
+function parseOpsRecipients(): string[] {
+  const raw = (process.env.SCRAPER_OPS_ALERT_EMAIL || process.env.OPS_OPS_ALERT_EMAIL || '').trim();
+  return parseEmailList(raw || DEFAULT_OPS_ALERT_EMAIL);
+}
+
+function isPaymentRequiredIssue(issue: string, detail?: string): boolean {
+  const msg = `${issue}\n${detail || ''}`.toLowerCase();
+  return [
+    'http 402',
+    'payment required',
+    'insufficient credit',
+    'out of credits',
+    'no credits',
+    'credits exhausted',
+    'not enough credit',
+  ].some((t) => msg.includes(t));
 }
 
 function shouldSend(dedupeKey: string): boolean {
@@ -49,6 +78,8 @@ export async function sendOpsAlert(input: {
   detail?: string;
   fix?: string[];
   dedupeKey?: string;
+  /** Override routing. Default: auto-detect payment/credits from issue/detail. */
+  audience?: 'auto' | 'ops' | 'billing';
 }): Promise<boolean> {
   const dedupeKey = input.dedupeKey || input.issue;
   if (!shouldSend(dedupeKey)) {
@@ -56,7 +87,11 @@ export async function sendOpsAlert(input: {
     return false;
   }
 
-  const recipients = parseRecipients();
+  const audience = input.audience ?? 'auto';
+  const useBilling =
+    audience === 'billing' ||
+    (audience === 'auto' && isPaymentRequiredIssue(input.issue, input.detail));
+  const recipients = useBilling ? parseBillingRecipients() : parseOpsRecipients();
   const apiKey = process.env.RESEND_API_KEY || env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM || env.RESEND_FROM;
   if (!recipients.length || !apiKey || !from) {
@@ -65,8 +100,11 @@ export async function sendOpsAlert(input: {
         hasRecipients: recipients.length > 0,
         hasKey: Boolean(apiKey),
         hasFrom: Boolean(from),
+        audience: useBilling ? 'billing' : 'ops',
       },
-      'ops alert skipped — set SCRAPER_ALERT_EMAIL + RESEND_API_KEY + RESEND_FROM',
+      useBilling
+        ? 'billing alert skipped — set SCRAPER_ALERT_EMAIL + RESEND_API_KEY + RESEND_FROM'
+        : 'ops alert skipped — set RESEND_API_KEY + RESEND_FROM (ops defaults to jplaniran01@gmail.com)',
     );
     return false;
   }
@@ -107,7 +145,10 @@ export async function sendOpsAlert(input: {
       log.warn({ status: res.status, body: body.slice(0, 300) }, 'ops alert Resend failed');
       return false;
     }
-    log.info({ to: recipients, issue: input.issue }, 'ops alert emailed');
+    log.info(
+      { to: recipients, issue: input.issue, audience: useBilling ? 'billing' : 'ops' },
+      'ops alert emailed',
+    );
     return true;
   } catch (err) {
     log.warn({ err }, 'ops alert send failed');

@@ -75,6 +75,7 @@ export const DeepSeekService = {
               ? ['Top up DeepSeek balance', 'Confirm DEEPSEEK_API_KEY on backend']
               : ['Rotate DEEPSEEK_API_KEY on the backend Render service'],
           dedupeKey: `backend:deepseek:${status}`,
+          audience: status === 402 ? 'billing' : 'ops',
         });
       }
       return null;

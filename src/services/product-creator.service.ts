@@ -116,28 +116,29 @@ function buildProductCreatorMatch(
 }
 
 function creatorSortSpec(sortBy: string): Record<string, 1 | -1> {
+  // `_id` here is the grouped creator handle — unique per row, so a stable tie-break.
   switch (sortBy) {
     case 'creator_gmv_asc':
     case 'gmv_asc':
-      return { creatorGmv: 1, maxFollowers: -1 };
+      return { creatorGmv: 1, maxFollowers: -1, _id: 1 };
     case 'followers_asc':
-      return { maxFollowers: 1, creatorGmv: -1 };
+      return { maxFollowers: 1, creatorGmv: -1, _id: 1 };
     case 'followers_desc':
-      return { maxFollowers: -1, creatorGmv: -1 };
+      return { maxFollowers: -1, creatorGmv: -1, _id: 1 };
     case 'likes':
-      return { maxTotalLikes: -1, creatorGmv: -1 };
+      return { maxTotalLikes: -1, creatorGmv: -1, _id: 1 };
     case 'recent':
     case 'last_ingested':
     case 'last-ingested':
     case 'ingested_desc':
-      return { latestActivity: -1, creatorGmv: -1 };
+      return { latestActivity: -1, creatorGmv: -1, _id: 1 };
     case 'engagement':
-      return { maxEngagementRate: -1, creatorGmv: -1 };
+      return { maxEngagementRate: -1, creatorGmv: -1, _id: 1 };
     case 'creator_gmv_desc':
     case 'gmv_desc':
     case 'views':
     default:
-      return { creatorGmv: -1, maxFollowers: -1 };
+      return { creatorGmv: -1, maxFollowers: -1, _id: 1 };
   }
 }
 
@@ -219,12 +220,13 @@ function formatProductCreatorFeedItem(
   };
 }
 
-function topProductSortSpec(): Record<string, -1> {
+function topProductSortSpec(): Record<string, -1 | 1> {
   return {
     'primaryCreator.shopGmv': -1,
     storeGmv: -1,
     totalGmv: -1,
     lastIngestedAt: -1,
+    _id: 1,
   };
 }
 

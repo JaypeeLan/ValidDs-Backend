@@ -7,6 +7,7 @@ import {
   recencyPrioritySortSpec,
   recencyTierAddFields,
   usesRecencyPriorityWithGmv,
+  withIdTiebreak,
 } from '../../utils/product-recency.util';
 import {
   applyProductCreatorMetricFilters,
@@ -398,14 +399,14 @@ function appendAnd(filter: Record<string, unknown>, clause: Record<string, unkno
 
 /** Applies discovery-section rules to a Mongo filter (feed or text search). */
 const PRODUCT_SORT_MAP: Record<string, Record<string, 1 | -1>> = {
-  'gmv-desc': { totalGmv: -1, lastIngestedAt: -1 },
-  'gmv-asc': { totalGmv: 1, lastIngestedAt: -1 },
-  'units-desc': { totalSales: -1, lastIngestedAt: -1 },
-  'units-asc': { totalSales: 1, lastIngestedAt: -1 },
-  trendScore: { 'trends.engagement.score': -1, 'trend.score': -1 },
-  views: { viewCount: -1 },
-  recent: { lastIngestedAt: -1 },
-  engagement: { engagementRate: -1 },
+  'gmv-desc': { totalGmv: -1, lastIngestedAt: -1, _id: 1 },
+  'gmv-asc': { totalGmv: 1, lastIngestedAt: -1, _id: 1 },
+  'units-desc': { totalSales: -1, lastIngestedAt: -1, _id: 1 },
+  'units-asc': { totalSales: 1, lastIngestedAt: -1, _id: 1 },
+  trendScore: { 'trends.engagement.score': -1, 'trend.score': -1, _id: 1 },
+  views: { viewCount: -1, _id: 1 },
+  recent: { lastIngestedAt: -1, _id: 1 },
+  engagement: { engagementRate: -1, _id: 1 },
 };
 
 function resolveProductSort(sortBy?: string): Record<string, 1 | -1> {
@@ -442,12 +443,14 @@ async function runProductFeedQuery(
 
   if (usesRecencyPriorityWithGmv(sortBy)) {
     const sort = recencyPrioritySortSpec(sortBy);
+    const now = new Date();
+    const preDedupeSort = withIdTiebreak({ ...sort, soldCount: -1, totalGmv: -1 });
     const [facet] = await model
       .aggregate([
         { $match: match },
         { $project: PRODUCT_FEED_PIPELINE_PROJECTION },
-        { $addFields: recencyTierAddFields() },
-        { $sort: { ...sort, soldCount: -1, totalGmv: -1 } },
+        { $addFields: recencyTierAddFields(now) },
+        { $sort: preDedupeSort },
         ...playableStages,
         ...PRODUCT_LISTING_DEDUPE_STAGES,
         {
@@ -569,12 +572,20 @@ async function runProductSearchQuery(
           },
         },
         { $addFields: { _rank: { $add: ['$_titleExact', '$_textScore'] } } },
-        { $sort: { _rank: -1, soldCount: -1, totalGmv: -1, lastIngestedAt: -1 } },
+        {
+          $sort: {
+            _rank: -1,
+            soldCount: -1,
+            totalGmv: -1,
+            lastIngestedAt: -1,
+            _id: 1,
+          },
+        },
         ...PRODUCT_LISTING_DEDUPE_STAGES,
         {
           $facet: {
             data: [
-              { $sort: { _rank: -1, lastIngestedAt: -1 } },
+              { $sort: { _rank: -1, lastIngestedAt: -1, _id: 1 } },
               { $skip: skip },
               { $limit: limit },
               { $project: PRODUCT_LISTING_FIELD_PROJECTION },

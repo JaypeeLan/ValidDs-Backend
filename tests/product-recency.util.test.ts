@@ -1,9 +1,14 @@
 import {
   NEW_POST_PRIORITY_DAYS_3,
   NEW_POST_PRIORITY_DAYS_7,
+  creativeEngagementMetricSortSpec,
+  creativeProductMetricSortSpec,
   postRecencyFlags,
   postRecencyTier,
+  recencyPrioritySortSpec,
+  sortSpecWithoutRecencyFields,
   usesRecencyPriorityWithGmv,
+  withIdTiebreak,
 } from '../src/utils/product-recency.util';
 
 describe('product-recency.util', () => {
@@ -35,5 +40,17 @@ describe('product-recency.util', () => {
   it('exports day constants', () => {
     expect(NEW_POST_PRIORITY_DAYS_3).toBe(3);
     expect(NEW_POST_PRIORITY_DAYS_7).toBe(7);
+  });
+
+  it('withIdTiebreak appends _id once', () => {
+    expect(withIdTiebreak({ totalGmv: -1 })).toEqual({ totalGmv: -1, _id: 1 });
+    expect(withIdTiebreak({ totalGmv: -1, _id: -1 })).toEqual({ totalGmv: -1, _id: -1 });
+  });
+
+  it('product and creative sort specs include a stable _id tie-break', () => {
+    expect(recencyPrioritySortSpec('gmv-desc')._id).toBe(1);
+    expect(creativeEngagementMetricSortSpec('views')._id).toBe(1);
+    expect(creativeProductMetricSortSpec('gmv-desc')._id).toBe(1);
+    expect(sortSpecWithoutRecencyFields({ _recencyTier: 1, publishedAt: -1 })._id).toBe(1);
   });
 });

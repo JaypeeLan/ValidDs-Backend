@@ -145,9 +145,10 @@ export async function updateEnvGroupSecretFile(
 /** Redeploy without rebuild so the worker remounts secret files. */
 export async function restartRenderService(serviceName: string): Promise<{ deployId: string }> {
   const serviceId = await resolveServiceId(serviceName);
+  // deployMode cannot be combined with clearCache (Render API validation).
   const deploy = await renderFetch<{ id?: string }>(`/services/${serviceId}/deploys`, {
     method: 'POST',
-    body: JSON.stringify({ clearCache: 'do_not_clear', deployMode: 'deploy_only' }),
+    body: JSON.stringify({ deployMode: 'deploy_only' }),
     okStatuses: [200, 201, 202],
   });
   const deployId = deploy.id ?? 'queued';

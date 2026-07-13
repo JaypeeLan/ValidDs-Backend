@@ -19,7 +19,7 @@ import type { MarketCode } from '../utils/markets';
 const PRODUCT_FEED_CACHE_REVISION = 'v9';
 
 /** Bump when creative feed query semantics change. */
-const CREATIVE_FEED_CACHE_REVISION = 'v1';
+const CREATIVE_FEED_CACHE_REVISION = 'v2';
 
 /** Bump when related-product matching semantics change. */
 const PRODUCT_RELATED_CACHE_REVISION = 'l2-narrow-l3-required';
@@ -36,6 +36,10 @@ export const CacheKeys = {
   // Stable total for a creative feed filter set (shared across pages for the TTL window)
   creativeFeedTotal: (market: MarketCode, filters?: string) =>
     `creative:feed:${CREATIVE_FEED_CACHE_REVISION}:${market}:total${filters ? `:${filters}` : ''}`,
+
+  // Creative / top-ads feed page — same shape as product feed (market + page + filters)
+  creativeFeed: (market: MarketCode, page: number, limit: number, filters?: string) =>
+    `creative:feed:${CREATIVE_FEED_CACHE_REVISION}:${market}:${page}:${limit}${filters ? `:${filters}` : ''}`,
 
   // Individual product detail
   productDetail: (market: MarketCode, id: string) => `product:detail:${market}:${id}`,
@@ -95,6 +99,7 @@ export const CACHE_TTL = {
   // as ingestion/stale-cleanup mutate the collection between page fetches.
   FEED_TOTAL: 1800, // 30 minutes — stabilizes pagination.total across pages
   CREATIVE_FEED_TOTAL: 1800, // 30 minutes — stabilizes pagination.total across pages
+  CREATIVE_FEED: 60, // 1 minute — same-page creative/ads refetch stability
   PRODUCT_DETAIL: 60, // 1 minute
   PRODUCT_RELATED: 60, // 1 minute
   PRODUCT_COMPARE: 900, // 15 minutes — AI comparison is expensive

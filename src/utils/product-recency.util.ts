@@ -13,6 +13,15 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type GmvPrioritySortBy = 'gmv-desc' | 'gmv-asc' | 'units-desc' | 'units-asc';
 
+/**
+ * Append a unique `_id` tie-breaker so skip/limit pages stay stable when primary
+ * sort keys collide (same GMV, same lastIngestedAt, etc.).
+ */
+export function withIdTiebreak(sort: Record<string, 1 | -1>): Record<string, 1 | -1> {
+  if (Object.prototype.hasOwnProperty.call(sort, '_id')) return sort;
+  return { ...sort, _id: 1 };
+}
+
 export function usesRecencyPriorityWithGmv(sortBy?: string): sortBy is GmvPrioritySortBy {
   return (
     sortBy === 'gmv-desc' ||
@@ -99,10 +108,14 @@ export function postDateCoalesceExpr(): Record<string, unknown> {
   };
 }
 
-/** Mongo $addFields: _recencyTier 0 | 1 | 2 for aggregation sort. */
-export function recencyTierAddFields(): Record<string, unknown> {
+/** Mongo $addFields: _recencyTier 0 | 1 | 2 for aggregation sort.
+ * Pass a frozen `now` so tier boundaries don't drift mid-request / across rapid refetches.
+ */
+export function recencyTierAddFields(now: Date = new Date()): Record<string, unknown> {
   const threeMs = NEW_POST_PRIORITY_DAYS_3 * MS_PER_DAY;
   const sevenMs = NEW_POST_PRIORITY_DAYS_7 * MS_PER_DAY;
+  // Prefer a fixed Date over $$NOW so the same query window is deterministic.
+  const nowLiteral = now;
   return {
     _postDate: postDateCoalesceExpr(),
     _recencyTier: {
@@ -112,7 +125,7 @@ export function recencyTierAddFields(): Record<string, unknown> {
             case: {
               $and: [
                 { $ne: ['$_postDate', null] },
-                { $gte: ['$_postDate', { $subtract: ['$$NOW', threeMs] }] },
+                { $gte: ['$_postDate', { $subtract: [nowLiteral, threeMs] }] },
               ],
             },
             then: 0,
@@ -121,7 +134,7 @@ export function recencyTierAddFields(): Record<string, unknown> {
             case: {
               $and: [
                 { $ne: ['$_postDate', null] },
-                { $gte: ['$_postDate', { $subtract: ['$$NOW', sevenMs] }] },
+                { $gte: ['$_postDate', { $subtract: [nowLiteral, sevenMs] }] },
               ],
             },
             then: 1,
@@ -136,11 +149,11 @@ export function recencyTierAddFields(): Record<string, unknown> {
 export function recencyPrioritySortSpec(sortBy: GmvPrioritySortBy): Record<string, 1 | -1> {
   const metricKey = sortBy === 'units-desc' || sortBy === 'units-asc' ? 'totalSales' : 'totalGmv';
   const metricDir: 1 | -1 = sortBy === 'gmv-asc' || sortBy === 'units-asc' ? 1 : -1;
-  return {
+  return withIdTiebreak({
     _recencyTier: 1,
     [metricKey]: metricDir,
     lastIngestedAt: -1,
-  };
+  });
 }
 
 export type CreativeEngagementMetric = 'views' | 'likes' | 'engagement';
@@ -159,11 +172,10 @@ export function creativeEngagementMetricSortSpec(
         ? 'metrics.engagementRate'
         : 'metrics.viewCount';
   const metricDir: 1 | -1 = direction === 'asc' ? 1 : -1;
-  return {
+  return withIdTiebreak({
     [metricKey]: metricDir,
     publishedAt: -1,
-    _id: 1,
-  };
+  });
 }
 
 export function creativeRecencyPrioritySortSpec(
@@ -177,12 +189,12 @@ export function creativeRecencyPrioritySortSpec(
         ? 'metrics.engagementRate'
         : 'metrics.viewCount';
   const metricDir: 1 | -1 = direction === 'asc' ? 1 : -1;
-  return {
+  return withIdTiebreak({
     _recencyTier: 1,
     productTotalGmv: -1,
     [metricKey]: metricDir,
     publishedAt: -1,
-  };
+  });
 }
 
 /** Drop aggregation-only fields before the post-dedupe re-sort. */
@@ -192,7 +204,7 @@ export function sortSpecWithoutRecencyFields(sort: Record<string, 1 | -1>): Reco
     if (key === '_recencyTier' || key === '_postDate') continue;
     out[key] = dir;
   }
-  return Object.keys(out).length ? out : { publishedAt: -1 };
+  return withIdTiebreak(Object.keys(out).length ? out : { publishedAt: -1 });
 }
 
 export function creativeProductMetricSortSpec(
@@ -201,9 +213,9 @@ export function creativeProductMetricSortSpec(
   const metricKey =
     sortBy === 'units-desc' || sortBy === 'units-asc' ? 'productTotalSales' : 'productTotalGmv';
   const metricDir: 1 | -1 = sortBy === 'gmv-asc' || sortBy === 'units-asc' ? 1 : -1;
-  return {
+  return withIdTiebreak({
     _recencyTier: 1,
     [metricKey]: metricDir,
     publishedAt: -1,
-  };
+  });
 }

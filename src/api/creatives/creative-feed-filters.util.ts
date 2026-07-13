@@ -2,6 +2,7 @@ import {
   creativeEngagementMetricSortSpec,
   creativeProductMetricSortSpec,
   type CreativeProductMetricSortBy,
+  withIdTiebreak,
 } from '../../utils/product-recency.util';
 
 export type CreativeSortBy =
@@ -82,13 +83,19 @@ export function resolveCreativeSort(
   opts?: { source?: 'meta' | 'tiktok' },
 ): { sortKey: CreativeSortBy; sort: Record<string, 1 | -1> } {
   if (opts?.source === 'meta') {
-    return { sortKey: sortBy, sort: { metaAdRelevanceScore: -1, publishedAt: -1 } };
+    return {
+      sortKey: sortBy,
+      sort: withIdTiebreak({ metaAdRelevanceScore: -1, publishedAt: -1 }),
+    };
   }
   switch (sortBy) {
     case 'recent':
-      return { sortKey: 'recent', sort: { publishedAt: -1 } };
+      return { sortKey: 'recent', sort: withIdTiebreak({ publishedAt: -1 }) };
     case 'last_ingested':
-      return { sortKey: 'last_ingested', sort: { ingestedAt: -1, publishedAt: -1 } };
+      return {
+        sortKey: 'last_ingested',
+        sort: withIdTiebreak({ ingestedAt: -1, publishedAt: -1 }),
+      };
     case 'likes-desc':
       return { sortKey: 'likes-desc', sort: creativeEngagementMetricSortSpec('likes', 'desc') };
     case 'likes-asc':

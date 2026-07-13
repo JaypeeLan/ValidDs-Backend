@@ -313,7 +313,11 @@ export const listProducts = async (
     }
 
     const [products, total] = await Promise.all([
-      MarketProduct.find(filter).sort({ lastIngestedAt: -1 }).skip(skip).limit(limit).lean(),
+      MarketProduct.find(filter)
+        .sort({ lastIngestedAt: -1, _id: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       MarketProduct.countDocuments(filter),
     ]);
 
@@ -590,7 +594,7 @@ export const listCreatives = async (
           : { $and: filterParts };
 
     const [rows, total] = await Promise.all([
-      MarketCreative.find(filter).sort({ ingestedAt: -1 }).skip(skip).limit(limit).lean(),
+      MarketCreative.find(filter).sort({ ingestedAt: -1, _id: 1 }).skip(skip).limit(limit).lean(),
       MarketCreative.countDocuments(filter),
     ]);
 

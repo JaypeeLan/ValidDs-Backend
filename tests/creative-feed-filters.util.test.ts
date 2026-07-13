@@ -30,8 +30,9 @@ describe('creative-feed-filters.util', () => {
     expect(resolveCreativeSort('last_ingested').sort).toEqual({
       ingestedAt: -1,
       publishedAt: -1,
+      _id: 1,
     });
-    expect(resolveCreativeSort('recent').sort).toEqual({ publishedAt: -1 });
+    expect(resolveCreativeSort('recent').sort).toEqual({ publishedAt: -1, _id: 1 });
   });
 
   it('resolveCreativeSort uses productTotalGmv for gmv_desc', () => {
@@ -39,6 +40,7 @@ describe('creative-feed-filters.util', () => {
       _recencyTier: 1,
       productTotalGmv: -1,
       publishedAt: -1,
+      _id: 1,
     });
   });
 

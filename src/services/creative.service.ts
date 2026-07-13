@@ -379,11 +379,12 @@ function buildCreativeFeedBaseStages(
   opts?: CreativeFeedStageOpts,
 ): PipelineStage[] {
   const onePerProduct = opts?.oneAdPerProduct === true;
+  const now = new Date();
   return [
     { $match: query },
     creativeFeedExposureMatchStage() as PipelineStage,
     { $unset: [...CREATIVE_FEED_HEAVY_TREND_FIELDS] },
-    ...(creativeSortSkipsRecencyTier(sortKey) ? [] : [{ $addFields: recencyTierAddFields() }]),
+    ...(creativeSortSkipsRecencyTier(sortKey) ? [] : [{ $addFields: recencyTierAddFields(now) }]),
     { $sort: sort as PipelineStage.Sort['$sort'] },
     ...(creativeAdDedupeAggregationStages() as unknown as PipelineStage[]),
     ...(onePerProduct ? (creativeOneAdPerProductFeedStages() as unknown as PipelineStage[]) : []),
@@ -811,6 +812,31 @@ export const CreativeService = {
       );
     }
 
+    const pageNum = Number(page);
+    const mLimit = Number(limit);
+    const market = marketFromCreativeCollection(creativeModel.collection.name);
+    const pageFiltersKey = JSON.stringify({
+      ...filters,
+      page: undefined,
+      limit: undefined,
+      extraMatch: extraMatch ?? null,
+    });
+    const pageCacheKey = CacheKeys.creativeFeed(market, pageNum, mLimit, pageFiltersKey);
+    const cachedPage = await CacheService.get<{
+      data: CreativeFeedItem[] | CreativeCreatorFeedItem[] | CreatorLobbyItem[];
+      pagination: {
+        total: number;
+        page: number;
+        limit: number;
+        pages: number;
+        totalPages: number;
+        hasNextPage: boolean;
+        hasPrevPage: boolean;
+      };
+      groupBy?: 'creator';
+    }>(pageCacheKey);
+    if (cachedPage) return cachedPage;
+
     const query: Record<string, unknown> = {
       ...excludedProductCategoryL1Filter(),
     };
@@ -866,8 +892,7 @@ export const CreativeService = {
         ? mergeCreativeFeedExtraMatch(query, extraMatch)
         : query;
 
-    const skip = (Number(page) - 1) * Number(limit);
-    const mLimit = Number(limit);
+    const skip = (pageNum - 1) * mLimit;
     const { sortKey, sort } = resolveCreativeSort(
       String(sortBy) as CreativeSortBy,
       source ? { source: source as 'meta' | 'tiktok' } : undefined,
@@ -889,7 +914,6 @@ export const CreativeService = {
       mLimit,
     );
 
-    const market = marketFromCreativeCollection(creativeModel.collection.name);
     const totalCacheKey = CacheKeys.creativeFeedTotal(
       market,
       JSON.stringify({
@@ -906,7 +930,6 @@ export const CreativeService = {
       CACHE_TTL.CREATIVE_FEED_TOTAL,
     );
     const totalPages = Math.ceil(total / mLimit) || 0;
-    const pageNum = Number(page);
 
     const feedDocs = rawData.map((doc) => ({ ...(doc as Record<string, unknown>) }));
     if (!groupByCreator) {
@@ -926,7 +949,7 @@ export const CreativeService = {
         })
       : feedDocs.map((doc) => formatCreativeFeedItem(doc));
     const data = filterPlayableCreativeFeedItems(rawItems);
-    return {
+    const result = {
       data,
       pagination: {
         total,
@@ -939,6 +962,11 @@ export const CreativeService = {
       },
       ...(groupByCreator ? { groupBy: 'creator' as const } : {}),
     };
+    // Same as products: pin a non-empty page briefly so rapid refetches don't reshuffle.
+    if (result.pagination.total > 0) {
+      await CacheService.set(pageCacheKey, result, CACHE_TTL.CREATIVE_FEED);
+    }
+    return result;
   },
 
   /**

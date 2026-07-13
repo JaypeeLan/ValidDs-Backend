@@ -84,7 +84,13 @@ export const TRIGGERABLE_JOBS: TriggerableJob[] = [
     job: 'ensure_videos',
     service: 'scraper',
     label: 'Ensure product videos',
-    description: 'Upload/sync TikTok + Meta MP4s to S3',
+    description: 'Upload/sync TikTok + Meta MP4s to S3, then delete unplayable creatives',
+  },
+  {
+    job: 'reconcile_videos',
+    service: 'scraper',
+    label: 'Reconcile product videos',
+    description: 'Same as ensure product videos (S3 sync + delete unplayable)',
   },
 ];
 

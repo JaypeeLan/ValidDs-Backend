@@ -312,12 +312,13 @@ export const listProducts = async (
       filter.$or = [{ title: regex }, { description: regex }];
     }
 
+    const sort =
+      query.sort === 'videos'
+        ? ({ relatedVideosCount: -1, 'creativeCounts.total': -1, _id: 1 } as const)
+        : ({ lastIngestedAt: -1, _id: 1 } as const);
+
     const [products, total] = await Promise.all([
-      MarketProduct.find(filter)
-        .sort({ lastIngestedAt: -1, _id: 1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+      MarketProduct.find(filter).sort(sort).skip(skip).limit(limit).lean(),
       MarketProduct.countDocuments(filter),
     ]);
 

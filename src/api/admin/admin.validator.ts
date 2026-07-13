@@ -46,6 +46,8 @@ export const AdminProductsQuerySchema_v2 = z.object({
   category: z.string().optional(),
   section: z.enum(PRODUCT_DISCOVERY_SECTIONS).optional(),
   q: z.string().trim().min(1).optional(),
+  /** recent = lastIngestedAt desc (default); videos = most linked creatives first */
+  sort: z.enum(['recent', 'videos']).default('recent'),
 });
 
 export const AdminDeleteContentParamSchema = z.object({

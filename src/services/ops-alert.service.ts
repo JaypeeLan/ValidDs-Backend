@@ -2,7 +2,7 @@
  * Ops / billing alerts via Resend.
  *
  * Routing (mirrors scraper job_alert):
- *  - paymentRequired / credits → SCRAPER_ALERT_EMAIL (full list)
+ *  - paymentRequired / credits / RapidAPI rate-limit (429) → SCRAPER_ALERT_EMAIL
  *  - everything else → SCRAPER_OPS_ALERT_EMAIL (default jplaniran01@gmail.com)
  */
 import { env } from '../config/env.validation';
@@ -52,6 +52,7 @@ function parseOpsRecipients(): string[] {
 }
 
 function isPaymentRequiredIssue(issue: string, detail?: string): boolean {
+  /** Credits exhaustion or RapidAPI-style rate-limit / quota (429). */
   const msg = `${issue}\n${detail || ''}`.toLowerCase();
   return [
     'http 402',
@@ -61,6 +62,11 @@ function isPaymentRequiredIssue(issue: string, detail?: string): boolean {
     'no credits',
     'credits exhausted',
     'not enough credit',
+    'http 429',
+    'rate limit',
+    'rate-limit',
+    'api rate limited',
+    'upgrade plan',
   ].some((t) => msg.includes(t));
 }
 

@@ -479,6 +479,7 @@ export async function getInventoryAnalytics(market?: MarketCode): Promise<{
     total: number;
     fresh24h: number;
     byStatus: Record<string, number>;
+    bySection: Record<string, number>;
     byCategoryL1: Record<string, number>;
     byCategoryL2: Record<string, number>;
     bySource: Record<string, number>;
@@ -506,6 +507,7 @@ export async function getInventoryAnalytics(market?: MarketCode): Promise<{
   let productTotal = 0;
   let productFresh = 0;
   const byStatus: Record<string, number> = {};
+  const byProductSection: Record<string, number> = {};
   const byCatL1: Record<string, number> = {};
   const byCatL2: Record<string, number> = {};
   const bySource: Record<string, number> = {};
@@ -527,6 +529,40 @@ export async function getInventoryAnalytics(market?: MarketCode): Promise<{
   let endedLast24h = 0;
   const liveByMarket: Record<string, { active: number; total: number }> = {};
 
+  // Priority matches discoverySectionsForProduct: global-selling > high-opportunity > default
+  const productSectionPipeline = [
+    {
+      $project: {
+        section: {
+          $switch: {
+            branches: [
+              {
+                case: {
+                  $or: [
+                    { $eq: ['$isGlobalSelling', true] },
+                    { $in: ['global-selling', { $ifNull: ['$discoverySections', []] }] },
+                  ],
+                },
+                then: 'global-selling',
+              },
+              {
+                case: {
+                  $or: [
+                    { $eq: ['$isHighOpportunity', true] },
+                    { $in: ['high-opportunity', { $ifNull: ['$discoverySections', []] }] },
+                  ],
+                },
+                then: 'high-opportunity',
+              },
+            ],
+            default: 'default',
+          },
+        },
+      },
+    },
+    { $group: { _id: '$section', count: { $sum: 1 } } },
+  ];
+
   await Promise.all(
     markets.map(async (m) => {
       const { Product, Creative, LiveSession } = getMarketModels(m);
@@ -535,6 +571,7 @@ export async function getInventoryAnalytics(market?: MarketCode): Promise<{
         pTotal,
         pFresh,
         statusAgg,
+        productSectionAgg,
         catL1Agg,
         catL2Agg,
         sourceAgg,
@@ -556,6 +593,7 @@ export async function getInventoryAnalytics(market?: MarketCode): Promise<{
         Product.countDocuments(),
         Product.countDocuments({ lastIngestedAt: { $gte: oneDayAgo } }),
         Product.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+        Product.aggregate(productSectionPipeline),
         Product.aggregate([
           { $group: { _id: '$categoryL1', count: { $sum: 1 } } },
           { $sort: { count: -1 } },
@@ -608,6 +646,10 @@ export async function getInventoryAnalytics(market?: MarketCode): Promise<{
         const key = String(row._id ?? 'unknown');
         byStatus[key] = (byStatus[key] ?? 0) + row.count;
       }
+      for (const row of productSectionAgg) {
+        const key = String(row._id ?? 'default');
+        byProductSection[key] = (byProductSection[key] ?? 0) + row.count;
+      }
       for (const row of catL1Agg) {
         const key = String(row._id ?? 'Uncategorized');
         byCatL1[key] = (byCatL1[key] ?? 0) + row.count;
@@ -655,6 +697,7 @@ export async function getInventoryAnalytics(market?: MarketCode): Promise<{
       total: productTotal,
       fresh24h: productFresh,
       byStatus,
+      bySection: byProductSection,
       byCategoryL1: topNFromAgg(
         Object.entries(byCatL1).map(([_id, count]) => ({ _id, count })),
         25,

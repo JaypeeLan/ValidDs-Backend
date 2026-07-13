@@ -678,7 +678,103 @@ export const ShopifyService = {
 
     await User.updateOne({ _id: userId }, { $set: { shopifyConnection: connection } });
 
+    // Shop-level subscriptions (covers every install until app-config webhooks are deployed).
+    await this.ensureAppWebhooks(shop, tokenRes.access_token);
+
     return connection;
+  },
+
+  /**
+   * Register billing + uninstall webhooks for this shop.
+   * Idempotent — skips topics already pointed at our callback URL.
+   * Failures are logged but do not block store connect (checkout still works;
+   * success page can call POST /billing/shopify/sync).
+   */
+  async ensureAppWebhooks(shop: string, accessToken: string): Promise<void> {
+    const origin = this.publicApiOrigin();
+    if (!origin) {
+      log.warn('Skipping Shopify webhook registration — SHOPIFY_REDIRECT_URI has no origin');
+      return;
+    }
+    const callbackUrl = `${origin}/api/${env.API_VERSION}/webhooks/shopify`;
+    const topics = ['APP_SUBSCRIPTIONS_UPDATE', 'APP_UNINSTALLED'] as const;
+
+    try {
+      const listed = await this.adminGraphql<{
+        webhookSubscriptions: {
+          edges: Array<{
+            node: {
+              topic: string;
+              endpoint?: { callbackUrl?: string };
+            };
+          }>;
+        };
+      }>(
+        shop,
+        accessToken,
+        `query {
+          webhookSubscriptions(first: 50) {
+            edges {
+              node {
+                topic
+                endpoint {
+                  __typename
+                  ... on WebhookHttpEndpoint { callbackUrl }
+                }
+              }
+            }
+          }
+        }`,
+      );
+
+      const existing = listed.webhookSubscriptions?.edges ?? [];
+      const createMutation = `
+        mutation webhookSubscriptionCreate(
+          $topic: WebhookSubscriptionTopic!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id topic }
+            userErrors { field message }
+          }
+        }
+      `;
+
+      for (const topic of topics) {
+        const already = existing.some(
+          (e) => e.node.topic === topic && e.node.endpoint?.callbackUrl === callbackUrl,
+        );
+        if (already) continue;
+
+        const created = await this.adminGraphql<{
+          webhookSubscriptionCreate: {
+            webhookSubscription: { id: string; topic: string } | null;
+            userErrors: Array<{ message: string }>;
+          };
+        }>(shop, accessToken, createMutation, {
+          topic,
+          webhookSubscription: { callbackUrl, format: 'JSON' },
+        });
+
+        const errors = created.webhookSubscriptionCreate?.userErrors ?? [];
+        if (errors.length) {
+          log.warn('Shopify webhook registration userErrors', { shop, topic, errors });
+          continue;
+        }
+        log.info('Shopify webhook registered', {
+          shop,
+          topic,
+          id: created.webhookSubscriptionCreate?.webhookSubscription?.id,
+          callbackUrl,
+        });
+      }
+    } catch (err) {
+      log.warn('Shopify webhook registration failed', {
+        shop,
+        callbackUrl,
+        err: err instanceof Error ? err.message : err,
+      });
+    }
   },
 
   async savePendingConnection(
@@ -705,6 +801,8 @@ export const ShopifyService = {
       },
       { upsert: true, new: true },
     );
+
+    await this.ensureAppWebhooks(shop, tokenRes.access_token);
   },
 
   /** Attach a pending App-URL install to the logged-in ValidDs user. */

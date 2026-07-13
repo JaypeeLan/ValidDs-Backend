@@ -150,6 +150,14 @@ export const CacheService = {
   /**
    * Pin feed totals for a filter set so page 1 and page N return the same `total`
    * during the TTL window (avoids pagination jumping while ingestion is running).
+   *
+   * Backed by Redis *and* a small in-process map so the pin survives Redis
+   * flapping: managed Redis drops idle connections, and without a local fallback
+   * every page fetched during a disconnect would recompute a live (drifting)
+   * count, making totalPages jump (e.g. 100 → 98 → 102). The in-process copy
+   * keeps the total stable per instance; safe because deployments are
+   * single-instance (see docs/architecture). Redis remains the cross-instance
+   * source of truth when it is up.
    */
   async stabilizeFeedTotal(
     key: string,
@@ -157,8 +165,47 @@ export const CacheService = {
     ttlSeconds: number,
   ): Promise<number> {
     const cached = await CacheService.get<number>(key);
-    if (cached !== null) return cached;
+    if (cached !== null) {
+      setLocalFeedTotal(key, cached, ttlSeconds); // refresh local mirror from Redis
+      return cached;
+    }
+
+    // Redis missed or was unreachable — fall back to the in-process pin.
+    const local = getLocalFeedTotal(key);
+    if (local !== null) {
+      void CacheService.set(key, local, ttlSeconds); // best-effort re-seed Redis
+      return local;
+    }
+
+    // First observation of this filter set — pin the freshly computed total.
+    setLocalFeedTotal(key, computedTotal, ttlSeconds);
     void CacheService.set(key, computedTotal, ttlSeconds);
     return computedTotal;
   },
 };
+
+/**
+ * In-process fallback store for feed totals, keyed identically to Redis.
+ * Bounded so a flood of distinct filter sets cannot grow it without limit.
+ */
+const LOCAL_FEED_TOTAL_MAX_ENTRIES = 2_000;
+const localFeedTotals = new Map<string, { value: number; expiresAt: number }>();
+
+function getLocalFeedTotal(key: string): number | null {
+  const entry = localFeedTotals.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    localFeedTotals.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function setLocalFeedTotal(key: string, value: number, ttlSeconds: number): void {
+  // Evict the oldest entry when at capacity (Map preserves insertion order).
+  if (localFeedTotals.size >= LOCAL_FEED_TOTAL_MAX_ENTRIES && !localFeedTotals.has(key)) {
+    const oldest = localFeedTotals.keys().next().value;
+    if (oldest !== undefined) localFeedTotals.delete(oldest);
+  }
+  localFeedTotals.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1_000 });
+}

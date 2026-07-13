@@ -143,7 +143,7 @@ export const ProductService: ProductServiceType = {
       const stableTotal = await CacheService.stabilizeFeedTotal(
         totalCacheKey,
         feed.pagination.total,
-        CACHE_TTL.PRODUCT_FEED,
+        CACHE_TTL.FEED_TOTAL,
       );
       if (stableTotal !== feed.pagination.total) {
         const limit = feed.pagination.limit;

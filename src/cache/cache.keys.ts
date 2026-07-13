@@ -89,7 +89,12 @@ export const CacheKeys = {
  */
 export const CACHE_TTL = {
   PRODUCT_FEED: 60, // 1 minute
-  CREATIVE_FEED_TOTAL: 60, // 1 minute — stabilizes pagination.total across pages
+  // Feed totals are pinned separately from page data so pagination.total stays
+  // constant for a whole browsing session even though page data refreshes every
+  // minute. Must outlast a realistic session; short values make totalPages wobble
+  // as ingestion/stale-cleanup mutate the collection between page fetches.
+  FEED_TOTAL: 1800, // 30 minutes — stabilizes pagination.total across pages
+  CREATIVE_FEED_TOTAL: 1800, // 30 minutes — stabilizes pagination.total across pages
   PRODUCT_DETAIL: 60, // 1 minute
   PRODUCT_RELATED: 60, // 1 minute
   PRODUCT_COMPARE: 900, // 15 minutes — AI comparison is expensive

@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "dcb83292758ad41ea2f7126ee70b18e8"
-name = "validds-main"
+client_id = "c1a54c1d9e051c9b6286d63f950f7067"
+name = "ValidDs"
 application_url = "https://validds-backend-g196.onrender.com/shopify/app"
 embedded = false
 
@@ -14,11 +14,13 @@ api_version = "2026-04"
   topics = [ "app/uninstalled", "app_subscriptions/update" ]
 
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# Classic OAuth (ValidDs does not use managed install / token exchange)
 scopes = "read_products,write_products"
 optional_scopes = [ ]
+use_legacy_install_flow = true
 
 [auth]
 redirect_urls = [
-  "https://validds-backend-g196.onrender.com/api/v1/stores/shopify/callback"
+  "https://validds-backend-g196.onrender.com/api/v1/stores/shopify/callback",
+  "https://00a8-105-127-9-203.ngrok-free.app/api/v1/stores/shopify/callback"
 ]

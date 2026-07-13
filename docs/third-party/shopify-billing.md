@@ -34,14 +34,16 @@ SHOPIFY_PLAN_PRICE_PREMIUM_CENTS=19900
 
 Users **without** a connected store get Stripe checkout from the same endpoint.
 
-## Webhooks (optional)
+## Webhooks
 
-Register in Partner Dashboard → Webhooks:
+On every store connect, the backend registers shop-level subscriptions for
+`APP_SUBSCRIPTIONS_UPDATE` and `APP_UNINSTALLED` pointing at
+`{SHOPIFY_REDIRECT_URI origin}/api/v1/webhooks/shopify`.
 
-- URL: `https://<tunnel>/api/v1/webhooks/shopify`
-- Topic: `app_subscriptions/update`
+Prefer app-config webhooks via `shopify.app.toml` + `shopify app deploy` when Partner
+CLI access is available (applies to all installs without per-shop registration).
 
-Use `ngrok http 4000` or Shopify CLI to forward webhooks. Without webhooks, use `POST /billing/shopify/sync` after each approval.
+Without a reachable webhook URL, use `POST /billing/shopify/sync` after each approval.
 
 ## Cancel
 

@@ -31,19 +31,35 @@ export function getRedisClient(): Redis {
 
   redisClient = new Redis(redisUrl, {
     maxRetriesPerRequest: 3,
+    /**
+     * Never permanently give up reconnecting. The previous strategy returned
+     * null after 5 attempts, which on a managed Redis that drops idle
+     * connections left the client dead until the next process restart — every
+     * cache op then silently missed (and pagination totals stopped being
+     * pinned). Reconnect forever with a capped backoff instead.
+     */
     retryStrategy: (times) => {
-      if (times >= 5) {
-        log.error('Redis max retries reached, giving up');
-        return null; // stop retrying
+      const delay = Math.min(times * 200, 5000);
+      if (times <= 5 || times % 20 === 0) {
+        log.warn(`Redis retry attempt ${times}, waiting ${delay}ms`);
       }
-      const delay = Math.min(times * 200, 2000);
-      log.warn(`Redis retry attempt ${times}, waiting ${delay}ms`);
       return delay;
+    },
+    /**
+     * Reconnect (rather than error) on transient failover conditions such as a
+     * replica being promoted — common on managed Redis and a likely source of
+     * the observed connect/disconnect flapping.
+     */
+    reconnectOnError: (err) => {
+      const target = ['READONLY', 'ETIMEDOUT', 'ECONNRESET'];
+      return target.some((code) => err.message.includes(code));
     },
     tls: redisUrl.startsWith('rediss://') ? {} : undefined,
     lazyConnect: false,
     enableReadyCheck: true,
     connectTimeout: 10000,
+    /** TCP keepalive pings stop managed Redis from dropping an idle connection. */
+    keepAlive: 15000,
     /** Prevent hung product-detail requests when Redis is slow/unreachable in production. */
     commandTimeout: 5000,
   });

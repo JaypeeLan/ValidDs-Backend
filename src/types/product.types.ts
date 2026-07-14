@@ -468,3 +468,6 @@ export interface IProductDocument extends IProduct, Document {}
 export interface IProductModel extends Model<IProductDocument> {
   findByExternalId(externalId: string): Promise<IProductDocument | null>;
 }
+
+/** Product detail envelope includes `validation` as a sibling of `product` (not nested here). */
+export type { ValidationEngineResult } from './validation-engine.types';

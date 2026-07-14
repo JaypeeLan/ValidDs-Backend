@@ -1,0 +1,120 @@
+ValidationEngineResult:
+  type: object
+  description: |
+    Backend-owned Validation Engine V1 result. Frontend should render these fields
+    directly and must not recompute opportunity/verdict logic from raw product metrics.
+  required:
+    - version
+    - computedAt
+    - sourceUpdatedAt
+    - verdict
+    - verdictLabel
+    - opportunityScore
+    - demand
+    - momentum
+    - saturation
+    - trust
+    - confidence
+    - riskFlags
+    - reasons
+    - nextStep
+  properties:
+    version:
+      type: string
+      enum: [validds-validation-v1.0]
+    computedAt:
+      type: string
+      format: date-time
+    sourceUpdatedAt:
+      type: string
+      format: date-time
+      nullable: true
+    verdict:
+      type: string
+      enum: [strong_test, test_carefully, needs_more_proof, avoid_for_now]
+    verdictLabel:
+      type: string
+      example: Test carefully
+    opportunityScore:
+      type: number
+      nullable: true
+      minimum: 0
+      maximum: 100
+    demand:
+      $ref: '#/ValidationScoreModule'
+    momentum:
+      $ref: '#/ValidationScoreModule'
+    saturation:
+      allOf:
+        - $ref: '#/ValidationScoreModule'
+        - type: object
+          required: [saturationLabel]
+          properties:
+            saturationLabel:
+              type: string
+              enum:
+                - low_proof
+                - early_opportunity
+                - validated_opportunity
+                - competitive
+                - crowded_late
+                - unknown
+    trust:
+      $ref: '#/ValidationScoreModule'
+    confidence:
+      $ref: '#/ValidationScoreModule'
+    riskFlags:
+      type: array
+      items:
+        $ref: '#/ValidationRiskFlag'
+    reasons:
+      type: array
+      items:
+        type: string
+    nextStep:
+      type: string
+    debug:
+      type: object
+      description: Staging/verification aid; frontend may ignore.
+      additionalProperties: true
+
+ValidationScoreModule:
+  type: object
+  required: [score, band, label, reason, inputsUsed, missingInputs, caveats]
+  properties:
+    score:
+      type: number
+      nullable: true
+      minimum: 0
+      maximum: 100
+    band:
+      type: string
+      enum: [excellent, strong, moderate, weak, unknown]
+    label:
+      type: string
+    reason:
+      type: string
+    inputsUsed:
+      type: array
+      items: { type: string }
+    missingInputs:
+      type: array
+      items: { type: string }
+    caveats:
+      type: array
+      items: { type: string }
+
+ValidationRiskFlag:
+  type: object
+  required: [code, severity, label, reason]
+  properties:
+    code:
+      type: string
+      example: stale_trend_data
+    severity:
+      type: string
+      enum: [info, caution, serious]
+    label:
+      type: string
+    reason:
+      type: string

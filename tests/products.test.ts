@@ -675,4 +675,32 @@ describe('Products Endpoints', () => {
     // Valid ObjectId format but no matching product
     expect(res.status).toBe(404);
   });
+
+  it('GET /api/v1/products/:id returns validation engine V1 object', async () => {
+    const { seedListableProductPair } = await import('./helpers/seed-listable.fixture');
+    const { productId } = await seedListableProductPair();
+    const res = await httpJson({
+      baseUrl,
+      method: 'GET',
+      path: `/api/v1/products/${productId}`,
+      token: testToken,
+    });
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.text);
+    expect(body.data.validation).toEqual(
+      expect.objectContaining({
+        version: 'validds-validation-v1.0',
+        verdict: expect.any(String),
+        verdictLabel: expect.any(String),
+        demand: expect.objectContaining({ band: expect.any(String) }),
+        momentum: expect.objectContaining({ band: expect.any(String) }),
+        saturation: expect.objectContaining({ saturationLabel: expect.any(String) }),
+        trust: expect.objectContaining({ band: expect.any(String) }),
+        confidence: expect.objectContaining({ band: expect.any(String) }),
+        riskFlags: expect.any(Array),
+        reasons: expect.any(Array),
+        nextStep: expect.any(String),
+      }),
+    );
+  });
 });

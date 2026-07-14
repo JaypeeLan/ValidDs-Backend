@@ -3,6 +3,8 @@ import {
   findCreativesByProductId,
   findRelatedAdsByProductId,
 } from '../../services/creative.service';
+import { computeValidationEngineV1 } from '../../services/validation-engine';
+import type { ValidationProductInput } from '../../services/validation-engine';
 import { ProductService, getRelatedProducts } from '../../services/product.service';
 import {
   getPersonalizedProducts,
@@ -459,10 +461,17 @@ export const ProductController = {
         creativeModel,
       );
 
+      const productResponse = formatProductResponse(plain as ProductLike);
+      const validation = computeValidationEngineV1({
+        product: plain as ValidationProductInput,
+        creatives: [...relatedVideos, ...relatedAds],
+      });
+
       res.json(
         successResponse(
           {
-            product: formatProductResponse(plain as ProductLike),
+            product: productResponse,
+            validation,
             relatedVideos,
             relatedAds,
             freshness,

@@ -1,0 +1,723 @@
+{
+  "meta": {
+    "version": "validds-validation-v1.0",
+    "trendWindowInterpretation": "cumulative",
+    "apiPlacement": "GET /api/v1/products/:id → data.validation (sibling of data.product)",
+    "notes": [
+      "salesTrend.windows / revenueTrend.windows are daily-labeled cumulative snapshots (not daily increments).",
+      "salesLast7d = value(daysAgo=0) - value(daysAgo=7); negative raw deltas clamp to 0 and emit trend_data_inconsistency.",
+      "debug is included in V1 responses for product verification; frontend may ignore it."
+    ],
+    "fieldsUsed": [
+      "salesTrend.windows",
+      "revenueTrend.windows",
+      "soldCount",
+      "totalSales",
+      "totalGmv",
+      "price",
+      "rating",
+      "reviewCount",
+      "aiIntelligence.buyingSentimentScore",
+      "aiIntelligence.buyingSentimentLabel",
+      "aiIntelligence.reviewSummary (caveats only)",
+      "creativeCounts",
+      "creatives.metrics.*",
+      "creatives.isAd===true",
+      "estimatedVideoGmv",
+      "creatives.ingestedAt",
+      "lastIngestedAt",
+      "dataSourceUpdatedAt",
+      "updatedAt"
+    ],
+    "fieldsExcluded": [
+      "suppliers / COGS / margin / shipping",
+      "creative metrics.fetchedAt",
+      "isAd=false as organic proof",
+      "changePercent as primary growth metric",
+      "supplier links"
+    ]
+  },
+  "samples": [
+    {
+      "archetype": "strong_winner",
+      "validation": {
+        "version": "validds-validation-v1.0",
+        "computedAt": "2026-07-14T12:00:00.000Z",
+        "sourceUpdatedAt": "2026-07-13T10:00:00.000Z",
+        "verdict": "strong_test",
+        "verdictLabel": "Strong test",
+        "opportunityScore": 86,
+        "demand": {
+          "score": 88,
+          "band": "excellent",
+          "label": "Excellent demand",
+          "reason": "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "inputsUsed": [
+            "price",
+            "soldCount",
+            "totalSales",
+            "totalGmv",
+            "reviewCount",
+            "salesTrend.windows",
+            "revenueTrend.windows"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "momentum": {
+          "score": 82,
+          "band": "excellent",
+          "label": "Excellent momentum",
+          "reason": "Recent 7-day movement is clearly rising versus the prior 7 days.",
+          "inputsUsed": [
+            "salesTrend.windows",
+            "revenueTrend.windows",
+            "lastIngestedAt",
+            "salesLast30d/gmvLast30d"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "saturation": {
+          "score": 78,
+          "band": "strong",
+          "label": "Validated opportunity",
+          "reason": "Product has enough creative proof to validate interest without obvious crowding signals.",
+          "inputsUsed": [
+            "creativeCounts",
+            "creatives.metrics.viewCount",
+            "estimatedVideoGmv",
+            "isAd"
+          ],
+          "missingInputs": ["reliableCreatorIdentity"],
+          "caveats": ["Creator independence is not reliable enough for V1 scoring."],
+          "saturationLabel": "validated_opportunity"
+        },
+        "trust": {
+          "score": 90,
+          "band": "excellent",
+          "label": "Excellent trust",
+          "reason": "Rating, reviews, and sentiment support testing this product.",
+          "inputsUsed": ["rating", "reviewCount", "buyingSentimentScore", "reviewSummary"],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "confidence": {
+          "score": 100,
+          "band": "excellent",
+          "label": "Excellent confidence",
+          "reason": "Enough sales, trend, creative, and review evidence to support the validation judgment.",
+          "inputsUsed": [
+            "salesTrend.windows",
+            "revenueTrend.windows",
+            "soldCount/totalSales/totalGmv",
+            "creatives",
+            "reviewCount/rating",
+            "lastIngestedAt"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "riskFlags": [],
+        "reasons": [
+          "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "Recent 7-day movement is clearly rising versus the prior 7 days.",
+          "Product has enough creative proof to validate interest without obvious crowding signals."
+        ],
+        "nextStep": "Test with a small ad budget and monitor sales movement over the next 7 days.",
+        "debug": {
+          "bestAvailableSalesWindowDays": 30,
+          "bestAvailableGmvWindowDays": 30,
+          "salesLast7d": 100,
+          "salesPrevious7d": 80,
+          "salesLast30d": 400,
+          "gmvLast7d": 2000,
+          "gmvPrevious7d": 1600,
+          "gmvLast30d": 8000,
+          "creativeCount": 8,
+          "adCreativeCount": 2,
+          "topCreativeGmvShare": 0.13805970149253732,
+          "trendWindowCoverage": {
+            "hasToday": true,
+            "has7d": true,
+            "has14d": true,
+            "has30d": true
+          }
+        }
+      }
+    },
+    {
+      "archetype": "early_opportunity",
+      "validation": {
+        "version": "validds-validation-v1.0",
+        "computedAt": "2026-07-14T12:00:00.000Z",
+        "sourceUpdatedAt": "2026-07-13T10:00:00.000Z",
+        "verdict": "test_carefully",
+        "verdictLabel": "Test carefully",
+        "opportunityScore": 79,
+        "demand": {
+          "score": 59,
+          "band": "moderate",
+          "label": "Moderate demand",
+          "reason": "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "inputsUsed": [
+            "price",
+            "soldCount",
+            "totalSales",
+            "totalGmv",
+            "reviewCount",
+            "salesTrend.windows",
+            "revenueTrend.windows"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "momentum": {
+          "score": 90,
+          "band": "excellent",
+          "label": "Excellent momentum",
+          "reason": "Recent 7-day movement is clearly rising versus the prior 7 days.",
+          "inputsUsed": ["salesTrend.windows", "revenueTrend.windows", "lastIngestedAt"],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "saturation": {
+          "score": 82,
+          "band": "excellent",
+          "label": "Early opportunity",
+          "reason": "Creative proof is emerging without clear crowding.",
+          "inputsUsed": ["creativeCounts", "creatives.metrics.viewCount", "estimatedVideoGmv"],
+          "missingInputs": ["reliableCreatorIdentity"],
+          "caveats": ["Creator independence is not reliable enough for V1 scoring."],
+          "saturationLabel": "early_opportunity"
+        },
+        "trust": {
+          "score": 83,
+          "band": "excellent",
+          "label": "Excellent trust",
+          "reason": "Rating, reviews, and sentiment support testing this product.",
+          "inputsUsed": ["rating", "reviewCount", "buyingSentimentScore", "reviewSummary"],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "confidence": {
+          "score": 99,
+          "band": "excellent",
+          "label": "Excellent confidence",
+          "reason": "Enough sales, trend, creative, and review evidence to support the validation judgment.",
+          "inputsUsed": [
+            "salesTrend.windows",
+            "revenueTrend.windows",
+            "soldCount/totalSales/totalGmv",
+            "creatives",
+            "reviewCount/rating",
+            "lastIngestedAt"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "riskFlags": [],
+        "reasons": [
+          "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "Recent 7-day movement is clearly rising versus the prior 7 days.",
+          "Creative proof is emerging without clear crowding."
+        ],
+        "nextStep": "Test carefully with a limited budget and validate sourcing manually using the supplier search links before committing more spend.",
+        "debug": {
+          "bestAvailableSalesWindowDays": 14,
+          "bestAvailableGmvWindowDays": 14,
+          "salesLast7d": 30,
+          "salesPrevious7d": 15,
+          "salesLast30d": null,
+          "gmvLast7d": 800,
+          "gmvPrevious7d": 400,
+          "gmvLast30d": null,
+          "creativeCount": 3,
+          "adCreativeCount": 0,
+          "topCreativeGmvShare": 0.4444444444444444,
+          "trendWindowCoverage": {
+            "hasToday": true,
+            "has7d": true,
+            "has14d": true,
+            "has30d": false
+          }
+        }
+      }
+    },
+    {
+      "archetype": "crowded_product",
+      "validation": {
+        "version": "validds-validation-v1.0",
+        "computedAt": "2026-07-14T12:00:00.000Z",
+        "sourceUpdatedAt": "2026-07-13T10:00:00.000Z",
+        "verdict": "test_carefully",
+        "verdictLabel": "Test carefully",
+        "opportunityScore": 76,
+        "demand": {
+          "score": 88,
+          "band": "excellent",
+          "label": "Excellent demand",
+          "reason": "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "inputsUsed": [
+            "price",
+            "soldCount",
+            "totalSales",
+            "totalGmv",
+            "reviewCount",
+            "salesTrend.windows",
+            "revenueTrend.windows"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "momentum": {
+          "score": 82,
+          "band": "excellent",
+          "label": "Excellent momentum",
+          "reason": "Recent 7-day movement is clearly rising versus the prior 7 days.",
+          "inputsUsed": [
+            "salesTrend.windows",
+            "revenueTrend.windows",
+            "lastIngestedAt",
+            "salesLast30d/gmvLast30d"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "saturation": {
+          "score": 28,
+          "band": "weak",
+          "label": "Crowded / late",
+          "reason": "Creative/ad pressure or concentration risk suggests a crowded late market.",
+          "inputsUsed": [
+            "creativeCounts",
+            "creatives.metrics.viewCount",
+            "estimatedVideoGmv",
+            "isAd"
+          ],
+          "missingInputs": ["reliableCreatorIdentity"],
+          "caveats": [
+            "Creator independence is not reliable enough for V1 scoring.",
+            "Estimated video GMV is concentrated in a single creative.",
+            "Ad pressure is elevated relative to total creative count."
+          ],
+          "saturationLabel": "crowded_late"
+        },
+        "trust": {
+          "score": 90,
+          "band": "excellent",
+          "label": "Excellent trust",
+          "reason": "Rating, reviews, and sentiment support testing this product.",
+          "inputsUsed": ["rating", "reviewCount", "buyingSentimentScore", "reviewSummary"],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "confidence": {
+          "score": 100,
+          "band": "excellent",
+          "label": "Excellent confidence",
+          "reason": "Enough sales, trend, creative, and review evidence to support the validation judgment.",
+          "inputsUsed": [
+            "salesTrend.windows",
+            "revenueTrend.windows",
+            "soldCount/totalSales/totalGmv",
+            "creatives",
+            "reviewCount/rating",
+            "lastIngestedAt"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "riskFlags": [
+          {
+            "code": "heavy_ad_pressure",
+            "severity": "caution",
+            "label": "Heavy ad pressure",
+            "reason": "A large share of creatives are paid ads, which raises competition risk."
+          },
+          {
+            "code": "one_video_dependency",
+            "severity": "serious",
+            "label": "One-video dependency",
+            "reason": "Estimated video GMV is concentrated in a single creative, making the opportunity fragile."
+          },
+          {
+            "code": "crowded_market",
+            "severity": "caution",
+            "label": "Crowded market",
+            "reason": "Creative volume or ad pressure suggests the niche may already be crowded."
+          }
+        ],
+        "reasons": [
+          "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "Recent 7-day movement is clearly rising versus the prior 7 days.",
+          "Creative/ad pressure or concentration risk suggests a crowded late market.",
+          "A large share of creatives are paid ads, which raises competition risk.",
+          "Estimated video GMV is concentrated in a single creative, making the opportunity fragile.",
+          "Creative volume or ad pressure suggests the niche may already be crowded."
+        ],
+        "nextStep": "Test carefully with a limited budget and validate sourcing manually using the supplier search links before committing more spend.",
+        "debug": {
+          "bestAvailableSalesWindowDays": 30,
+          "bestAvailableGmvWindowDays": 30,
+          "salesLast7d": 100,
+          "salesPrevious7d": 80,
+          "salesLast30d": 400,
+          "gmvLast7d": 2000,
+          "gmvPrevious7d": 1600,
+          "gmvLast30d": 8000,
+          "creativeCount": 45,
+          "adCreativeCount": 25,
+          "topCreativeGmvShare": 0.8503401360544217,
+          "trendWindowCoverage": {
+            "hasToday": true,
+            "has7d": true,
+            "has14d": true,
+            "has30d": true
+          }
+        }
+      }
+    },
+    {
+      "archetype": "stale_product",
+      "validation": {
+        "version": "validds-validation-v1.0",
+        "computedAt": "2026-07-14T12:00:00.000Z",
+        "sourceUpdatedAt": "2026-06-20T10:00:00.000Z",
+        "verdict": "test_carefully",
+        "verdictLabel": "Test carefully",
+        "opportunityScore": 72,
+        "demand": {
+          "score": 77,
+          "band": "strong",
+          "label": "Strong demand",
+          "reason": "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "inputsUsed": [
+            "price",
+            "soldCount",
+            "totalSales",
+            "totalGmv",
+            "reviewCount",
+            "salesTrend.windows",
+            "revenueTrend.windows"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "momentum": {
+          "score": 48,
+          "band": "moderate",
+          "label": "Moderate momentum",
+          "reason": "Recent 7-day movement is roughly stable to mildly positive.",
+          "inputsUsed": [
+            "salesTrend.windows",
+            "revenueTrend.windows",
+            "lastIngestedAt",
+            "salesLast30d/gmvLast30d"
+          ],
+          "missingInputs": [],
+          "caveats": ["Product trend data may be stale relative to the validation timestamp."]
+        },
+        "saturation": {
+          "score": 78,
+          "band": "strong",
+          "label": "Validated opportunity",
+          "reason": "Product has enough creative proof to validate interest without obvious crowding signals.",
+          "inputsUsed": ["creativeCounts", "creatives.metrics.viewCount", "estimatedVideoGmv"],
+          "missingInputs": ["reliableCreatorIdentity"],
+          "caveats": ["Creator independence is not reliable enough for V1 scoring."],
+          "saturationLabel": "validated_opportunity"
+        },
+        "trust": {
+          "score": 90,
+          "band": "excellent",
+          "label": "Excellent trust",
+          "reason": "Rating, reviews, and sentiment support testing this product.",
+          "inputsUsed": ["rating", "reviewCount", "buyingSentimentScore", "reviewSummary"],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "confidence": {
+          "score": 78,
+          "band": "strong",
+          "label": "Strong confidence",
+          "reason": "Enough sales, trend, creative, and review evidence to support the validation judgment.",
+          "inputsUsed": [
+            "salesTrend.windows",
+            "revenueTrend.windows",
+            "soldCount/totalSales/totalGmv",
+            "creatives",
+            "reviewCount/rating",
+            "lastIngestedAt"
+          ],
+          "missingInputs": [],
+          "caveats": ["Product data freshness is weak."]
+        },
+        "riskFlags": [
+          {
+            "code": "stale_trend_data",
+            "severity": "caution",
+            "label": "Trend data may be stale",
+            "reason": "Product trend data has not been refreshed recently enough for a high-confidence momentum read."
+          }
+        ],
+        "reasons": [
+          "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "Recent 7-day movement is roughly stable to mildly positive.",
+          "Product has enough creative proof to validate interest without obvious crowding signals.",
+          "Product trend data has not been refreshed recently enough for a high-confidence momentum read."
+        ],
+        "nextStep": "Watch this product until more recent demand data is available.",
+        "debug": {
+          "bestAvailableSalesWindowDays": 30,
+          "bestAvailableGmvWindowDays": 30,
+          "salesLast7d": 5,
+          "salesPrevious7d": 5,
+          "salesLast30d": 50,
+          "gmvLast7d": 100,
+          "gmvPrevious7d": 100,
+          "gmvLast30d": 1000,
+          "creativeCount": 8,
+          "adCreativeCount": 2,
+          "topCreativeGmvShare": 0.5,
+          "trendWindowCoverage": {
+            "hasToday": true,
+            "has7d": true,
+            "has14d": true,
+            "has30d": true
+          }
+        }
+      }
+    },
+    {
+      "archetype": "low_confidence_product",
+      "validation": {
+        "version": "validds-validation-v1.0",
+        "computedAt": "2026-07-14T12:00:00.000Z",
+        "sourceUpdatedAt": "2026-07-13T10:00:00.000Z",
+        "verdict": "needs_more_proof",
+        "verdictLabel": "Needs more proof",
+        "opportunityScore": null,
+        "demand": {
+          "score": null,
+          "band": "unknown",
+          "label": "Unknown demand",
+          "reason": "No usable sales, GMV, or review evidence to score demand.",
+          "inputsUsed": [],
+          "missingInputs": [
+            "soldCount",
+            "totalSales",
+            "totalGmv",
+            "reviewCount",
+            "salesTrend.windows",
+            "revenueTrend.windows"
+          ],
+          "caveats": []
+        },
+        "momentum": {
+          "score": null,
+          "band": "unknown",
+          "label": "Unknown momentum",
+          "reason": "No usable trend windows to score momentum.",
+          "inputsUsed": [],
+          "missingInputs": ["salesTrend.windows", "revenueTrend.windows"],
+          "caveats": []
+        },
+        "saturation": {
+          "score": 38,
+          "band": "weak",
+          "label": "Low creative proof",
+          "reason": "Too little creative evidence to validate demand distribution.",
+          "inputsUsed": ["creativeCounts"],
+          "missingInputs": ["creatives", "reliableCreatorIdentity"],
+          "caveats": ["Creator independence is not reliable enough for V1 scoring."],
+          "saturationLabel": "low_proof"
+        },
+        "trust": {
+          "score": null,
+          "band": "unknown",
+          "label": "Unknown trust",
+          "reason": "No usable rating, review, or sentiment data to score trust.",
+          "inputsUsed": [],
+          "missingInputs": ["rating", "reviewCount", "buyingSentimentScore"],
+          "caveats": []
+        },
+        "confidence": {
+          "score": 14,
+          "band": "weak",
+          "label": "Weak confidence",
+          "reason": "Evidence coverage is too thin for a high-confidence opportunity call.",
+          "inputsUsed": ["lastIngestedAt"],
+          "missingInputs": ["trend windows", "sales or GMV", "creatives", "review data"],
+          "caveats": ["Trend windows missing or too shallow for a high-confidence read."]
+        },
+        "riskFlags": [
+          {
+            "code": "low_confidence",
+            "severity": "caution",
+            "label": "Low validation confidence",
+            "reason": "Evidence coverage is too thin to treat this opportunity score as definitive."
+          },
+          {
+            "code": "low_creative_proof",
+            "severity": "info",
+            "label": "Low creative proof",
+            "reason": "There is limited creative evidence validating market interest."
+          },
+          {
+            "code": "insufficient_review_volume",
+            "severity": "info",
+            "label": "Insufficient review volume",
+            "reason": "Review count is too low to strongly validate customer quality."
+          },
+          {
+            "code": "missing_recent_momentum",
+            "severity": "caution",
+            "label": "Missing recent momentum",
+            "reason": "Recent sales/GMV movement is weak, missing, or too shallow to confirm demand is alive."
+          }
+        ],
+        "reasons": [
+          "No usable sales, GMV, or review evidence to score demand.",
+          "No usable trend windows to score momentum.",
+          "Too little creative evidence to validate demand distribution.",
+          "Evidence coverage is too thin for a high-confidence opportunity call.",
+          "Evidence coverage is too thin to treat this opportunity score as definitive.",
+          "There is limited creative evidence validating market interest."
+        ],
+        "nextStep": "Watch this product until more recent demand data is available.",
+        "debug": {
+          "bestAvailableSalesWindowDays": null,
+          "bestAvailableGmvWindowDays": null,
+          "salesLast7d": null,
+          "salesPrevious7d": null,
+          "salesLast30d": null,
+          "gmvLast7d": null,
+          "gmvPrevious7d": null,
+          "gmvLast30d": null,
+          "creativeCount": 0,
+          "adCreativeCount": 0,
+          "topCreativeGmvShare": null,
+          "trendWindowCoverage": {
+            "hasToday": false,
+            "has7d": false,
+            "has14d": false,
+            "has30d": false
+          }
+        }
+      }
+    },
+    {
+      "archetype": "bad_trust_product",
+      "validation": {
+        "version": "validds-validation-v1.0",
+        "computedAt": "2026-07-14T12:00:00.000Z",
+        "sourceUpdatedAt": "2026-07-13T10:00:00.000Z",
+        "verdict": "test_carefully",
+        "verdictLabel": "Test carefully",
+        "opportunityScore": 75,
+        "demand": {
+          "score": 85,
+          "band": "excellent",
+          "label": "Excellent demand",
+          "reason": "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "inputsUsed": [
+            "price",
+            "soldCount",
+            "totalSales",
+            "totalGmv",
+            "reviewCount",
+            "salesTrend.windows",
+            "revenueTrend.windows"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "momentum": {
+          "score": 82,
+          "band": "excellent",
+          "label": "Excellent momentum",
+          "reason": "Recent 7-day movement is clearly rising versus the prior 7 days.",
+          "inputsUsed": [
+            "salesTrend.windows",
+            "revenueTrend.windows",
+            "lastIngestedAt",
+            "salesLast30d/gmvLast30d"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "saturation": {
+          "score": 78,
+          "band": "strong",
+          "label": "Validated opportunity",
+          "reason": "Product has enough creative proof to validate interest without obvious crowding signals.",
+          "inputsUsed": ["creativeCounts", "creatives.metrics.viewCount", "estimatedVideoGmv"],
+          "missingInputs": ["reliableCreatorIdentity"],
+          "caveats": ["Creator independence is not reliable enough for V1 scoring."],
+          "saturationLabel": "validated_opportunity"
+        },
+        "trust": {
+          "score": 22,
+          "band": "weak",
+          "label": "Weak trust",
+          "reason": "Buyer quality signals are weak or concerning.",
+          "inputsUsed": ["rating", "reviewCount", "buyingSentimentScore", "reviewSummary"],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "confidence": {
+          "score": 100,
+          "band": "excellent",
+          "label": "Excellent confidence",
+          "reason": "Enough sales, trend, creative, and review evidence to support the validation judgment.",
+          "inputsUsed": [
+            "salesTrend.windows",
+            "revenueTrend.windows",
+            "soldCount/totalSales/totalGmv",
+            "creatives",
+            "reviewCount/rating",
+            "lastIngestedAt"
+          ],
+          "missingInputs": [],
+          "caveats": []
+        },
+        "riskFlags": [
+          {
+            "code": "weak_trust_signals",
+            "severity": "serious",
+            "label": "Weak trust signals",
+            "reason": "Rating or buying sentiment signals do not strongly support testing."
+          }
+        ],
+        "reasons": [
+          "Product has meaningful sales/GMV proof with recent movement in available trend windows.",
+          "Recent 7-day movement is clearly rising versus the prior 7 days.",
+          "Product has enough creative proof to validate interest without obvious crowding signals.",
+          "Buyer quality signals are weak or concerning.",
+          "Rating or buying sentiment signals do not strongly support testing."
+        ],
+        "nextStep": "Review customer complaints before testing this product.",
+        "debug": {
+          "bestAvailableSalesWindowDays": 30,
+          "bestAvailableGmvWindowDays": 30,
+          "salesLast7d": 100,
+          "salesPrevious7d": 80,
+          "salesLast30d": 400,
+          "gmvLast7d": 2000,
+          "gmvPrevious7d": 1600,
+          "gmvLast30d": 8000,
+          "creativeCount": 8,
+          "adCreativeCount": 2,
+          "topCreativeGmvShare": 0.16666666666666666,
+          "trendWindowCoverage": {
+            "hasToday": true,
+            "has7d": true,
+            "has14d": true,
+            "has30d": true
+          }
+        }
+      }
+    }
+  ]
+}

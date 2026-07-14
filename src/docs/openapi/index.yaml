@@ -197,6 +197,8 @@ components:
       $ref: './components/schemas/ProductCompareItem.yaml'
     ProductCompareAnalysis:
       $ref: './components/schemas/ProductCompareAnalysis.yaml'
+    ValidationEngineResult:
+      $ref: './components/schemas/ValidationEngineResult.yaml#/ValidationEngineResult'
     MarketingAnalysis:
       $ref: './components/schemas/MarketingAnalysis.yaml'
     Creative:

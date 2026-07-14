@@ -447,10 +447,12 @@ detail:
                   properties:
                     data:
                       type: object
-                      required: [product, relatedVideos, relatedAds, freshness]
+                      required: [product, validation, relatedVideos, relatedAds, freshness]
                       properties:
                         product:
                           $ref: '../components/schemas/Product.yaml'
+                        validation:
+                          $ref: '../components/schemas/ValidationEngineResult.yaml#/ValidationEngineResult'
                         relatedVideos:
                           type: array
                           description: |

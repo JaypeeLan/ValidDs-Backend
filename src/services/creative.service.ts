@@ -996,7 +996,8 @@ export const CreativeService = {
       productModelForCreativeModel(creativeModel),
     );
     await enrichCreativeRelatedVideoMetrics(row, creativeModel);
-    if (!shouldExposeCreativeInFeed(row)) return null;
+    // Detail-by-id must return existing docs. Feed gates (playable + caption match)
+    // apply to discovery lists only — otherwise links/bookmarks 404 as "not found".
     return formatCreativeForApi(row, { includeProductDescription: true });
   },
 

@@ -196,6 +196,38 @@ export async function deleteCreativeAndOrphanProduct(
   };
 }
 
+/** Delete a product and every creative linked to it (no orphans). */
+export async function deleteProductAndCreatives(
+  market: MarketCode,
+  productId: string,
+): Promise<{ productDeleted: boolean; creativesDeleted: number }> {
+  if (!mongoose.isValidObjectId(productId)) {
+    return { productDeleted: false, creativesDeleted: 0 };
+  }
+
+  const { Creative: MarketCreative, Product: MarketProduct } = getMarketModels(market);
+  const oid = new mongoose.Types.ObjectId(productId);
+
+  const product = await MarketProduct.findById(oid).select('_id').lean();
+  if (!product) {
+    return { productDeleted: false, creativesDeleted: 0 };
+  }
+
+  const creativesResult = await MarketCreative.deleteMany({ productId: oid });
+  await MarketProduct.findByIdAndDelete(oid);
+
+  log.info('Deleted product and linked creatives', {
+    market,
+    productId,
+    creativesDeleted: creativesResult.deletedCount,
+  });
+
+  return {
+    productDeleted: true,
+    creativesDeleted: creativesResult.deletedCount,
+  };
+}
+
 function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

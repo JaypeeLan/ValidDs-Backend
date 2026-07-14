@@ -5,7 +5,10 @@ import { getRedisClient } from '../../cache/redis.client';
 import { getJobsStatus } from '../../jobs/index';
 import { User } from '../../models/user.model';
 import { getMarketModels } from '../../models/market-models.factory';
-import { deleteCreativeAndOrphanProduct } from '../../services/creative.service';
+import {
+  deleteCreativeAndOrphanProduct,
+  deleteProductAndCreatives,
+} from '../../services/creative.service';
 import { MARKET_CODES, toMarketCode, type MarketCode } from '../../utils/markets';
 import { successResponse } from '../../utils/response.util';
 import { adminCreativeAdTypeMatch } from '../../utils/creative-response.util';
@@ -529,16 +532,19 @@ export const deleteProduct = async (
   try {
     const { id } = req.params as unknown as AdminDeleteContentParamInput;
     const market = toMarketCode((req.query as any).market);
-    const { Product: MarketProduct } = getMarketModels(market);
-
-    const product = await MarketProduct.findById(id);
-    if (!product) {
+    const result = await deleteProductAndCreatives(market, id);
+    if (!result.productDeleted) {
       throw new AppError(404, 'Product not found', 'PRODUCT_NOT_FOUND');
     }
 
-    await MarketProduct.findByIdAndDelete(id);
-
-    res.json(successResponse({ id, market }, 'Product permanently deleted successfully.'));
+    res.json(
+      successResponse(
+        { id, market, creativesDeleted: result.creativesDeleted },
+        result.creativesDeleted > 0
+          ? `Product permanently deleted successfully (${result.creativesDeleted} linked creative(s) removed).`
+          : 'Product permanently deleted successfully.',
+      ),
+    );
   } catch (err) {
     next(err);
   }

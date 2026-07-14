@@ -141,7 +141,7 @@ router.patch(
 //
 // GET    /admin/products?market=US             List products for a market
 // POST   /admin/products                       Create a product in a market (body.market)
-// DELETE /admin/products/:id?market=US         Delete a product from a market
+// DELETE /admin/products/:id?market=US         Delete a product (+ linked creatives)
 
 router.get(
   '/products',
